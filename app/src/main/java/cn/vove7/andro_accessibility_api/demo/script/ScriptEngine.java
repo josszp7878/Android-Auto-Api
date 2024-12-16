@@ -1,5 +1,6 @@
 package cn.vove7.andro_accessibility_api.demo.script;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import com.chaquo.python.PyObject;
 import com.chaquo.python.Python;
@@ -18,6 +19,7 @@ import java.util.concurrent.Executors;
 public class ScriptEngine {
 
     private static final String TAG = "ScriptEngine";
+    private static volatile ScriptEngine INSTANCE;
     private Python py;
     private PyObject pythonModule;
     private final Map<String, Long> scriptLastModified;
@@ -28,14 +30,26 @@ public class ScriptEngine {
     private final ExecutorService executor;
     private final Handler mainHandler;
 
-    public ScriptEngine(Context context) {
-        this.context = context;
-        this.scriptManager = new ScriptManager(context);
+    private ScriptEngine(Context context) {
+        this.context = context.getApplicationContext();
+        this.scriptManager = new ScriptManager(this.context);
         this.scriptLastModified = new HashMap<>();
         this.executor = Executors.newSingleThreadExecutor();
         this.mainHandler = new Handler(Looper.getMainLooper());
     }
 
+    public static ScriptEngine getInstance(Context context) {
+        if (INSTANCE == null) {
+            synchronized (ScriptEngine.class) {
+                if (INSTANCE == null) {
+                    INSTANCE = new ScriptEngine(context);
+                }
+            }
+        }
+        return INSTANCE;
+    }
+
+    // 初始化脚本引擎
     public void init() {
         Log.d(TAG, "初始化ScriptEngine, ");
 
@@ -67,6 +81,7 @@ public class ScriptEngine {
         loadScripts();
     }
 
+    @SuppressLint("LogNotTimber")
     private void loadScripts() {
         File scriptsDir = scriptManager.getScriptDir();
         Log.d("ScriptEngine", "开始加载脚本目录中的文件...");

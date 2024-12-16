@@ -21,6 +21,8 @@ import android.widget.Toast
 import androidx.annotation.RequiresApi
 import cn.vove7.andro_accessibility_api.demo.service.ForegroundService
 import cn.vove7.andro_accessibility_api.demo.service.ScreenCapture
+import android.util.Log
+import cn.vove7.andro_accessibility_api.demo.script.ScriptEngine
 
 class MainActivity : AppCompatActivity() {
 
@@ -93,8 +95,24 @@ class MainActivity : AppCompatActivity() {
     private fun start() {
         // 启动前台服务（保活）
         startForegroundService(Intent(this, ForegroundService::class.java))
+        
+        // 初始化并启动脚本引擎
+        try {
+            val scriptEngine = ScriptEngine.getInstance(this)
+            scriptEngine.init()
+            
+            // 记录日志
+            Log.d("MainActivity", "Script engine started successfully")
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to start script engine", e)
+            runOnUiThread {
+                Toast.makeText(this, "脚本引擎启动失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+
         // 隐藏应用
         moveTaskToBack(true)
+        
         // 强制执行新任务
         onActionClick(ClickAction(), force = true)
     }

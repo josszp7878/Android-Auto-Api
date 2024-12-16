@@ -27,7 +27,7 @@ class DemoApp : Application() {
         INS = this
         super.onCreate()
 
-        if (Timber.treeCount == 0) {
+        if (BuildConfig.DEBUG) {
             Timber.plant(Timber.DebugTree())
         }
 
