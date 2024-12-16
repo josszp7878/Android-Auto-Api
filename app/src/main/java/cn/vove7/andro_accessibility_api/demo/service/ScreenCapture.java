@@ -1,4 +1,4 @@
-package cn.vove7.andro_accessibility_api.demo.script;
+package cn.vove7.andro_accessibility_api.demo.service;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
@@ -59,6 +59,9 @@ import android.graphics.Rect;
 import android.os.PowerManager;
 import android.os.Build;
 
+import cn.vove7.andro_accessibility_api.demo.MainActivity;
+import cn.vove7.andro_accessibility_api.demo.R;
+
 
 /** @noinspection ALL*/
 public class ScreenCapture extends Service {
@@ -117,7 +120,7 @@ public class ScreenCapture extends Service {
                 screenCapture.initialize();
                 screenCapture.isBound = true;
                 if (activity instanceof MainActivity) {
-                    ((MainActivity) activity).screenCapture = screenCapture;
+                    ((MainActivity) activity).setScreenCapture(screenCapture);
                 }
                 Log.d("ScreenCapture", "Service connected");
             }
@@ -126,7 +129,7 @@ public class ScreenCapture extends Service {
             public void onServiceDisconnected(ComponentName name) {
                 Log.d("ScreenCapture", "Service disconnected");
                 if (activity instanceof MainActivity) {
-                    ((MainActivity) activity).screenCapture = null;
+                    ((MainActivity) activity).setScreenCapture(null);
                 }
             }
         };

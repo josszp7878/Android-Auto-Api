@@ -1,6 +1,13 @@
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
-apply plugin: 'org.jetbrains.kotlin.android'
+apply plugin: 'com.chaquo.python'
+
+// Chaquopy 仓库配置
+repositories {
+    maven { url "https://chaquo.com/maven" }
+    google()
+    mavenCentral()
+}
 
 android {
     signingConfigs {
@@ -20,13 +27,26 @@ android {
         versionCode 1
         versionName "1.0"
 
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        // Chaquopy 配置
+        ndk {
+            abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
+        }
+        python {
+            pip {
+                install "numpy"
+                install "pandas"
+            }
+        }
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
     }
+    kotlinOptions {
+        jvmTarget = '11'
+    }
+    
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
@@ -37,8 +57,28 @@ android {
             signingConfig signingConfigs.debug
         }
     }
+    
     buildFeatures {
         viewBinding true
+    }
+
+    // 简化 packagingOptions
+    packagingOptions {
+        resources {
+            pickFirsts += ['META-INF/*']
+        }
+    }
+
+    // 添加资源配置
+    aaptOptions {
+        cruncherEnabled = false
+        useNewCruncher = false
+    }
+
+    // 添加 lint 配置
+    lintOptions {
+        checkReleaseBuilds false
+        abortOnError false
     }
 }
 
@@ -48,14 +88,17 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'com.jakewharton.timber:timber:5.0.1'
-
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4'
-
     implementation 'me.panavtec:drawableview:0.6.0'
+    
+    // 从 core 模块合并的依赖
+    implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:4.3'
+    
+    // Lifecycle
+    implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.4.1"
+    implementation "androidx.activity:activity-ktx:1.4.0"
 
-    testImplementation 'junit:junit:4.13.2'
-    implementation 'androidx.test.uiautomator:uiautomator:2.2.0'
-
-    implementation project(':accessibility-api')
-    implementation project(':uiauto')
+    // ML Kit
+    implementation 'com.google.mlkit:vision-common:16.5.0'
+    implementation 'com.google.mlkit:text-recognition:16.0.0-beta4'
 }

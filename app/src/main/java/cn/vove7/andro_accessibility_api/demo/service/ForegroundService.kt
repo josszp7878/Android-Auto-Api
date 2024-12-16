@@ -23,49 +23,17 @@ import kotlinx.coroutines.delay
 class ForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
-    private val channelId by lazy {
-        val id = "ForegroundService"
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val c = NotificationChannel(
-                id,
-                getString(R.string.fore_service),
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                setShowBadge(false)
-                enableVibration(false)
-                enableLights(false)
-            }
-            getSystemService(NotificationManager::class.java).createNotificationChannel(c)
-        }
-        id
-    }
-
-    private fun getNotification() = NotificationCompat.Builder(this, channelId).apply {
-        setContentTitle(getString(R.string.fore_service))
-        setContentText("输出布局 on logcat")
-        val printIntent = Intent(this@ForegroundService, ForegroundService::class.java)
-        printIntent.action = ACTION_PRINT_LAYOUT
-        val pi = PendingIntent.getService(this@ForegroundService, 0, printIntent, PendingIntent.FLAG_MUTABLE)
-
-        setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-        setSmallIcon(R.mipmap.ic_launcher_round)
-        val acb = NotificationCompat.Action.Builder(0, "输出布局 on logcat", pi)
-        addAction(acb.build())
-        setOngoing(true)
-    }.build()
-
-    override fun onCreate() {
-        super.onCreate()
-        startForeground(1999, getNotification())
-    }
-
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // 创建通知
+        val notification = NotificationCompat.Builder(this, "service_channel")
+            .setContentTitle("服务运行中")
+            .setSmallIcon(R.drawable.ic_notification)
+            .build()
 
-        intent?.action?.also {
-            parseAction(it)
-        }
-
-        return super.onStartCommand(intent, flags, startId)
+        // 启动前台服务
+        startForeground(1, notification)
+        
+        return START_STICKY
     }
 
     private fun parseAction(action: String) {

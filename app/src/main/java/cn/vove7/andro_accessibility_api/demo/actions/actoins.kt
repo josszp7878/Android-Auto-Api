@@ -293,6 +293,19 @@ class SelectTextAction : Action() {
     }
 }
 
+
+class ClickAction : Action() {
+    override val name: String
+        get() = "点击"
+    override suspend fun run(act: ComponentActivity) {
+        for (i in 0..10) {
+            delay(1000)
+            Timber.tag(TAG).i("click");
+            click(400, 500);
+        }
+    }
+}
+
 class ClickTextAction : Action() {
 
     override val name: String

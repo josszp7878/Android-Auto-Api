@@ -110,7 +110,7 @@ interface AutoApi {
     @RequiresApi(Build.VERSION_CODES.P)
     fun lockScreen(): Boolean = performAction(AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN)
 
-    // 截屏
+    // 截屏   
     @RequiresApi(Build.VERSION_CODES.P)
     fun screenShot(): Boolean =
         performAction(AccessibilityService.GLOBAL_ACTION_TAKE_SCREENSHOT)
