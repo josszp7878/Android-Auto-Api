@@ -1,5 +1,72 @@
 # Android-Accessibility-Api
 
+## 最近更新
+
+### 2024-03-16 重大更新
+1. 项目结构优化
+   - 合并了原有的三个模块(core、accessibility-api、app)为单一模块
+   - 简化了项目结构，降低维护成本
+   - 优化了依赖管理
+
+2. 新增功能
+   - 添加了脚本引擎支持
+   - 新增 ScriptEngine 和 ScriptManager 用于脚本管理和执行
+   - 支持 Python 脚本（基于 Chaquopy）
+
+3. 构建系统优化   ```groovy
+   // 主要依赖更新
+   dependencies {
+       // Python 支持
+       implementation "com.chaquo.python:runtime:12.0.1"
+       
+       // 核心功能
+       implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:4.3'
+       
+       // ML Kit 支持
+       implementation 'com.google.mlkit:vision-common:16.5.0'
+       implementation 'com.google.mlkit:text-recognition:16.0.0-beta4'
+   }   ```
+
+4. 资源文件优化
+   - 统一了资源管理
+   - 修复了资源冲突问题
+   - 优化了图标和布局资源
+
+5. 配置更新
+   - 添加了必要的权限配置
+   - 优化了构建配置
+   - 完善了混淆规则
+
+### 使用说明
+1. 脚本功能
+   - 位置：`app/src/main/java/cn/vove7/andro_accessibility_api/demo/script/`
+   - 主要类：
+     - ScriptEngine：脚本引擎核心实现
+     - ScriptManager：脚本管理器
+
+2. Python 支持
+   - 基于 Chaquopy 实现
+   - 支持 numpy、pandas 等科学计算库
+   - 可在 `build.gradle` 中配置其他 Python 包
+
+3. 权限说明   ```xml
+   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+   <uses-permission android:name="android.permission.TAKE_SCREENSHOT" />
+   <uses-permission android:name="android.permission.INTERNET" />
+   <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+   <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+   <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />   ```
+
+### 注意事项
+1. 首次运行需要授予无障碍服务权限
+2. Python 功能需要在 `build.gradle` 中正确配置 Chaquopy
+3. 确保 Android Studio 和 Gradle 版本兼容
+
+### 后续计划
+1. 完善脚本引擎功能
+2. 添加更多 Python 示例
+3. 优化性能和内存使用
+
 [![](https://jitpack.io/v/Krosxx/Android-Auto-Api.svg)](https://jitpack.io/#/Android-Krosxx-Api)
 
 中文 | [English](ReadMe_EN.md)
