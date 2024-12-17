@@ -15,6 +15,8 @@ import org.json.JSONObject;
 import org.json.JSONException;
 import java.util.*;
 
+import timber.log.Timber;
+
 public class ScriptManager {
     private static final String TAG = "ScriptManager";
     private static final String BASE_URL = "http://192.168.31.217:8000/scripts/";
@@ -25,7 +27,8 @@ public class ScriptManager {
         this.context = context;
     }
 
-    public boolean checkAndUpdateScripts() throws IOException {
+    public void checkAndUpdateScripts()
+    {
         boolean updated = false;
         try {
             JSONObject currentVersions = getCurrentVersions();
@@ -47,11 +50,10 @@ public class ScriptManager {
                 saveVersions(remoteVersions);
                 Log.d(TAG, "脚本版本信息已更新");
             }
-        } catch (JSONException e) {
+        } catch (JSONException | IOException e) {
             Log.e(TAG, "处理版本信息时出错", e);
         }
-        
-        return updated;
+
     }
 
     private void downloadScripts() throws IOException {
@@ -152,13 +154,13 @@ public class ScriptManager {
                     while ((bytesRead = errorStream.read(buffer)) != -1) {
                         error.append(new String(buffer, 0, bytesRead, StandardCharsets.UTF_8));
                     }
-                    Log.e(TAG, "服务器返回错误: " + error.toString());
+                    Timber.tag(TAG).e("服务器返回错误: " + error.toString());
                 }
             } catch (Exception e) {
             }
             
             int responseCode = conn.getResponseCode();
-            Log.d(TAG, "响应码: " + responseCode);
+            Timber.tag(TAG).d("响应码: " + responseCode);
             
             if (responseCode != HttpURLConnection.HTTP_OK) {
                 throw new IOException("获取时间戳失败: HTTP " + responseCode);

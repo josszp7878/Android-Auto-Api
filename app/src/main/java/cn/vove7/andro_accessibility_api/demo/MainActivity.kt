@@ -68,13 +68,13 @@ class MainActivity : AppCompatActivity() {
             object : Action() {
                 override val name = "To Background"
                 override suspend fun run(act: ComponentActivity) {
-                    if (!AccessibilityApi.isServiceEnable) {
-                        act.runOnUiThread {
-                            Toast.makeText(act, "请申请无障碍权限，否则功能可能不正常。", Toast.LENGTH_SHORT).show()
-                        }
-                    } else {
+//                    if (!AccessibilityApi.isServiceEnable) {
+//                        act.runOnUiThread {
+//                            Toast.makeText(act, "请申请无障碍权限，否则功能可能不正常。", Toast.LENGTH_SHORT).show()
+//                        }
+//                    } else {
                         (act as MainActivity).start()
-                    }
+//                    }
                 }
             }
         )
@@ -91,18 +91,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    @SuppressLint("LogNotTimber")
     @RequiresApi(Build.VERSION_CODES.O)
     private fun start() {
         // 启动前台服务（保活）
-        startForegroundService(Intent(this, ForegroundService::class.java))
-        
+        //startForegroundService(Intent(this, ForegroundService::class.java))
+        // 隐藏应用
+        moveTaskToBack(true)
+
         // 初始化并启动脚本引擎
         try {
             val scriptEngine = ScriptEngine.getInstance(this)
             scriptEngine.init()
-            
-            // 记录日志
-            Log.d("MainActivity", "Script engine started successfully")
         } catch (e: Exception) {
             Log.e("MainActivity", "Failed to start script engine", e)
             runOnUiThread {
@@ -110,11 +110,8 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // 隐藏应用
-        moveTaskToBack(true)
-        
         // 强制执行新任务
-        onActionClick(ClickAction(), force = true)
+        //onActionClick(ClickAction(), force = true)
     }
 
     @SuppressLint("SetTextI18n")
