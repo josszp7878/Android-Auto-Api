@@ -94,3 +94,35 @@ def click_and_read():
         for text in texts:
             print(f"Found text: {text}")
 ```
+
+## 更新日志
+
+### 直接调用Java服务接口
+
+在本阶段，我们简化了Python与Java之间的交互，移除了复杂的模块注册机制，直接在Python中调用Java类的静态方法。以下是主要的更改：
+
+1. **移除模块注册**：
+   - 删除了`RegisterPythonService`注解和相关的模块注册代码。
+   - 简化了`ScriptEngine`类，去掉了不必要的模块注册逻辑。
+
+2. **直接调用Java类**：
+   - 在`PythonServices.kt`中，使用`@JvmStatic`注解标记静态方法，以便在Java和Python中直接调用。
+   - 在`main.py`中，直接通过`jclass`导入`PythonServices`类，并调用其静态方法。
+
+3. **示例代码**：
+   - 在`main.py`中，提供了如何直接调用`clickPosition`和`getScreenText`方法的示例。
+
+### 如何使用
+
+- 确保在`PythonServices.kt`中，所有需要从Python调用的方法都使用`@JvmStatic`注解。
+- 在Python脚本中，使用`jclass`导入Java类，并直接调用静态方法。
+
+### 提交代码
+
+请确保在提交代码之前，所有更改都已测试通过，并且代码库处于稳定状态。使用以下命令提交代码到Git：
+
+```bash
+git add .
+git commit -m "Simplified Java-Python interaction by removing module registration and using direct class method calls"
+git push origin main
+```
