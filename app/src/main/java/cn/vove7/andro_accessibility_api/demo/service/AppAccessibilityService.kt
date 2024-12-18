@@ -2,7 +2,7 @@ package cn.vove7.andro_accessibility_api.demo.service
 
 import android.util.Log
 import cn.vove7.andro_accessibility_api.AccessibilityApi
-import cn.vove7.auto.core.AppScope
+import cn.vove7.auto.AppScope
 
 /**
  * # MyAccessibilityService

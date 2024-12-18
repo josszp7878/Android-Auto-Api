@@ -1,8 +1,6 @@
 package cn.vove7.andro_accessibility_api.demo.script;
 
-import android.annotation.SuppressLint;
 import android.content.Context;
-import android.util.Log;
 import android.os.Handler;
 import android.os.Looper;
 
@@ -71,9 +69,6 @@ public class ScriptEngine {
             PyObject pathList = sysModule.get("path");
             pathList.callAttr("insert", 0, scriptDir.getAbsolutePath());
 
-            // 注册Java服务接口到Python环境
-            registerServices();
-
             // 执行main入口函数
             try {
                 mainModule = py.getModule("main");
@@ -89,9 +84,5 @@ public class ScriptEngine {
         } catch (Exception e) {
             Timber.e(e, "初始化Python环境失败");
         }
-    }
-
-    private static void registerServices() {
-        // TODO: 注册各种服务接口供Python调用
     }
 } 

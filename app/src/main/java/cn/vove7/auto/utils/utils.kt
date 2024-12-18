@@ -1,4 +1,4 @@
-package cn.vove7.auto.core.utils
+package cn.vove7.auto.utils
 
 import android.accessibilityservice.GestureDescription
 import android.annotation.SuppressLint
@@ -10,7 +10,7 @@ import android.os.Bundle
 import android.os.SystemClock
 import android.provider.Settings
 import androidx.annotation.RequiresApi
-import cn.vove7.auto.core.AutoApi
+import cn.vove7.auto.AutoApi
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive

@@ -1,4 +1,4 @@
-package cn.vove7.auto.core
+package cn.vove7.auto
 
 import android.accessibilityservice.AccessibilityService
 import android.app.Instrumentation
@@ -11,10 +11,10 @@ import android.view.InputEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import androidx.annotation.RequiresApi
-import cn.vove7.auto.core.utils.AutoGestureDescription
-import cn.vove7.auto.core.utils.AutoServiceUnavailableException
-import cn.vove7.auto.core.utils.GestureResultCallback
-import cn.vove7.auto.core.utils.getApplication
+import cn.vove7.auto.utils.AutoGestureDescription
+import cn.vove7.auto.utils.AutoServiceUnavailableException
+import cn.vove7.auto.utils.GestureResultCallback
+import cn.vove7.auto.utils.getApplication
 import java.lang.reflect.Proxy
 
 /**
@@ -36,7 +36,8 @@ fun requireImpl(): AutoApi {
 }
 
 fun buildProxy(): AutoApi =
-    Proxy.newProxyInstance(getApplication().classLoader, arrayOf(AutoApi::class.java)
+    Proxy.newProxyInstance(
+        getApplication().classLoader, arrayOf(AutoApi::class.java)
     ) { _, method, args ->
         if (args == null) {
             method?.invoke(requireImpl())

@@ -18,13 +18,49 @@ import androidx.activity.ComponentActivity
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AlertDialog
 import cn.vove7.andro_accessibility_api.demo.*
-import cn.vove7.auto.core.AutoApi
-import cn.vove7.auto.core.api.*
-import cn.vove7.auto.core.requireAutoService
-import cn.vove7.auto.core.utils.AdapterRectF
-import cn.vove7.auto.core.utils.AutoGestureDescription
-import cn.vove7.auto.core.utils.GestureResultCallback
-import cn.vove7.auto.core.viewfinder.*
+import cn.vove7.auto.api.back
+import cn.vove7.auto.api.click
+import cn.vove7.auto.api.editor
+import cn.vove7.auto.api.findAllWith
+import cn.vove7.auto.api.gesture
+import cn.vove7.auto.api.gestureAsync
+import cn.vove7.auto.api.gestures
+import cn.vove7.auto.api.home
+import cn.vove7.auto.api.matchesText
+import cn.vove7.auto.api.powerDialog
+import cn.vove7.auto.api.printLayoutInfo
+import cn.vove7.auto.api.pullNotificationBar
+import cn.vove7.auto.api.quickSettings
+import cn.vove7.auto.api.recents
+import cn.vove7.auto.api.setScreenSize
+import cn.vove7.auto.api.waitForApp
+import cn.vove7.auto.api.withId
+import cn.vove7.auto.api.withText
+import cn.vove7.auto.api.withType
+import cn.vove7.auto.AutoApi
+import cn.vove7.auto.api.*
+import cn.vove7.auto.requireAutoService
+import cn.vove7.auto.utils.AdapterRectF
+import cn.vove7.auto.utils.AutoGestureDescription
+import cn.vove7.auto.utils.GestureResultCallback
+import cn.vove7.auto.viewfinder.*
+import cn.vove7.auto.viewfinder.SF
+import cn.vove7.auto.viewfinder.SG
+import cn.vove7.auto.viewfinder.ScreenTextFinder
+import cn.vove7.auto.viewfinder._desc
+import cn.vove7.auto.viewfinder._text
+import cn.vove7.auto.viewfinder.clickable
+import cn.vove7.auto.viewfinder.containsText
+import cn.vove7.auto.viewfinder.desc
+import cn.vove7.auto.viewfinder.editable
+import cn.vove7.auto.viewfinder.id
+import cn.vove7.auto.viewfinder.longClickable
+import cn.vove7.auto.viewfinder.matchText
+import cn.vove7.auto.viewfinder.scrollable
+import cn.vove7.auto.viewfinder.similarityText
+import cn.vove7.auto.viewfinder.text
+import cn.vove7.auto.viewfinder.textOrDesc
+import cn.vove7.auto.viewfinder.type
 import kotlinx.coroutines.*
 import timber.log.Timber
 import kotlin.coroutines.coroutineContext
@@ -152,13 +188,15 @@ class DrawableAction : Action() {
         if (!gestures(800, arrayOf(
                 arrayOf(Pair(200, 200), Pair(100, 100)),
                 arrayOf(Pair(220, 220), Pair(300, 300)),
-            ))) {
+            ))
+        ) {
             toast("scaleGesture 失败")
         }
         if (!gestures(800, arrayOf(
                 arrayOf(Pair(200, 200), Pair(100, 100)).reversedArray(),
                 arrayOf(Pair(220, 220), Pair(300, 300)).reversedArray(),
-            ))) {
+            ))
+        ) {
             toast("scaleGesture 失败")
         }
     }

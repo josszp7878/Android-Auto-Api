@@ -1,11 +1,11 @@
-package cn.vove7.auto.core.viewfinder
+package cn.vove7.auto.viewfinder
 
-import cn.vove7.auto.core.utils.ViewNodeNotFoundException
-import cn.vove7.auto.core.utils.ensureActive
-import cn.vove7.auto.core.utils.ensureNotInterrupt
-import cn.vove7.auto.core.utils.whileWaitTime
-import cn.vove7.auto.core.viewfinder.FinderBuilderWithOperation.Companion.WAIT_MILLIS
-import cn.vove7.auto.core.viewnode.ViewNode
+import cn.vove7.auto.utils.ViewNodeNotFoundException
+import cn.vove7.auto.utils.ensureActive
+import cn.vove7.auto.utils.ensureNotInterrupt
+import cn.vove7.auto.utils.whileWaitTime
+import cn.vove7.auto.viewfinder.FinderBuilderWithOperation.Companion.WAIT_MILLIS
+import cn.vove7.auto.viewnode.ViewNode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 

@@ -1,6 +1,6 @@
-package cn.vove7.auto.core.utils
+package cn.vove7.auto.utils
 
-import cn.vove7.auto.core.viewfinder.ViewFinder
+import cn.vove7.auto.viewfinder.ViewFinder
 
 /**
  * # exceptions

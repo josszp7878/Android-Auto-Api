@@ -1,6 +1,6 @@
-package cn.vove7.auto.core.viewfinder
+package cn.vove7.auto.viewfinder
 
-import cn.vove7.auto.core.viewnode.ViewNode
+import cn.vove7.auto.viewnode.ViewNode
 
 /**
  * # ScreenTextFinder

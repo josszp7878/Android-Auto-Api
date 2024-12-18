@@ -1,18 +1,33 @@
 from java import jclass
-import logging
 
 # 获取Android的Log类
 Log = jclass("android.util.Log")
 TAG = "PythonScript"
 
-def example_task():
-    """示例任务"""
-    Log.i(TAG, "Running example task")
-    return "Example task completed"
+# 导入Java类
+PythonServices = jclass("cn.vove7.andro_accessibility_api.demo.script.PythonServices")
+
+def test_services():
+    """测试直接调用Java服务接口"""
+    Log.i(TAG, "Testing direct Java service calls")
+    
+    # 调用clickPosition方法
+    try:
+        click_result = PythonServices.clickPosition(400, 500)
+        Log.i(TAG, f"Click position result: {click_result}")
+    except Exception as e:
+        Log.e(TAG, f"Error calling clickPosition: {e}")
+    
+    # 调用getScreenText方法
+    try:
+        screen_text = PythonServices.getScreenText()
+        Log.i(TAG, f"Screen text: {screen_text}")
+    except Exception as e:
+        Log.e(TAG, f"Error calling getScreenText: {e}")
 
 def main():
-    """
-    Python脚本入口函数
-    在这里实现具体的业务逻辑初始化
-    """
+    """Python脚本入口函数"""
     Log.i(TAG, "Python script started")
+    
+    # 测试服务接口
+    test_services()

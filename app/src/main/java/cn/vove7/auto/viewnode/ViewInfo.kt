@@ -1,4 +1,4 @@
-package cn.vove7.auto.core.viewnode
+package cn.vove7.auto.viewnode
 
 import android.graphics.Bitmap
 import android.graphics.Rect

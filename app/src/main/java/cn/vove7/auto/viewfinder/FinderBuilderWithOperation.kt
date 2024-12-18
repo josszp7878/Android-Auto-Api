@@ -1,10 +1,10 @@
-package cn.vove7.auto.core.viewfinder
+package cn.vove7.auto.viewfinder
 
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
-import cn.vove7.auto.core.viewnode.ViewNode
-import cn.vove7.auto.core.viewnode.ViewOperation
+import cn.vove7.auto.viewnode.ViewNode
+import cn.vove7.auto.viewnode.ViewOperation
 import kotlinx.coroutines.runBlocking
 
 /**

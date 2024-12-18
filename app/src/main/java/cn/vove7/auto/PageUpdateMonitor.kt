@@ -1,4 +1,4 @@
-package cn.vove7.auto.core
+package cn.vove7.auto
 
 import android.app.UiAutomation
 import android.view.View

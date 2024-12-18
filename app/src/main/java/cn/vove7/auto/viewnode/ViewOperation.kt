@@ -1,11 +1,11 @@
-package cn.vove7.auto.core.viewnode
+package cn.vove7.auto.viewnode
 
 import android.graphics.Point
 import android.graphics.Rect
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat.AccessibilityActionCompat
-import cn.vove7.auto.core.utils.ViewChildList
-import cn.vove7.auto.core.viewfinder.SmartFinder
+import cn.vove7.auto.utils.ViewChildList
+import cn.vove7.auto.viewfinder.SmartFinder
 
 /**
  * ViewNode 操作方法集合

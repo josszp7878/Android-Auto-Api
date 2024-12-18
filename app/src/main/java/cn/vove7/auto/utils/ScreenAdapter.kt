@@ -1,4 +1,4 @@
-package cn.vove7.auto.core.utils
+package cn.vove7.auto.utils
 
 import android.content.Context
 import android.graphics.Point
@@ -7,7 +7,7 @@ import android.os.Build
 import android.util.DisplayMetrics
 import android.util.Pair
 import android.view.WindowManager
-import cn.vove7.auto.core.AutoApi
+import cn.vove7.auto.AutoApi
 
 /**
  * # ScreenAdapter

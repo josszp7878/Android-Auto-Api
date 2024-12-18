@@ -67,3 +67,30 @@ i("TAG", "Info message")
 d("TAG", "Debug message")
 e("TAG", "Error message")
 ```
+
+## Python API 接口说明
+
+### 屏幕操作
+```python
+import android_services
+
+# 点击屏幕指定位置
+# 参数: x, y 坐标
+# 返回: bool 是否点击成功
+result = android_services.click_position(x, y)
+
+# 获取屏幕文本
+# 返回: List[str] 屏幕上的所有文本列表
+texts = android_services.get_screen_text()
+```
+
+### 示例代码
+```python
+def click_and_read():
+    # 点击屏幕(100, 200)位置
+    if android_services.click_position(100, 200):
+        # 获取点击后的屏幕文本
+        texts = android_services.get_screen_text()
+        for text in texts:
+            print(f"Found text: {text}")
+```

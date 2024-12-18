@@ -1,13 +1,23 @@
 @file:Suppress("unused")
 
-package cn.vove7.auto.core.api
+package cn.vove7.auto.api
 
 import android.os.Build
 import androidx.annotation.RequiresApi
-import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
-import cn.vove7.auto.core.utils.times
-import cn.vove7.auto.core.viewfinder.*
-import cn.vove7.auto.core.viewnode.ViewNode
+import cn.vove7.auto.utils.times
+import cn.vove7.auto.viewnode.ViewNode
+import cn.vove7.auto.viewfinder.AcsNode
+import cn.vove7.auto.viewfinder.ConditionGroup
+import cn.vove7.auto.viewfinder.SF
+import cn.vove7.auto.viewfinder.SmartFinder
+import cn.vove7.auto.viewfinder.ViewFinder
+import cn.vove7.auto.viewfinder.containsText
+import cn.vove7.auto.viewfinder.desc
+import cn.vove7.auto.viewfinder.editable
+import cn.vove7.auto.viewfinder.id
+import cn.vove7.auto.viewfinder.matchText
+import cn.vove7.auto.viewfinder.text
+import cn.vove7.auto.viewfinder.type
 import timber.log.Timber
 
 /**

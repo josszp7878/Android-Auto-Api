@@ -1,6 +1,7 @@
 package cn.vove7.andro_accessibility_api.demo.script;
 
 import android.content.Context;
+import android.os.Build;
 import android.util.Log;
 
 import java.io.File;
@@ -113,16 +114,19 @@ public class ScriptManager {
         if (!versionFile.exists()) {
             return new JSONObject();
         }
-        
-        try (InputStream in = Files.newInputStream(versionFile.toPath())) {
-            byte[] content = new byte[(int) versionFile.length()];
-            in.read(content);
-            String jsonStr = new String(content, StandardCharsets.UTF_8);
-            return new JSONObject(jsonStr);
-        } catch (Exception e) {
-            Log.e(TAG, "读取版本信息出错", e);
-            return new JSONObject();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try (InputStream in = Files.newInputStream(versionFile.toPath())) {
+                byte[] content = new byte[(int) versionFile.length()];
+                in.read(content);
+                String jsonStr = new String(content, StandardCharsets.UTF_8);
+                return new JSONObject(jsonStr);
+            } catch (Exception e) {
+                Timber.tag(TAG).e(e, "读取版本信息出错");
+                return new JSONObject();
+            }
         }
+        return null;
     }
 
     private JSONObject fetchRemoteVersions() throws IOException {
@@ -160,7 +164,7 @@ public class ScriptManager {
             }
             
             int responseCode = conn.getResponseCode();
-            Timber.tag(TAG).d("响应码: " + responseCode);
+            Timber.tag(TAG).d("响应码: %s", responseCode);
             
             if (responseCode != HttpURLConnection.HTTP_OK) {
                 throw new IOException("获取时间戳失败: HTTP " + responseCode);

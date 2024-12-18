@@ -1,8 +1,6 @@
-package cn.vove7.auto.core.viewfinder
+package cn.vove7.auto.viewfinder
 
-import android.view.accessibility.AccessibilityNodeInfo
-import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
-import cn.vove7.auto.core.viewnode.ViewNode
+import cn.vove7.auto.viewnode.ViewNode
 
 /**
  * # SmartFinder

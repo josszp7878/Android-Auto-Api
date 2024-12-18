@@ -1,10 +1,10 @@
-package cn.vove7.auto.core.api
+package cn.vove7.auto.api
 
 import android.os.Build
 import androidx.annotation.RequiresApi
-import cn.vove7.auto.core.AppScope
-import cn.vove7.auto.core.AutoApi
-import cn.vove7.auto.core.utils.whileWaitTime
+import cn.vove7.auto.AppScope
+import cn.vove7.auto.AutoApi
+import cn.vove7.auto.utils.whileWaitTime
 import kotlin.math.min
 
 /**

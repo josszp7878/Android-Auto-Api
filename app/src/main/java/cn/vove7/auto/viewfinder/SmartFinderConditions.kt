@@ -1,11 +1,11 @@
 @file:Suppress("unused")
 
-package cn.vove7.auto.core.viewfinder
+package cn.vove7.auto.viewfinder
 
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
-import cn.vove7.auto.core.utils.compareSimilarity
+import cn.vove7.auto.utils.compareSimilarity
 
 /**
  * # SmartFinderConditions

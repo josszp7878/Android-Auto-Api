@@ -1,4 +1,4 @@
-package cn.vove7.auto.core.api
+package cn.vove7.auto.api
 
 import android.graphics.Path
 import android.os.Handler
@@ -6,11 +6,11 @@ import android.os.HandlerThread
 import android.os.Looper
 import android.util.Pair
 import android.view.ViewConfiguration
-import cn.vove7.auto.core.AutoApi
-import cn.vove7.auto.core.utils.GestureCanceledException
-import cn.vove7.auto.core.utils.AutoGestureDescription
-import cn.vove7.auto.core.utils.GestureResultCallback
-import cn.vove7.auto.core.utils.ScreenAdapter
+import cn.vove7.auto.AutoApi
+import cn.vove7.auto.utils.GestureCanceledException
+import cn.vove7.auto.utils.AutoGestureDescription
+import cn.vove7.auto.utils.GestureResultCallback
+import cn.vove7.auto.utils.ScreenAdapter
 import kotlinx.coroutines.runBlocking
 import timber.log.Timber
 import kotlin.coroutines.resume

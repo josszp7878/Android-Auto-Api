@@ -1,4 +1,4 @@
-package cn.vove7.auto.core.viewnode
+package cn.vove7.auto.viewnode
 
 import android.graphics.Point
 import android.graphics.Rect
@@ -9,11 +9,12 @@ import android.view.accessibility.AccessibilityNodeInfo
 import androidx.annotation.RequiresApi
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat.AccessibilityActionCompat
-import cn.vove7.auto.core.AutoApi
-import cn.vove7.auto.core.utils.ScreenAdapter
-import cn.vove7.auto.core.utils.ViewChildList
-import cn.vove7.auto.core.viewfinder.AcsNode
-import cn.vove7.auto.core.viewfinder.SmartFinder
+import cn.vove7.auto.api.swipe
+import cn.vove7.auto.AutoApi
+import cn.vove7.auto.utils.ScreenAdapter
+import cn.vove7.auto.utils.ViewChildList
+import cn.vove7.auto.viewfinder.AcsNode
+import cn.vove7.auto.viewfinder.SmartFinder
 import kotlinx.coroutines.runBlocking
 import java.lang.Thread.sleep
 
@@ -74,11 +75,7 @@ class ViewNode : ViewOperation, Comparable<ViewNode> {
 
         fun activeWinNode(): ViewNode? {
             return AutoApi.rootInActiveWindow()?.let {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
-                    ViewNode(it.also(AccessibilityNodeInfo::refresh))
-                } else {
-                    ViewNode(it)
-                }
+                ViewNode(it.also(AccessibilityNodeInfo::refresh))
             }
         }
 
@@ -137,14 +134,14 @@ class ViewNode : ViewOperation, Comparable<ViewNode> {
         // 获得中心点
         val relp = ScreenAdapter.getRelPoint(getCenterPoint())
         return runBlocking {
-            cn.vove7.auto.core.api.click(relp.x, relp.y)
+            cn.vove7.auto.api.click(relp.x, relp.y)
         }
     }
 
     @RequiresApi(Build.VERSION_CODES.N)
     override suspend fun globalLongClick(): Boolean {
         val relp = ScreenAdapter.getRelPoint(getCenterPoint())
-        return cn.vove7.auto.core.api.longClick(relp.x, relp.y)
+        return cn.vove7.auto.api.longClick(relp.x, relp.y)
     }
 
     /**
@@ -328,7 +325,7 @@ class ViewNode : ViewOperation, Comparable<ViewNode> {
     override fun swipeOffset(dx: Int, dy: Int, delay: Int): Boolean {
         val c = ScreenAdapter.getRelPoint(getCenterPoint())
         return runBlocking {
-            cn.vove7.auto.core.api.swipe(c.x, c.y, c.x + dx, c.y + dy, delay)
+            swipe(c.x, c.y, c.x + dx, c.y + dy, delay)
         }
     }
 

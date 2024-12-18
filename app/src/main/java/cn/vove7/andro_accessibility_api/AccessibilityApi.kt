@@ -14,20 +14,20 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import androidx.annotation.RequiresApi
-import cn.vove7.auto.core.AppScope
-import cn.vove7.auto.core.AutoApi
-import cn.vove7.auto.core.OnPageUpdate
-import cn.vove7.auto.core.PageUpdateMonitor
-import cn.vove7.auto.core.utils.AutoGestureDescription
-import cn.vove7.auto.core.utils.convert
-import cn.vove7.auto.core.utils.jumpAccessibilityServiceSettings
-import cn.vove7.auto.core.utils.whileWaitTime
+import cn.vove7.auto.AppScope
+import cn.vove7.auto.AutoApi
+import cn.vove7.auto.OnPageUpdate
+import cn.vove7.auto.PageUpdateMonitor
+import cn.vove7.auto.utils.AutoGestureDescription
+import cn.vove7.auto.utils.convert
+import cn.vove7.auto.utils.jumpAccessibilityServiceSettings
+import cn.vove7.auto.utils.whileWaitTime
 import kotlinx.coroutines.runBlocking
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 import kotlin.math.min
-import cn.vove7.auto.core.utils.GestureResultCallback as GestureCallback
+import cn.vove7.auto.utils.GestureResultCallback as GestureCallback
 
 /**
  *

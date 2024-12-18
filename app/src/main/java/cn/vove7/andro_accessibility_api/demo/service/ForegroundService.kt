@@ -1,15 +1,11 @@
 package cn.vove7.andro_accessibility_api.demo.service
 
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
-import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
-import cn.vove7.auto.core.api.back
-import cn.vove7.auto.core.api.printLayoutInfo
+import cn.vove7.auto.api.back
+import cn.vove7.auto.api.printLayoutInfo
 import cn.vove7.andro_accessibility_api.demo.R
 import cn.vove7.andro_accessibility_api.demo.launchWithExpHandler
 import kotlinx.coroutines.delay

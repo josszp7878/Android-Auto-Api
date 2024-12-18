@@ -2,8 +2,6 @@ package cn.vove7.andro_accessibility_api.demo
 
 import android.annotation.SuppressLint
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -13,13 +11,12 @@ import androidx.appcompat.app.AppCompatActivity
 import cn.vove7.andro_accessibility_api.AccessibilityApi
 import cn.vove7.andro_accessibility_api.demo.actions.*
 import cn.vove7.andro_accessibility_api.demo.databinding.ActivityMainBinding
-import cn.vove7.auto.core.AutoApi
-import cn.vove7.auto.core.utils.jumpAccessibilityServiceSettings
+import cn.vove7.auto.AutoApi
+import cn.vove7.auto.utils.jumpAccessibilityServiceSettings
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import android.widget.Toast
 import androidx.annotation.RequiresApi
-import cn.vove7.andro_accessibility_api.demo.service.ForegroundService
 import cn.vove7.andro_accessibility_api.demo.service.ScreenCapture
 import android.util.Log
 import cn.vove7.andro_accessibility_api.demo.script.ScriptEngine
@@ -94,11 +91,8 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("LogNotTimber")
     @RequiresApi(Build.VERSION_CODES.O)
     private fun start() {
-        // 启动前台服务（保活）
-        //startForegroundService(Intent(this, ForegroundService::class.java))
         // 隐藏应用
         moveTaskToBack(true)
-
         // 初始化并启动脚本引擎
         try {
             val scriptEngine = ScriptEngine.getInstance(this)
