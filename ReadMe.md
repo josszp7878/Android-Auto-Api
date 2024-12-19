@@ -126,3 +126,26 @@ git add .
 git commit -m "Simplified Java-Python interaction by removing module registration and using direct class method calls"
 git push origin main
 ```
+
+### 新增功能
+
+1. **截屏指令**：
+   - 新增了“截屏”指令，允许通过Python脚本触发截屏操作。
+   - 在`commands.py`中实现了指令解析。
+   - 在`PythonServices.kt`中实现了截屏功能。
+
+### 新的截屏功能
+
+- 使用 `ScreenCapture` 服务进行截屏，不再依赖无障碍服务。
+- 截屏结果以 Base64 编码的字符串形式返回，便于在应用中使用。
+
+### 如何使用
+
+1. 确保应用具有必要的权限，包括 `FOREGROUND_SERVICE` 和 `MEDIA_PROJECTION`。
+2. 在需要截屏的地方调用 `PythonServices.takeScreenshot()` 方法。
+3. 截屏结果将以 Base64 编码的字符串形式返回，可以用于显示或保存。
+
+### 注意事项
+
+- 确保在调用截屏功能之前，已经正确处理了 `MediaProjection` 的权限请求。
+- `ScreenCapture` 服务需要在前台运行，以确保稳定性。

@@ -20,19 +20,22 @@ import androidx.annotation.RequiresApi
 import cn.vove7.andro_accessibility_api.demo.service.ScreenCapture
 import android.util.Log
 import cn.vove7.andro_accessibility_api.demo.script.ScriptEngine
+import cn.vove7.andro_accessibility_api.demo.script.PythonServices
 
 class MainActivity : AppCompatActivity() {
 
     private val binding by lazy {
         ActivityMainBinding.inflate(layoutInflater)
     }
-    var screenCapture: ScreenCapture? = null
 
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
-
+        // 初始化 PythonServices 的 Context
+        PythonServices.init(this)
+        // 启动 ScreenCapture 服务
+        ScreenCapture.Begin(this)
         // 启动无障碍服务
         startAccessibilityService()
         val actions = mutableListOf(
@@ -174,5 +177,14 @@ class MainActivity : AppCompatActivity() {
             Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
         )
         return enabledServices?.contains(serviceName) == true
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == ScreenCapture.REQUEST_CODE_SCREEN_CAPTURE) {
+            val screenCapture = ScreenCapture.getInstance()
+            screenCapture?.handlePermissionResult(resultCode, data)
+        }
     }
 }

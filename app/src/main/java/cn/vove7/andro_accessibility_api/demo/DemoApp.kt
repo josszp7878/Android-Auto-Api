@@ -13,10 +13,8 @@ import android.app.NotificationManager
 /**
  * # DemoApp
  *
- *
  * Created on 2020/6/10
  *
- * @author Vove
  */
 class DemoApp : Application() {
     companion object {

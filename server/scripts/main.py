@@ -10,12 +10,17 @@ def test_commands():
     Log.i(TAG, "Testing command parsing and execution")
     
     # 测试点击指令
-    command_text = "点击 400 500"
-    result = parse_command(command_text)
-    Log.i(TAG, f"Command result: {result}")
+    # command_text = "点击 400 500"
+    # result = parse_command(command_text)
+    # Log.i(TAG, f"Command result: {result}")
+    #
+    # # 测试获取屏幕内容指令
+    # command_text = "屏幕内容"
+    # result = parse_command(command_text)
+    # Log.i(TAG, f"Command result: {result}")
     
-    # 测试获取屏幕内容指令
-    command_text = "屏幕内容"
+    # 测试截屏指令
+    command_text = "截屏"
     result = parse_command(command_text)
     Log.i(TAG, f"Command result: {result}")
 

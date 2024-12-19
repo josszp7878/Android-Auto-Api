@@ -57,12 +57,6 @@ public class ScriptManager {
 
     }
 
-    private void downloadScripts() throws IOException {
-        Log.d(TAG, "开始下载脚本文件...");
-        downloadScript("commands.py");
-        downloadScript("Command.py");
-    }
-
     private void downloadScript(String filename) throws IOException {
         Log.d(TAG, "正在下载: " + filename);
         URL url = new URL(BASE_URL + filename);
