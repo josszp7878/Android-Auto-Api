@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>设备控制 - {{ device_id }}</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+    <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-4">
+        <div id="app">
+            <h2>设备控制面板</h2>
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">设备ID: {{ device_id }}</h5>
+                    <p class="card-text">状态: {{ device.status if device else 'unknown' }}</p>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">指令输入:</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" v-model="command">
+                            <button class="btn btn-primary" @click="sendCommand">发送</button>
+                        </div>
+                    </div>
+
+                    <div class="mb-3" v-if="commandResult">
+                        <div class="alert" :class="commandResult.status === 'success' ? 'alert-success' : 'alert-danger'">
+                            {{ commandResult.result }}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <button class="btn btn-outline-primary me-2" @click="sendPresetCommand('getinfo')">获取设备信息</button>
+                        <button class="btn btn-outline-primary me-2" @click="sendPresetCommand('screenshot')">截图</button>
+                        <button class="btn btn-outline-primary" @click="sendPresetCommand('status')">状态检查</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        new Vue({
+            el: '#app',
+            data: {
+                device_id: '{{ device_id }}',
+                command: '',
+                commandResult: null,
+                socket: null,
+                deviceStatus: '{{ device.status if device else "unknown" }}'
+            },
+            mounted() {
+                this.socket = io();
+                this.socket.on('command_result', (data) => {
+                    console.log('收到命令响应:', data);
+                    this.commandResult = data;
+                });
+            },
+            methods: {
+                sendCommand() {
+                    if (!this.command) return;
+                    console.log('发送命令:', this.command);
+                    this.socket.emit('send_command', {
+                        device_id: this.device_id,
+                        command: this.command
+                    });
+                    this.command = '';
+                },
+                sendPresetCommand(cmd) {
+                    this.command = cmd;
+                    this.sendCommand();
+                }
+            }
+        });
+    </script>
+</body>
+</html> 

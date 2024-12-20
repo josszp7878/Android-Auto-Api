@@ -1,0 +1,6 @@
+{
+    "terminal.integrated.env.windows": {
+        "http_proxy": "http://192.168.31.217:7890",
+        "https_proxy": "http://192.168.31.217:7890"
+    }
+}
