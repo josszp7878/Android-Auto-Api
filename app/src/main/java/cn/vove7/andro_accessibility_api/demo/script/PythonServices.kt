@@ -1,22 +1,23 @@
 package cn.vove7.andro_accessibility_api.demo.script
 
-import android.accessibilityservice.AccessibilityService
 import android.annotation.SuppressLint
 import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
+import android.util.Base64
 import cn.vove7.andro_accessibility_api.demo.service.ScreenCapture
 import cn.vove7.auto.AutoApi
 import cn.vove7.auto.api.back
 import cn.vove7.auto.api.click
 import cn.vove7.auto.api.home
 import cn.vove7.auto.viewfinder.ScreenTextFinder
+import cn.vove7.auto.viewnode.ViewNode
 import kotlinx.coroutines.runBlocking
 import timber.log.Timber
 import java.io.File
-import android.util.Base64
 
 /**
  * Python服务接口的Kotlin实现
@@ -24,15 +25,51 @@ import android.util.Base64
 class PythonServices {
     companion object {
         private const val TAG = "PythonServices"
+
         @SuppressLint("StaticFieldLeak")
         private lateinit var context: Context
 
+        // 缓存应用的包名和显示名称
+        private val appNameToPackageMap = mutableMapOf<String, String>()
+
         /**
-         * 初始化 Context
+         * 初始化 Context 和应用信息
          */
         @JvmStatic
         fun init(context: Context) {
             this.context = context.applicationContext
+            loadInstalledApps()
+        }
+
+        /**
+         * 加载已安装应用的信息
+         */
+        @SuppressLint("QueryPermissionsNeeded")
+        private fun loadInstalledApps() {
+            val packageManager = context.packageManager
+            val packages = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                packageManager.getInstalledPackages(
+                    PackageManager.PackageInfoFlags.of(
+                        PackageManager.GET_META_DATA.toLong()
+                    )
+                )
+            } else {
+                packageManager.getInstalledPackages(PackageManager.GET_META_DATA)
+            }
+            for (packageInfo in packages) {
+                val appName =
+                    packageManager.getApplicationLabel(packageInfo.applicationInfo).toString()
+//                Timber.tag(TAG).i("Found app: %s, package: %s", appName, packageInfo.packageName)
+                appNameToPackageMap[appName] = packageInfo.packageName
+            }
+        }
+
+        /**
+         * 通过显示名称获取包名
+         */
+        @JvmStatic
+        fun getPackageName(appName: String): String? {
+            return appNameToPackageMap[appName]
         }
 
         /**
@@ -41,14 +78,14 @@ class PythonServices {
          */
         @JvmStatic
         fun clickPosition(x: Float, y: Float): Boolean {
-            Timber.i("Click position: $x, $y")
+            Timber.tag(TAG).i("Click position: $x, $y")
             return try {
                 runBlocking {
                     click(x.toInt(), y.toInt())
                 }
                 true
             } catch (e: Exception) {
-                Timber.e(e, "Click position failed")
+                Timber.tag(TAG).e(e, "Click position failed")
                 false
             }
         }
@@ -59,13 +96,13 @@ class PythonServices {
          */
         @JvmStatic
         fun getScreenText(): String {
-            Timber.i("Get screen text")
+            Timber.tag(TAG).i("Get screen text")
             return try {
                 runBlocking {
                     ScreenTextFinder().find().joinToString("\n\n")
                 }
             } catch (e: Exception) {
-                Timber.e(e, "Get screen text failed")
+                Timber.tag(TAG).e(e, "Get screen text failed")
                 return ""
             }
         }
@@ -75,7 +112,7 @@ class PythonServices {
          */
         @JvmStatic
         fun goBack(): Boolean {
-            Timber.i("Go back")
+            Timber.tag(TAG).i("Go back")
             return back();
         }
 
@@ -84,59 +121,140 @@ class PythonServices {
          */
         @JvmStatic
         fun goHome(): Boolean {
-            Timber.i("Go home")
-           return home()
+            Timber.tag(TAG).i("Go home")
+            return home()
         }
 
         /**
          * 打开指定的APP
          */
         @JvmStatic
-        fun openApp(packageName: String): Boolean {
-            Timber.i("Open app: $packageName")
+        fun openApp(appName: String): Boolean {
+            val packageName = getPackageName(appName)
+            if (packageName == null) {
+                Timber.tag(TAG).e("App not found: $appName")
+                return false
+            }
+
+            Timber.tag(TAG).i("Attempting to open app: %s with package: %s", appName, packageName)
+
+            // 使用 AutoApi 启动应用
             return try {
-                val intent = context.packageManager.getLaunchIntentForPackage(packageName)
-                if (intent != null) {
-                    context.startActivity(intent)
-                    true
-                } else {
-                    Timber.e("App not found: $packageName")
-                    false
+                AutoApi.launchPackage(packageName)
+
+                // 等待并检查启动结果
+                Thread.sleep(1000)
+                val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+                val isNowRunning =
+                    am.runningAppProcesses?.any { it.processName == packageName } ?: false
+                Timber.tag(TAG).d("App running status after launch: %s", isNowRunning)
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    val foregroundApp =
+                        am.appTasks.firstOrNull()?.taskInfo?.topActivity?.packageName
+                    Timber.tag(TAG).d("Current foreground app: %s", foregroundApp)
                 }
+
+                true
             } catch (e: Exception) {
-                Timber.e(e, "Open app failed")
+                Timber.tag(TAG).e(e, "Failed to launch app using AutoApi")
                 false
             }
         }
+//移到了PYTHON 实现
+//        /**
+//         * 通过点击打开指定的APP
+//         */
+//        @JvmStatic
+//        fun openAppByClick(appName: String, goBack: Boolean = false): Boolean {
+//            Timber.tag(TAG).i("Opening app by click: %s", appName)
+//
+//            try {
+//                // 1. 回到桌面
+//                if (!AutoApi.home()) {
+//                    Timber.tag(TAG).e("Failed to go home")
+//                    return false
+//                }
+//                // 等待桌面加载
+//                Thread.sleep(500)
+//                // 2. 获取桌面文字
+//                val screenText = runBlocking {
+//                    ScreenTextFinder().find()
+//                }
+//
+//                // 3. 查找目标应用的文字节点
+//                val targetNode = screenText.find { node -> node.text?.contains(appName) ?: false }
+//
+//                if (targetNode == null) {
+//                    Timber.tag(TAG).e("App icon not found on screen: %s", appName)
+//                    return false
+//                }
+//
+//                // 4. 获取点击坐标
+//                val bounds = targetNode.bounds
+//                val x = bounds.centerX().toFloat()
+//                val y = bounds.centerY().toFloat()
+//
+//                // 5. 点击打开应用
+//                val clickResult = runBlocking {
+//                    click(x.toInt(), y.toInt())
+//                }
+//
+//                if (!clickResult) {
+//                    Timber.tag(TAG).e("Failed to click app icon")
+//                    return false
+//                }
+//                // 等待应用启动
+//                Thread.sleep(1500)
+//                // 6. 如果需要返回
+//                if (goBack) {
+//                    AutoApi.back()
+//                }
+//                return true
+//
+//            } catch (e: Exception) {
+//                Timber.tag(TAG).e(e, "Failed to open app by click")
+//                return false
+//            }
+//        }
 
         /**
          * 关闭指定的APP
          */
         @JvmStatic
-        fun closeApp(packageName: String): Boolean {
-            Timber.i("Close app: $packageName")
+        fun closeApp(appName: String): Boolean {
+            val packageName = getPackageName(appName)
+            if (packageName == null) {
+                Timber.tag(TAG).e("App not found: $appName")
+                return false
+            }
+            Timber.tag(TAG).i("Close app: $appName")
             return try {
                 val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
                 am.killBackgroundProcesses(packageName)
                 true
             } catch (e: Exception) {
-                Timber.e(e, "Close app failed")
+                Timber.tag(TAG).e(e, "Close app failed")
                 false
             }
         }
-
 
         /**
          * 检查指定APP是否安装
          */
         @JvmStatic
-        fun isAppInstalled(packageName: String): Boolean {
-            Timber.i("Check if app is installed: $packageName")
+        fun isAppInstalled(appName: String): Boolean {
+            val packageName = getPackageName(appName)
+            if (packageName == null) {
+                Timber.tag(TAG).e("App not found: $appName")
+                return false
+            }
+            Timber.tag(TAG).i("Check if app is installed: $appName")
             return try {
                 context.packageManager.getPackageInfo(packageName, 0)
                 true
             } catch (e: PackageManager.NameNotFoundException) {
-                Timber.e("App not installed: $packageName")
+                Timber.tag(TAG).e("App not installed: $appName")
                 false
             }
         }
@@ -145,48 +263,57 @@ class PythonServices {
          * 卸载指定的APP
          */
         @JvmStatic
-        fun uninstallApp(packageName: String): Boolean {
-            Timber.i("Uninstall app: $packageName")
+        fun uninstallApp(appName: String): Boolean {
+            val packageName = getPackageName(appName)
+            if (packageName == null) {
+                Timber.tag(TAG).e("App not found: $appName")
+                return false
+            }
+            Timber.tag(TAG).i("Uninstall app: $appName")
             return try {
                 val intent = Intent(Intent.ACTION_DELETE)
                 intent.data = Uri.parse("package:$packageName")
                 context.startActivity(intent)
                 true
             } catch (e: Exception) {
-                Timber.e(e, "Uninstall app failed")
+                Timber.tag(TAG).e(e, "Uninstall app failed")
                 false
             }
         }
-               /**
+
+        /**
          * 安装指定的APP
          */
         @JvmStatic
         fun installApp(apkFileName: String): Boolean {
-            Timber.i("Install app: $apkFileName")
+            Timber.tag(TAG).i("Install app: $apkFileName")
             return try {
                 val file = File(context.getExternalFilesDir(null), apkFileName)
                 if (file.exists()) {
                     val intent = Intent(Intent.ACTION_VIEW)
-                    intent.setDataAndType(Uri.fromFile(file), "application/vnd.android.package-archive")
+                    intent.setDataAndType(
+                        Uri.fromFile(file),
+                        "application/vnd.android.package-archive"
+                    )
                     intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
                     context.startActivity(intent)
                     true
                 } else {
-                    Timber.e("APK file not found: $apkFileName")
+                    Timber.tag(TAG).e("APK file not found: $apkFileName")
                     false
                 }
             } catch (e: Exception) {
-                Timber.e(e, "Install app failed")
+                Timber.tag(TAG).e(e, "Install app failed")
                 false
             }
-        } 
+        }
 
         /**
          * 截屏
          */
         @JvmStatic
         fun takeScreenshot(): String {
-            Timber.i("Taking screenshot using ScreenCapture service")
+            Timber.tag(TAG).i("Taking screenshot using ScreenCapture service")
             return try {
                 // 调用新的全屏截图方法
                 val data = ScreenCapture.getInstance().takeScreenshot()
@@ -197,12 +324,25 @@ class PythonServices {
                     "截屏失败"
                 }
             } catch (e: SecurityException) {
-                Timber.e(e, "权限不足，无法截屏")
+                Timber.tag(TAG).e(e, "权限不足，无法截屏")
                 "截屏失败: 权限不足"
             } catch (e: Exception) {
-                Timber.e(e, "Take screenshot failed")
+                Timber.tag(TAG).e(e, "Take screenshot failed")
                 "截屏失败: ${e.message}"
             }
         }
+
+        @JvmStatic
+        fun findTextNodes(): Array<ViewNode> {
+            return try {
+                runBlocking {
+                    ScreenTextFinder().find()
+                }
+            } catch (e: Exception) {
+                Timber.tag(TAG).e(e, "Failed to find text nodes")
+                emptyArray()
+            }
+        }
     }
+        
 } 

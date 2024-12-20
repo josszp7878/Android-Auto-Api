@@ -21,6 +21,14 @@ import cn.vove7.andro_accessibility_api.demo.service.ScreenCapture
 import android.util.Log
 import cn.vove7.andro_accessibility_api.demo.script.ScriptEngine
 import cn.vove7.andro_accessibility_api.demo.script.PythonServices
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import timber.log.Timber
+import android.os.PowerManager
+import android.content.Context
+import android.net.Uri
 
 class MainActivity : AppCompatActivity() {
 
@@ -28,10 +36,31 @@ class MainActivity : AppCompatActivity() {
         ActivityMainBinding.inflate(layoutInflater)
     }
 
+    private val REQUEST_CODE_PERMISSIONS = 1001
+
+    @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
+    private fun checkPowerSavingMode() {
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        if (powerManager.isPowerSaveMode) {
+            Toast.makeText(this, "设备处于省电模式，可能会影响应用的正常运行。", Toast.LENGTH_LONG).show()
+        }
+    }
+
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
+
+        // Check power-saving mode
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            checkPowerSavingMode()
+        }
+
+        // 检查电池优化设置
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            checkBatteryOptimization()
+        }
+
         // 初始化 PythonServices 的 Context
         PythonServices.init(this)
         // 启动 ScreenCapture 服务
@@ -89,6 +118,9 @@ class MainActivity : AppCompatActivity() {
                 jumpAccessibilityServiceSettings(AccessibilityApi.BASE_SERVICE_CLS)
             }
         }
+
+        // Check and request permissions
+        checkAndRequestPermissions()
     }
 
     @SuppressLint("LogNotTimber")
@@ -185,6 +217,58 @@ class MainActivity : AppCompatActivity() {
         if (requestCode == ScreenCapture.REQUEST_CODE_SCREEN_CAPTURE) {
             val screenCapture = ScreenCapture.getInstance()
             screenCapture?.handlePermissionResult(resultCode, data)
+        }
+    }
+
+    @SuppressLint("InlinedApi")
+    private fun checkAndRequestPermissions() {
+        val requiredPermissions = arrayOf(
+            Manifest.permission.REQUEST_INSTALL_PACKAGES,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE
+        )
+
+        val missingPermissions = requiredPermissions.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+
+        if (missingPermissions.isNotEmpty()) {
+            ActivityCompat.requestPermissions(this, missingPermissions.toTypedArray(), REQUEST_CODE_PERMISSIONS)
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_CODE_PERMISSIONS) {
+            if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+                // All permissions granted
+                Timber.tag("MainActivity").i("All permissions granted")
+            } else {
+                // Some permissions are denied
+                Timber.tag("MainActivity").e("Some permissions are denied")
+            }
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.M)
+    private fun checkBatteryOptimization() {
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        val packageName = packageName
+        if (!powerManager.isIgnoringBatteryOptimizations(packageName)) {
+            // 如果没有被忽略电池优化，则弹出设置界面让用户手动添加
+            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                data = Uri.parse("package:$packageName")
+            }
+            try {
+                startActivity(intent)
+            } catch (e: Exception) {
+                // 某些设备可能不支持直接跳转，尝试打开电池优化列表
+                try {
+                    startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                } catch (e: Exception) {
+                    Timber.e(e, "Failed to open battery optimization settings")
+                    Toast.makeText(this, "请手动前往设置中添加电池优化白名单", Toast.LENGTH_LONG).show()
+                }
+            }
         }
     }
 }
