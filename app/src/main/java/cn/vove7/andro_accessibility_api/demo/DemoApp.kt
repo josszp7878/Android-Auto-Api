@@ -38,7 +38,7 @@ class DemoApp : Application() {
         } else {
             startService(Intent(this, ForegroundService::class.java))
         }
-        Timber.i("DemoApp create.")
+        Timber.tag("DemoApp").d("Application started")
 
         createNotificationChannel()
     }

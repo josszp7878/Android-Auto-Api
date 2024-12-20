@@ -3,19 +3,24 @@ package cn.vove7.auto
 import android.accessibilityservice.AccessibilityService
 import android.app.Instrumentation
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.os.Build
 import android.os.Handler
+import android.os.SystemClock
 import android.util.SparseArray
 import android.view.InputEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import androidx.annotation.RequiresApi
+import cn.vove7.andro_accessibility_api.AccessibilityApi
 import cn.vove7.auto.utils.AutoGestureDescription
 import cn.vove7.auto.utils.AutoServiceUnavailableException
 import cn.vove7.auto.utils.GestureResultCallback
 import cn.vove7.auto.utils.getApplication
 import java.lang.reflect.Proxy
+import timber.log.Timber
 
 /**
  * # AutoApi
@@ -77,6 +82,55 @@ interface AutoApi {
         const val SERVICE_TYPE_NONE = 0
         const val SERVICE_TYPE_ACCESSIBILITY = 1
         const val SERVICE_TYPE_INSTRUMENTATION = 2
+
+        /**
+         * 使用无障碍服务启动应用
+         */
+        @JvmStatic
+        fun launchPackage(packageName: String): Boolean {
+            try {
+                // 获取当前的 AutoApi 实现
+                val impl = AutoImpl ?: throw Exception("Auto service not running")
+                
+                // 检查服务类型
+                if (serviceType != SERVICE_TYPE_ACCESSIBILITY) {
+                    throw Exception("Current service is not accessibility service")
+                }
+                
+                // 转换为 AccessibilityService
+                val service = impl as AccessibilityService
+                val pm = service.packageManager
+
+                // 获取启动 Intent
+                val intent = pm.getLaunchIntentForPackage(packageName)
+                    ?: throw Exception("Failed to get launch intent")
+
+                // 添加必要的 flags
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                intent.addFlags(Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+                
+                // 启动应用
+                service.startActivity(intent)
+                
+                // 等待应用启动
+                var attempts = 0
+                while (attempts < 10) {
+                    if (impl.rootInActiveWindow()?.packageName == packageName) {
+                        Timber.tag("AutoAPI").i("App launched successfully")
+                        return true
+                    }
+                    SystemClock.sleep(200)
+                    attempts++
+                }
+                
+                Timber.tag("AutoAPI").w("App may not have launched properly")
+                return false
+
+            } catch (e: Exception) {
+                Timber.tag("AutoAPI").e(e, "Failed to launch package: $packageName")
+                return false
+            }
+        }
 
     }
 

@@ -26,14 +26,14 @@ public class ScriptEngine {
     private static final long CHECK_INTERVAL = 5000;
     private long lastCheckTime;
     private final Context context;
-    private final ScriptManager scriptManager;
+    private final ScriptManager fileServer;
     private final ExecutorService executor;
     private final Handler mainHandler;
 
     private ScriptEngine(Context context) {
         this.context = context.getApplicationContext();
         applicationContext = this.context;
-        this.scriptManager = new ScriptManager(this.context);
+        this.fileServer = new ScriptManager(this.context);
         this.scriptLastModified = new HashMap<>();
         this.executor = Executors.newSingleThreadExecutor();
         this.mainHandler = new Handler(Looper.getMainLooper());
@@ -52,7 +52,7 @@ public class ScriptEngine {
 
     public void init() {
         Timber.tag(TAG).d("初始化ScriptEngine");
-        scriptManager.checkAndUpdateScripts();
+        fileServer.checkAndUpdateScripts();
         
         try {
             // 初始化Python
@@ -62,7 +62,7 @@ public class ScriptEngine {
             py = Python.getInstance();
 
             // 设置Python脚本路径
-            File scriptDir = scriptManager.getScriptDir();
+            File scriptDir = fileServer.getScriptDir();
             Timber.d("Python脚本目录: %s", scriptDir.getAbsolutePath());
             
             PyObject sysModule = py.getModule("sys");

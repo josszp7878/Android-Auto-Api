@@ -1,6 +1,44 @@
-# Android Accessibility API Demo
+# Android 自动化工具
 
-## 目录结构
+基于无障碍服务的 Android 自动化工具，支持 Python 脚本控制。
+
+## 更新日志
+
+### 2024-12-19
+#### 新增功能
+1. 系统智能适配
+   - 支持 Android/鸿蒙系统自动识别
+   - 根据系统类型自动选择最佳启动方式
+   - Android：使用系统服务接口
+   - 鸿蒙：使用模拟点击方式
+
+2. 电池优化
+   - 添加电池优化白名单申请
+   - 优化后台运行稳定性
+
+3. Python 脚本增强
+   - 新增 Tools 工具类
+   - 智能应用启动接口
+   - 完善异常处理和日志
+
+## 使用说明
+
+### Python 脚本示例
+```python
+from tools import Tools
+
+# 打开应用（自动适配系统类型）
+Tools.openApp("应用名称")
+```
+
+### 必要权限
+1. 无障碍服务权限
+2. 电池优化白名单
+3. `QUERY_ALL_PACKAGES`：用于获取应用列表
+
+### 系统要求
+- Android 7.0+
+- Python 3.x
 
 ```
 server/

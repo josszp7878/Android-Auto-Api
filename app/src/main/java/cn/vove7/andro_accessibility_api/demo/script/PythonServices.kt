@@ -161,62 +161,6 @@ class PythonServices {
                 false
             }
         }
-//移到了PYTHON 实现
-//        /**
-//         * 通过点击打开指定的APP
-//         */
-//        @JvmStatic
-//        fun openAppByClick(appName: String, goBack: Boolean = false): Boolean {
-//            Timber.tag(TAG).i("Opening app by click: %s", appName)
-//
-//            try {
-//                // 1. 回到桌面
-//                if (!AutoApi.home()) {
-//                    Timber.tag(TAG).e("Failed to go home")
-//                    return false
-//                }
-//                // 等待桌面加载
-//                Thread.sleep(500)
-//                // 2. 获取桌面文字
-//                val screenText = runBlocking {
-//                    ScreenTextFinder().find()
-//                }
-//
-//                // 3. 查找目标应用的文字节点
-//                val targetNode = screenText.find { node -> node.text?.contains(appName) ?: false }
-//
-//                if (targetNode == null) {
-//                    Timber.tag(TAG).e("App icon not found on screen: %s", appName)
-//                    return false
-//                }
-//
-//                // 4. 获取点击坐标
-//                val bounds = targetNode.bounds
-//                val x = bounds.centerX().toFloat()
-//                val y = bounds.centerY().toFloat()
-//
-//                // 5. 点击打开应用
-//                val clickResult = runBlocking {
-//                    click(x.toInt(), y.toInt())
-//                }
-//
-//                if (!clickResult) {
-//                    Timber.tag(TAG).e("Failed to click app icon")
-//                    return false
-//                }
-//                // 等待应用启动
-//                Thread.sleep(1500)
-//                // 6. 如果需要返回
-//                if (goBack) {
-//                    AutoApi.back()
-//                }
-//                return true
-//
-//            } catch (e: Exception) {
-//                Timber.tag(TAG).e(e, "Failed to open app by click")
-//                return false
-//            }
-//        }
 
         /**
          * 关闭指定的APP

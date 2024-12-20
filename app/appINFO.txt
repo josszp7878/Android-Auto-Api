@@ -1,0 +1,89 @@
+Found app: 标记, package: com.android.apps.tag
+2024-12-19 17:25:37.273 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: HAware, package: com.huawei.powergenie
+2024-12-19 17:25:37.273 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: BehaviorAuth, package: com.huawei.behaviorauth
+2024-12-19 17:25:37.274 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: Huawei WebView, package: com.huawei.webview
+2024-12-19 17:25:37.299 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 番茄免费小说, package: com.dragon.read
+2024-12-19 17:25:37.308 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 分布式设备管理, package: com.huawei.devicemanager
+2024-12-19 17:25:37.331 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 小天才, package: com.xtc.watch
+2024-12-19 17:25:37.331 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: Android-Accessibility-Api, package: cn.vove7.andro_accessibility_api.demo
+2024-12-19 17:25:37.334 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 小艺建议, package: com.huawei.ohos.suggestion
+2024-12-19 17:25:37.337 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 番茄畅听, package: com.xs.fm
+2024-12-19 17:25:37.337 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: iConnectUI, package: com.huawei.iconnect.ui
+2024-12-19 17:25:37.337 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: Application Inspector, package: com.ubqsoft.sec01
+2024-12-19 17:25:37.365 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 豆包, package: com.larus.nova
+2024-12-19 17:25:37.388 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 腾讯新闻, package: com.tencent.news
+2024-12-19 17:25:37.390 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: HwInstantOnline, package: com.huawei.android.instantonline
+2024-12-19 17:25:37.419 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 存储空间管理器, package: com.android.storagemanager
+2024-12-19 17:25:37.425 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 设置, package: com.android.settings
+2024-12-19 17:25:37.434 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: Clash for Android, package: com.github.kr328.clash.foss
+2024-12-19 17:25:37.501 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 小白学习打印, package: com.xbxxhz.box
+2024-12-19 17:25:37.501 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: Tethering, package: com.android.networkstack.tethering.inprocess
+2024-12-19 17:25:37.501 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: com.android.server.NetworkPermissionConfig, package: com.android.networkstack.permissionconfig
+2024-12-19 17:25:37.506 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 相机, package: com.huawei.ohos.camera
+2024-12-19 17:25:37.535 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: LOFTER, package: com.lofter.android
+2024-12-19 17:25:37.539 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: TrustedDeviceAuth, package: com.huawei.deviceauth
+2024-12-19 17:25:37.558 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 华为分享, package: com.huawei.pcassistant
+2024-12-19 17:25:37.563 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 高德地图, package: com.autonavi.minimap
+2024-12-19 17:25:37.569 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 工程菜单, package: com.huawei.android.projectmenu
+2024-12-19 17:25:37.570 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: com.android.cts.ctsshim, package: com.android.cts.ctsshim
+2024-12-19 17:25:37.577 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 钉钉, package: com.alibaba.android.rimet
+2024-12-19 17:25:37.583 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 文件管理卡片, package: com.huawei.filemanager.fa
+2024-12-19 17:25:37.586 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 推送服务, package: com.huawei.android.pushagent
+2024-12-19 17:25:37.591 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 运动健康, package: com.huawei.ohos.health
+2024-12-19 17:25:37.596 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 云空间, package: com.huawei.hidisk.fa
+2024-12-19 17:25:37.596 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: VpnDialogs, package: com.android.vpndialogs
+2024-12-19 17:25:37.607 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: nRF Connect, package: no.nordicsemi.android.mcp
+2024-12-19 17:25:37.610 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 安全隐私中心, package: com.huawei.security.privacycenter
+2024-12-19 17:25:37.616 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 升级向导, package: com.huawei.android.hwupgradeguide
+2024-12-19 17:25:37.620 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 镜子, package: com.huawei.ohos.mirror
+2024-12-19 17:25:37.626 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 拨号服务, package: com.android.phone
+2024-12-19 17:25:37.633 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: Shell, package: com.android.shell
+2024-12-19 17:25:37.633 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: com.android.wallpaperbackup, package: com.android.wallpaperbackup
+2024-12-19 17:25:37.635 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 存储已屏蔽的号码, package: com.android.providers.blockednumber
+2024-12-19 17:25:37.638 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 用户词典, package: com.android.providers.userdictionary
+2024-12-19 17:25:37.640 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 媒体存储, package: com.android.providers.media.module
+2024-12-19 17:25:37.657 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 懒人听书, package: bubei.tingshu
+2024-12-19 17:25:37.672 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 紧急信息, package: com.android.emergency
+2024-12-19 17:25:37.678 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 图库, package: com.huawei.ohos.photos
+2024-12-19 17:25:37.681 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 智慧视觉, package: com.huawei.scanner
+2024-12-19 17:25:37.687 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: HwDistributedKeyManager, package: com.huawei.distributed.kms
+2024-12-19 17:25:37.693 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: OsuLogin, package: com.android.hotspot2.osulogin
+2024-12-19 17:25:37.696 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: Gestural Navigation Bar, package: com.android.internal.systemui.navbar.gestural
+2024-12-19 17:25:37.699 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 情景智能, package: com.huawei.suggestion
+2024-12-19 17:25:37.711 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 音乐播放器, package: com.huawei.music.local
+2024-12-19 17:25:37.713 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 融合定位, package: com.android.location.fused
+2024-12-19 17:25:37.716 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 全局搜索数据服务, package: com.huawei.ohos.search
+2024-12-19 17:25:37.720 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 系统用户界面, package: com.android.systemui
+2024-12-19 17:25:37.724 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: Bluetooth MIDI Service, package: com.android.bluetoothmidiservice
+2024-12-19 17:25:37.729 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 关键资产同步, package: com.huawei.assetsync
+2024-12-19 17:25:37.735 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 智能检测基础服务, package: com.huawei.hwdetectrepair
+2024-12-19 17:25:37.737 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 权限控制器, package: com.android.permissioncontroller
+2024-12-19 17:25:37.774 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 百度网盘, package: com.baidu.netdisk
+2024-12-19 17:25:37.777 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 畅连服务, package: com.huawei.hwvoipservice
+2024-12-19 17:25:37.782 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: K 歌特效, package: com.huawei.android.karaoke
+2024-12-19 17:25:37.782 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: GameKit, package: com.huawei.game.kitserver
+2024-12-19 17:25:37.787 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: test, package: com.cc.test
+2024-12-19 17:25:37.810 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 备忘录, package: com.huawei.notepad
+2024-12-19 17:25:37.812 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: CA, package: com.huawei.ca
+2024-12-19 17:25:37.828 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 天际通数据服务, package: com.huawei.skytone
+2024-12-19 17:25:37.831 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 关键资产同步管理服务, package: com.huawei.assetsyncservice
+2024-12-19 17:25:37.831 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: Suki, package: com.ppmm.suki
+2024-12-19 17:25:37.834 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 掌上生活, package: com.cmbchina.ccd.pluto.cmbActivity
+2024-12-19 17:25:37.864 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 熄屏显示, package: com.huawei.aod
+2024-12-19 17:25:37.868 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: DEF, package: com.huawei.def
+2024-12-19 17:25:37.871 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 智能信息, package: com.huawei.hbm
+2024-12-19 17:25:37.872 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: com.huawei.hff, package: com.huawei.hff
+2024-12-19 17:25:37.875 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: HwImsService, package: com.huawei.ims
+2024-12-19 17:25:37.878 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 位置服务, package: com.huawei.lbs
+2024-12-19 17:25:37.880 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 蓝牙, package: com.android.bluetooth
+2024-12-19 17:25:37.883 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 联系人存储, package: com.android.providers.contacts
+2024-12-19 17:25:37.890 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: CaptivePortalLogin, package: com.android.captiveportallogin
+2024-12-19 17:25:37.931 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 音频管家, package: com.huawei.audioaccessorymanager
+2024-12-19 17:25:37.932 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: HiAI Base, package: com.huawei.hiaction
+2024-12-19 17:25:37.938 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: TrustedThingsAuth, package: com.huawei.trustedthingsauth
+2024-12-19 17:25:37.941 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 支付宝, package: com.eg.android.AlipayGphone
+2024-12-19 17:25:37.950 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 无线投屏, package: com.huawei.android.airsharing
+2024-12-19 17:25:37.957 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 中国移动, package: com.greenpoint.android.mc10086.activity
+2024-12-19 17:25:37.968 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 华为 RCS 服务, package: com.huawei.rcsserviceapplication
+2024-12-19 17:25:37.987 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 时钟, package: com.huawei.deskclock
+2024-12-19 17:25:38.013 21377-21377 PythonServices          cn.....andro_accessibility_api.demo  I  Found app: 服务中心, package: com.huawei.ohos.famanager
