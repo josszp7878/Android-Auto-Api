@@ -2,19 +2,35 @@ import socketio
 import time
 from datetime import datetime
 
-# 创建SocketIO客户端，添加一些配置
+"""
+设备端程序原型
+- 这个脚本将被改写为Android应用
+- 保持相同的WebSocket通信逻辑
+- 运行在实际的手机设备上
+
+通信流程：
+1. 设备连接服务器并自动注册
+2. 接收服务器转发的命令
+3. 执行命令并返回结果
+4. 保持心跳连接
+"""
+
+# 创建SocketIO客户端，配置自动重连参数
 sio = socketio.Client(
-    reconnection=True,
-    reconnection_attempts=5,
-    reconnection_delay=1,
-    reconnection_delay_max=5,
-    logger=True  # 添加日志
+    reconnection=True,        # 启用自动重连
+    reconnection_attempts=5,  # 最大重连次数
+    reconnection_delay=1,     # 重连延迟(秒)
+    reconnection_delay_max=5, # 最大重连延迟(秒)
+    logger=True              # 启用日志
 )
 
 @sio.event
 def connect():
+    """连接成功回调：
+    - 发送设备登录信息
+    - 包含设备ID和时间戳
+    """
     print('已连接到服务器')
-    # 模拟设备登录
     sio.emit('device_login', {
         'device_id': 'test_device_001',
         'timestamp': str(datetime.now())
@@ -22,10 +38,18 @@ def connect():
 
 @sio.event
 def connect_error(data):
+    """连接错误回调：
+    - 记录错误信息
+    - 等待自动重连
+    """
     print(f'连接错误: {data}')
 
 @sio.event
 def disconnect():
+    """断开连接回调：
+    - 记录断开信息
+    - 清理资源
+    """
     print('断开连接')
 
 @sio.on('command')
@@ -40,7 +64,6 @@ def on_command(data):
 def main():
     try:
         print('正在连接到服务器...')
-        # 修改连接参数
         sio.connect(
             'http://localhost:5000',
             wait_timeout=10,
@@ -48,6 +71,7 @@ def main():
             wait=True
         )
         
+        # 保持连接运行
         while True:
             try:
                 time.sleep(1)
