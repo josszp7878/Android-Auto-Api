@@ -23,11 +23,11 @@
                         </div>
                     </div>
 
-                    <div class="mb-3" v-if="commandResult">
+                    <!-- <div class="mb-3" v-if="commandResult">
                         <div class="alert" :class="commandResult.status === 'success' ? 'alert-success' : 'alert-danger'">
-                            {{ commandResult.result }}
+                            {{ commandResult.result | default('没有结果') }}
                         </div>
-                    </div>
+                    </div> -->
 
                     <div class="mb-3">
                         <button class="btn btn-outline-primary me-2" @click="sendPresetCommand('getinfo')">获取设备信息</button>

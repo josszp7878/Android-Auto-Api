@@ -1,4 +1,5 @@
-from Command import command, parse_command
+from Command import command, do
+from client.scripts.tools import Tools
 from config import get_package_name, get_apk_path
 from java import jclass
 
@@ -31,8 +32,8 @@ def go_back():
 def go_home():
     return PythonServices.goHome()
 
-@command(r"检查安装\s+(?P<packageName>\S+)")
-def is_app_installed(packageName):
+@command(r"检查安装\s+(?P<productName>\S+)")
+def is_app_installed(productName):
     packageName = get_package_name(productName)
     if packageName:
         return PythonServices.isAppInstalled(packageName)
@@ -40,10 +41,7 @@ def is_app_installed(packageName):
 
 @command(r"打开\s+(?P<productName>\S+)")
 def open_app(productName):
-    packageName = get_package_name(productName)
-    if packageName:
-        return PythonServices.openApp(packageName)
-    return f"未找到产品名对应的包名: {productName}"
+    return Tools.openApp(productName)
 
 @command(r"关闭\s+(?P<productName>\S+)")
 def close_app(productName):
@@ -58,8 +56,8 @@ def install_app(productName):
     if apkPath:
         return PythonServices.installApp(apkPath)
     return f"未找到产品名对应的APK路径: {productName}"
-@command(r"卸载\s+(?P<packageName>\S+)")
-def uninstall_app(packageName):
+@command(r"卸载\s+(?P<productName>\S+)")
+def uninstall_app(productName):
     packageName = get_package_name(productName)
     if packageName:
         return PythonServices.uninstallApp(packageName)

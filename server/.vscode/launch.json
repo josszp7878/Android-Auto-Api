@@ -1,0 +1,31 @@
+{
+    
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "chrome",
+            "request": "launch",
+            "name": "Open index.html",
+            "file": "e:\\Project\\Android-Auto-Api\\server\\server\\app\\templates\\index.html"
+        },
+        {
+            "name": "Python: Flask",
+            "type": "python",
+            "request": "launch",
+            "module": "flask",
+            "env": {
+                "FLASK_APP": "run.py",
+                "FLASK_ENV": "development"
+            },
+            "args": [
+                "run",
+                "--no-reload"  // 禁用自动重载，以便调试时不会中断
+            ],
+            "jinja": true,
+            "justMyCode": true
+        }
+    ]
+}

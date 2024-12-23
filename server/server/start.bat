@@ -2,4 +2,7 @@
 echo start server...
 @REM pip install -r requirements.txt
 python run.py
-pause 
+if errorlevel 1 (
+    echo Server failed to start
+    pause
+) 
