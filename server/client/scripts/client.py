@@ -1,6 +1,6 @@
-from distutils.cmd import Command
 import socketio
 from datetime import datetime
+from command import do as command_do
 
 
 class Client:
@@ -52,10 +52,6 @@ class Client:
 
     def login(self):
         """设备登录"""
-        if not self.connected:
-            print('未连接到服务器')
-            return False
-        
         self.sio.emit('device_login', {
             'device_id': self.device_id,
             'timestamp': str(datetime.now())
@@ -64,10 +60,6 @@ class Client:
         return True
     
     def logout(self):
-        """设备登出"""
-        if not self.connected:
-            print(f'设备 {self.device_id} 未连接到服务器')
-            return False
         self.sio.emit('device_logout', {
             'device_id': self.device_id,
             'timestamp': str(datetime.now())
@@ -79,13 +71,15 @@ class Client:
     
     apkCall = False
     def on_command(self, data):
-        print(f'客户端收到命令: {data}')    
-        response = {
-            'status': 'success',
-            'result': f'执行命令: {data["command"]}'
-        }
-        print(f'客户端发送响应: {response}')
-        self.sio.emit('command_response', response)
+        print(f'客户端收到命令: {data}')
+        result = command_do(data['command'])
+        print(f'客户端执行命令结果: {result}')
+        if result is not None:
+            response = {
+                'result': result
+            }
+            print(f'客户端发送响应: {response}')
+            self.sio.emit('command_response', response)
 
 
     def on_connect(self):

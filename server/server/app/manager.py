@@ -1,7 +1,7 @@
 from datetime import datetime
 from flask import current_app
 from .models import db, DeviceModel
-from .device import Device
+from .SDevice import SDevice
 
 class DeviceManager:
     """设备管理器：管理所有设备"""
@@ -21,7 +21,7 @@ class DeviceManager:
         """从数据库加载设备"""
         try:
             for device_model in DeviceModel.query.all():
-                device = Device(device_model.device_id, device_model.info)
+                device = SDevice(device_model.device_id, device_model.info)
                 device.status = device_model.status
                 device.last_seen = device_model.last_seen
                 device.screenshot = device_model.screenshot
@@ -50,7 +50,7 @@ class DeviceManager:
     def add_device(self, device_id, info=None):
         """添加设备"""
         self.ensure_initialized()
-        device = Device(device_id, info)
+        device = SDevice(device_id, info)
         self.devices[device_id] = device
         self._save_to_db(device)
         return device
@@ -59,6 +59,13 @@ class DeviceManager:
         """获取设备"""
         self.ensure_initialized()
         return self.devices.get(device_id)
+
+    def get_device_by_sid(self, sid):
+        """根据sid获取设备"""
+        for device in self.devices.values():
+            if device.info.get('sid') == sid:
+                return device
+        return None
     
     def update_device(self, device):
         """更新设备状态"""

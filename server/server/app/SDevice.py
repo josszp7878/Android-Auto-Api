@@ -2,7 +2,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-class Device:
+class SDevice:
     """设备类：管理设备状态和信息"""
     
     def __init__(self, device_id, info=None):
@@ -18,21 +18,18 @@ class Device:
         self.screenshot_dir.mkdir(parents=True, exist_ok=True)
     
     def login(self):
-        """设备登录"""
-        self.status = 'online'
+        self.status = 'login'
         self.last_seen = datetime.now()
         print(f'设备登录: {self.device_id}')
     
     def logout(self):
-        """设备登出"""
-        self.status = 'offline'
+        self.status = 'online'
         self.last_seen = datetime.now()
         print(f'设备登出: {self.device_id}')
     
     def update_status(self, status):
         """更新设备状态"""
         self.status = status
-        self.last_seen = datetime.now()
     
     def get_latest_screenshot(self):
         """获取最新的截图URL"""

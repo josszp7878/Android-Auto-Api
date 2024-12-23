@@ -34,22 +34,16 @@ def handle_connect(auth):
         print(f'Client connected: {device_id}')
         device = device_manager.get_device(device_id)
         if not device:
-            device = device_manager.add_device(device_id, {
-                'sid': request.sid,
-                'connected_at': str(datetime.now())
-            })
-        else:
-            device.info.update({
-                'sid': request.sid,
-                'connected_at': str(datetime.now())
-            })
-            device_manager.update_device(device)  # 更新数据库
-        
-        # 连接时自动设置为在线状态
-        device.login()
+            device = device_manager.add_device(device_id)
+        device.info.update({
+            'sid': request.sid,
+            'connected_at': str(datetime.now())
+        })
         device_manager.update_device(device)  # 更新数据库
-        broadcast_device_list()
-        
+        # 连接时自动设置为在线状态
+        # device.update_status('online')
+        # broadcast_device_list()
+        do_login(device)
     except Exception as e:
         print(f'处理连接时出错: {e}')
 
@@ -57,13 +51,10 @@ def handle_connect(auth):
 def handle_disconnect():
     """处理客户端断开连接"""
     print(f'Client disconnected: {request.sid}')
-    # 查找对应的设备并标记为离线
-    for device in device_manager.devices.values():
-        if device.info.get('sid') == request.sid:
-            device.logout()
-            print(f'设备断开连接: {device.device_id}')
-            break
-    broadcast_device_list()
+    device = device_manager.get_device_by_sid(request.sid)
+    if device:
+        device.update_status('offline')
+        broadcast_device_list()
 
 @socketio.on('device_login')
 def handle_login(data):
@@ -71,12 +62,14 @@ def handle_login(data):
     print(f'收到登录请求: {data}')
     device_id = data.get('device_id')
     if not device_id:
-        return
-    
+        return    
     device = device_manager.get_device(device_id)
+    do_login(device)
+
+def do_login(device):
     if device:
         device.login()
-        print(f'设备登录: {device_id}')
+        print(f'设备登录: {device.device_id}')
         broadcast_device_list()
 
 
@@ -102,9 +95,14 @@ def handle_command(data):
     print(f'服务器收到命令请求: device_id={device_id}, command={command}')
     
     device = device_manager.get_device(device_id)
-    if device and device.status == 'online':
-        print(f'发送命令到设备 {device_id}: {command}')
-        emit('command', {'command': command}, room=device_id)  # 转发到设备
+    if device and device.status == 'login':
+        sid = device.info.get('sid')  # 获取设备的 sid
+        if sid:
+            print(f'发送命令到设备 {device_id}(sid={sid}): {command}')
+            emit('command', {'command': command}, room=sid)  # 使用 sid 作为 room
+        else:
+            print(f'设备 {device_id} 没有有效的 sid')
+            emit('error', {'message': '设备会话无效'})
     else:
         print(f'设备不存在或离线: {device_id}')
         emit('error', {'message': '设备不存在或离线'})
