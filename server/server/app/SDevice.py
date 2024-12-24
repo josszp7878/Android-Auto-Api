@@ -1,13 +1,15 @@
 import os
 from datetime import datetime
 from pathlib import Path
+from flask import current_app
+from .models import db, DeviceModel
 
 class SDevice:
     """设备类：管理设备状态和信息"""
     
     def __init__(self, device_id, info=None):
         self.device_id = device_id
-        self.status = 'offline'
+        self._status = 'offline'
         self.last_seen = datetime.now()
         self.info = info or {}
         self._ensure_screenshot_dir()
@@ -17,15 +19,39 @@ class SDevice:
         self.screenshot_dir = Path('app/static/screenshots') / self.device_id
         self.screenshot_dir.mkdir(parents=True, exist_ok=True)
     
+    @property
+    def status(self):
+        return self._status
+    
+    @status.setter
+    def status(self, value):
+        self._status = value
+        self.last_seen = datetime.now()
+        self._sync_to_db()
+    
+    def _sync_to_db(self):
+        """同步设备状态到数据库"""
+        try:
+            with current_app.app_context():
+                device_model = DeviceModel.query.filter_by(device_id=self.device_id).first()
+                if device_model:
+                    device_model.status = self._status
+                    device_model.last_seen = self.last_seen
+                    db.session.add(device_model)
+                    db.session.commit()
+                    print(f'设备 {self.device_id} 状态已同步到数据库')
+        except Exception as e:
+            print(f'同步设备状态到数据库出错: {e}')
+    
     def login(self):
         self.status = 'login'
-        self.last_seen = datetime.now()
-        print(f'设备登录: {self.device_id}')
+        print(f'设备{self.device_id}登录:')
+        return True
     
     def logout(self):
         self.status = 'online'
-        self.last_seen = datetime.now()
-        print(f'设备登出: {self.device_id}')
+        print(f'设备{self.device_id}登出:')
+        return True
     
     def update_status(self, status):
         """更新设备状态"""
@@ -64,3 +90,5 @@ class SDevice:
             'info': self.info,
             'screenshot': self.get_latest_screenshot()
         } 
+    
+    

@@ -22,6 +22,7 @@ class Client:
         self.sio.on('disconnect', self.on_disconnect)
         self.sio.on('connect_error', self.on_connect_error)
         self.sio.on('command', self.on_command)
+        self.sio.on('command_result', self.on_command_result)
 
     def isConnected(self):
         """检查是否已连接"""
@@ -56,7 +57,6 @@ class Client:
             'device_id': self.device_id,
             'timestamp': str(datetime.now())
         })
-        print(f'设备 {self.device_id} 已登录')
         return True
     
     def logout(self):
@@ -64,7 +64,6 @@ class Client:
             'device_id': self.device_id,
             'timestamp': str(datetime.now())
         })
-        print(f'设备 {self.device_id} 已登出')
         return True
     
 
@@ -76,11 +75,15 @@ class Client:
         print(f'客户端执行命令结果: {result}')
         if result is not None:
             response = {
+                'device_id': self.device_id,
                 'result': result
             }
             print(f'客户端发送响应: {response}')
             self.sio.emit('command_response', response)
 
+    def on_command_result(self, data):
+        """处理命令结果"""
+        print(f'命令结果: {data["result"]}')
 
     def on_connect(self):
         """连接成功回调"""

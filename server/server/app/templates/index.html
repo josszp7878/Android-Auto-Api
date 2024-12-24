@@ -12,11 +12,16 @@
         <div id="app">
             <div class="main-content" :class="{'history-expanded': showHistory}">
                 <h2>设备列表</h2>
-                <div class="row">
-                    <div class="col-md-4 mb-3" v-for="(device, id) in devices" :key="id">
+                <div class="devices-container">
+                    <div class="device-wrapper" v-for="(device, id) in devices" :key="id">
                         <div class="device-card" 
-                             :class="{'selected': selectedDevice === id}"
-                             :style="{'background-image': `url(${device.screenshot || '/static/screenshots/default.jpg'})`}"
+                             :class="{
+                                 'selected': selectedDevice === id,
+                                 'offline': device.status !== 'login'
+                             }"
+                             :style="{
+                                 'background-image': `url(${device.screenshot || '/static/screenshots/default.jpg'})`
+                             }"
                              @click.stop="selectDevice(id)">
                             <div class="device-info">
                                 <h5>[[ id ]]</h5>
@@ -32,16 +37,23 @@
                 <div class="console-history" 
                      :class="{'expanded': showHistory}" 
                      ref="consoleHistory"
+                     @scroll="handleHistoryScroll"
                      @click.stop="keepHistoryOpen">
-                    <div v-for="(log, index) in commandLogs" :key="index" class="console-line">
+                    <!-- 加载提示 -->
+                    <div v-if="loadingHistory" class="history-loading">
+                        加载历史记录...
+                    </div>
+                    <!-- 命令记录 -->
+                    <div v-for="log in commandLogs" :key="log.index" class="console-line">
+                        <!-- 发送命令显示 -->
                         <template v-if="log.type === 'command'">
-                            <span class="console-command">> [[ log.deviceId ]]: [[ log.content ]]</span>
+                            <span class="console-device-id">[[ log.deviceId ]] ></span>
+                            <span class="console-command">[[ log.content ]]</span>
                         </template>
-                        <template v-else-if="log.type === 'response'">
-                            <span class="console-response">[[ log.content ]]</span>
-                        </template>
+                        <!-- 命令响应显示 -->
                         <template v-else>
-                            <span class="console-error">[[ log.content ]]</span>
+                            <span class="console-device-id">[[ log.deviceId ]] <</span>
+                            <span class="console-response" :class="log.level">[[ log.content ]]</span>
                         </template>
                     </div>
                 </div>

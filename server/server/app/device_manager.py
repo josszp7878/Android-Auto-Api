@@ -4,6 +4,14 @@ from .models import db, DeviceModel
 from .SDevice import SDevice
 
 class DeviceManager:
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(DeviceManager, cls).__new__(cls, *args, **kwargs)
+            cls._instance.device_id = None  # 初始化当前设备ID
+        return cls._instance
+
     """设备管理器：管理所有设备"""
     
     def __init__(self):
@@ -22,9 +30,8 @@ class DeviceManager:
         try:
             for device_model in DeviceModel.query.all():
                 device = SDevice(device_model.device_id, device_model.info)
-                device.status = device_model.status
+                device._status = device_model.status  # 直接设置状态属性
                 device.last_seen = device_model.last_seen
-                device.screenshot = device_model.screenshot
                 self.devices[device.device_id] = device
             print(f'从数据库加载了 {len(self.devices)} 个设备')
         except Exception as e:
@@ -43,7 +50,7 @@ class DeviceManager:
                     device_model.last_seen = device.last_seen
                     device_model.info = device.info
                 db.session.commit()
-                print(f'设备 {device.device_id} 已保存到数据库')
+                # print(f'设备 {device.device_id} 已保存到数据库')
         except Exception as e:
             print(f'保存数据库出错: {e}')
     
@@ -80,3 +87,14 @@ class DeviceManager:
             device_id: device.to_dict()
             for device_id, device in self.devices.items()
         } 
+
+    def set_device_id(self, device_id):
+        """设置当前设备ID"""
+        self.device_id = device_id
+        print(f'@@@ set_device_id: {device_id}')
+
+
+    def get_device_id(self):
+        """获取当前设备ID"""
+        print(f'@@@ get_device_id: {self.device_id}')
+        return self.device_id

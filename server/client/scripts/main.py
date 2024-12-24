@@ -28,7 +28,7 @@ def main(device_id=None):
     
     try:
         while True:
-            cmd_input = input("输入命令> ").strip()
+            cmd_input = input(f"{device_id}> ").strip()
             if not cmd_input:
                 continue
                 

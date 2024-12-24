@@ -1,15 +1,19 @@
-# 面向控制器端的网页路由
-from flask import render_template
-from app import app
-from app.websocket import device_manager  # 导入设备列表
+from flask import Blueprint, render_template
+from .device_manager import DeviceManager
 
-@app.route('/')
+# 创建蓝图
+bp = Blueprint('main', __name__)
+
+# 获取设备管理器实例
+device_manager = DeviceManager()
+
+@bp.route('/')
 def index():
     """首页路由，返回设备列表"""
     devices = device_manager.to_dict()
     return render_template('index.html', initial_devices=devices)
 
-@app.route('/device/<device_id>')
+@bp.route('/device/<device_id>')
 def device(device_id):
     """设备控制页面"""
     device = device_manager.get_device(device_id)

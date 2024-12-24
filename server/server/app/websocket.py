@@ -1,9 +1,12 @@
 from app import socketio
 from flask_socketio import emit
-from flask import request
+from flask import request, current_app
 from datetime import datetime
 import json
-from .manager import DeviceManager
+from .device_manager import DeviceManager
+from .models import db
+from .command_history import CommandHistory
+from .SCommand import SCommand
 
 class DateTimeEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -59,18 +62,23 @@ def handle_disconnect():
 @socketio.on('device_login')
 def handle_login(data):
     """处理设备登录"""
-    print(f'收到登录请求: {data}')
     device_id = data.get('device_id')
     if not device_id:
         return    
     device = device_manager.get_device(device_id)
-    do_login(device)
+    if not device:
+        return
+    ok = do_login(device)
+    emit('command_result', {'result': ok})
 
 def do_login(device):
     if device:
-        device.login()
-        print(f'设备登录: {device.device_id}')
-        broadcast_device_list()
+        if device.login():
+            broadcast_device_list()
+            return True
+        else:
+            return False
+    return False
 
 
 @socketio.on('device_logout')
@@ -80,38 +88,49 @@ def handle_logout(data):
     device_id = data.get('device_id')
     if not device_id:
         return
-    
     device = device_manager.get_device(device_id)
+    ret = False
     if device:
-        device.logout()
-        print(f'设备登出: {device_id}')
-        broadcast_device_list()
+        ok = device.logout()
+        if ok:
+            broadcast_device_list()
+            ret = True
+    emit('command_result', {'result': ret})
+    return ret
+
 
 
 @socketio.on('send_command')
 def handle_command(data):
+    """处理命令请求"""
     device_id = data.get('device_id')
     command = data.get('command')
-    print(f'服务器收到命令请求: device_id={device_id}, command={command}')
-    
-    device = device_manager.get_device(device_id)
-    if device and device.status == 'login':
-        sid = device.info.get('sid')  # 获取设备的 sid
-        if sid:
-            print(f'发送命令到设备 {device_id}(sid={sid}): {command}')
-            emit('command', {'command': command}, room=sid)  # 使用 sid 作为 room
-        else:
-            print(f'设备 {device_id} 没有有效的 sid')
-            emit('error', {'message': '设备会话无效'})
-    else:
-        print(f'设备不存在或离线: {device_id}')
-        emit('error', {'message': '设备不存在或离线'})
+    SCommand.execute(device_id, command)
 
 
 @socketio.on('command_response')
 def handle_command_response(data):
-    print(f'服务器收到命令响应: {data}')
-    emit('command_result', data, broadcast=True)
+    """处理命令响应"""
+    try:
+        result = data.get('result')
+        device_id = data.get('device_id')
+        level = data.get('level', 'info')
+        print(f'收到命令响应: {device_id} result= {result}')
+        
+        response = SCommand.handle_response(device_id, result, level)
+        if not response['success']:
+            emit('error', {'message': response['error']})
+            return
+            
+        emit('command_result', {
+            'result': response['result'],
+            'command_id': response['command_id'],
+            'level': response['level'],
+            'device_id': response['device_id']
+        }, broadcast=True)
+    except Exception as e:
+        print(f'处理命令响应出错: {e}')
+        emit('error', {'message': '处理响应失败'})
 
 
 @socketio.on('update_screenshot')
@@ -125,5 +144,29 @@ def handle_screenshot(data):
         screenshot_url = device.save_screenshot(screenshot_data)
         if screenshot_url:
             broadcast_device_list()  # 广播更新，包含新的截图URL
+
+
+@socketio.on('load_command_history')
+def handle_load_history(data):
+    """加载命令历史"""
+    device_id = data.get('device_id')
+    page = data.get('page', 1)
+    per_page = 30
+    
+    try:
+        print(f'加载设备 {device_id} 的历史记录, 页码: {page}')
+        response_data = CommandHistory.getHistory(device_id, page, per_page)
+        
+        emit('command_history', response_data)
+    except Exception as e:
+        print(f'加载命令历史出错: {e}')
+        emit('error', {'message': '加载历史记录失败'})
+
+
+@socketio.on('set_current_device')
+def handle_set_current_device(data):
+    """设置当前设备ID"""
+    device_id = data.get('device_id')
+    DeviceManager().set_device_id(device_id)
 
 
