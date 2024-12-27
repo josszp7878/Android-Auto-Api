@@ -15,51 +15,60 @@ import java.nio.file.Files;
 import org.json.JSONObject;
 import org.json.JSONException;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
+import cn.vove7.andro_accessibility_api.demo.MainActivity;
 import timber.log.Timber;
 
 public class ScriptManager {
     private static final String TAG = "ScriptManager";
-    private static final String BASE_URL = "http://192.168.31.217:8000/scripts/";
-    private static final String TIMESTAMP_API = "http://192.168.31.217:8000/timestamps";
-    private final Context context;
+    public String TIMESTAMP_API() {
+        return "http://" + context.getServerIP() + "/timestamp";
+    }
+    public String BASE_URL() {
+        return "http://" + context.getServerIP() + "/base";
+    }
+    private final MainActivity context;
+    private final ExecutorService executorService = Executors.newSingleThreadExecutor();
     
-    public ScriptManager(Context context) {
+    public ScriptManager(MainActivity context) {
         this.context = context;
     }
 
     public void checkAndUpdateScripts()
     {
-        boolean updated = false;
-        try {
-            JSONObject currentVersions = getCurrentVersions();
-            JSONObject remoteVersions = fetchRemoteVersions();
-            Iterator<String> keys = remoteVersions.keys();
-            while (keys.hasNext()) {
-                String filename = keys.next();
-                String remoteVersion = remoteVersions.getString(filename);
-                String currentVersion = currentVersions.optString(filename, "0");
-                
-                if (Long.parseLong(remoteVersion) > Long.parseLong(currentVersion)) {
-                    Log.d(TAG, "检测到脚本更新: " + filename);
-                    downloadScript(filename);
-                    updated = true;
+        executorService.submit(() -> {
+            boolean updated = false;
+            try {
+                JSONObject currentVersions = getCurrentVersions();
+                JSONObject remoteVersions = fetchRemoteVersions();
+                Iterator<String> keys = remoteVersions.keys();
+                while (keys.hasNext()) {
+                    String filename = keys.next();
+                    String remoteVersion = remoteVersions.getString(filename);
+                    String currentVersion = currentVersions.optString(filename, "0");
+                    
+                    if (Long.parseLong(remoteVersion) > Long.parseLong(currentVersion)) {
+                        Log.d(TAG, "检测到脚本更新: " + filename);
+                        downloadScript(filename);
+                        updated = true;
+                    }
                 }
+                
+                if (updated) {
+                    saveVersions(remoteVersions);
+                    Log.d(TAG, "脚本版本信息已更新");
+                }
+            } catch (JSONException | IOException e) {
+                Log.e(TAG, "处理版本信息时出错", e);
             }
-            
-            if (updated) {
-                saveVersions(remoteVersions);
-                Log.d(TAG, "脚本版本信息已更新");
-            }
-        } catch (JSONException | IOException e) {
-            Log.e(TAG, "处理版本信息时出错", e);
-        }
-
+        });
     }
 
     private void downloadScript(String filename) throws IOException {
         Log.d(TAG, "正在下载: " + filename);
-        URL url = new URL(BASE_URL + filename);
+        URL url = new URL(BASE_URL() + filename);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         try {
             conn.setConnectTimeout(8000);
@@ -124,9 +133,9 @@ public class ScriptManager {
     }
 
     private JSONObject fetchRemoteVersions() throws IOException {
-        Log.d(TAG, "获取远程文件时间戳...");
-        String urlStr = TIMESTAMP_API;
-        Log.d(TAG, "请求URL: " + urlStr);
+        Timber.tag(TAG).d("获取远程文件时间戳...");
+        String urlStr = TIMESTAMP_API();
+        Timber.tag(TAG).d("请求URL: %s", urlStr);
         
         URL url = new URL(urlStr);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -144,19 +153,6 @@ public class ScriptManager {
             conn.connect();
             Log.d(TAG, "连接已建立");
             
-            try (InputStream errorStream = conn.getErrorStream()) {
-                if (errorStream != null) {
-                    StringBuilder error = new StringBuilder();
-                    byte[] buffer = new byte[1024];
-                    int bytesRead;
-                    while ((bytesRead = errorStream.read(buffer)) != -1) {
-                        error.append(new String(buffer, 0, bytesRead, StandardCharsets.UTF_8));
-                    }
-                    Timber.tag(TAG).e("服务器返回错误: " + error.toString());
-                }
-            } catch (Exception e) {
-            }
-            
             int responseCode = conn.getResponseCode();
             Timber.tag(TAG).d("响应码: %s", responseCode);
             
@@ -173,7 +169,17 @@ public class ScriptManager {
                 }
                 String jsonStr = response.toString();
                 Log.d(TAG, "收到响应: " + jsonStr);
-                return new JSONObject(jsonStr);
+                
+                JSONObject remoteVersions = new JSONObject(jsonStr);
+                Iterator<String> keys = remoteVersions.keys();
+                while (keys.hasNext()) {
+                    String filename = keys.next();
+                    if (filename.startsWith("_")) {
+                        Log.d(TAG, "忽略文件: " + filename);
+                        keys.remove();
+                    }
+                }
+                return remoteVersions;
             }
         } catch (Exception e) {
             Log.e(TAG, "请求失败: " + e.getMessage(), e);

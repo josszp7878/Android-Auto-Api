@@ -29,6 +29,10 @@ def broadcast_device_list():
 def handle_connect(auth):
     """处理客户端连接"""
     try:
+        if auth is None:
+            print(f'Client connected without auth: {request.sid}')
+            return
+        
         device_id = auth.get('device_id')
         if not device_id:
             print(f'Client connected without device_id: {request.sid}')

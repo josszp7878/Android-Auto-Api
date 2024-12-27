@@ -1,5 +1,0 @@
-python-socketio==5.4.0
-python-engineio==4.2.1
-websocket-client==1.2.1
-flask==2.0.1
-watchdog==2.1.6 

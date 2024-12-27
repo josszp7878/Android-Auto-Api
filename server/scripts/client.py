@@ -1,6 +1,6 @@
 import socketio
 from datetime import datetime
-from command import do as command_do
+from CmdMgr import doCmd
 
 
 class Client:
@@ -34,10 +34,10 @@ class Client:
             self.sio.disconnect()
             print(f'设备 {self.device_id} 已断开连接')
             self.connected = False
-    def connect(self, server_url='http://localhost:5000'):
+    def connect(self, server_url):
         """连接到服务器"""
+        print(f'@@@正在连接到服务器 {server_url}...')
         try:
-            print(f'正在连接到服务器 {server_url}...')
             self.sio.connect(
                 server_url,
                 auth={'device_id': self.device_id},
@@ -71,7 +71,7 @@ class Client:
     apkCall = False
     def on_command(self, data):
         print(f'客户端收到命令: {data}')
-        result = command_do(data['command'])
+        result = doCmd(data['command'])
         print(f'客户端执行命令结果: {result}')
         if result is not None:
             response = {

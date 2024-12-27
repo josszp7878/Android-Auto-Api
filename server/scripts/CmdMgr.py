@@ -5,16 +5,24 @@ from datetime import datetime
 try:
     from java import jclass
     PythonServices = jclass("cn.vove7.andro_accessibility_api.demo.script.PythonServices")
-    IN_APP = True
 except ImportError:
-    IN_APP = False
+    pass
     
-class Command:
-    """命令处理类"""
+class CmdMgr:
+    """封装与手机APP交互的基础功能"""
+    
+    _instance = None  # 单例实例
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(CmdMgr, cls).__new__(cls, *args, **kwargs)
+        return cls._instance
     
     def __init__(self):
-        self.registry = {}  # 命令注册表
-        self._register_commands()
+        if not hasattr(self, 'initialized'):  # 确保初始化只执行一次
+            self.registry = {}  # 命令注册表
+            self._register_commands()
+            self.initialized = True
     
     def reg(self, pattern):
         """注册命令"""
@@ -27,6 +35,7 @@ class Command:
         """执行命令"""
         for pattern, func in self.registry.items():
             match = re.match(pattern, cmd)
+            print(f"匹配: {pattern} =>{cmd} 结果:{match}")
             if match:
                 try:
                     params = match.groupdict()
@@ -71,7 +80,6 @@ class Command:
             """获取当前时间"""
             return str(datetime.now())
 
-        @self.reg(r"点击\s+(?P<x>\d+)\s+(?P<y>\d+)")
         def click(x, y):
             try:
                 x, y = int(x), int(y)
@@ -80,7 +88,6 @@ class Command:
             except Exception as e:
                 return f"Error calling clickPosition: {e}"
 
-        @self.reg(r"屏幕内容")
         def getScreenText():
             try:
                 screen_text = PythonServices.getScreenText()
@@ -88,37 +95,28 @@ class Command:
             except Exception as e:
                 return f"Error calling getScreenText: {e}"
 
-        @self.reg(r"返回")
-        def go_back():
+        def goBack():
             return PythonServices.goBack()
 
-        @self.reg(r"主屏幕")
-        def go_home():
+        def goHome():
             return PythonServices.goHome()
 
-        @self.reg(r"检查安装\s+(?P<pkgName>\S+)")
-        def is_app_installed(pkgName):
+        def isInstalled(pkgName):
             return PythonServices.isAppInstalled(pkgName)
 
-        @self.reg(r"打开\s+(?P<appName>\S+)")
-        def open_app(appName):
+        def startApp(appName):
             return PythonServices.openApp(appName)
 
-        @self.reg(r"关闭\s+(?P<appName>\S+)")
-        def close_app(appName):
+        def closeApp(appName):
             return PythonServices.closeApp(appName)
 
-
-        @self.reg(r"安装\s+(?P<appName>\S+)")
-        def install_app(appName):
+        def install(appName):
             return PythonServices.installApp(appName)
 
-        @self.reg(r"卸载\s+(?P<appName>\S+)")
-        def uninstall_app(appName):
+        def uninstall(appName):
             return PythonServices.uninstallApp(appName)
 
-        @self.reg(r"截屏")
-        def take_screenshot():
+        def captureScreen():
             try:
                 result = PythonServices.takeScreenshot()
                 return f"截屏结果: {result}"
@@ -126,6 +124,6 @@ class Command:
                 return f"Error calling takeScreenshot: {e}"
 
 # 创建全局命令处理器实例
-command = Command()
-do = command.do
-
+doCmd = CmdMgr().do
+regCmd = CmdMgr().reg
+cmdMgr = CmdMgr()

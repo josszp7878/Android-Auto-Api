@@ -1,13 +1,35 @@
-from java import jclass
 import time
+import builtins  # 导入 builtins 模块
 
-# 获取必要的 Java 类
-Log = jclass("android.util.Log")
-PythonServices = jclass("cn.vove7.andro_accessibility_api.demo.script.PythonServices")
-Build = jclass("android.os.Build")
+try:
+    from java import jclass
+    # 获取必要的 Java 类
+    Log = jclass("android.util.Log")
+    PythonServices = jclass("cn.vove7.andro_accessibility_api.demo.script.PythonServices")
+    Build = jclass("android.os.Build")
+except ImportError:
+    pass
 
 class Tools:
+    _instance = None
+    _RunFromApp = False
     TAG = "Tools"
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(Tools, cls).__new__(cls, *args, **kwargs)
+        return cls._instance
+
+    def setRunFromApp(self, device):
+        self._RunFromApp = False
+        if device.startswith("_"):
+            self._RunFromApp = True
+            device = device[1:]
+        print(f"%%%%%_RunFromAPP in setRunFromApp: {self._RunFromApp}")
+        return device
+
+    def isRunFromApp(self):
+        return self._RunFromApp
 
     @staticmethod
     def isHarmonyOS() -> bool:
@@ -71,3 +93,12 @@ class Tools:
         except Exception as e:
             Log.e(Tools.TAG, f"Failed to open app by click: {str(e)}")
             return False
+
+def print(*args, **kwargs):
+    message = " ".join(map(str, args))
+    if Tools().isRunFromApp():
+        # 在 Android 环境中，使用 Log 类
+        Log.d("PythonLog", message)
+    else:
+        # 在命令行环境中，使用标准输出
+        builtins.print(message, **kwargs)

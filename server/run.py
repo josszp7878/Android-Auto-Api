@@ -1,8 +1,9 @@
+from app import app, socketio
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 import os
-import json
-import time
 import mimetypes
+import threading
+import json
 
 class ScriptServerHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
@@ -54,15 +55,21 @@ class ScriptServerHandler(SimpleHTTPRequestHandler):
             self.send_error(404, "File not found")
         return
 
-    def log_message(self, format, *args):
-        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {format%args}")
-
-def run_server(port=8000, bind="0.0.0.0"):
+def run_file_server(port=8000, bind="0.0.0.0"):
     server_address = (bind, port)
     httpd = HTTPServer(server_address, ScriptServerHandler)
-    print(f"启动服务器在 http://{bind}:{port}")
-    print(f"当前工作目录: {os.getcwd()}")
+    print(f"启动文件服务器在 http://{bind}:{port}")
     httpd.serve_forever()
 
 if __name__ == '__main__':
-    run_server()
+    # 启动文件服务器
+    file_server_thread = threading.Thread(target=run_file_server)
+    file_server_thread.start()
+
+    # 启动Flask应用
+    socketio.run(
+        app,
+        debug=True,
+        host='0.0.0.0',
+        port=5000
+    ) 
