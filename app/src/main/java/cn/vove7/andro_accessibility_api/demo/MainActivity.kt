@@ -1,34 +1,38 @@
 package cn.vove7.andro_accessibility_api.demo
 
+import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.provider.Settings
-import android.widget.ArrayAdapter
-import androidx.activity.ComponentActivity
-import androidx.appcompat.app.AppCompatActivity
-import cn.vove7.andro_accessibility_api.AccessibilityApi
-import cn.vove7.andro_accessibility_api.demo.actions.*
-import cn.vove7.andro_accessibility_api.demo.databinding.ActivityMainBinding
-import cn.vove7.auto.AutoApi
-import cn.vove7.auto.utils.jumpAccessibilityServiceSettings
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Job
+import android.widget.Button
+import android.widget.EditText
 import android.widget.Toast
 import androidx.annotation.RequiresApi
-import cn.vove7.andro_accessibility_api.demo.service.ScreenCapture
-import android.util.Log
-import cn.vove7.andro_accessibility_api.demo.script.ScriptEngine
-import cn.vove7.andro_accessibility_api.demo.script.PythonServices
-import android.Manifest
-import android.content.pm.PackageManager
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
+import androidx.core.content.ContextCompat.checkSelfPermission
+import cn.vove7.andro_accessibility_api.AccessibilityApi
+import cn.vove7.andro_accessibility_api.demo.actions.Action
+import cn.vove7.andro_accessibility_api.demo.databinding.ActivityMainBinding
+import cn.vove7.andro_accessibility_api.demo.script.PythonServices
+import cn.vove7.andro_accessibility_api.demo.script.ScriptEngine
+import cn.vove7.andro_accessibility_api.demo.service.ScreenCapture
+import cn.vove7.auto.AutoApi
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import timber.log.Timber
-import android.os.PowerManager
-import android.content.Context
-import android.net.Uri
 
 class MainActivity : AppCompatActivity() {
 
@@ -37,29 +41,25 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val REQUEST_CODE_PERMISSIONS = 1001
+    private val PREFS_NAME = "DevicePrefs"
+    private val SERVER_NAME_KEY = "serverName"
+    private val DEVICE_NAME_KEY = "deviceName"
 
-    @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
-    private fun checkPowerSavingMode() {
-        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-        if (powerManager.isPowerSaveMode) {
-            Toast.makeText(this, "设备处于省电模式，可能会影响应用的正常运行。", Toast.LENGTH_LONG).show()
+    // 封装 ServerIP 属性
+    var serverIP: String
+        get() = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(SERVER_NAME_KEY, "192.168.31.217") ?: "192.168.31.217"
+        set(value) {
+            getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().apply {
+                putString(SERVER_NAME_KEY, value)
+                apply()
+            }
         }
-    }
 
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
-
-        // Check power-saving mode
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            checkPowerSavingMode()
-        }
-
-        // 检查电池优化设置
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            checkBatteryOptimization()
-        }
 
         // 初始化 PythonServices 的 Context
         PythonServices.init(this)
@@ -67,80 +67,43 @@ class MainActivity : AppCompatActivity() {
         ScreenCapture.Begin(this)
         // 启动无障碍服务
         startAccessibilityService()
-        val actions = mutableListOf(
-            BaseNavigatorAction(),
-            PickScreenText(),
-            SiblingTestAction(),
-            DrawableAction(),
-            WaitAppAction(),
-            SelectTextAction(),
-            ViewFinderWithLambda(),
-            TextMatchAction(),
-            ClickTextAction(),
-            ClickAction(),
-            TraverseAllAction(),
-            SmartFinderAction(),
-            CoroutineStopAction(),
-            ToStringTestAction(),
-            InstrumentationSendKeyAction(),
-            InstrumentationSendTextAction(),
-            InstrumentationInjectInputEventAction(),
-            InstrumentationShotScreenAction(),
-            SendImeAction(),
-            ContinueGestureAction(),
-            object : Action() {
-                override val name = "Stop"
-                override suspend fun run(act: ComponentActivity) {
-                    actionJob?.cancel()
-                }
-            },
-            object : Action() {
-                override val name = "To Background"
-                override suspend fun run(act: ComponentActivity) {
-//                    if (!AccessibilityApi.isServiceEnable) {
-//                        act.runOnUiThread {
-//                            Toast.makeText(act, "请申请无障碍权限，否则功能可能不正常。", Toast.LENGTH_SHORT).show()
-//                        }
-//                    } else {
-                        (act as MainActivity).start()
-//                    }
-                }
-            }
-        )
+        // 检查并请求权限
+        requestPermissions()
 
-        binding.listView.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, actions)
-        binding.listView.setOnItemClickListener { _, _, position, _ ->
-            onActionClick(actions[position])
+        // 设置按钮点击事件
+        val startButton: Button = findViewById(R.id.startButton)
+        startButton.setOnClickListener {
+            Start()
         }
-        binding.acsCb.setOnCheckedChangeListener { buttonView, isChecked ->
-            if (isChecked && !AccessibilityApi.isServiceEnable) {
-                buttonView.isChecked = false
-                jumpAccessibilityServiceSettings(AccessibilityApi.BASE_SERVICE_CLS)
-            }
-        }
-
-        // Check and request permissions
-        checkAndRequestPermissions()
     }
 
-    @SuppressLint("LogNotTimber")
-    @RequiresApi(Build.VERSION_CODES.O)
-    private fun start() {
-        // 隐藏应用
-        moveTaskToBack(true)
+    private fun enter(device:String, server:String) : Boolean {
+        if (server.isEmpty() || device.isEmpty()) {
+            Toast.makeText(this, "请先设置设备名和服务器名", Toast.LENGTH_SHORT).show()
+            return false;
+        }
+        if(!areAllPermissionsGranted()) {
+            Toast.makeText(this, "部分权限未申请成功，可能会影响使用功能，可以重启应用重新申请", Toast.LENGTH_SHORT).show()
+        }
         // 初始化并启动脚本引擎
-        try {
-            val scriptEngine = ScriptEngine.getInstance(this)
-            scriptEngine.init()
-        } catch (e: Exception) {
-            Log.e("MainActivity", "Failed to start script engine", e)
-            runOnUiThread {
-                Toast.makeText(this, "脚本引擎启动失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        //使用 CoroutineScope 和 Dispatchers.IO 在后台线程中执行网络请求
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val scriptEngine = ScriptEngine.getInstance(this@MainActivity)
+                scriptEngine.init(device, server)
+                // 切换回主线程更新 UI
+                withContext(Dispatchers.Main) {
+                    // 隐藏应用
+                    moveTaskToBack(true)
+                }
+            } catch (e: Exception) {
+                // 切换回主线程更新 UI
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "脚本引擎启动失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
             }
         }
-
-        // 强制执行新任务
-        //onActionClick(ClickAction(), force = true)
+        return true;
     }
 
     @SuppressLint("SetTextI18n")
@@ -219,36 +182,11 @@ class MainActivity : AppCompatActivity() {
             screenCapture?.handlePermissionResult(resultCode, data)
         }
     }
-
-    @SuppressLint("InlinedApi")
-    private fun checkAndRequestPermissions() {
-        val requiredPermissions = arrayOf(
-            Manifest.permission.REQUEST_INSTALL_PACKAGES,
-            Manifest.permission.WRITE_EXTERNAL_STORAGE
-        )
-
-        val missingPermissions = requiredPermissions.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-        }
-
-        if (missingPermissions.isNotEmpty()) {
-            ActivityCompat.requestPermissions(this, missingPermissions.toTypedArray(), REQUEST_CODE_PERMISSIONS)
-        }
-    }
-
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQUEST_CODE_PERMISSIONS) {
-            if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
-                // All permissions granted
-                Timber.tag("MainActivity").i("All permissions granted")
-            } else {
-                // Some permissions are denied
-                Timber.tag("MainActivity").e("Some permissions are denied")
-            }
-        }
-    }
-
+    private val requiredPermissions = arrayOf(
+        Manifest.permission.REQUEST_INSTALL_PACKAGES,
+        Manifest.permission.WRITE_EXTERNAL_STORAGE
+    )
+    @SuppressLint("BatteryLife")
     @RequiresApi(Build.VERSION_CODES.M)
     private fun checkBatteryOptimization() {
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -271,4 +209,87 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+    @SuppressLint("InlinedApi")
+    private fun requestPermissions() {
+
+        // 检查电池优化设置
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            checkBatteryOptimization()
+        }
+        //普通权限
+        val missingPermissions = requiredPermissions.filter {
+            checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+
+        if (missingPermissions.isNotEmpty()) {
+            ActivityCompat.requestPermissions(this, missingPermissions.toTypedArray(), REQUEST_CODE_PERMISSIONS)
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_CODE_PERMISSIONS) {
+            if (!grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+                // 有权限被拒绝
+                Timber.tag("MainActivity").e("Some permissions are denied")
+                Toast.makeText(this, "需要所有权限才能继续", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun areAllPermissionsGranted(): Boolean {
+        val allPermissionsGranted = requiredPermissions.all {
+            val ok = checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
+            if (ok) {
+                Toast.makeText(this, "权限"+it +"未授权", Toast.LENGTH_SHORT).show()
+            }
+            return ok
+        }
+        val isAccessibilityEnabled = AccessibilityApi.isServiceEnable
+        if (!allPermissionsGranted) {
+            Toast.makeText(this, "无障碍服务未开启", Toast.LENGTH_SHORT).show()
+        }
+        return allPermissionsGranted && isAccessibilityEnabled
+    }
+
+
+    private fun Start() {
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        var deviceName = prefs.getString(DEVICE_NAME_KEY, "") ?: ""
+
+        // 显示对话框以获取用户输入
+        val dialogView = layoutInflater.inflate(R.layout.dialog_device_info, null)
+        val serverIPInput = dialogView.findViewById<EditText>(R.id.serverNameInput)
+        val deviceNameInput = dialogView.findViewById<EditText>(R.id.deviceNameInput)
+
+        // 设置初始值
+        serverIPInput.setText(serverIP)
+        deviceNameInput.setText(deviceName)
+
+        AlertDialog.Builder(this)
+            .setTitle("设置设备信息")
+            .setView(dialogView)
+            .setPositiveButton("保存") { _, _ ->
+                serverIP = serverIPInput.text.toString()
+                val deviceName = deviceNameInput.text.toString()
+
+                // 保存到SharedPreferences
+                prefs.edit().apply {
+                    putString(DEVICE_NAME_KEY, deviceName)
+                    apply()
+                }
+                enter(deviceName, serverIP)
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun getDeviceInfo(): Pair<String, String> {
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val serverName = prefs.getString(SERVER_NAME_KEY, "") ?: ""
+        val deviceName = prefs.getString(DEVICE_NAME_KEY, "") ?: ""
+        return Pair(serverName, deviceName)
+    }
+
 }
+

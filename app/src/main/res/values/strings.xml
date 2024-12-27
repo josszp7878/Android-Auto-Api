@@ -3,4 +3,5 @@
     <string name="base_ser_desc">Accessibility-Api Demo desc</string>
     <string name="fore_service">前台服务</string>
     <string name="your_channel_id">Author</string>
+    <string name="start">Start</string>
 </resources>

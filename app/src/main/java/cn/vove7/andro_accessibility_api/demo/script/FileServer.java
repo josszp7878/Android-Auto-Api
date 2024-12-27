@@ -1,6 +1,5 @@
 package cn.vove7.andro_accessibility_api.demo.script;
 
-import android.content.Context;
 import android.os.Build;
 import android.util.Log;
 
@@ -21,18 +20,15 @@ import java.util.concurrent.Executors;
 import cn.vove7.andro_accessibility_api.demo.MainActivity;
 import timber.log.Timber;
 
-public class ScriptManager {
-    private static final String TAG = "ScriptManager";
-    public String TIMESTAMP_API() {
-        return "http://" + context.getServerIP() + "/timestamp";
-    }
-    public String BASE_URL() {
-        return "http://" + context.getServerIP() + "/base";
+public class FileServer {
+    private static final String TAG = "FileServer";
+    public String UrlBase() {
+        return "http://" + context.getServerIP();
     }
     private final MainActivity context;
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
-    
-    public ScriptManager(MainActivity context) {
+
+    public FileServer(MainActivity context) {
         this.context = context;
     }
 
@@ -48,44 +44,44 @@ public class ScriptManager {
                     String filename = keys.next();
                     String remoteVersion = remoteVersions.getString(filename);
                     String currentVersion = currentVersions.optString(filename, "0");
-                    
+
                     if (Long.parseLong(remoteVersion) > Long.parseLong(currentVersion)) {
-                        Log.d(TAG, "检测到脚本更新: " + filename);
+                        Timber.tag(TAG).d("检测到脚本更新: %s", filename);
                         downloadScript(filename);
                         updated = true;
                     }
                 }
-                
+
                 if (updated) {
                     saveVersions(remoteVersions);
-                    Log.d(TAG, "脚本版本信息已更新");
+                    Timber.tag(TAG).d("脚本版本信息已更新");
                 }
             } catch (JSONException | IOException e) {
-                Log.e(TAG, "处理版本信息时出错", e);
+                Timber.tag(TAG).e(e, "处理版本信息时出错");
             }
         });
     }
 
     private void downloadScript(String filename) throws IOException {
-        Log.d(TAG, "正在下载: " + filename);
-        URL url = new URL(BASE_URL() + filename);
+        Timber.tag(TAG).d("正在下载: %s", filename);
+        URL url = new URL(UrlBase() + ":8000/scripts/" + filename);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         try {
             conn.setConnectTimeout(8000);
             conn.setReadTimeout(8000);
-            
+
             conn.setRequestProperty("Accept-Charset", "UTF-8");
             conn.setRequestProperty("Content-Type", "text/plain; charset=utf-8");
-            
+
             if (conn.getResponseCode() != HttpURLConnection.HTTP_OK) {
                 String error = "下载失败: HTTP " + conn.getResponseCode();
                 Log.e(TAG, error);
                 throw new IOException(error);
             }
-            
+
             File scriptDir = new File(context.getFilesDir(), "scripts");
             scriptDir.mkdirs();
-            
+
             File scriptFile = new File(scriptDir, filename);
             try (InputStream in = conn.getInputStream()) {
                 StringBuilder content = new StringBuilder();
@@ -96,12 +92,12 @@ public class ScriptManager {
                         content.append(line).append("\n");
                     }
                 }
-                
+
                 try (FileOutputStream out = new FileOutputStream(scriptFile)) {
                     out.write(content.toString().getBytes(StandardCharsets.UTF_8));
                 }
-                
-                Log.d(TAG, String.format("下载完成: %s (大小: %d bytes)", 
+
+                Log.d(TAG, String.format("下载完成: %s (大小: %d bytes)",
                     filename, scriptFile.length()));
             }
         } catch (IOException e) {
@@ -134,32 +130,32 @@ public class ScriptManager {
 
     private JSONObject fetchRemoteVersions() throws IOException {
         Timber.tag(TAG).d("获取远程文件时间戳...");
-        String urlStr = TIMESTAMP_API();
+        String urlStr = UrlBase() + ":8000/timestamps";
         Timber.tag(TAG).d("请求URL: %s", urlStr);
-        
+
         URL url = new URL(urlStr);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        
+
         try {
             conn.setRequestMethod("GET");
             conn.setDoInput(true);
             conn.setUseCaches(false);
-            
+
             conn.setRequestProperty("User-Agent", "Mozilla/5.0");
             conn.setRequestProperty("Accept", "*/*");
             conn.setRequestProperty("Connection", "close");
-            
+
             Log.d(TAG, "开始建立连接...");
             conn.connect();
             Log.d(TAG, "连接已建立");
-            
+
             int responseCode = conn.getResponseCode();
             Timber.tag(TAG).d("响应码: %s", responseCode);
-            
+
             if (responseCode != HttpURLConnection.HTTP_OK) {
                 throw new IOException("获取时间戳失败: HTTP " + responseCode);
             }
-            
+
             try (InputStream in = conn.getInputStream()) {
                 StringBuilder response = new StringBuilder();
                 byte[] buffer = new byte[1024];
@@ -168,21 +164,23 @@ public class ScriptManager {
                     response.append(new String(buffer, 0, bytesRead, StandardCharsets.UTF_8));
                 }
                 String jsonStr = response.toString();
-                Log.d(TAG, "收到响应: " + jsonStr);
-                
+                Timber.tag(TAG).d("收到响应: %s", jsonStr);
+                if(jsonStr.isEmpty()){
+                    throw new RuntimeException("收到响应为空");
+                }
                 JSONObject remoteVersions = new JSONObject(jsonStr);
                 Iterator<String> keys = remoteVersions.keys();
                 while (keys.hasNext()) {
                     String filename = keys.next();
                     if (filename.startsWith("_")) {
-                        Log.d(TAG, "忽略文件: " + filename);
+                        Timber.tag(TAG).d("忽略文件: %s", filename);
                         keys.remove();
                     }
                 }
                 return remoteVersions;
             }
         } catch (Exception e) {
-            Log.e(TAG, "请求失败: " + e.getMessage(), e);
+            Timber.tag(TAG).e(e, "请求失败: %s", e.getMessage());
             throw new IOException("获取时间戳失败: " + e.getMessage());
         } finally {
             conn.disconnect();
@@ -198,7 +196,7 @@ public class ScriptManager {
 
     public File getScriptDir() {
         File dir = new File(context.getFilesDir(), "scripts");
-        Log.d(TAG, "脚本目录: " + dir.getAbsolutePath());
+        Timber.tag(TAG).d("脚本目录: %s", dir.getAbsolutePath());
         return dir;
     }
 } 

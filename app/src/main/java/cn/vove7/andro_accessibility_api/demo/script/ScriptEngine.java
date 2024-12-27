@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import cn.vove7.andro_accessibility_api.demo.MainActivity;
 import timber.log.Timber;
 
 public class ScriptEngine {
@@ -26,20 +27,20 @@ public class ScriptEngine {
     private static final long CHECK_INTERVAL = 5000;
     private long lastCheckTime;
     private final Context context;
-    private final ScriptManager fileServer;
+    private final FileServer fileServer;
     private final ExecutorService executor;
     private final Handler mainHandler;
 
-    private ScriptEngine(Context context) {
+    private ScriptEngine(MainActivity context) {
         this.context = context.getApplicationContext();
         applicationContext = this.context;
-        this.fileServer = new ScriptManager(this.context);
+        this.fileServer = new FileServer(context);
         this.scriptLastModified = new HashMap<>();
         this.executor = Executors.newSingleThreadExecutor();
         this.mainHandler = new Handler(Looper.getMainLooper());
     }
 
-    public static ScriptEngine getInstance(Context context) {
+    public static ScriptEngine getInstance(MainActivity context) {
         if (INSTANCE == null) {
             synchronized (ScriptEngine.class) {
                 if (INSTANCE == null) {
@@ -50,8 +51,8 @@ public class ScriptEngine {
         return INSTANCE;
     }
 
-    public void init() {
-        Timber.tag(TAG).d("初始化ScriptEngine");
+    public void init(String deviceName,String serverName) {
+        Timber.tag(TAG).d("初始化ScriptEngine with server: %s, device: %s", serverName, deviceName);
         fileServer.checkAndUpdateScripts();
         
         try {
@@ -69,14 +70,13 @@ public class ScriptEngine {
             PyObject pathList = sysModule.get("path");
             pathList.callAttr("insert", 0, scriptDir.getAbsolutePath());
 
-            // 执行main入口函数
+            // 执行main入口函数，传入服务器名和设备名
             try {
                 mainModule = py.getModule("main");
-                mainModule.callAttr("main");
+                mainModule.callAttr("main", "_"+deviceName, serverName);
                 Timber.d("Python main()函数执行成功");
             } catch (Exception e) {
                 Timber.e(e, "执行Python main()函数失败");
-                // 打印更详细的错误信息
                 if (e.getCause() != null) {
                     Timber.e("Cause: %s", e.getCause().getMessage());
                 }
