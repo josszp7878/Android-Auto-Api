@@ -34,7 +34,9 @@ socketio = SocketIO(
     cors_allowed_origins="*",
     async_mode='eventlet',  # 明确指定使用eventlet
     logger=True,
-    engineio_logger=False
+    engineio_logger=False,
+    ping_interval=25,  # 设置心跳间隔
+    ping_timeout=60    # 设置心跳超时时间
 )
 
 # 注册蓝图

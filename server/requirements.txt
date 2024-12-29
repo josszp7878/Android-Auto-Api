@@ -6,7 +6,7 @@ eventlet==0.30.2
 flask-sqlalchemy==2.5.1
 SQLAlchemy==1.4.23
 Werkzeug==2.0.3
-dnspython==2.2.1
+dnspython==1.16.0
 websocket-client==1.2.1
 flask==2.0.1
 watchdog==2.1.6 

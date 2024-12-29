@@ -1,11 +1,13 @@
-from app import app, socketio
+import sys
+import time
+import threading
+from app import socketio, app
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 import os
 import mimetypes
-import threading
 import json
 
-class ScriptServerHandler(SimpleHTTPRequestHandler):
+class FileServerHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         print(f"收到GET请求: {self.path}")  # 添加请求日志
         
@@ -24,9 +26,11 @@ class ScriptServerHandler(SimpleHTTPRequestHandler):
             # 获取所有脚本文件的时间戳
             timestamps = {}
             script_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'scripts')
-            for file in os.listdir(script_dir):
-                file_path = os.path.join(script_dir, file)
-                timestamps[file] = str(int(os.path.getmtime(file_path)))
+            print(f"$$$$$$脚本目录: {script_dir}")
+            if os.path.exists(script_dir):
+                for file in os.listdir(script_dir):
+                    file_path = os.path.join(script_dir, file)
+                    timestamps[file] = str(int(os.path.getmtime(file_path)))
             
             response = json.dumps(timestamps)
             print(f"返回时间戳信息: {response}")
@@ -35,6 +39,7 @@ class ScriptServerHandler(SimpleHTTPRequestHandler):
         
         # 读取文件并发送
         file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'scripts', os.path.basename(self.path))
+        print(f"$$$$$$文件路径: {file_path}")
         if os.path.exists(file_path):
             # 根据文件类型设置Content-Type
             mime_type, _ = mimetypes.guess_type(file_path)
@@ -57,19 +62,60 @@ class ScriptServerHandler(SimpleHTTPRequestHandler):
 
 def run_file_server(port=8000, bind="0.0.0.0"):
     server_address = (bind, port)
-    httpd = HTTPServer(server_address, ScriptServerHandler)
+    httpd = HTTPServer(server_address, FileServerHandler)
     print(f"启动文件服务器在 http://{bind}:{port}")
     httpd.serve_forever()
 
-if __name__ == '__main__':
-    # 启动文件服务器
-    file_server_thread = threading.Thread(target=run_file_server)
-    file_server_thread.start()
+def start_socketio_server(port=5000, host="0.0.0.0"):
+    """启动SocketIO服务器"""
+    print(f"SocketIO服务器启动在: http://{host}:{port}")
+    socketio.run(app, host=host, port=port)
 
-    # 启动Flask应用
-    socketio.run(
-        app,
-        debug=True,
-        host='0.0.0.0',
-        port=5000
-    ) 
+def command_loop():
+    """命令行循环"""
+    print("服务器命令行模式")
+    print("支持的命令:")
+    print("- status: 查看服务器状态")
+    print("- StartFS: 启动文件服务器")
+    print("- StopFS: 停止文件服务器")
+    print("- exit: 退出服务器")
+
+    try:
+        while True:
+            cmd_input = input("server> ").strip()
+            if not cmd_input:
+                continue
+
+            cmd = cmd_input.lower()
+
+            if cmd == 'exit':
+                break
+            elif cmd == 'status':
+                print("服务器正在运行")
+            else:
+                print(f"未知命令: {cmd}")
+
+    except KeyboardInterrupt:
+        print('\n正在退出...')
+    except Exception as e:
+        print(f'发生错误: {e}')
+    finally:
+        print("服务器已停止")
+
+if __name__ == '__main__':
+    if len(sys.argv) != 2:
+        print("Usage: python MyServer.py [socketio|fileserver|console]")
+        sys.exit(1)
+
+    command = sys.argv[1].lower()
+    
+    if command == 'socketio':
+        start_socketio_server()
+    elif command == 'fileserver':
+        run_file_server()
+    elif command == 'console':
+        command_loop()
+    else:
+        print(f"Unknown command: {command}")
+        print("Usage: python MyServer.py [socketio|fileserver|console]")
+        sys.exit(1)

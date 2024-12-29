@@ -1,120 +1,85 @@
-import socketio
-from datetime import datetime
-from CmdMgr import doCmd
+import time
+import sys
+from device import Device
+import Cmds  # 确保导入Cmds模块
+from CmdMgr import cmdMgr
+from tools import Tools, print
 
+# 固定配置
+DEFAULT_DEVICE_ID = 'TEST1'
+client = None
+def Begin(device=None, server=None):
+    # 使用传入的设备ID或默认值
+    device = device or DEFAULT_DEVICE_ID
+    server = server or "localhost"
+    tools = Tools()
+    device = tools.setRunFromApp(device)
+    # print(f"%%%%%_RunFromAPP in Begin: {tools.isRunFromApp()}")
 
-class Client:
-    """设备客户端类"""
+    print(f"设备 {device} 已连接到服务器{server}")
+    # 1. 连接服务器
+    device = Device(device)
+    if not device.connect(f"http://{server}:5000"):
+        print("连接服务器失败")
+        return
     
-    def __init__(self, device_id=None):
-        self.device_id = device_id or 'test_device_001'
-        self.connected = False
-        
-        self.sio = socketio.Client(
-            reconnection=True,
-            reconnection_attempts=5,
-            reconnection_delay=1,
-            reconnection_delay_max=5,
-            logger=True
-        )
-        
-        self.sio.on('connect', self.on_connect)
-        self.sio.on('disconnect', self.on_disconnect)
-        self.sio.on('connect_error', self.on_connect_error)
-        self.sio.on('command', self.on_command)
-        self.sio.on('command_result', self.on_command_result)
-
-    def isConnected(self):
-        """检查是否已连接"""
-        print('isConnected:', self.connected)
-        return self.connected
-    def disconnect(self):
-        """断开连接"""
-        if self.connected:
-            self.sio.disconnect()
-            print(f'设备 {self.device_id} 已断开连接')
-            self.connected = False
-    def connect(self, server_url):
-        """连接到服务器"""
-        print(f'@@@正在连接到服务器 {server_url}...')
-        try:
-            self.sio.connect(
-                server_url,
-                auth={'device_id': self.device_id},
-                wait_timeout=10,
-                transports=['websocket', 'polling']
-            )
-            print(f'连接成功，设备ID: {self.device_id}')
-            self.connected = True
-            return True
-        except Exception as e:
-            print(f'连接错误: {e}')
-            return False
-
-    def login(self):
-        """设备登录"""
-        self.sio.emit('device_login', {
-            'device_id': self.device_id,
-            'timestamp': str(datetime.now())
-        })
-        return True
+    print(f"设备 {device} 已连接到服务器{server}")
+    print("支持的命令:")
+    print("- status: 查看状态")
+    print("- exit: 退出程序")
+    print("客户端运行中... 按Ctrl+C退出")
     
-    def logout(self):
-        self.sio.emit('device_logout', {
-            'device_id': self.device_id,
-            'timestamp': str(datetime.now())
-        })
-        return True
-    
+    try:
+        while True:
+            if tools.isRunFromApp():
+                time.sleep(1)
+            else:
+                cmd_input = input(f"{device}> ").strip()
+                if not cmd_input:
+                    continue
+                # 解析命令和参数
+                parts = cmd_input.split()
+                cmd = parts[0].lower()
+                args = parts[1:] if len(parts) > 1 else []
+                
+                if cmd == 'exit':
+                    break                
+                # 尝试调用对应的方法
+                try:
+                    cmd = next((x for x in dir(device) if x.lower().startswith(cmd.lower())), None)
+                    if cmd:
+                        print('do cmd:', cmd)
+                        method = getattr(device, cmd)
+                        if args:
+                            method(*args)
+                        else:
+                            method()
+                    else:
+                        # 如果不是内置命令，就作为普通命令发送
+                        device.send_command(cmd_input)
+                        
+                except Exception as e:
+                    print(f"执行命令出错: {e}")
+                
+                time.sleep(0.1)
+            
+    except KeyboardInterrupt:
+        print('\n正在退出...')
+    except Exception as e:
+        print(f'发生错误: {e}')
+    finally:
+        End()
 
-    
-    apkCall = False
-    def on_command(self, data):
-        print(f'客户端收到命令: {data}')
-        result = doCmd(data['command'])
-        print(f'客户端执行命令结果: {result}')
-        if result is not None:
-            response = {
-                'device_id': self.device_id,
-                'result': result
-            }
-            print(f'客户端发送响应: {response}')
-            self.sio.emit('command_response', response)
 
-    def on_command_result(self, data):
-        """处理命令结果"""
-        print(f'命令结果: {data["result"]}')
+def End():
+    if client:
+        client.logout()
+        client.disconnect()
+        print("已断开服务器连接")
+    # 在这里添加任何需要的清理逻辑
 
-    def on_connect(self):
-        """连接成功回调"""
-        print('已连接到服务器')
-
-    def on_connect_error(self, data):
-        """连接错误回调"""
-        print(f'连接错误: {data}')
-
-    def on_disconnect(self):
-        """断开连接回调"""
-        print('断开连接')
-        self.connected = False
-
-    def send_command(self, cmd):
-        """发送命令到服务器"""
-        print(f'TODO:发送命令到服务器: {cmd}')
-        # if not self.connected:
-        #     print('未连接到服务器')
-        #     return False
-        
-        # response = {
-        #     'status': 'success',
-        #     'result': f'执行命令: {cmd}'
-        # }
-        # self.sio.emit('command_response', response)
-        return True
-
-    def status(self):
-        """查看设备状态"""
-        status = "已连接" if self.connected else "未连接"
-        print(f'设备状态: {status}')
-        return True
-
+if __name__ == '__main__':
+    # 如果有命令行参数，则使用第一个参数作为设备ID，第二个参数作为服务器URL
+    device_id = sys.argv[1] if len(sys.argv) > 1 else None
+    server_url = sys.argv[2] if len(sys.argv) > 2 else None
+    Begin(device_id, server_url)

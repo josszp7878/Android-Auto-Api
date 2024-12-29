@@ -25,7 +25,7 @@ class Tools:
         if device.startswith("_"):
             self._RunFromApp = True
             device = device[1:]
-        print(f"%%%%%_RunFromAPP in setRunFromApp: {self._RunFromApp}")
+        # print(f"%%%%%_RunFromAPP in setRunFromApp: {self._RunFromApp}")
         return device
 
     def isRunFromApp(self):

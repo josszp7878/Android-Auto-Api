@@ -1,8 +1,13 @@
 @echo off
-echo start server...
-@REM pip install -r requirements.txt
-python run.py
-if errorlevel 1 (
-    echo Server failed to start
-    pause
-) 
+echo Starting servers...
+
+:: start socketio server
+start "SocketIO Server" cmd /k python MyServer.py socketio
+
+:: start file server
+start "File Server" cmd /k python MyServer.py fileserver
+
+:: start command console
+start "Command Console" cmd /k python MyServer.py console
+
+echo All servers started. 
