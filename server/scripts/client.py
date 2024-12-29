@@ -8,22 +8,22 @@ from tools import Tools, print
 # 固定配置
 DEFAULT_DEVICE_ID = 'TEST1'
 client = None
-def Begin(device=None, server=None):
+def Begin(deviceID=None, server=None):
     # 使用传入的设备ID或默认值
-    device = device or DEFAULT_DEVICE_ID
+    deviceID = deviceID or DEFAULT_DEVICE_ID
     server = server or "localhost"
     tools = Tools()
-    device = tools.setRunFromApp(device)
+    deviceID = tools.setRunFromApp(deviceID)
     # print(f"%%%%%_RunFromAPP in Begin: {tools.isRunFromApp()}")
 
-    print(f"设备 {device} 已连接到服务器{server}")
+    print(f"设备 {deviceID} 已连接到服务器{server}")
     # 1. 连接服务器
-    device = Device(device)
+    device = Device(deviceID)
     if not device.connect(f"http://{server}:5000"):
         print("连接服务器失败")
         return
     
-    print(f"设备 {device} 已连接到服务器{server}")
+    print(f"设备 {deviceID} 已连接到服务器{server}")
     print("支持的命令:")
     print("- status: 查看状态")
     print("- exit: 退出程序")
@@ -34,7 +34,7 @@ def Begin(device=None, server=None):
             if tools.isRunFromApp():
                 time.sleep(1)
             else:
-                cmd_input = input(f"{device}> ").strip()
+                cmd_input = input(f"{deviceID}> ").strip()
                 if not cmd_input:
                     continue
                 # 解析命令和参数
@@ -43,6 +43,7 @@ def Begin(device=None, server=None):
                 args = parts[1:] if len(parts) > 1 else []
                 
                 if cmd == 'exit':
+                    print("退出程序")
                     break                
                 # 尝试调用对应的方法
                 try:
@@ -72,6 +73,7 @@ def Begin(device=None, server=None):
 
 
 def End():
+    print("End")
     if client:
         client.logout()
         client.disconnect()
