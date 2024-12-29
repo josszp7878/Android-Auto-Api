@@ -152,8 +152,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        actionJob?.cancel()
         super.onDestroy()
+        val scriptEngine = ScriptEngine.getInstance(this)
+        scriptEngine.uninit()
     }
 
     private fun startAccessibilityService() {

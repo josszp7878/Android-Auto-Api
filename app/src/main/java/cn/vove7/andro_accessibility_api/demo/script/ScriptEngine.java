@@ -51,7 +51,7 @@ public class ScriptEngine {
         return INSTANCE;
     }
 
-    public void init(String deviceName,String serverName) {
+    public void init(String deviceName, String serverName) {
         Timber.tag(TAG).d("初始化ScriptEngine with server: %s, device: %s", serverName, deviceName);
         fileServer.checkAndUpdateScripts();
         
@@ -70,19 +70,30 @@ public class ScriptEngine {
             PyObject pathList = sysModule.get("path");
             pathList.callAttr("insert", 0, scriptDir.getAbsolutePath());
 
-            // 执行main入口函数，传入服务器名和设备名
+            // 执行Begin入口函数，传入服务器名和设备名
             try {
-                mainModule = py.getModule("main");
-                mainModule.callAttr("main", "_"+deviceName, serverName);
-                Timber.d("Python main()函数执行成功");
+                mainModule = py.getModule("client");
+                mainModule.callAttr("Begin", "_"+deviceName, serverName);
+                Timber.d("Python Begin()函数执行成功");
             } catch (Exception e) {
-                Timber.e(e, "执行Python main()函数失败");
+                Timber.e(e, "执行Python Begin()函数失败");
                 if (e.getCause() != null) {
                     Timber.e("Cause: %s", e.getCause().getMessage());
                 }
             }
         } catch (Exception e) {
             Timber.e(e, "初始化Python环境失败");
+        }
+    }
+
+    public void uninit() {
+        try {
+            if (mainModule != null) {
+                mainModule.callAttr("End");
+                Timber.d("Python End()函数执行成功");
+            }
+        } catch (Exception e) {
+            Timber.e(e, "执行Python End()函数失败");
         }
     }
 } 
