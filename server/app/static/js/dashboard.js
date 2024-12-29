@@ -14,12 +14,19 @@ class Dashboard {
                 lastActivityTime: Date.now(),
                 currentPage: 1,
                 hasMoreHistory: false,
-                loadingHistory: false
+                loadingHistory: false,
+                activeTab: 'history',  // 当前激活的标签页
+                systemLogs: [],        // 系统日志数据
+                logsPage: 1,
+                loadingLogs: false,
+                hasMoreLogs: false
             },
             methods: {
                 formatTime(timestamp) {
                     if (!timestamp) return '未知';
-                    return new Date(timestamp).toLocaleString();
+                    // 如果是ISO格式字符串，先转换为Date对象
+                    const date = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
+                    return date.toLocaleString();
                 },
                 updateDeviceList(devices) {
                     console.log('设备列表更新:', devices);
@@ -116,17 +123,30 @@ class Dashboard {
                         this.commandInput = '';
                     }
                 },
-                addLog(type, content, deviceId = null, level = 'info') {
-                    this.commandLogs.push({
+                addLog(type, content, source, level = 'info') {
+                    const log = {
                         type,
                         content,
-                        deviceId,
-                        level
-                    });
+                        source,
+                        level,
+                        timestamp: new Date()
+                    };
+
+                    if (type === 'log') {
+                        // 系统日志添加到 systemLogs
+                        this.systemLogs.unshift(log);
+                    } else {
+                        // 命令历史添加到 commandLogs
+                        this.commandLogs.push(log);
+                    }
+
                     this.$nextTick(() => {
-                        const consoleHistory = this.$refs.consoleHistory;
-                        if (consoleHistory) {
-                            consoleHistory.scrollTop = consoleHistory.scrollHeight;
+                        const consoleEl = type === 'log' ? 
+                            this.$refs.consoleLogs : 
+                            this.$refs.consoleHistory;
+                        
+                        if (consoleEl) {
+                            consoleEl.scrollTop = consoleEl.scrollHeight;
                         }
                     });
                 },
@@ -153,6 +173,25 @@ class Dashboard {
                         this.currentPage++;
                         this.loadCommandHistory();
                     }
+                },
+                handleLogsScroll(e) {
+                    const el = e.target;
+                    // 当滚动到顶部时加载更多日志
+                    if (this.hasMoreLogs && 
+                        !this.loadingLogs && 
+                        el.scrollTop <= 30) {
+                        this.loadMoreLogs();
+                    }
+                },
+                loadMoreLogs() {
+                    if (this.loadingLogs) return;
+                    
+                    this.loadingLogs = true;
+                    this.logsPage++;
+                    
+                    this.socket.emit('get_logs', {
+                        page: this.logsPage
+                    });
                 }
             },
             mounted() {
@@ -230,6 +269,65 @@ class Dashboard {
                         this.commandLogs = [];  // 清空当前设备的命令历史
                         console.log(`设备 ${deviceId} 的指令历史已清除`);
                     }
+                });
+
+                // 添加日志监听
+                this.socket.on('log_message', (data) => {
+                    console.log('收到日志消息:', data);  // 调试信息
+                    this.addLog('log', data.message, data.source, data.level);
+                });
+
+                // 获取初始日志数据
+                this.socket.emit('get_logs');
+                
+                // 修改日志数据处理
+                this.socket.on('logs_data', (data) => {
+                    if (this.logsPage === 1) {
+                        // 反转顺序，最新的在最下面
+                        this.systemLogs = data.logs.reverse();
+                    } else {
+                        // 添加到现有日志的开头
+                        this.systemLogs.unshift(...data.logs.reverse());
+                    }
+                    this.hasMoreLogs = data.has_next;
+                    this.loadingLogs = false;
+
+                    // 如果是第一页，滚动到底部
+                    if (this.logsPage === 1) {
+                        this.$nextTick(() => {
+                            const consoleEl = this.$refs.consoleLogs;
+                            if (consoleEl) {
+                                consoleEl.scrollTop = consoleEl.scrollHeight;
+                            }
+                        });
+                    }
+                });
+                
+                // 修改实时日志处理
+                this.socket.on('log_message', (data) => {
+                    // 添加新日志到末尾
+                    this.systemLogs.push({
+                        id: Date.now(),  // 临时ID
+                        ...data
+                    });
+                    
+                    // 滚动到底部
+                    this.$nextTick(() => {
+                        const consoleEl = this.$refs.consoleLogs;
+                        if (consoleEl) {
+                            consoleEl.scrollTop = consoleEl.scrollHeight;
+                        }
+                    });
+                });
+
+                // 添加滚动到底部的处理
+                this.socket.on('scroll_logs', () => {
+                    this.$nextTick(() => {
+                        const consoleEl = this.$refs.consoleLogs;
+                        if (consoleEl) {
+                            consoleEl.scrollTop = consoleEl.scrollHeight;
+                        }
+                    });
                 });
             }
         });

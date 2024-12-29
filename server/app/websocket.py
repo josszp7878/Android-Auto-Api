@@ -7,6 +7,7 @@ from .device_manager import DeviceManager
 from .models import db
 from .command_history import CommandHistory
 from .SCommand import SCommand
+from .logger import Logger
 
 class DateTimeEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -26,13 +27,21 @@ def broadcast_device_list():
 
 
 @socketio.on('connect')
-def handle_connect(auth):
+def handle_connect(auth=None):
     """处理客户端连接"""
     try:
+        # 如果没有认证信息，记录并返回
         if auth is None:
             print(f'Client connected without auth: {request.sid}')
             return
-        
+            
+        # 获取客户端类型
+        client_type = auth.get('client_type')
+        if client_type == 'console':
+            print(f'Console connected: {request.sid}')
+            return
+            
+        # 获取设备ID
         device_id = auth.get('device_id')
         if not device_id:
             print(f'Client connected without device_id: {request.sid}')
@@ -47,10 +56,8 @@ def handle_connect(auth):
             'connected_at': str(datetime.now())
         })
         device_manager.update_device(device)  # 更新数据库
-        # 连接时自动设置为在线状态
-        # device.update_status('online')
-        # broadcast_device_list()
         do_login(device)
+        
     except Exception as e:
         print(f'处理连接时出错: {e}')
 
@@ -172,5 +179,46 @@ def handle_set_current_device(data):
     """设置当前设备ID"""
     device_id = data.get('device_id')
     DeviceManager().set_device_id(device_id)
+
+
+@socketio.on('client_log')
+def handle_client_log(data):
+    """处理客户端日志"""
+    device_id = data.get('device_id')
+    message = data.get('message')
+    level = data.get('level', 'I')  # 默认为 INFO 级别
+    
+    # 转换旧的日志级别到新格式
+    level_map = {
+        'info': 'i',
+        'warning': 'w',
+        'error': 'e'
+    }
+    
+    # 根据级别调用对应的方法
+    log_method = getattr(Logger, level_map.get(level.lower(), 'i'))
+    log_method(device_id, message)
+
+
+@socketio.on('get_logs')
+def handle_get_logs(data=None):
+    """处理获取日志请求"""
+    page = data.get('page', 1) if data else 1
+    per_page = 50  # 每页显示的日志数量
+    
+    # 获取分页的日志数据
+    logs = LogHistory.query.order_by(
+        LogHistory.timestamp.desc()
+    ).paginate(page=page, per_page=per_page)
+    
+    logs_data = {
+        'logs': [log.to_dict() for log in logs.items],
+        'has_next': logs.has_next,
+        'total': logs.total
+    }
+    
+    # 使用 DateTimeEncoder 序列化
+    logs_json = json.loads(json.dumps(logs_data, cls=DateTimeEncoder))
+    emit('logs_data', logs_json)
 
 

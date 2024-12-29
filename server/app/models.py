@@ -29,3 +29,22 @@ class DeviceModel(db.Model):
             last_seen=device.last_seen,
             info=device.info
         ) 
+
+class LogHistory(db.Model):
+    """日志历史记录"""
+    __tablename__ = 'log_history'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    source = db.Column(db.String(64), nullable=False)  # 日志来源
+    message = db.Column(db.Text, nullable=False)  # 日志内容
+    level = db.Column(db.String(20), default='info')  # 日志级别
+    timestamp = db.Column(db.DateTime, default=datetime.now)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'source': self.source,
+            'message': self.message,
+            'level': self.level,
+            'timestamp': self.timestamp.isoformat()  # 转换为 ISO 格式字符串
+        } 

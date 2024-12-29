@@ -34,7 +34,23 @@
 
             <!-- 命令控制台 -->
             <div class="console-window" @click.stop>
+                <!-- 标签页切换按钮 -->
+                <div class="console-tabs">
+                    <button class="tab-button" 
+                            :class="{'active': activeTab === 'history'}"
+                            @click="activeTab = 'history'">
+                        命令历史
+                    </button>
+                    <button class="tab-button" 
+                            :class="{'active': activeTab === 'logs'}"
+                            @click="activeTab = 'logs'">
+                        系统日志
+                    </button>
+                </div>
+
+                <!-- 历史记录面板 -->
                 <div class="console-history" 
+                     v-show="activeTab === 'history'"
                      :class="{'expanded': showHistory}" 
                      ref="consoleHistory"
                      @scroll="handleHistoryScroll"
@@ -51,13 +67,35 @@
                             <span class="console-command">[[ log.content ]]</span>
                         </template>
                         <!-- 命令响应显示 -->
-                        <template v-else>
+                        <template v-else-if="log.type === 'response'">
                             <span class="console-device-id">[[ log.deviceId ]] <</span>
                             <span class="console-response" :class="log.level">[[ log.content ]]</span>
                         </template>
+                        <!-- 日志显示 -->
+                        <template v-else-if="log.type === 'log'">
+                            <span class="timestamp">[[ formatTime(log.timestamp) ]]</span>
+                            <span class="console-device-id">[[ log.source ]]</span>
+                            <span class="console-log" :class="log.level">[[ log.message ]]</span>
+                        </template>
                     </div>
                 </div>
-                <div class="console-input-container">
+
+                <!-- 日志面板 -->
+                <div class="console-history"
+                     v-show="activeTab === 'logs'"
+                     :class="{'expanded': showHistory}"
+                     ref="consoleLogs"
+                     @scroll="handleLogsScroll"
+                     @click.stop="keepHistoryOpen">
+                    <div v-for="log in systemLogs" :key="log.id" class="console-line">
+                        <span class="timestamp">[[ formatTime(log.timestamp) ]]</span>
+                        <span class="console-device-id">[[ log.source ]]</span>
+                        <span :class="'log-level-' + log.level">[[ log.message ]]</span>
+                    </div>
+                </div>
+
+                <!-- 命令输入区域 -->
+                <div class="console-input-container" v-show="activeTab === 'history'">
                     <input type="text" 
                            class="console-input" 
                            v-model="commandInput"

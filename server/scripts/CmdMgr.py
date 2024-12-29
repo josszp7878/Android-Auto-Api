@@ -1,13 +1,15 @@
 import re
 from functools import wraps
 from datetime import datetime
+from device import Device
+
 # 条件导入 Java 相关模块
 try:
     from java import jclass
     PythonServices = jclass("cn.vove7.andro_accessibility_api.demo.script.PythonServices")
 except ImportError:
     pass
-    
+
 class CmdMgr:
     """封装与手机APP交互的基础功能"""
     
@@ -35,15 +37,16 @@ class CmdMgr:
         """执行命令"""
         for pattern, func in self.registry.items():
             match = re.match(pattern, cmd)
-            print(f"匹配: {pattern} =>{cmd} 结果:{match}")
+            Device.i(f"匹配: {pattern} =>{cmd} 结果:{match}")
             if match:
                 try:
                     params = match.groupdict()
-                    if IN_APP:
+                    if Device.instance().RunFromApp:
                         return func(**params) if params else func()
                     else:
                         return self.testCall(func, params)
                 except Exception as e:
+                    Device.e(f"命令执行错误: {str(e)}")
                     return f"命令执行错误: {str(e)}"
         return "未知命令"
     

@@ -133,4 +133,52 @@
     padding: 10px;
     color: #666;
     font-style: italic;
-} 
+}
+.console-log {
+    color: #B8B8B8;  /* 普通日志使用灰色 */
+}
+
+.console-line .timestamp {
+    color: #666;
+    font-size: 0.8em;
+    margin-right: 8px;
+}
+
+.console-tabs {
+    display: flex;
+    background: #1e1e1e;
+    padding: 5px 15px 0;
+}
+
+.tab-button {
+    background: #2d2d2d;
+    border: none;
+    color: #ccc;
+    padding: 8px 15px;
+    margin-right: 5px;
+    border-radius: 5px 5px 0 0;
+    cursor: pointer;
+}
+
+.tab-button.active {
+    background: #3d3d3d;
+    color: #fff;
+}
+
+.tab-button:hover {
+    background: #3d3d3d;
+}
+
+/* 日志级别颜色 */
+.log-level-E {
+    color: #f44336;  /* 错误-红色 */
+    font-weight: bold;
+}
+
+.log-level-W {
+    color: #ff9800;  /* 警告-橙色 */
+}
+
+.log-level-I {
+    color: #ffffff;  /* 信息-白色 */
+}
