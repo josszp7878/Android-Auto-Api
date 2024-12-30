@@ -170,15 +170,24 @@
 }
 
 /* 日志级别颜色 */
-.log-level-E {
+.log-level-INFO {
+    color: #ffffff;  /* 信息-白色 */
+}
+
+.log-level-WARN {
+    color: #ff9800;  /* 警告-橙色 */
+}
+
+.log-level-ERROR {
     color: #f44336;  /* 错误-红色 */
     font-weight: bold;
 }
 
-.log-level-W {
-    color: #ff9800;  /* 警告-橙色 */
-}
-
-.log-level-I {
-    color: #ffffff;  /* 信息-白色 */
+.log-status {
+    padding: 5px 10px;
+    background: #2d2d2d;
+    color: #ff9800;
+    font-style: italic;
+    border-bottom: 1px solid #3d3d3d;
+    margin-bottom: 5px;
 }

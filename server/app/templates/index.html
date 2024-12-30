@@ -43,7 +43,7 @@
                     </button>
                     <button class="tab-button" 
                             :class="{'active': activeTab === 'logs'}"
-                            @click="activeTab = 'logs'">
+                            @click="switchToLogs">
                         系统日志
                     </button>
                 </div>
@@ -87,6 +87,9 @@
                      ref="consoleLogs"
                      @scroll="handleLogsScroll"
                      @click.stop="keepHistoryOpen">
+                    <div class="log-status" v-if="!isRealtime">
+                        当前显示历史日志，点击标签页恢复实时显示
+                    </div>
                     <div v-for="log in systemLogs" :key="log.id" class="console-line">
                         <span class="timestamp">[[ formatTime(log.timestamp) ]]</span>
                         <span class="console-device-id">[[ log.source ]]</span>

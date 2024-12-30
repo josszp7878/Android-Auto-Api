@@ -19,7 +19,8 @@ class Dashboard {
                 systemLogs: [],        // 系统日志数据
                 logsPage: 1,
                 loadingLogs: false,
-                hasMoreLogs: false
+                hasMoreLogs: false,
+                isRealtime: true,  // 是否实时显示
             },
             methods: {
                 formatTime(timestamp) {
@@ -192,6 +193,49 @@ class Dashboard {
                     this.socket.emit('get_logs', {
                         page: this.logsPage
                     });
+                },
+                switchToLogs() {
+                    this.activeTab = 'logs';
+                    this.isRealtime = true;
+                    // 清空现有日志
+                    this.systemLogs = [];
+                    // 重新获取最新日志
+                    this.socket.emit('get_logs');
+                },
+                parseLogLine(line) {
+                    const match = line.match(/\[(.*?)\] \[(.*?)\] (.*?): (.*)/);
+                    if (match) {
+                        return {
+                            timestamp: match[1],
+                            level: match[2],
+                            source: match[3],
+                            message: match[4]
+                        };
+                    }
+                    return null;
+                },
+                updateLogs(logs, isRealtime = true) {
+                    this.systemLogs = logs;
+                    this.isRealtime = isRealtime;
+                    
+                    // 滚动到底部
+                    this.$nextTick(() => {
+                        const consoleEl = this.$refs.consoleLogs;
+                        if (consoleEl) {
+                            consoleEl.scrollTop = consoleEl.scrollHeight;
+                        }
+                    });
+                },
+                handleLogMessage(data) {
+                    if (this.isRealtime) {
+                        this.systemLogs.push({
+                            timestamp: data.timestamp,
+                            level: data.level,
+                            source: data.source,
+                            message: data.message
+                        });
+                        this.updateLogs(this.systemLogs);
+                    }
                 }
             },
             mounted() {
@@ -282,42 +326,23 @@ class Dashboard {
                 
                 // 修改日志数据处理
                 this.socket.on('logs_data', (data) => {
-                    if (this.logsPage === 1) {
-                        // 反转顺序，最新的在最下面
-                        this.systemLogs = data.logs.reverse();
-                    } else {
-                        // 添加到现有日志的开头
-                        this.systemLogs.unshift(...data.logs.reverse());
-                    }
-                    this.hasMoreLogs = data.has_next;
-                    this.loadingLogs = false;
-
-                    // 如果是第一页，滚动到底部
-                    if (this.logsPage === 1) {
-                        this.$nextTick(() => {
-                            const consoleEl = this.$refs.consoleLogs;
-                            if (consoleEl) {
-                                consoleEl.scrollTop = consoleEl.scrollHeight;
-                            }
-                        });
-                    }
+                    const logs = data.logs
+                        .map(line => this.parseLogLine(line))
+                        .filter(log => log !== null);
+                    this.updateLogs(logs, data.is_realtime);
                 });
-                
+
                 // 修改实时日志处理
                 this.socket.on('log_message', (data) => {
-                    // 添加新日志到末尾
-                    this.systemLogs.push({
-                        id: Date.now(),  // 临时ID
-                        ...data
-                    });
-                    
-                    // 滚动到底部
-                    this.$nextTick(() => {
-                        const consoleEl = this.$refs.consoleLogs;
-                        if (consoleEl) {
-                            consoleEl.scrollTop = consoleEl.scrollHeight;
-                        }
-                    });
+                    this.handleLogMessage(data);
+                });
+
+                // 修改日志显示处理
+                this.socket.on('show_logs', (data) => {
+                    const logs = data.logs
+                        .map(line => this.parseLogLine(line))
+                        .filter(log => log !== null);
+                    this.updateLogs(logs, false);
                 });
 
                 // 添加滚动到底部的处理

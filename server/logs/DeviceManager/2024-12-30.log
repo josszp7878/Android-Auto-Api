@@ -1,0 +1,226 @@
+[2024-12-30 16:38:24.788435] [ERROR] DeviceManager: 更新设备失败: (sqlite3.IntegrityError) UNIQUE constraint failed: devices.device_id
+[SQL: INSERT INTO devices (device_id, status, last_seen, info) VALUES (?, ?, ?, ?)]
+[parameters: ('TEST1', 'login', '2024-12-30 16:38:24.788435', '{"sid": "hEfByDhdObbztqm5AAAD", "connected_at": "2024-12-30 16:38:24.784444"}')]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)
+[2024-12-30 16:40:24.198649] [ERROR] DeviceManager: 更新设备失败: (sqlite3.IntegrityError) UNIQUE constraint failed: devices.device_id
+[SQL: INSERT INTO devices (device_id, status, last_seen, info) VALUES (?, ?, ?, ?)]
+[parameters: ('TEST1', 'login', '2024-12-30 16:40:24.197652', '{"sid": "Gn5qpT_R7uAQMtEfAAAF", "connected_at": "2024-12-30 16:40:24.193629"}')]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)
+[2024-12-30 16:44:10.394895] [ERROR] DeviceManager: 更新设备失败: (sqlite3.IntegrityError) UNIQUE constraint failed: devices.device_id
+[SQL: INSERT INTO devices (device_id, status, last_seen, info) VALUES (?, ?, ?, ?)]
+[parameters: ('TEST1', 'offline', '2024-12-30 16:44:10.393933', '{"sid": "_w1dUpU524IlUK4GAAAD", "connected_at": "2024-12-30 16:44:10.388960"}')]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)
+[2024-12-30 16:45:10.067442] [ERROR] DeviceManager: 更新设备失败: (sqlite3.IntegrityError) UNIQUE constraint failed: devices.device_id
+[SQL: INSERT INTO devices (device_id, status, last_seen, info) VALUES (?, ?, ?, ?)]
+[parameters: ('TEST1', 'login', '2024-12-30 16:45:10.067442', '{"sid": "IA28XFBVvXT55jG6AAAF", "connected_at": "2024-12-30 16:45:10.066444"}')]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)
+[2024-12-30 16:49:28.123932] [INFO] DeviceManager: 设备 None
+[2024-12-30 16:49:28.124930] [INFO] DeviceManager: 创建新设备 <DeviceModel (transient 2187890082336)>
+[2024-12-30 16:49:28.127922] [ERROR] DeviceManager: 更新设备失败: (sqlite3.IntegrityError) UNIQUE constraint failed: devices.device_id
+[SQL: INSERT INTO devices (device_id, status, last_seen, info) VALUES (?, ?, ?, ?)]
+[parameters: ('TEST1', 'offline', '2024-12-30 16:49:28.126925', '{"sid": "1qW9I8cY-FUlF5ViAAAD", "connected_at": "2024-12-30 16:49:28.121937"}')]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)
+[2024-12-30 16:49:28.624429] [INFO] DeviceManager: 设备 None
+[2024-12-30 16:49:28.625427] [INFO] DeviceManager: 创建新设备 <DeviceModel (transient 2187890690512)>
+[2024-12-30 16:49:28.627421] [ERROR] DeviceManager: 更新设备失败: (sqlite3.IntegrityError) UNIQUE constraint failed: devices.device_id
+[SQL: INSERT INTO devices (device_id, status, last_seen, info) VALUES (?, ?, ?, ?)]
+[parameters: ('TEST1', 'login', '2024-12-30 16:49:28.626424', '{"sid": "tBs6SxVykhM2ON3uAAAF", "connected_at": "2024-12-30 16:49:28.623432"}')]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)
+[2024-12-30 16:50:10.291024] [INFO] DeviceManager: 设备 None
+[2024-12-30 16:50:10.292681] [INFO] DeviceManager: 创建新设备 <DeviceModel (transient 2300668465216)>
+[2024-12-30 16:50:10.298833] [ERROR] DeviceManager: 更新设备失败: (sqlite3.IntegrityError) UNIQUE constraint failed: devices.device_id
+[SQL: INSERT INTO devices (device_id, status, last_seen, info) VALUES (?, ?, ?, ?)]
+[parameters: ('TEST1', 'offline', '2024-12-30 16:50:10.297875', '{"sid": "bEbmPymw9cm46WWLAAAD", "connected_at": "2024-12-30 16:50:10.285974"}')]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)
+[2024-12-30 16:50:11.288823] [INFO] DeviceManager: 设备 None
+[2024-12-30 16:50:11.292813] [INFO] DeviceManager: 创建新设备 <DeviceModel (transient 2300668892976)>
+[2024-12-30 16:50:11.298796] [ERROR] DeviceManager: 更新设备失败: (sqlite3.IntegrityError) UNIQUE constraint failed: devices.device_id
+[SQL: INSERT INTO devices (device_id, status, last_seen, info) VALUES (?, ?, ?, ?)]
+[parameters: ('TEST1', 'login', '2024-12-30 16:50:11.296802', '{"sid": "WQgVwyGZFEsmP8lHAAAF", "connected_at": "2024-12-30 16:50:11.284835"}')]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)
+[2024-12-30 16:50:45.737160] [INFO] DeviceManager: 设备 None
+[2024-12-30 16:50:45.738158] [INFO] DeviceManager: 创建新设备 <DeviceModel (transient 2300668977552)>
+[2024-12-30 16:50:45.740153] [ERROR] DeviceManager: 更新设备失败: (sqlite3.IntegrityError) UNIQUE constraint failed: devices.device_id
+[SQL: INSERT INTO devices (device_id, status, last_seen, info) VALUES (?, ?, ?, ?)]
+[parameters: ('TEST1', 'offline', '2024-12-30 16:50:45.740153', '{"sid": "2FRnadVWAqVXfjbJAAAH", "connected_at": "2024-12-30 16:50:45.736163"}')]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)
+[2024-12-30 16:54:17.025202] [INFO] DeviceManager: 更新设备 TEST1
+[2024-12-30 16:54:17.029191] [INFO] DeviceManager: 设备 None, TEST1
+[2024-12-30 16:54:17.031185] [INFO] DeviceManager: 创建新设备 <DeviceModel (transient 2922020989008)>
+[2024-12-30 16:54:17.034206] [ERROR] DeviceManager: 更新设备失败: (sqlite3.IntegrityError) UNIQUE constraint failed: devices.device_id
+[SQL: INSERT INTO devices (device_id, status, last_seen, info) VALUES (?, ?, ?, ?)]
+[parameters: ('TEST1', 'offline', '2024-12-30 16:54:17.034206', '{"sid": "ucl0IG0KtyttXAFCAAAD", "connected_at": "2024-12-30 16:54:17.025202"}')]
+(Background on this error at: https://sqlalche.me/e/14/gkpj)
+[2024-12-30 17:00:36.298764] [ERROR] DeviceManager: 数据库连接检查失败: Working outside of application context.
+
+This typically means that you attempted to use functionality that needed
+to interface with the current application object in some way. To solve
+this, set up an application context with app.app_context().  See the
+documentation for more information.
+[2024-12-30 17:00:36.327687] [ERROR] DeviceManager: 数据库连接检查失败: Working outside of application context.
+
+This typically means that you attempted to use functionality that needed
+to interface with the current application object in some way. To solve
+this, set up an application context with app.app_context().  See the
+documentation for more information.
+[2024-12-30 17:00:42.411501] [INFO] DeviceManager: 更新设备 TEST1
+[2024-12-30 17:00:42.414491] [ERROR] DeviceManager: 数据库查询测试失败: (sqlite3.OperationalError) no such column: devices.created_at
+[SQL: SELECT devices.device_id AS devices_device_id, devices.status AS devices_status, devices.last_seen AS devices_last_seen, devices.info AS devices_info, devices.created_at AS devices_created_at, devices.updated_at AS devices_updated_at 
+FROM devices]
+(Background on this error at: https://sqlalche.me/e/14/e3q8)
+[2024-12-30 17:00:42.418484] [ERROR] DeviceManager: 更新设备失败: A transaction is already begun on this Session.
+[2024-12-30 17:00:49.892673] [ERROR] DeviceManager: 数据库连接检查失败: Working outside of application context.
+
+This typically means that you attempted to use functionality that needed
+to interface with the current application object in some way. To solve
+this, set up an application context with app.app_context().  See the
+documentation for more information.
+[2024-12-30 17:00:49.919601] [ERROR] DeviceManager: 数据库连接检查失败: Working outside of application context.
+
+This typically means that you attempted to use functionality that needed
+to interface with the current application object in some way. To solve
+this, set up an application context with app.app_context().  See the
+documentation for more information.
+[2024-12-30 17:01:03.272469] [INFO] DeviceManager: 更新设备 TEST1
+[2024-12-30 17:01:03.274464] [ERROR] DeviceManager: 数据库查询测试失败: (sqlite3.OperationalError) no such column: devices.created_at
+[SQL: SELECT devices.device_id AS devices_device_id, devices.status AS devices_status, devices.last_seen AS devices_last_seen, devices.info AS devices_info, devices.created_at AS devices_created_at, devices.updated_at AS devices_updated_at 
+FROM devices]
+(Background on this error at: https://sqlalche.me/e/14/e3q8)
+[2024-12-30 17:01:03.276458] [ERROR] DeviceManager: 更新设备失败: A transaction is already begun on this Session.
+[2024-12-30 17:07:59.411919] [ERROR] DeviceManager: 数据库连接检查失败: Working outside of application context.
+
+This typically means that you attempted to use functionality that needed
+to interface with the current application object in some way. To solve
+this, set up an application context with app.app_context().  See the
+documentation for more information.
+[2024-12-30 17:07:59.437864] [ERROR] DeviceManager: 数据库连接检查失败: Working outside of application context.
+
+This typically means that you attempted to use functionality that needed
+to interface with the current application object in some way. To solve
+this, set up an application context with app.app_context().  See the
+documentation for more information.
+[2024-12-30 17:09:02.007858] [ERROR] DeviceManager: 数据库连接检查失败: Working outside of application context.
+
+This typically means that you attempted to use functionality that needed
+to interface with the current application object in some way. To solve
+this, set up an application context with app.app_context().  See the
+documentation for more information.
+[2024-12-30 17:09:02.031855] [ERROR] DeviceManager: 数据库连接检查失败: Working outside of application context.
+
+This typically means that you attempted to use functionality that needed
+to interface with the current application object in some way. To solve
+this, set up an application context with app.app_context().  See the
+documentation for more information.
+[2024-12-30 17:15:26.754923] [INFO] DeviceManager: 数据库中设备数量: 6
+[2024-12-30 17:15:26.759910] [INFO] DeviceManager: 更新设备 TEST1
+[2024-12-30 17:15:26.761904] [INFO] DeviceManager: 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团']
+[2024-12-30 17:15:26.765893] [INFO] DeviceManager: 通过 filter_by 查询设备: <Device TEST1>
+[2024-12-30 17:15:26.766891] [ERROR] DeviceManager: 更新设备失败: A transaction is already begun on this Session.
+[2024-12-30 17:15:51.546153] [INFO] DeviceManager: 数据库中设备数量: 6
+[2024-12-30 17:16:27.247291] [INFO] DeviceManager: 数据库中设备数量: 6
+[2024-12-30 17:20:39.991544] [INFO] DeviceManager: 数据库中设备数量: 6
+[2024-12-30 17:20:40.002889] [INFO] DeviceManager: 更新设备 TEST1
+[2024-12-30 17:20:40.005409] [INFO] DeviceManager: 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团']
+[2024-12-30 17:20:40.008891] [INFO] DeviceManager: 通过 filter_by 查询设备: <Device TEST1>
+[2024-12-30 17:20:40.011263] [ERROR] DeviceManager: 更新设备失败: A transaction is already begun on this Session.
+[2024-12-30 17:21:04.425725] [INFO] DeviceManager: 数据库中设备数量: 6
+[2024-12-30 17:21:25.692819] [INFO] DeviceManager: 数据库中设备数量: 6
+[2024-12-30 17:22:02.212202] [INFO] DeviceManager: 数据库中设备数量: 6
+[2024-12-30 17:22:02.217164] [INFO] DeviceManager: 更新设备 TEST1
+[2024-12-30 17:22:02.219184] [INFO] DeviceManager: 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团']
+[2024-12-30 17:22:02.222149] [INFO] DeviceManager: 通过 filter_by 查询设备: <Device TEST1>
+[2024-12-30 17:22:02.223146] [ERROR] DeviceManager: 更新设备失败: A transaction is already begun on this Session.
+[2024-12-30 17:22:38.084832] [INFO] DeviceManager: 数据库中设备数量: 6
+[2024-12-30 17:23:23.818590] [INFO] DeviceManager: 数据库中设备数量: 6
+[2024-12-30 17:23:23.821581] [INFO] DeviceManager: 更新设备 TEST1
+[2024-12-30 17:23:23.823576] [INFO] DeviceManager: 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团']
+[2024-12-30 17:23:23.825571] [INFO] DeviceManager: 通过 filter_by 查询设备: <Device TEST1>
+[2024-12-30 17:23:23.826568] [ERROR] DeviceManager: 更新设备失败: A transaction is already begun on this Session.
+[2024-12-30 17:25:16.219413] [INFO] DeviceManager: 数据库中设备数量: 6
+[2024-12-30 17:25:16.322138] [INFO] DeviceManager: 更新设备 TEST1
+[2024-12-30 17:25:16.325130] [INFO] DeviceManager: 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团']
+[2024-12-30 17:25:16.328122] [INFO] DeviceManager: 通过 filter_by 查询设备: <Device TEST1>
+[2024-12-30 17:25:16.329120] [INFO] DeviceManager: 设备 <Device TEST1>, TEST1
+[2024-12-30 17:25:16.330117] [INFO] DeviceManager: 更新设备 <Device TEST1>
+[2024-12-30 17:25:19.319167] [INFO] DeviceManager: 数据库中设备数量: 6
+[2024-12-30 17:25:37.130444] [INFO] DeviceManager: 数据库中设备数量: 6
+[2024-12-30 17:25:37.175321] [INFO] DeviceManager: 更新设备 TEST1
+[2024-12-30 17:25:37.177316] [INFO] DeviceManager: 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团']
+[2024-12-30 17:25:37.180309] [INFO] DeviceManager: 通过 filter_by 查询设备: <Device TEST1>
+[2024-12-30 17:25:37.183300] [INFO] DeviceManager: 设备 <Device TEST1>, TEST1
+[2024-12-30 17:25:37.184297] [INFO] DeviceManager: 更新设备 <Device TEST1>
+[2024-12-30 17:26:06.819340] [INFO] DeviceManager: 数据库中设备数量: 6
+[2024-12-30 17:32:16.708625] [INFO] DeviceManager: 数据库中设备数量: 6
+[2024-12-30 17:32:16.712614] [INFO] DeviceManager: 更新设备 TEST1
+[2024-12-30 17:32:16.714647] [INFO] DeviceManager: 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团']
+[2024-12-30 17:32:16.717601] [INFO] DeviceManager: 通过 filter_by 查询设备: <Device TEST1>
+[2024-12-30 17:32:16.718599] [INFO] DeviceManager: 设备 <Device TEST1>, TEST1
+[2024-12-30 17:32:16.720601] [INFO] DeviceManager: 更新设备 <Device TEST1>
+[2024-12-30 17:32:26.472662] [INFO] DeviceManager: 数据库中设备数量: 6
+[2024-12-30 17:40:05.734865] [INFO] DeviceManager: 数据库中设备数量: 6
+[2024-12-30 17:40:05.738855] [INFO] DeviceManager: 更新设备 TEST1
+[2024-12-30 17:40:05.740849] [INFO] DeviceManager: 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团']
+[2024-12-30 17:40:05.742845] [INFO] DeviceManager: 通过 filter_by 查询设备: <Device TEST1>
+[2024-12-30 17:40:05.743843] [INFO] DeviceManager: 设备 <Device TEST1>, TEST1
+[2024-12-30 17:40:05.744840] [INFO] DeviceManager: 更新设备 <Device TEST1>
+[2024-12-30 17:40:11.332931] [INFO] DeviceManager: 数据库中设备数量: 6
+[2024-12-30 17:44:48.767686] [INFO] DeviceManager: 数据库中设备数量: 6
+[2024-12-30 17:44:48.771651] [INFO] DeviceManager: 更新设备 TEST1
+[2024-12-30 17:44:48.774629] [INFO] DeviceManager: 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团']
+[2024-12-30 17:44:48.777621] [INFO] DeviceManager: 通过 filter_by 查询设备: <Device TEST1>
+[2024-12-30 17:44:48.779616] [INFO] DeviceManager: 设备 <Device TEST1>, TEST1
+[2024-12-30 17:44:48.779616] [INFO] DeviceManager: 更新设备 <Device TEST1>
+[2024-12-30 17:45:41.092504] [INFO] DeviceManager: 数据库中设备数量: 6
+[2024-12-30 17:45:41.375553] [INFO] DeviceManager: 更新设备 1
+[2024-12-30 17:45:41.377547] [INFO] DeviceManager: 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团', '1']
+[2024-12-30 17:45:41.380539] [INFO] DeviceManager: 通过 filter_by 查询设备: <Device 1>
+[2024-12-30 17:45:41.381538] [INFO] DeviceManager: 设备 <Device 1>, 1
+[2024-12-30 17:45:41.383531] [INFO] DeviceManager: 更新设备 <Device 1>
+[2024-12-30 17:46:14.522134] [INFO] DeviceManager: 数据库中设备数量: 7
+[2024-12-30 17:52:05.347512] [INFO] DeviceManager: 数据库中设备数量: 7
+[2024-12-30 17:52:05.353455] [INFO] DeviceManager: 更新设备 1
+[2024-12-30 17:52:05.355451] [INFO] DeviceManager: 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团', '1']
+[2024-12-30 17:52:05.359439] [INFO] DeviceManager: 通过 filter_by 查询设备: <Device 1>
+[2024-12-30 17:52:05.360436] [INFO] DeviceManager: 设备 <Device 1>, 1
+[2024-12-30 17:52:05.361472] [INFO] DeviceManager: 更新设备 <Device 1>
+[2024-12-30 17:52:18.428172] [INFO] DeviceManager: 更新设备 1
+[2024-12-30 17:52:18.431164] [INFO] DeviceManager: 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团', '1']
+[2024-12-30 17:52:18.433188] [INFO] DeviceManager: 通过 filter_by 查询设备: <Device 1>
+[2024-12-30 17:52:18.434156] [INFO] DeviceManager: 设备 <Device 1>, 1
+[2024-12-30 17:52:18.435154] [INFO] DeviceManager: 更新设备 <Device 1>
+[2024-12-30 17:52:35.621125] [INFO] DeviceManager: 数据库中设备数量: 7
+[2024-12-30 17:55:20.222831] [INFO] DeviceManager: 数据库中设备数量: 7
+[2024-12-30 18:27:41.017056] [INFO] DeviceManager: 数据库中设备数量: 7
+[2024-12-30 18:27:41.027028] [INFO] DeviceManager: 更新设备 1
+[2024-12-30 18:27:41.032051] [INFO] DeviceManager: 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团', '1']
+[2024-12-30 18:27:41.035008] [INFO] DeviceManager: 通过 filter_by 查询设备: <Device 1>
+[2024-12-30 18:27:41.038000] [INFO] DeviceManager: 设备 <Device 1>, 1
+[2024-12-30 18:27:41.039993] [INFO] DeviceManager: 更新设备 <Device 1>
+[2024-12-30 18:33:01.197099] [INFO] DeviceManager: 更新设备 1
+[2024-12-30 18:33:01.199094] [INFO] DeviceManager: 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团', '1']
+[2024-12-30 18:33:01.201143] [INFO] DeviceManager: 通过 filter_by 查询设备: <Device 1>
+[2024-12-30 18:33:01.202171] [INFO] DeviceManager: 设备 <Device 1>, 1
+[2024-12-30 18:33:01.204136] [INFO] DeviceManager: 更新设备 <Device 1>
+[2024-12-30 18:36:14.591355] [INFO] DeviceManager: 更新设备 1
+[2024-12-30 18:36:14.593378] [INFO] DeviceManager: 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团', '1']
+[2024-12-30 18:36:14.595333] [INFO] DeviceManager: 通过 filter_by 查询设备: <Device 1>
+[2024-12-30 18:36:14.597342] [INFO] DeviceManager: 设备 <Device 1>, 1
+[2024-12-30 18:36:14.598323] [INFO] DeviceManager: 更新设备 <Device 1>
+[2024-12-30 18:36:30.153265] [INFO] DeviceManager: 数据库中设备数量: 7
+[2024-12-30 18:37:03.713490] [INFO] DeviceManager: 数据库中设备数量: 7
+[2024-12-30 18:42:28.126509] [INFO] DeviceManager: 数据库中设备数量: 7
+[2024-12-30 18:42:28.134444] [INFO] DeviceManager: 更新设备 1
+[2024-12-30 18:42:28.139434] [INFO] DeviceManager: 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团', '1']
+[2024-12-30 18:42:28.144460] [INFO] DeviceManager: 通过 filter_by 查询设备: <Device 1>
+[2024-12-30 18:42:28.147410] [INFO] DeviceManager: 设备 <Device 1>, 1
+[2024-12-30 18:42:28.149406] [INFO] DeviceManager: 更新设备 <Device 1>
+[2024-12-30 18:42:35.660033] [INFO] DeviceManager: 数据库中设备数量: 7
+[2024-12-30 18:42:47.357602] [INFO] DeviceManager: 数据库中设备数量: 7
+[2024-12-30 18:44:56.115765] [INFO] DeviceManager: 数据库中设备数量: 7
+[2024-12-30 18:44:56.128774] [INFO] DeviceManager: 更新设备 1
+[2024-12-30 18:44:56.136444] [INFO] DeviceManager: 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团', '1']
+[2024-12-30 18:44:56.141903] [INFO] DeviceManager: 通过 filter_by 查询设备: <Device 1>
+[2024-12-30 18:44:56.143900] [INFO] DeviceManager: 设备 <Device 1>, 1
+[2024-12-30 18:44:56.145894] [INFO] DeviceManager: 更新设备 <Device 1>
+[2024-12-30 18:45:10.694340] [INFO] DeviceManager: 数据库中设备数量: 7
+[2024-12-30 18:45:28.668973] [INFO] DeviceManager: 数据库中设备数量: 7

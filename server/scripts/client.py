@@ -1,7 +1,7 @@
 import time
 import sys
-from device import Device
-from CmdMgr import cmdMgr
+from CDevice import CDevice
+from logger import Log
 
 # 固定配置
 DEFAULT_DEVICE_ID = 'TEST1'
@@ -11,16 +11,16 @@ def Begin(deviceID=None, server=None):
     deviceID = deviceID or DEFAULT_DEVICE_ID
     server = server or "localhost"
 
-    Device.i(f"设备 {deviceID} 正在连接到服务器{server}")
-    device = Device(deviceID)
+    Log.i(f"设备 {deviceID} 正在连接到服务器{server}")
+    device = CDevice(deviceID)
     if not device.connect(f"http://{server}:5000"):
-        Device.e("连接服务器失败")
+        Log.e("连接服务器失败")
         return
 
-    Device.i("支持的命令:")
-    Device.i("- status: 查看状态")
-    Device.i("- exit: 退出程序")
-    print("客户端运行中... 按Ctrl+C退出")
+    Log.i("支持的命令:")
+    Log.i("- status: 查看状态")
+    Log.i("- exit: 退出程序")
+    Log.i("客户端运行中... 按Ctrl+C退出")
     
     try:
         while True:
@@ -36,13 +36,13 @@ def Begin(deviceID=None, server=None):
                 args = parts[1:] if len(parts) > 1 else []
                 
                 if cmd == 'exit':
-                    device.i("退出程序")
+                    Log.i("退出程序")
                     break                
                 # 尝试调用对应的方法
                 try:
                     cmd = next((x for x in dir(device) if x.lower().startswith(cmd.lower())), None)
                     if cmd:
-                        device.i('do cmd:', cmd)
+                        Log.i(f'do cmd: {cmd}')
                         method = getattr(device, cmd)
                         if args:
                             method(*args)
@@ -53,24 +53,24 @@ def Begin(deviceID=None, server=None):
                         device.send_command(cmd_input)
                         
                 except Exception as e:
-                    device.e(f"执行命令出错: {e}")
+                    Log.e(f"执行命令出错: {e} {e.__traceback__}")
                 
                 time.sleep(0.1)
             
     except KeyboardInterrupt:
-        Device.i('\n正在退出...')
+        Log.i('\n正在退出...')
     except Exception as e:
-        Device.e(f'发生错误: {e}, {e.__traceback__}')
+        Log.e(f'发生错误: {e}, {e.__traceback__}')
     finally:
         End()
 
 
 def End():
-    Device.i("End")
+    Log.i("End")
     if client:
         client.logout()
         client.disconnect()
-        Device.i("已断开服务器连接")
+        Log.i("已断开服务器连接")
     # 在这里添加任何需要的清理逻辑
 
 if __name__ == '__main__':

@@ -4,7 +4,7 @@ from flask_socketio import emit
 from .models import db
 from .command_history import CommandHistory
 from .device_manager import DeviceManager
-from .logger import Logger
+from .logger import Log
 
 class SCommand:
     """服务器命令处理类"""
@@ -14,7 +14,8 @@ class SCommand:
         '@status': ('显示服务器状态', '_cmd_status'),
         '@clear': ('清除当前设备的所有指令历史', '_cmd_clear'),
         '@list': ('列出所有设备', '_cmd_list'),
-        '@echo': ('测试日志输出', '_cmd_echo')
+        '@echo': ('测试日志输出', '_cmd_echo'),
+        '@showlog': ('显示日志', '_cmd_showlog')
     }
     
     @staticmethod
@@ -26,7 +27,7 @@ class SCommand:
             else:
                 return SCommand._execute_device_command(device_id, command)
         except Exception as e:
-            print(f'执行命令出错: {e}')
+            Log.e('Server', f'执行命令出错: {e}')
             emit('error', {'message': '命令执行失败'})
     
     @staticmethod
@@ -50,7 +51,7 @@ class SCommand:
     def _send_response(response, device_id='Server'):
         """统一的响应发送处理"""
         # 总是打印到控制台
-        print(f"[{device_id}] {response}")
+        Log.i(device_id, response)
         
         # 如果在Web上下文中，通过WebSocket发送
         if has_request_context():
@@ -77,7 +78,7 @@ class SCommand:
             
         except Exception as e:
             error_msg = f'执行服务器命令出错: {e}'
-            print(error_msg)
+            Log.e('Server', error_msg)
             if has_request_context():
                 emit('error', {'message': '执行命令失败'})
     
@@ -127,29 +128,75 @@ class SCommand:
     def _cmd_echo(args):
         """测试日志输出"""
         message = ' '.join(args) if args else 'Hello World!'
-        
         # 测试不同级别的日志
-        Logger.i('Server', f'[INFO] {message}')
-        Logger.w('Server', f'[WARN] {message}')
-        Logger.e('Server', f'[ERROR] {message}')
-        
+        Log.i('Server', f'[INFO] {message}')
         return f"Echo: {message}"
+    
+    @staticmethod
+    def _cmd_showlog(args):
+        """显示日志
+        用法: @showlog [date] - 显示服务器日志
+             @showlog <device_id> [date] - 显示设备日志
+        """
+        try:
+            date = None
+            device_id = None
+            
+            if args:
+                if args[0].startswith('@'):
+                    # 服务器日志
+                    if len(args) > 1:
+                        date = args[1]
+                else:
+                    # 设备日志
+                    device_id = args[0]
+                    if len(args) > 1:
+                        date = args[1]
+            else:
+                # 如果没有参数，显示当前设备的日志
+                device_manager = DeviceManager()
+                device_id = device_manager.get_device_id()
+                if not device_id:
+                    device_id = 'server'  # 如果没有当前设备，显示服务器日志
+            
+            logs = Log.read_logs(date, device_id)
+            if not logs:
+                return f"没有找到{'服务器' if device_id == 'server' else device_id}在{date or '今天'}的日志"
+                
+            # 发送日志到前端显示
+            from app import socketio
+            Log.i('Server', f'正在显示{device_id}在{date or datetime.now().strftime("%Y-%m-%d")}的日志')
+            socketio.emit('show_logs', {
+                'logs': logs,
+                'device_id': device_id,
+                'date': date or datetime.now().strftime('%Y-%m-%d')
+            })
+            
+            return f"正在显示{'服务器' if device_id == 'server' else device_id}在{date or '今天'}的日志"
+            
+        except Exception as e:
+            Log.e('Server', f"显示日志失败: {e}")
+            return f"显示日志失败: {e}"
     
     @staticmethod
     def _execute_device_command(device_id, command):
         """执行设备命令"""
+        Log.i('Server', f'执行设备命令: {device_id} {command}')
         try:
             with current_app.app_context():
                 device_manager = DeviceManager()
                 device = device_manager.get_device(device_id)
                 if device is None:
+                    Log.e('Server', f'设备 {device_id} 不存在')
                     emit('error', {'message': '设备不存在'})
                     return '设备不存在'
                 
                 if device.status != 'login':
+                    Log.w('Server', f'设备 {device_id} 不在线')
                     emit('error', {'message': '设备不在线'})
                     return '设备不在线'
                 
+                # 记录命令历史
                 history = CommandHistory(
                     sender=current_app.config['SERVER_ID'],
                     target=device_id,
@@ -161,18 +208,29 @@ class SCommand:
                 
                 sid = device.info.get('sid')
                 if sid:
-                    emit('command', {
-                        'command': command,
-                        'device_id': device_id,
-                        'command_id': history.id
-                    }, room=sid)
-                    return f'命令已发送到设备 {device_id}'
+                    # 验证 SID 是否最新
+                    Log.i('Server', f'设备 {device_id} 当前 SID: {sid}')
+                    
+                    try:
+                        # 直接通过 sid 发送命令
+                        emit('command', {
+                            'command': command,
+                            'device_id': device_id,
+                            'command_id': history.id
+                        }, to=sid)
+                        
+                        Log.i('Server', f'命令已发送到 SID: {sid}')
+                        return f'命令已发送到设备 {device_id}'
+                    except Exception as e:
+                        Log.e('Server', f'发送命令时出错: {e}')
+                        return f'发送命令失败: {e}'
                 else:
+                    Log.e('Server', f'设备 {device_id} 会话无效')
                     emit('error', {'message': '设备会话无效'})
                     return '设备会话无效'
                 
         except Exception as e:
-            print(f'执行设备命令出错: {e}')
+            Log.e('Server', f'执行设备命令出错: {e}')
             emit('error', {'message': '执行命令失败'})
             return '执行命令失败'
     

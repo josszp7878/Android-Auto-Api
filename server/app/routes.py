@@ -1,8 +1,8 @@
-from flask import Blueprint, send_file, render_template
+from flask import Blueprint, send_file, render_template, jsonify
 from .device_manager import DeviceManager
 import os
 import json
-from .logger import Logger
+from .logger import Log
 
 # 创建蓝图
 bp = Blueprint('main', __name__)
@@ -14,9 +14,7 @@ device_manager = DeviceManager()
 @bp.route('/')
 def index():
     """首页路由，返回设备列表"""
-    print("处理首页请求@@@@")
-    # 添加测试日志
-    Logger.i('Server', '访问首页')
+    Log.i('Server', '访问首页')
     devices = device_manager.to_dict()
     return render_template('index.html', initial_devices=devices)
 
@@ -33,7 +31,7 @@ def device(device_id):
 @bp.route('/scripts/<path:filename>')
 def serve_script(filename):
     """处理脚本文件请求"""
-    print("处理脚本文件请求@@@@")
+    Log.i('Server', f'处理脚本文件请求: {filename}')
     script_dir = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
         'scripts'
@@ -44,7 +42,7 @@ def serve_script(filename):
 @bp.route('/timestamps')
 def get_timestamps():
     """处理时间戳请求"""
-    print("处理时间戳请求@@@@")
+    Log.i('Server', "处理时间戳请求")
     timestamps = {}
     script_dir = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
@@ -55,3 +53,9 @@ def get_timestamps():
             file_path = os.path.join(script_dir, file)
             timestamps[file] = str(int(os.path.getmtime(file_path)))
     return json.dumps(timestamps)
+
+
+@bp.route('/logs')
+def get_logs():
+    # 修改为返回空列表或其他替代方案
+    return jsonify([])

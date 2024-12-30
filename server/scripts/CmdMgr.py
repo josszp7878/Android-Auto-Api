@@ -1,7 +1,6 @@
 import re
-from functools import wraps
 from datetime import datetime
-from device import Device
+from logger import Log
 
 # 条件导入 Java 相关模块
 try:
@@ -37,16 +36,16 @@ class CmdMgr:
         """执行命令"""
         for pattern, func in self.registry.items():
             match = re.match(pattern, cmd)
-            Device.i(f"匹配: {pattern} =>{cmd} 结果:{match}")
+            Log.i(f"匹配: {pattern} =>{cmd} 结果:{match}")
             if match:
                 try:
                     params = match.groupdict()
-                    if Device.instance().RunFromApp:
+                    if Log.instance().RunFromApp:
                         return func(**params) if params else func()
                     else:
                         return self.testCall(func, params)
                 except Exception as e:
-                    Device.e(f"命令执行错误: {str(e)}")
+                    Log.e(f"命令执行错误: {str(e)}")
                     return f"命令执行错误: {str(e)}"
         return "未知命令"
     
