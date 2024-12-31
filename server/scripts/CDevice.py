@@ -2,12 +2,6 @@ import socketio
 from datetime import datetime
 from pathlib import Path
 from logger import Log
-# try:
-#     from java import jclass
-#     # 获取必要的 Java 类
-#     Log = jclass("android.util.Log")
-# except ImportError:
-#     pass
 
 class CDevice:
     _instance = None  # 单例实例
@@ -49,8 +43,8 @@ class CDevice:
             self.connected = False
             self._RunFromApp = False
             
-            # 初始化日志文件
-            self._open_log_file()
+            # 初始化日志系统为客户端模式
+            Log().init(is_server=False)
             
             # 初始化 socketio 客户端
             self.sio = socketio.Client(
@@ -84,7 +78,7 @@ class CDevice:
             CDevice._log_file = open(log_path, 'a', encoding='utf-8', buffering=1)  # 使用行缓冲
             # Log.i(f'打开日志文件@@@@@@: {log_path}')
         except Exception as e:
-            Log.e(f'打开日志文件失败: {e}')
+            Log.ex(e, '打开日志文件失败')
             CDevice._log_file = None
     
     def _close_log_file(self):
@@ -96,7 +90,7 @@ class CDevice:
                 CDevice._log_file = None
                 Log.i('关闭日志文件')
         except Exception as e:
-            print(f'关闭日志文件失败: {e}')
+            Log.ex(e, '关闭日志文件失败')
     
 
     def isConnected(self):
@@ -115,14 +109,11 @@ class CDevice:
     _serverURL = None
 
     def connect(self, server_url=None):
-        if server_url is None:
-            server_url = self._serverURL
         try:
             if not CDevice._log_file:
                 self._open_log_file()
                 
-            # 添加调试信息
-            Log.i(f'连接参数: device_id={self.deviceID}')            
+            Log.i(f'连接参数: device_id={self.deviceID}')
             
             self._serverURL = server_url
             
@@ -143,16 +134,16 @@ class CDevice:
             self.connected = True
             return True
         except Exception as e:
-            Log.e(f'连接错误: {e}')
+            Log.ex(e, '连接错误')
             return False
 
     def login(self):
-        """设备登录"""
+        Log.i(f'设备 {self.deviceID} 登录: self.connected={self.connected}')
         if self.connected:
-            Log.i(f'设备 {self.deviceID} 登录')
             self.sio.emit('device_login', {
                 'device_id': self.deviceID,
-                'timestamp': str(datetime.now())
+                'timestamp': str(datetime.now()),
+                'status': 'login'
             })
             return True
         return False
@@ -172,13 +163,13 @@ class CDevice:
             command = data.get('command')
             command_id = data.get('command_id')
             print(f'正在处理命令: {command}, ID: {command_id}')
-            Log.i(f'正在处理命令: {command}, ID: {command_id}')
+            # Log.i(f'正在处理命令: {command}, ID: {command_id}')
             
             # 执行命令 - 使用绝对导入
             from CmdMgr import CmdMgr
             result = CmdMgr().do(command)
             
-            Log.i(f'客户端执行命令结果: {result}')
+            # print(f'客户端执行命令结果: {result}')
             
             # 发送响应
             if result is not None:
@@ -187,12 +178,12 @@ class CDevice:
                     'device_id': self.deviceID,
                     'result': result
                 }
-                Log.i(f'客户端发送响应: {response}')
+                # print(f'客户端发送响应: {response}')
                 self.sio.emit('command_result', response)
                 
         except Exception as e:
             error_msg = f'执行命令出错: {e}'
-            Log.e(error_msg)
+            Log.ex(e, '执行命令出错')
             if self.connected:
                 self.sio.emit('command_result', {
                     'command_id': data.get('command_id'),
@@ -206,10 +197,13 @@ class CDevice:
 
     def on_connect(self):
         """连接成功回调"""
-        # 获取并打印当前的 sid
         sid = self.sio.sid
         Log.i(f'已连接到服务器, SID: {sid}')
         print(f'客户端 SID: {sid}')
+        
+        # 连接成功后打开日志文件
+        Log().open(self.deviceID)
+        
         # 连接后立即进行登录
         self.login()
 
@@ -221,6 +215,9 @@ class CDevice:
         """断开连接回调"""
         Log.w('断开连接')
         self.connected = False
+        
+        # 断开连接时保存并关闭日志文件
+        Log().close(self.deviceID)
 
     def send_command(self, cmd):
         """发送命令到服务器"""
@@ -242,13 +239,14 @@ class CDevice:
         Log.i(f'设备状态: {status}')
         return True
 
-    def send_log(self, message, level='INFO'):
+    def send_log(self, message, level='INFO', tag=None):
         """发送日志到服务器"""
         if self.connected:
             self.sio.emit('client_log', {
                 'device_id': self.deviceID,
                 'message': message,
-                'level': level
+                'level': level,
+                'tag': tag
             })
    
     def on_test_room(self, data):

@@ -1,0 +1,17 @@
+[2024-12-31 08:58:31.830997] [INFO] DeviceManager: 更新设备 1
+[2024-12-31 08:58:31.834997] [INFO] DeviceManager: 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团', '1']
+[2024-12-31 08:58:31.838997] [INFO] DeviceManager: 通过 filter_by 查询设备: <Device 1>
+[2024-12-31 08:58:31.846997] [INFO] DeviceManager: 设备 <Device 1>, 1
+[2024-12-31 08:58:31.846997] [INFO] DeviceManager: 更新设备 <Device 1>
+[2024-12-31 08:58:37.149692] [INFO] DeviceManager: 更新设备 1
+[2024-12-31 08:58:37.151686] [INFO] DeviceManager: 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团', '1']
+[2024-12-31 08:58:37.153681] [INFO] DeviceManager: 通过 filter_by 查询设备: <Device 1>
+[2024-12-31 08:58:37.155675] [INFO] DeviceManager: 设备 <Device 1>, 1
+[2024-12-31 08:58:37.156674] [INFO] DeviceManager: 更新设备 <Device 1>
+[2024-12-31 08:58:44.199424] [INFO] DeviceManager: 更新设备 1
+[2024-12-31 08:58:44.201419] [INFO] DeviceManager: 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团', '1']
+[2024-12-31 08:58:44.203414] [INFO] DeviceManager: 通过 filter_by 查询设备: <Device 1>
+[2024-12-31 08:58:44.204411] [INFO] DeviceManager: 设备 <Device 1>, 1
+[2024-12-31 08:58:44.205408] [INFO] DeviceManager: 更新设备 <Device 1>
+[11:55:09] [INFO] DeviceManager: 数据库中设备数量: 7
+[11:55:32] [INFO] DeviceManager: 数据库中设备数量: 7

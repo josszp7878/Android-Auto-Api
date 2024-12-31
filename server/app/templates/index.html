@@ -17,7 +17,7 @@
                         <div class="device-card" 
                              :class="{
                                  'selected': selectedDevice === id,
-                                 'offline': device.status !== 'login'
+                                 'offline': device.status === 'offline'
                              }"
                              :style="{
                                  'background-image': `url(${device.screenshot || '/static/screenshots/default.jpg'})`

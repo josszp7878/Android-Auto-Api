@@ -1,0 +1,591 @@
+[2024-12-31 08:58:28.611482] [INFO] Server: Client disconnected: s4nmT1pr1NjuUF-nAAAP
+[2024-12-31 08:58:31.734914] [INFO] Server: 连接请求: device_id=1, sid=MEU7GAcDJGG6gmkGAAAR
+[2024-12-31 08:58:32.390160] [INFO] Server: 设备 1 连接成功, SID: MEU7GAcDJGG6gmkGAAAR
+[2024-12-31 08:58:33.126165] [INFO] Server: Client disconnected: MEU7GAcDJGG6gmkGAAAR
+[2024-12-31 08:58:36.850047] [INFO] Server: 连接请求: device_id=None, sid=EUZ9htaaE2UOX4NWAAAT
+[2024-12-31 08:58:36.851043] [ERROR] Server: Client connected without device_id
+[2024-12-31 08:58:37.147697] [INFO] Server: 连接请求: device_id=1, sid=Bo-erLJuYQIlv7cuAAAV
+[2024-12-31 08:58:37.616439] [INFO] Server: 设备 1 连接成功, SID: Bo-erLJuYQIlv7cuAAAV
+[2024-12-31 08:58:38.243148] [INFO] Server: Client disconnected: Bo-erLJuYQIlv7cuAAAV
+[2024-12-31 08:58:44.198427] [INFO] Server: 连接请求: device_id=1, sid=5zUvj7aaKZznNC_UAAAX
+[2024-12-31 08:58:44.595727] [INFO] Server: 设备 1 连接成功, SID: 5zUvj7aaKZznNC_UAAAX
+[2024-12-31 11:49:19.790980] [INFO] Server: Client disconnected: 5zUvj7aaKZznNC_UAAAX
+[11:55:09] [INFO] Server: 从数据库加载了 7 个设备
+[11:55:15] [INFO] Server: 访问首页
+[11:55:26] [INFO] Server: 设置当前设备ID: TEST1
+[11:55:32] [INFO] Server: 执行设备命令: TEST1 aa
+[11:55:32] [INFO] Server: 从数据库加载了 7 个设备
+[11:55:32] [INFO] Server: 设备 TEST1 当前 SID: hoKS8JKX6TRHsIQqAAAB
+[11:55:32] [INFO] Server: 命令已发送到 SID: hoKS8JKX6TRHsIQqAAAB
+[11:54:40] [i] server: 服务器启动
+[11:54:44] [i] server: 连接请求: device_id=None, sid=0ycnzoDyc1yimrgKAAAB
+[11:54:44] [e] server: Client connected without device_id
+[11:55:09] [i] server: 连接请求: device_id=TEST1, sid=91edayf5_pjZNIknAAAD
+[11:55:09] [e] server: 处理连接时出错: e() missing 1 required positional argument: 'message'
+[11:55:09] [e] server: Traceback (most recent call last):
+  File "D:\Program Files\Python38\lib\site-packages\flask_socketio\__init__.py", line 762, in _handle_event
+    ret = handler(auth)
+TypeError: handle_connect() takes 0 positional arguments but 1 was given
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "E:\Project\Android-Auto-Api\server\app\device_manager.py", line 119, in update_device
+    Log.i(f"更新设备 {device.device_id}")
+TypeError: i() missing 1 required positional argument: 'message'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "E:\Project\Android-Auto-Api\server\app\websocket.py", line 44, in handle_connect
+    device_manager.update_device(device)
+  File "E:\Project\Android-Auto-Api\server\app\device_manager.py", line 169, in update_device
+    Log.e(f'更新设备失败: {e}')
+TypeError: e() missing 1 required positional argument: 'message'
+
+[11:55:09] [e] server: Client connected without device_id
+[11:55:15] [i] server: Client disconnected: 0ycnzoDyc1yimrgKAAAB
+[11:55:15] [i] server: 连接请求: device_id=None, sid=JfrHfMpPPgR5Mb8wAAAF
+[11:55:15] [e] server: Client connected without device_id
+[11:55:15] [e] 获取日志失败: type object 'Log' has no attribute 'read_logs': Server
+[11:55:32] [i] 收到命令请求: {'device_id': 'TEST1', 'command': 'aa'}: Server
+[11:55:37] [e] 获取日志失败: type object 'Log' has no attribute 'read_logs': Server
+[12:04:09] [i] server: 服务器启动
+[12:04:13] [i] server: 连接请求: device_id=None, sid=qXuUDzBl27Dh8H9OAAAB
+[12:04:13] [e] server: Client connected without device_id
+[12:04:39] [i] server: 连接请求: device_id=TEST1, sid=wu9rNVXk2XGBydxaAAAD
+[12:04:39] [i] 数据库中设备数量: 7: DeviceManager
+[12:04:39] [i] 从数据库加载了 7 个设备: Server
+[12:04:39] [i] server: 更新设备 TEST1
+[12:04:39] [i] 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团', '1']: DeviceManager
+[12:04:39] [i] 通过 filter_by 查询设备: <Device TEST1>: DeviceManager
+[12:04:39] [i] 设备 <Device TEST1>, TEST1: DeviceManager
+[12:04:39] [i] 更新设备 <Device TEST1>: DeviceManager
+[12:04:40] [i] server: 设备 TEST1 已连接
+[12:04:56] [e] 获取日志失败: 'NoneType' object has no attribute 'log_cache': Server
+[12:05:00] [i] server: Client disconnected: qXuUDzBl27Dh8H9OAAAB
+[12:05:00] [i] 访问首页: Server
+[12:05:00] [i] server: 连接请求: device_id=None, sid=E9_fghog0h5BTj3YAAAF
+[12:05:00] [e] server: Client connected without device_id
+[12:05:00] [e] 获取日志失败: 'NoneType' object has no attribute 'log_cache': Server
+[12:07:25] [i] server: 服务器启动
+[12:07:25] [i] server: 连接请求: device_id=TEST1, sid=C9rYweP0uyMhPWx7AAAB
+[12:07:25] [i] 数据库中设备数量: 7: DeviceManager
+[12:07:25] [i] 从数据库加载了 7 个设备: Server
+[12:07:25] [i] server: 更新设备 TEST1
+[12:07:25] [i] 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团', '1']: DeviceManager
+[12:07:25] [i] 通过 filter_by 查询设备: <Device TEST1>: DeviceManager
+[12:07:25] [i] 设备 <Device TEST1>, TEST1: DeviceManager
+[12:07:25] [i] 更新设备 <Device TEST1>: DeviceManager
+[12:07:26] [i] server: 设备 TEST1 已连接
+[12:07:27] [i] server: 连接请求: device_id=None, sid=GwZ4CjPevLbdsGI-AAAD
+[12:07:27] [e] server: Client connected without device_id
+[12:07:37] [e] 获取日志失败: 'NoneType' object has no attribute 'cache': Server
+[12:07:43] [i] 设置当前设备ID: TEST1: Server
+[12:11:28] [i] server: 服务器启动
+[12:11:29] [i] server: 连接请求: device_id=None, sid=3oYM_aH20E4nVoQIAAAB
+[12:11:29] [e] server: Client connected without device_id
+[12:11:29] [i] server: 连接请求: device_id=TEST1, sid=SE9cfHV4fEWV4zP4AAAD
+[12:11:29] [i] 数据库中设备数量: 7: DeviceManager
+[12:11:29] [i] 从数据库加载了 7 个设备: Server
+[12:11:29] [i] server: 更新设备 TEST1
+[12:11:29] [i] 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团', '1']: DeviceManager
+[12:11:29] [i] 通过 filter_by 查询设备: <Device TEST1>: DeviceManager
+[12:11:29] [i] 设备 <Device TEST1>, TEST1: DeviceManager
+[12:11:29] [i] 更新设备 <Device TEST1>: DeviceManager
+[12:11:29] [i] server: 设备 TEST1 已连接
+[12:11:48] [e] 获取日志失败: 'NoneType' object has no attribute 'cache': Server
+[12:17:41] [i] server: 服务器启动
+[12:17:45] [i] server: 连接请求: device_id=None, sid=YCtkD4PfaC23pDSeAAAB
+[12:17:45] [e] server: Client connected without device_id
+[12:17:45] [i] server: 连接请求: device_id=TEST1, sid=XkTn17G9bIY5e6TGAAAD
+[12:17:45] [i] server: 数据库中设备数量: 7
+[12:17:45] [i] 从数据库加载了 7 个设备: Server
+[12:17:45] [i] server: 更新设备 TEST1
+[12:17:45] [i] 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团', '1']: DeviceManager
+[12:17:45] [i] 通过 filter_by 查询设备: <Device TEST1>: DeviceManager
+[12:17:45] [i] 设备 <Device TEST1>, TEST1: DeviceManager
+[12:17:45] [i] 更新设备 <Device TEST1>: DeviceManager
+[12:17:45] [i] server: 设备 TEST1 已连接
+[12:17:56] [i] server: 加载设备 TEST1 的历史记录, 页码: 1
+[12:17:56] [i] 设置当前设备ID: TEST1: Server
+[12:17:57] [i] server: 加载设备 TEST1 的历史记录, 页码: 2
+[12:19:37] [i] server: Client disconnected: XkTn17G9bIY5e6TGAAAD
+[12:19:52] [i] server: 连接请求: device_id=TEST1, sid=em52bWNLVmyNHiKYAAAF
+[12:19:52] [i] server: 数据库中设备数量: 7
+[12:19:52] [i] 从数据库加载了 7 个设备: Server
+[12:19:52] [i] server: 更新设备 TEST1
+[12:19:52] [i] 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团', '1']: DeviceManager
+[12:19:52] [i] 通过 filter_by 查询设备: <Device TEST1>: DeviceManager
+[12:19:52] [i] 设备 <Device TEST1>, TEST1: DeviceManager
+[12:19:52] [i] 更新设备 <Device TEST1>: DeviceManager
+[12:19:53] [i] server: 设备 TEST1 已连接
+[12:20:20] [i] server: 加载设备 TEST1 的历史记录, 页码: 1
+[12:20:20] [i] 设置当前设备ID: TEST1: Server
+[12:20:22] [i] server: 加载设备 TEST1 的历史记录, 页码: 2
+[12:25:58] [i] server: 服务器启动
+[12:26:00] [i] server: 连接请求: device_id=TEST1, sid=6SIEFc8v-FxxxIN6AAAB
+[12:26:00] [i] server: 数据库中设备数量: 7
+[12:26:00] [i] 从数据库加载了 7 个设备: Server
+[12:26:00] [i] server: 更新设备 TEST1
+[12:26:00] [i] 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团', '1']: DeviceManager
+[12:26:00] [i] 通过 filter_by 查询设备: <Device TEST1>: DeviceManager
+[12:26:00] [i] 设备 <Device TEST1>, TEST1: DeviceManager
+[12:26:00] [i] 更新设备 <Device TEST1>: DeviceManager
+[12:26:00] [i] server: 设备 TEST1 已连接
+[12:26:01] [i] server: 连接请求: device_id=None, sid=9_Fbduiv8tz2kmHhAAAD
+[12:26:01] [e] server: Client connected without device_id
+[12:27:07] [i] server: Client disconnected: 6SIEFc8v-FxxxIN6AAAB
+[12:27:07] [i] server: 设备 TEST1 已断开连接
+[12:27:24] [i] server: 连接请求: device_id=TEST1, sid=GLY5VuEP8IIH0WeTAAAF
+[12:27:24] [i] server: 更新设备 TEST1
+[12:27:24] [i] 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团', '1']: DeviceManager
+[12:27:24] [i] 通过 filter_by 查询设备: <Device TEST1>: DeviceManager
+[12:27:24] [i] 设备 <Device TEST1>, TEST1: DeviceManager
+[12:27:24] [i] 更新设备 <Device TEST1>: DeviceManager
+[12:27:24] [i] server: 设备 TEST1 已连接
+[12:38:41] [i] server: 服务器启动
+[12:38:41] [i] server: 连接请求: device_id=TEST1, sid=HJIXf3bszQllpfRVAAAB
+[12:38:41] [i] server: 数据库中设备数量: 7
+[12:38:41] [i] 从数据库加载了 7 个设备: Server
+[12:38:41] [i] server: 更新设备 TEST1
+[12:38:41] [i] 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团', '1']: DeviceManager
+[12:38:41] [i] 通过 filter_by 查询设备: <Device TEST1>: DeviceManager
+[12:38:41] [i] 设备 <Device TEST1>, TEST1: DeviceManager
+[12:38:41] [i] 更新设备 <Device TEST1>: DeviceManager
+[12:38:41] [i] server: 设备 TEST1 已连接
+[12:38:44] [i] server: 连接请求: device_id=None, sid=It_8n35L3QI5le_jAAAD
+[12:38:44] [e] server: Client connected without device_id
+[12:38:52] [i] server: Client disconnected: It_8n35L3QI5le_jAAAD
+[12:38:52] [i] 访问首页: Server
+[12:38:52] [i] server: 连接请求: device_id=None, sid=5SPgmZuwN2S6M4AWAAAF
+[12:38:52] [e] server: Client connected without device_id
+[12:38:57] [i] server: 加载设备 TEST1 的历史记录, 页码: 1
+[12:38:57] [i] 设置当前设备ID: TEST1: Server
+[12:40:00] [i] server: 数据库中设备数量: 7
+[12:40:00] [i] 从数据库加载了 7 个设备: Server
+[12:41:24] [i] server: Client disconnected: 5SPgmZuwN2S6M4AWAAAF
+[14:22:00] [i] server: Client disconnected: HJIXf3bszQllpfRVAAAB
+[14:22:00] [i] server: 设备 TEST1 已断开连接
+[14:22:03] [i] server: 连接请求: device_id=TEST1, sid=lnyGcoIT0RcruxZGAAAI
+[14:22:03] [i] server: 更新设备 TEST1
+[14:22:03] [i] 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团', '1']: DeviceManager
+[14:22:03] [i] 通过 filter_by 查询设备: <Device TEST1>: DeviceManager
+[14:22:03] [i] 设备 <Device TEST1>, TEST1: DeviceManager
+[14:22:03] [i] 更新设备 <Device TEST1>: DeviceManager
+[14:22:03] [i] server: 设备 TEST1 已连接
+[14:22:04] [i] server: Client disconnected: lnyGcoIT0RcruxZGAAAI
+[14:22:04] [i] server: 设备 TEST1 已断开连接
+[14:22:08] [i] server: 连接请求: device_id=TEST1, sid=E4klne9Y4i6UXPxVAAAK
+[14:22:08] [i] server: 更新设备 TEST1
+[14:22:08] [i] 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团', '1']: DeviceManager
+[14:22:08] [i] 通过 filter_by 查询设备: <Device TEST1>: DeviceManager
+[14:22:08] [i] 设备 <Device TEST1>, TEST1: DeviceManager
+[14:22:08] [i] 更新设备 <Device TEST1>: DeviceManager
+[14:22:09] [i] server: 设备 TEST1 已连接
+[14:22:10] [i] server: Client disconnected: E4klne9Y4i6UXPxVAAAK
+[14:22:10] [i] server: 设备 TEST1 已断开连接
+[14:22:16] [i] server: 连接请求: device_id=TEST1, sid=dq0wM-jNGbatEkGxAAAM
+[14:22:16] [i] server: 更新设备 TEST1
+[14:22:16] [i] 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团', '1']: DeviceManager
+[14:22:16] [i] 通过 filter_by 查询设备: <Device TEST1>: DeviceManager
+[14:22:16] [i] 设备 <Device TEST1>, TEST1: DeviceManager
+[14:22:16] [i] 更新设备 <Device TEST1>: DeviceManager
+[14:22:16] [i] server: 设备 TEST1 已连接
+[14:22:23] [i] server: 连接请求: device_id=None, sid=9g471Aid99Ln5rL-AAAO
+[14:22:23] [e] server: Client connected without device_id
+[14:25:06] [i] server: Client disconnected: 9g471Aid99Ln5rL-AAAO
+[14:25:06] [i] 访问首页: Server
+[14:25:06] [i] server: 连接请求: device_id=None, sid=8qwmkHP6WQopRLrqAAAQ
+[14:25:06] [e] server: Client connected without device_id
+[14:25:25] [i] server: 加载设备 TEST1 的历史记录, 页码: 1
+[14:25:25] [i] 设置当前设备ID: TEST1: Server
+[14:25:26] [i] server: 加载设备 TEST1 的历史记录, 页码: 2
+[14:26:25] [i] server: 连接请求: device_id=tttt, sid=5-z5zTBYe3q-wVJSAAAS
+[14:26:25] [i] server: 数据库中设备数量: 7
+[14:26:25] [i] 从数据库加载了 7 个设备: Server
+[14:26:25] [i] server: 添加设备: tttt
+[14:26:25] [i] server: 更新设备 tttt
+[14:26:25] [i] 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团', '1', 'tttt']: DeviceManager
+[14:26:25] [i] 通过 filter_by 查询设备: <Device tttt>: DeviceManager
+[14:26:25] [i] 设备 <Device tttt>, tttt: DeviceManager
+[14:26:25] [i] 更新设备 <Device tttt>: DeviceManager
+[14:26:25] [i] server: 设备 tttt 已连接
+[14:55:38] [i] server: 服务器启动
+[14:55:38] [i] server: 数据库中设备数量: 8
+[14:55:38] [i] 从数据库加载了 8 个设备: Server
+[14:55:38] [i] server: 更新设备 tttt
+[14:55:38] [i] 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团', '1', 'tttt']: DeviceManager
+[14:55:38] [i] 通过 filter_by 查询设备: <Device tttt>: DeviceManager
+[14:55:38] [i] 设备 <Device tttt>, tttt: DeviceManager
+[14:55:38] [i] 更新设备 <Device tttt>: DeviceManager
+[14:55:39] [i] server: 设备 tttt 已连接
+[14:55:39] [i] server: 更新设备 TEST1
+[14:55:39] [i] 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团', '1', 'tttt']: DeviceManager
+[14:55:39] [i] 通过 filter_by 查询设备: <Device TEST1>: DeviceManager
+[14:55:39] [i] 设备 <Device TEST1>, TEST1: DeviceManager
+[14:55:39] [i] 更新设备 <Device TEST1>: DeviceManager
+[14:55:39] [i] server: 设备 TEST1 已连接
+[14:55:40] [e] server: 未知的客户端连接
+[14:55:57] [i] 访问首页: Server
+[14:55:57] [i] server: 添加控制台连接: 2nYJ13ORMlEqBPAqAAAH
+[14:55:57] [i] server: 控制台连接: 2nYJ13ORMlEqBPAqAAAH
+[14:56:07] [i] server: 加载设备 TEST1 的历史记录, 页码: 1
+[14:56:07] [i] 设置当前设备ID: TEST1: Server
+[14:56:34] [i] server: 加载设备 TEST1 的历史记录, 页码: 2
+[14:57:32] [i] server: Client disconnected: jmUgU5LTsQoyUrthAAAB
+[15:14:08] [i] server: 服务器启动
+[15:14:09] [i] server: 数据库中设备数量: 8
+[15:14:09] [i] 从数据库加载了 8 个设备: Server
+[15:14:09] [i] server: 更新设备 TEST1
+[15:14:09] [i] 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团', '1', 'tttt']: DeviceManager
+[15:14:09] [i] 通过 filter_by 查询设备: <Device TEST1>: DeviceManager
+[15:14:09] [i] 设备 <Device TEST1>, TEST1: DeviceManager
+[15:14:09] [i] 更新设备 <Device TEST1>: DeviceManager
+[15:14:09] [i] server: 设备 TEST1 已连接
+[15:14:11] [i] server: Client disconnected: Tjl-9lbB-ZP4OTVTAAAB
+[15:14:11] [i] server: 设备 TEST1 已断开连接
+[15:14:12] [i] server: 添加控制台连接: 6rz2WjUqZQ_3Mws-AAAD
+[15:14:12] [i] server: 控制台连接: 6rz2WjUqZQ_3Mws-AAAD
+[15:14:17] [i] server: Client disconnected: 6rz2WjUqZQ_3Mws-AAAD
+[15:14:17] [i] server: 移除控制台连接: 6rz2WjUqZQ_3Mws-AAAD
+[15:14:17] [i] 访问首页: Server
+[15:14:17] [i] server: 添加控制台连接: oYrSYt48ABTmq9CtAAAF
+[15:14:17] [i] server: 控制台连接: oYrSYt48ABTmq9CtAAAF
+[15:14:30] [i] server: 更新设备 TEST1
+[15:14:30] [i] 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团', '1', 'tttt']: DeviceManager
+[15:14:30] [i] 通过 filter_by 查询设备: <Device TEST1>: DeviceManager
+[15:14:31] [i] 设备 <Device TEST1>, TEST1: DeviceManager
+[15:14:31] [i] 更新设备 <Device TEST1>: DeviceManager
+[15:14:31] [i] server: 设备 TEST1 已连接
+[15:20:40] [i] server: 服务器启动
+[15:20:41] [i] server: 添加控制台连接: 0UGB5qE5Yv90lliOAAAB
+[15:20:41] [i] server: 控制台连接: 0UGB5qE5Yv90lliOAAAB
+[15:20:41] [i] server: 数据库中设备数量: 8
+[15:20:41] [i] 从数据库加载了 8 个设备: Server
+[15:20:41] [i] server: 更新设备 TEST1
+[15:20:41] [i] 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团', '1', 'tttt']: DeviceManager
+[15:20:41] [i] 通过 filter_by 查询设备: <Device TEST1>: DeviceManager
+[15:20:41] [i] 设备 <Device TEST1>, TEST1: DeviceManager
+[15:20:41] [i] 更新设备 <Device TEST1>: DeviceManager
+[15:20:41] [i] server: 设备 TEST1 已连接
+[15:20:51] [i] server: Client disconnected: 0UGB5qE5Yv90lliOAAAB
+[15:20:51] [i] server: 移除控制台连接: 0UGB5qE5Yv90lliOAAAB
+[15:20:51] [i] 访问首页: Server
+[15:20:51] [i] server: 添加控制台连接: 353f2318--fLyhFyAAAF
+[15:20:51] [i] server: 控制台连接: 353f2318--fLyhFyAAAF
+[15:22:24] [i] server: 加载设备 TEST1 的历史记录, 页码: 1
+[15:22:24] [i] 设置当前设备ID: TEST1: Server
+[15:23:40] [i] server: 服务器启动
+[15:23:41] [i] server: 数据库中设备数量: 8
+[15:23:41] [i] 从数据库加载了 8 个设备: Server
+[15:23:41] [i] server: 更新设备 TEST1
+[15:23:41] [i] 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团', '1', 'tttt']: DeviceManager
+[15:23:41] [i] 通过 filter_by 查询设备: <Device TEST1>: DeviceManager
+[15:23:41] [i] 设备 <Device TEST1>, TEST1: DeviceManager
+[15:23:41] [i] 更新设备 <Device TEST1>: DeviceManager
+[15:23:41] [i] server: 设备 TEST1 已连接
+[15:23:41] [i] server: 添加控制台连接: P2ulA3MRBZJxLKg5AAAD
+[15:23:41] [i] server: 控制台连接: P2ulA3MRBZJxLKg5AAAD
+[15:23:51] [i] server: Client disconnected: P2ulA3MRBZJxLKg5AAAD
+[15:23:51] [i] server: 移除控制台连接: P2ulA3MRBZJxLKg5AAAD
+[15:23:51] [i] 访问首页: Server
+[15:23:51] [i] server: 添加控制台连接: oX9AMP-rEGfHmT6ZAAAF
+[15:23:51] [i] server: 控制台连接: oX9AMP-rEGfHmT6ZAAAF
+[15:23:53] [i] server: Client disconnected: oX9AMP-rEGfHmT6ZAAAF
+[15:23:53] [i] server: 移除控制台连接: oX9AMP-rEGfHmT6ZAAAF
+[15:23:53] [i] 访问首页: Server
+[15:23:53] [i] server: 添加控制台连接: qd1iOx1gPhsXVRzFAAAH
+[15:23:53] [i] server: 控制台连接: qd1iOx1gPhsXVRzFAAAH
+[15:24:30] [i] server: Client disconnected: Ei5VtGwyULkD3KzDAAAB
+[15:24:30] [i] server: 设备 TEST1 已断开连接
+[15:24:48] [i] server: 添加设备: dd
+[15:24:48] [i] server: 更新设备 dd
+[15:24:48] [i] 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团', '1', 'tttt', 'dd']: DeviceManager
+[15:24:48] [i] 通过 filter_by 查询设备: <Device dd>: DeviceManager
+[15:24:48] [i] 设备 <Device dd>, dd: DeviceManager
+[15:24:48] [i] 更新设备 <Device dd>: DeviceManager
+[15:24:48] [i] server: 设备 dd 已连接
+[15:29:02] [i] server: 服务器启动
+[15:29:03] [i] server: 数据库中设备数量: 9
+[15:29:03] [i] 从数据库加载了 9 个设备: Server
+[15:29:03] [i] server: 更新设备 dd
+[15:29:03] [i] 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团', '1', 'tttt', 'dd']: DeviceManager
+[15:29:03] [i] 通过 filter_by 查询设备: <Device dd>: DeviceManager
+[15:29:03] [i] 设备 <Device dd>, dd: DeviceManager
+[15:29:03] [i] 更新设备 <Device dd>: DeviceManager
+[15:29:03] [i] server: 设备 dd 已连接
+[15:29:03] [i] server: 设备 dd 登录
+[15:29:04] [i] server: 添加控制台连接: 3midnPFGTBRIRkvpAAAD
+[15:29:04] [i] server: 控制台连接: 3midnPFGTBRIRkvpAAAD
+[15:29:05] [i] server: Client disconnected: 6KwrivXGdQQnTzQxAAAB
+[15:29:05] [i] server: 设备 dd 已断开连接
+[15:29:21] [i] server: 添加设备: ff
+[15:29:21] [i] server: 更新设备 ff
+[15:29:21] [i] 数据库中的所有设备: ['test4', 'test3', 'test2', 'TEST1', 'love', '氏集团', '1', 'tttt', 'dd', 'ff']: DeviceManager
+[15:29:21] [i] 通过 filter_by 查询设备: <Device ff>: DeviceManager
+[15:29:21] [i] 设备 <Device ff>, ff: DeviceManager
+[15:29:21] [i] 更新设备 <Device ff>: DeviceManager
+[15:29:21] [i] server: 设备 ff 已连接
+[15:29:21] [i] server: 设备 ff 登录
+[15:29:22] [i] server: Client disconnected: I9clikbQRHMusWdeAAAF
+[15:29:22] [i] server: 设备 ff 已断开连接
+[15:30:05] [i] server: 加载设备 ff 的历史记录, 页码: 1
+[15:30:05] [i] 设置当前设备ID: ff: Server
+[15:41:48] [i] server: 服务器启动
+[15:41:49] [i] 访问首页: Server
+[15:41:49] [i] server: 数据库中设备数量: 10
+[15:41:49] [i] 从数据库加载了 10 个设备: Server
+[15:41:49] [i] server: 添加控制台连接: 5rAGCz1FbPnlsWEWAAAB
+[15:41:49] [i] server: 控制台连接: 5rAGCz1FbPnlsWEWAAAB
+[15:42:10] [i] server: 添加设备: hh
+[15:42:10] [i] 设备 <Device hh>, hh: DeviceManager
+[15:42:10] [i] 更新设备 <Device hh>: DeviceManager
+[15:42:11] [i] server: 设备 hh 已连接
+[15:42:11] [i] server: 设备 hh 登录
+[15:42:16] [i] server: 加载设备 hh 的历史记录, 页码: 1
+[15:42:16] [i] 设置当前设备ID: hh: Server
+[15:44:08] [i] server: 设备 hh 登录
+[15:44:55] [i] server: 设备 hh 登出
+[16:35:30] [i] server: 服务器启动
+[16:35:30] [i] server: 添加控制台连接: MhMzcvVyKsA2OlDmAAAB
+[16:35:30] [i] server: 控制台连接: MhMzcvVyKsA2OlDmAAAB
+[16:35:30] [i] server: 数据库中设备数量: 11
+[16:35:30] [i] 从数据库加载了 11 个设备: Server
+[16:35:30] [i] 设备 <Device hh>, hh: DeviceManager
+[16:35:30] [i] 更新设备 <Device hh>: DeviceManager
+[16:35:31] [i] server: 设备 hh 已连接
+[16:35:31] [i] server: 设备 hh 登录
+[16:35:39] [i] server: Client disconnected: uixAFXuodVeV75epAAAD
+[16:35:48] [i] server: 数据库中设备数量: 11
+[16:35:48] [i] 从数据库加载了 11 个设备: Server
+[16:35:48] [i] 设备 <Device hh>, hh: DeviceManager
+[16:35:48] [i] 更新设备 <Device hh>: DeviceManager
+[16:35:49] [i] server: 设备 hh 已连接
+[16:35:49] [i] server: 设备 hh 登录
+[16:35:50] [i] server: Client disconnected: mJ5JFJiV-rsDRCpfAAAF
+[16:36:05] [i] server: 加载设备 hh 的历史记录, 页码: 1
+[16:36:05] [i] server: 设置当前设备ID: hh
+[16:36:09] [i] server: Client disconnected: MhMzcvVyKsA2OlDmAAAB
+[16:36:09] [i] 访问首页: Server
+[16:36:09] [i] server: 数据库中设备数量: 11
+[16:36:09] [i] 从数据库加载了 11 个设备: Server
+[16:36:09] [i] server: 添加控制台连接: tpU2_C8qrpohFTx6AAAH
+[16:36:09] [i] server: 控制台连接: tpU2_C8qrpohFTx6AAAH
+[16:36:18] [i] server: 加载设备 hh 的历史记录, 页码: 1
+[16:36:18] [i] server: 设置当前设备ID: hh
+[16:36:47] [i] 设备 <Device hh>, hh: DeviceManager
+[16:36:47] [i] 更新设备 <Device hh>: DeviceManager
+[16:36:47] [i] server: 设备 hh 已连接
+[16:36:47] [i] server: 设备 hh 登录
+[16:42:21] [i] server: 服务器启动
+[16:42:25] [i] server: 添加控制台连接: bbZERpR79IYUyhjpAAAB
+[16:42:25] [i] server: 控制台连接: bbZERpR79IYUyhjpAAAB
+[16:42:27] [i] server: 数据库中设备数量: 11
+[16:42:27] [i] 从数据库加载了 11 个设备: Server
+[16:42:27] [i] 设备 <Device hh>, hh: DeviceManager
+[16:42:27] [i] 更新设备 <Device hh>: DeviceManager
+[16:42:27] [i] server: 设备 hh 已连接
+[16:42:27] [i] server: 设备 hh 登录
+[16:46:38] [i] server: Client disconnected: bbZERpR79IYUyhjpAAAB
+[16:46:38] [i] 访问首页: Server
+[16:46:38] [i] server: 数据库中设备数量: 11
+[16:46:38] [i] 从数据库加载了 11 个设备: Server
+[16:46:38] [i] server: 添加控制台连接: fOdsGGfF07qV9HZwAAAF
+[16:46:38] [i] server: 控制台连接: fOdsGGfF07qV9HZwAAAF
+[16:46:56] [i] server: Client disconnected: ra_ICSs7x8nBGX-8AAAD
+[16:46:56] [i] server: 设备 hh 已断开连接
+[16:47:07] [i] server: 数据库中设备数量: 11
+[16:47:07] [i] 从数据库加载了 11 个设备: Server
+[16:47:07] [i] 设备 <Device hh>, hh: DeviceManager
+[16:47:07] [i] 更新设备 <Device hh>: DeviceManager
+[16:47:08] [i] server: 设备 hh 已连接
+[16:47:08] [i] server: 设备 hh 登录
+[16:47:33] [i] server: Client disconnected: fOdsGGfF07qV9HZwAAAF
+[16:47:33] [i] 访问首页: Server
+[16:47:33] [i] server: 数据库中设备数量: 11
+[16:47:33] [i] 从数据库加载了 11 个设备: Server
+[16:47:33] [i] server: 添加控制台连接: _SXj_EaiUvPeYIZdAAAJ
+[16:47:33] [i] server: 控制台连接: _SXj_EaiUvPeYIZdAAAJ
+[16:47:38] [i] server: 加载设备 hh 的历史记录, 页码: 1
+[16:47:38] [i] server: 设置当前设备ID: hh
+[16:48:07] [i] server: 设备 hh 登录
+[16:48:48] [i] server: 数据库中设备数量: 11
+[16:48:48] [i] 从数据库加载了 11 个设备: Server
+[16:48:48] [i] server: 设备 hh 登录
+[17:09:07] [i] server: 服务器启动
+[17:09:12] [i] server: 添加控制台连接: oxLl2l_mRu-qR5RwAAAB
+[17:09:12] [i] server: 控制台连接: oxLl2l_mRu-qR5RwAAAB
+[17:09:36] [i] 从数据库加载了 11 个设备: Server
+[17:09:36] [i] 设备 <Device hh>, hh: DeviceManager
+[17:09:36] [i] 更新设备 <Device hh>: DeviceManager
+[17:09:37] [i] server: 设备 hh 已连接
+[17:09:37] [i] server: 设备 hh 登录
+[17:10:02] [i] server: 加载设备 hh 的历史记录, 页码: 1
+[17:10:02] [i] server: 设置当前设备ID: hh
+[17:10:41] [i] server: 设置当前设备ID: tttt
+[17:10:43] [i] server: 设置当前设备ID: hh
+[17:10:51] [i] 从数据库加载了 11 个设备: Server
+[17:10:51] [i] server: 设备 hh 登录
+[17:12:41] [i] 从数据库加载了 11 个设备: Server
+[17:12:41] [i] server: 设备 hh 登录
+[17:13:13] [i] 从数据库加载了 11 个设备: Server
+[17:13:13] [i] server: 设备 hh 登录
+[17:18:28] [i] server: 服务器启动
+[17:18:31] [i] server: 添加控制台连接: GgYPUjqxrlojuBKbAAAB
+[17:18:31] [i] server: 控制台连接: GgYPUjqxrlojuBKbAAAB
+[17:18:32] [i] 从数据库加载了 11 个设备: Server
+[17:18:32] [i] 设备 <Device hh>, hh: DeviceManager
+[17:18:32] [i] 更新设备 <Device hh>: DeviceManager
+[17:18:32] [i] server: 设备 hh 已连接
+[17:18:32] [i] server: 设备 hh 登录
+[17:19:13] [i] server: Client disconnected: TxLhmIvkzUBCo5eJAAAD
+[17:19:13] [i] 从数据库加载了 11 个设备: Server
+[17:19:14] [i] server: 设备 hh 已断开连接
+[17:19:31] [i] 从数据库加载了 11 个设备: Server
+[17:19:31] [i] 设备 <Device TEST1>, TEST1: DeviceManager
+[17:19:31] [i] 更新设备 <Device TEST1>: DeviceManager
+[17:19:32] [i] server: 设备 TEST1 已连接
+[17:19:32] [i] server: 设备 TEST1 登录
+[17:19:37] [i] server: Client disconnected: GgYPUjqxrlojuBKbAAAB
+[17:19:37] [i] 从数据库加载了 11 个设备: Server
+[17:19:37] [i] 访问首页: Server
+[17:19:37] [i] server: 添加控制台连接: 959bKuYlzKYsVGqsAAAH
+[17:19:37] [i] server: 控制台连接: 959bKuYlzKYsVGqsAAAH
+[17:19:47] [i] server: 加载设备 TEST1 的历史记录, 页码: 1
+[17:19:47] [i] server: 设置当前设备ID: TEST1
+[17:20:08] [i] server: 设备 TEST1 登录
+[17:20:38] [i] server: 加载设备 TEST1 的历史记录, 页码: 1
+[17:20:38] [i] server: 设置当前设备ID: TEST1
+[17:20:50] [i] 从数据库加载了 11 个设备: Server
+[17:20:50] [i] server: 设备 TEST1 登录
+[17:21:19] [i] 从数据库加载了 11 个设备: Server
+[17:21:19] [i] server: 设备 TEST1 登出
+[17:21:22] [i] 从数据库加载了 11 个设备: Server
+[17:21:22] [i] server: 设备 TEST1 登录
+[17:29:44] [i] server: 设置当前设备ID: dd
+[17:29:45] [i] server: 设置当前设备ID: TEST1
+[17:33:12] [i] server: 服务器启动
+[17:33:16] [i] 从数据库加载了 11 个设备: Server
+[17:33:16] [i] 设备 <Device TEST1>, TEST1: DeviceManager
+[17:33:16] [i] 更新设备 <Device TEST1>: DeviceManager
+[17:33:16] [i] server: 设备 TEST1 已连接
+[17:33:16] [e] server: 刷新设备状态失败: 'DeviceManager' object has no attribute 'send_device_status'
+[17:33:16] [i] server: 设备 TEST1 登录
+[17:33:16] [e] server: 刷新设备状态失败: 'DeviceManager' object has no attribute 'send_device_status'
+[17:33:18] [i] server: 添加控制台连接: 6Pn5GHpiewKx9yzOAAAD
+[17:33:18] [i] server: 控制台连接: 6Pn5GHpiewKx9yzOAAAD
+[17:33:37] [i] server: Client disconnected: 6Pn5GHpiewKx9yzOAAAD
+[17:33:37] [i] server: 移除控制台连接: 6Pn5GHpiewKx9yzOAAAD
+[17:33:37] [i] 访问首页: Server
+[17:33:37] [i] 从数据库加载了 11 个设备: Server
+[17:33:37] [i] server: 添加控制台连接: 5VHHldjd1TBm-OqCAAAF
+[17:33:37] [i] server: 控制台连接: 5VHHldjd1TBm-OqCAAAF
+[17:33:37] [e] server: 获取日志失败: 'list' object has no attribute 'length'
+[17:33:39] [e] server: 获取日志失败: 'list' object has no attribute 'length'
+[17:34:01] [e] server: 获取日志失败: 'list' object has no attribute 'length'
+[17:34:01] [i] server: 加载设备 hh 的历史记录, 页码: 1
+[17:34:01] [i] server: 设置当前设备ID: hh
+[17:34:10] [i] server: Client disconnected: dRXr668M4N1mwgQZAAAB
+[17:34:10] [i] server: 设备 TEST1 已断开连接
+[17:34:10] [e] server: 刷新设备状态失败: 'DeviceManager' object has no attribute 'send_device_status'
+[17:34:26] [i] 从数据库加载了 11 个设备: Server
+[17:34:26] [i] 设备 <Device TEST1>, TEST1: DeviceManager
+[17:34:26] [i] 更新设备 <Device TEST1>: DeviceManager
+[17:34:26] [i] server: 设备 TEST1 已连接
+[17:34:26] [e] server: 刷新设备状态失败: 'DeviceManager' object has no attribute 'send_device_status'
+[17:34:26] [i] server: 设备 TEST1 登录
+[17:34:26] [e] server: 刷新设备状态失败: 'DeviceManager' object has no attribute 'send_device_status'
+[17:35:12] [e] server: 获取日志失败: 'list' object has no attribute 'length'
+[17:38:44] [i] server: 服务器启动
+[17:38:45] [i] 从数据库加载了 11 个设备: Server
+[17:38:45] [i] 设备 <Device TEST1>, TEST1: DeviceManager
+[17:38:45] [i] 更新设备 <Device TEST1>: DeviceManager
+[17:38:46] [i] server: 设备 TEST1 已连接
+[17:38:46] [i] server: 设备 TEST1 登录
+[17:38:47] [i] server: 添加控制台连接: R6P0_MzU8GJBToL7AAAD
+[17:38:47] [i] server: 控制台连接: R6P0_MzU8GJBToL7AAAD
+[17:38:57] [i] server: Client disconnected: R6P0_MzU8GJBToL7AAAD
+[17:38:57] [i] server: 移除控制台连接: R6P0_MzU8GJBToL7AAAD
+[17:38:58] [i] 访问首页: Server
+[17:38:58] [i] 从数据库加载了 11 个设备: Server
+[17:38:58] [i] server: 添加控制台连接: iQdzqSiXIl4TGhDqAAAF
+[17:38:58] [i] server: 控制台连接: iQdzqSiXIl4TGhDqAAAF
+[17:38:58] [e] server: 获取日志失败: 'list' object has no attribute 'length'
+[17:59:26] [i] server: 服务器启动
+[17:59:30] [i] server: 添加控制台连接: KKpzhTpLlH8KcNOPAAAB
+[17:59:30] [i] server: 控制台连接: KKpzhTpLlH8KcNOPAAAB
+[17:59:32] [i] 从数据库加载了 11 个设备: Server
+[17:59:32] [i] 设备 <Device TEST1>, TEST1: DeviceManager
+[17:59:32] [i] 更新设备 <Device TEST1>: DeviceManager
+[17:59:33] [i] server: 设备 TEST1 已连接
+[17:59:33] [i] server: 设备 TEST1 登录
+[17:59:46] [i] server: Client disconnected: HZ4M2ESLB77wE2DLAAAD
+[17:59:46] [i] 从数据库加载了 11 个设备: Server
+[17:59:46] [i] server: 设备 TEST1 已断开连接
+[17:59:56] [i] 从数据库加载了 11 个设备: Server
+[17:59:56] [i] 设备 <Device TEST1>, TEST1: DeviceManager
+[17:59:56] [i] 更新设备 <Device TEST1>: DeviceManager
+[17:59:56] [i] server: 设备 TEST1 已连接
+[17:59:56] [i] server: 设备 TEST1 登录
+[18:00:13] [i] server: 加载设备 TEST1 的历史记录, 页码: 1
+[18:00:13] [i] server: 设置当前设备ID: TEST1
+[18:00:44] [i] server: Client disconnected: KKpzhTpLlH8KcNOPAAAB
+[18:00:44] [i] 从数据库加载了 11 个设备: Server
+[18:00:44] [i] 访问首页: Server
+[18:00:44] [i] server: 添加控制台连接: J132Sz9GLAabUY2SAAAH
+[18:00:44] [i] server: 控制台连接: J132Sz9GLAabUY2SAAAH
+[18:01:01] [i] server: 设备 TEST1 登录
+[18:01:07] [i] server: 加载设备 TEST1 的历史记录, 页码: 1
+[18:01:07] [i] server: 设置当前设备ID: TEST1
+[18:01:16] [i] server: 收到命令请求: {'device_id': 'TEST1', 'command': 'test'}
+[18:01:16] [i] 执行设备命令: TEST1 test: Server
+[18:01:16] [i] 从数据库加载了 11 个设备: Server
+[18:01:16] [i] 设备 TEST1 当前 SID: 8ow9IHkVu2VOQFw6AAAF: Server
+[18:01:16] [i] 命令已发送到 SID: 8ow9IHkVu2VOQFw6AAAF: Server
+[18:01:16] [i] 命令执行结果: 未知命令: TEST1
+[18:06:19] [i] server: 设备 TEST1 登录
+[18:06:36] [i] 从数据库加载了 11 个设备: Server
+[18:06:36] [i] server: 设备 TEST1 登出
+[18:12:05] [i] server: Client disconnected: J132Sz9GLAabUY2SAAAH
+[18:12:05] [i] 从数据库加载了 11 个设备: Server
+[18:12:05] [i] 访问首页: Server
+[18:12:05] [i] server: 添加控制台连接: qRUq4NVzT2T6fwXtAAAJ
+[18:12:05] [i] server: 控制台连接: qRUq4NVzT2T6fwXtAAAJ
+[18:12:07] [i] server: Client disconnected: qRUq4NVzT2T6fwXtAAAJ
+[18:12:07] [i] server: 移除控制台连接: qRUq4NVzT2T6fwXtAAAJ
+[18:12:07] [i] 访问首页: Server
+[18:12:07] [i] server: 添加控制台连接: zHAd9y9vHwBfbxemAAAL
+[18:12:07] [i] server: 控制台连接: zHAd9y9vHwBfbxemAAAL
+[18:12:20] [i] server: 设备 TEST1 登录
+[18:12:31] [i] server: 加载设备 TEST1 的历史记录, 页码: 1
+[18:12:31] [i] server: 设置当前设备ID: TEST1
+[18:12:36] [i] server: 设置当前设备ID: TEST1
+[18:12:41] [i] 从数据库加载了 11 个设备: Server
+[18:12:41] [i] server: 设备 TEST1 登录
+[18:13:20] [i] 从数据库加载了 11 个设备: Server
+[18:13:20] [i] server: 设备 TEST1 登录
+[18:23:26] [i] server: 服务器启动
+[18:23:27] [i] server: 从数据库加载了 11 个设备
+[18:23:27] [i] 设备 <Device TEST1>, TEST1: DeviceManager
+[18:23:27] [i] 更新设备 <Device TEST1>: DeviceManager
+[18:23:27] [i] server: 设备 TEST1 已连接
+[18:23:27] [i] server: 设备 TEST1 登录
+[18:23:29] [i] server: 添加控制台连接: 1mQr2wEbzBLwP039AAAD
+[18:23:29] [i] server: 控制台连接: 1mQr2wEbzBLwP039AAAD
+[18:23:33] [i] server: Client disconnected: 2mmoJ1M2VsT1Z9JIAAAB
+[18:23:33] [i] server: 设备 TEST1 已断开连接
+[18:23:42] [i] 设备 <Device TEST1>, TEST1: DeviceManager
+[18:23:42] [i] 更新设备 <Device TEST1>: DeviceManager
+[18:23:43] [i] server: 设备 TEST1 已连接
+[18:23:43] [i] server: 设备 TEST1 登录
+[18:24:30] [i] server: 设备 TEST1 登录
+[18:25:17] [i] server: 设备 TEST1 登出
+[18:28:55] [i] server: Client disconnected: 1mQr2wEbzBLwP039AAAD
+[18:28:55] [i] server: 移除控制台连接: 1mQr2wEbzBLwP039AAAD
+[18:28:55] [i] 访问首页: Server
+[18:28:55] [i] server: 添加控制台连接: x4TNOqlgt_SKJgQSAAAH
+[18:28:55] [i] server: 控制台连接: x4TNOqlgt_SKJgQSAAAH
+[18:28:58] [i] server: 加载设备 TEST1 的历史记录, 页码: 1
+[18:28:58] [i] server: 设置当前设备ID: TEST1
+[18:29:09] [i] server: 加载设备 TEST1 的历史记录, 页码: 2

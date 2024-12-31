@@ -45,7 +45,7 @@ class CmdMgr:
                     else:
                         return self.testCall(func, params)
                 except Exception as e:
-                    Log.e(f"命令执行错误: {str(e)}")
+                    Log.ex(e, '命令执行错误')
                     return f"命令执行错误: {str(e)}"
         return "未知命令"
     
@@ -88,14 +88,14 @@ class CmdMgr:
                 result = PythonServices.clickPosition(x, y)
                 return f"点击位置 ({x}, {y}) 结果: {result}"
             except Exception as e:
-                return f"Error calling clickPosition: {e}"
+                Log.ex(e, '点击位置失败')
 
         def getScreenText():
             try:
                 screen_text = PythonServices.getScreenText()
                 return f"屏幕文本: {screen_text}"
             except Exception as e:
-                return f"Error calling getScreenText: {e}"
+                Log.ex(e, '获取屏幕文本失败')
 
         def goBack():
             return PythonServices.goBack()
@@ -123,7 +123,7 @@ class CmdMgr:
                 result = PythonServices.takeScreenshot()
                 return f"截屏结果: {result}"
             except Exception as e:
-                return f"Error calling takeScreenshot: {e}"
+                Log.ex(e, '截屏失败')
 
 # 创建全局命令处理器实例
 doCmd = CmdMgr().do

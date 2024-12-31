@@ -4,7 +4,7 @@ from flask_socketio import emit
 from .models import db
 from .command_history import CommandHistory
 from .device_manager import DeviceManager
-from .logger import Log
+from scripts.logger import Log
 
 class SCommand:
     """服务器命令处理类"""
@@ -99,7 +99,7 @@ class SCommand:
     def _cmd_clear(args):
         """清除当前设备的所有指令历史"""
         device_manager = DeviceManager()
-        device_id = args[0] if args and len(args) > 0 else device_manager.get_device_id()
+        device_id = args[0] if args and len(args) > 0 else device_manager.curDeviceID
         if device_id is None:
             return '未指定设备ID'
         
@@ -155,11 +155,11 @@ class SCommand:
             else:
                 # 如果没有参数，显示当前设备的日志
                 device_manager = DeviceManager()
-                device_id = device_manager.get_device_id()
+                device_id = device_manager.curDeviceID
                 if not device_id:
                     device_id = 'server'  # 如果没有当前设备，显示服务器日志
             
-            logs = Log.read_logs(date, device_id)
+            logs = Log().get(device_id)
             if not logs:
                 return f"没有找到{'服务器' if device_id == 'server' else device_id}在{date or '今天'}的日志"
                 
@@ -175,7 +175,7 @@ class SCommand:
             return f"正在显示{'服务器' if device_id == 'server' else device_id}在{date or '今天'}的日志"
             
         except Exception as e:
-            Log.e('Server', f"显示日志失败: {e}")
+            Log.ex(e, "显示日志失败")
             return f"显示日志失败: {e}"
     
     @staticmethod
@@ -190,11 +190,11 @@ class SCommand:
                     Log.e('Server', f'设备 {device_id} 不存在')
                     emit('error', {'message': '设备不存在'})
                     return '设备不存在'
-                
+                print(f'!!!device.status: {device.status}')
                 if device.status != 'login':
-                    Log.w('Server', f'设备 {device_id} 不在线')
-                    emit('error', {'message': '设备不在线'})
-                    return '设备不在线'
+                    Log.w('Server', f'设备 {device_id} 未登录')
+                    emit('error', {'message': '设备未登录'})
+                    return '设备未登录'
                 
                 # 记录命令历史
                 history = CommandHistory(
@@ -222,7 +222,7 @@ class SCommand:
                         Log.i('Server', f'命令已发送到 SID: {sid}')
                         return f'命令已发送到设备 {device_id}'
                     except Exception as e:
-                        Log.e('Server', f'发送命令时出错: {e}')
+                        Log.ex(e, '发送命令时出错')
                         return f'发送命令失败: {e}'
                 else:
                     Log.e('Server', f'设备 {device_id} 会话无效')
@@ -230,7 +230,7 @@ class SCommand:
                     return '设备会话无效'
                 
         except Exception as e:
-            Log.e('Server', f'执行设备命令出错: {e}')
+            Log.ex(e, '执行设备命令出错')
             emit('error', {'message': '执行命令失败'})
             return '执行命令失败'
     
@@ -258,5 +258,5 @@ class SCommand:
                 'device_id': device_id
             }
         except Exception as e:
-            print(f'处理命令响应出错: {e}')
+            Log.ex(e, '处理命令响应出错')
             return {'success': False, 'error': '处理响应失败'} 

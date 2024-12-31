@@ -1,8 +1,9 @@
-from flask import Blueprint, send_file, render_template, jsonify
+from flask import Blueprint, send_file, render_template, jsonify, request
 from .device_manager import DeviceManager
+from .command_history import CommandHistory
+from scripts.logger import Log
 import os
 import json
-from .logger import Log
 
 # 创建蓝图
 bp = Blueprint('main', __name__)

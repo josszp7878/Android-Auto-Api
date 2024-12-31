@@ -27,7 +27,7 @@ class Tools:
             manufacturer = Build.MANUFACTURER.lower()
             return "huawei" in manufacturer or "honor" in manufacturer
         except Exception as e:
-            Log.e(Tools.TAG, f"Failed to check system type: {str(e)}")
+            Log.ex(e, '检查系统类型失败')
             return False
 
     @staticmethod
@@ -52,7 +52,7 @@ class Tools:
                 Log.i(Tools.TAG, "Using Android method (service)")
                 return PythonServices.openApp(app_name)
         except Exception as e:
-            Log.e(Tools.TAG, f"Failed to open app: {str(e)}")
+            Log.ex(e, '打开应用失败')
             return False
 
     @staticmethod
@@ -60,7 +60,7 @@ class Tools:
         """通过点击方式打开应用（原来的实现移到这里）"""
         try:
             if not PythonServices.goHome():
-                Log.e(Tools.TAG, "Failed to go home")
+                Log.ex(e, '返回主页失败')
                 return False
                 
             time.sleep(0.5)
@@ -79,5 +79,5 @@ class Tools:
             return True
             
         except Exception as e:
-            Log.e(Tools.TAG, f"Failed to open app by click: {str(e)}")
+            Log.ex(e, '通过点击打开应用失败')
             return False

@@ -592,3 +592,4 @@ WHERE devices.device_id = ?
 [2024-12-30 18:45:28.672307] [INFO] Server: 从数据库加载了 7 个设备
 [2024-12-30 18:45:28.959047] [INFO] Server: 设备 1 当前 SID: s4nmT1pr1NjuUF-nAAAP
 [2024-12-30 18:45:28.963050] [INFO] Server: 命令已发送到 SID: s4nmT1pr1NjuUF-nAAAP
+[2024-12-30 18:52:59.005934] [INFO] Server: Client disconnected: k9x8hubxigOnHfpyAAAB

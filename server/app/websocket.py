@@ -7,7 +7,8 @@ from .device_manager import DeviceManager
 from .models import db
 from .command_history import CommandHistory
 from .SCommand import SCommand
-from .logger import Log
+from scripts.logger import Log
+from pathlib import Path
 
 class DateTimeEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -17,108 +18,71 @@ class DateTimeEncoder(json.JSONEncoder):
 
 
 # 创建设备管理器实例
-device_manager = DeviceManager()
-
-
-def broadcast_device_list():
-    """广播设备列表更新"""
-    devices_json = json.loads(json.dumps(device_manager.to_dict(), cls=DateTimeEncoder))
-    emit('device_list_update', devices_json, broadcast=True)
+deviceMgr = DeviceManager()
 
 
 @socketio.on('connect')
 def handle_connect():
     """处理客户端连接"""
     try:
-        # 直接从查询参数获取设备ID
         device_id = request.args.get('device_id')
-        Log.i('Server', f"连接请求: device_id={device_id}, sid={request.sid}")
+        client_type = request.args.get('client_type')
         
-        if device_id:
-            # 获取或创建设备
-            device = device_manager.get_device(device_id)
-            if not device:
-                # Log.i('Server', f"222设备 {device_id} 不存在, 创建设备")
-                device = device_manager.add_device(device_id)
+        if client_type == 'console':
+            # 控制台连接，记录 SID
+            deviceMgr.add_console(request.sid)
+            Log.i(f"控制台连接: {request.sid}")
+            return True
             
-            # 更新设备信息
+        elif device_id:
+            # 设备连接
+            device = deviceMgr.get_device(device_id)
+            if not device:
+                device = deviceMgr.add_device(device_id)
+            
             device.info['sid'] = request.sid
             device.info['connected_at'] = str(datetime.now())
-            device_manager.update_device(device)
+            deviceMgr.update_device(device)
             
-            Log.i('Server', f"设备 {device_id} 连接成功, SID: {request.sid}")
-            
+            # 处理设备连接
+            device.onConnect()            
             # 自动登录设备
-            do_login(device)
+            device.login()
             return True
                 
     except Exception as e:
-        Log.e('Server', f'处理连接时出错: {e}')
-        import traceback
-        Log.e('Server', traceback.format_exc())
+        Log.ex(e, '处理连接时出错')
     
-    Log.e('Server', 'Client connected without device_id')
-    return True
-
-@socketio.on('authenticate')
-def handle_authenticate(auth_data):
-    """处理客户端认证"""
-    try:
-        device_id = auth_data.get('device_id')
-        Log.i('Server', f"收到认证请求: auth_data={auth_data}, sid={request.sid}")
-        
-        if device_id:
-            # 获取或创建设备
-            device = device_manager.get_device(device_id)
-            if not device:
-                device = device_manager.add_device(device_id)
-            
-            # 更新设备信息
-            device.info['sid'] = request.sid
-            device.info['connected_at'] = str(datetime.now())
-            device_manager.update_device(device)
-            
-            Log.i('Server', f"设备 {device_id} 认证成功")
-            emit('authenticated', {'status': 'success'})
-            
-            # 自动登录设备
-            do_login(device)
-            return True
-            
-    except Exception as e:
-        Log.e('Server', f'处理认证请求出错: {e}')
-        emit('authenticated', {'status': 'error', 'message': str(e)})
+    Log.e('未知的客户端连接')
     return False
 
 @socketio.on('disconnect')
 def handle_disconnect():
     """处理客户端断开连接"""
-    Log.i('Server', f'Client disconnected: {request.sid}')
-    device = device_manager.get_device_by_sid(request.sid)
+    Log.i(f'Client disconnected: {request.sid}')
+    
+    # 检查是否是控制台断开
+    if request.sid in deviceMgr.console_sids:
+        deviceMgr.remove_console(request.sid)
+        return
+        
+    # 设备断开处理...
+    device = deviceMgr.get_device_by_sid(request.sid)
     if device:
-        device.update_status('offline')
-        broadcast_device_list()
+        device.onDisconnect()
 
 @socketio.on('device_login')
 def handle_login(data):
-    """处理设备登录"""
     device_id = data.get('device_id')
+    print(f'收到登录请求: {device_id}')
     if not device_id:
         return    
-    device = device_manager.get_device(device_id)
+    device = deviceMgr.get_device(device_id)
     if not device:
         return
-    ok = do_login(device)
-    emit('command_result', {'result': ok})
-
-def do_login(device):
-    if device:
-        if device.login():
-            broadcast_device_list()
-            return True
-        else:
-            return False
-    return False
+    ok = device.login()
+    # 向设备发送结果
+    emit('command_result', {'result': ok}, room=device.info['sid'])
 
 
 @socketio.on('device_logout')
@@ -128,14 +92,11 @@ def handle_logout(data):
     device_id = data.get('device_id')
     if not device_id:
         return
-    device = device_manager.get_device(device_id)
+    device = deviceMgr.get_device(device_id)
     ret = False
     if device:
-        ok = device.logout()
-        if ok:
-            broadcast_device_list()
-            ret = True
-    emit('command_result', {'result': ret})
+        ret = device.logout()
+    emit('command_result', {'result': ret}, room=device.info['sid'])
     return ret
 
 
@@ -143,7 +104,7 @@ def handle_logout(data):
 @socketio.on('send_command')
 def handle_command(data):
     """处理命令请求"""
-    Log.i('Server', f'收到命令请求: {data}')
+    Log.i(f'收到命令请求: {data}')
     device_id = data.get('device_id')
     command = data.get('command')
     SCommand.execute(device_id, command)
@@ -160,18 +121,17 @@ def handle_command_response(data):
         
         response = SCommand.handle_response(device_id, result, level)
         if not response['success']:
-            emit('error', {'message': response['error']})
+            deviceMgr.emit_to_console('error', {'message': response['error']})
             return
-            
-        emit('command_result', {
+        deviceMgr.emit_to_console('command_result', {
             'result': response['result'],
             'command_id': response['command_id'],
             'level': response['level'],
             'device_id': response['device_id']
-        }, broadcast=True)
+        })
     except Exception as e:
-        print(f'处理命令响应出错: {e}')
-        emit('error', {'message': '处理响应失败'})
+        Log.ex(e, '处理命令响应出错')
+        deviceMgr.emit_to_console('error', {'message': '处理响应失败'})
 
 
 @socketio.on('update_screenshot')
@@ -179,12 +139,12 @@ def handle_screenshot(data):
     """处理设备截图更新"""
     device_id = data.get('device_id')
     screenshot_data = data.get('screenshot')  # 应该是base64或二进制数据
-    
-    device = device_manager.get_device(device_id)
-    if device and screenshot_data:
-        screenshot_url = device.save_screenshot(screenshot_data)
-        if screenshot_url:
-            broadcast_device_list()  # 广播更新，包含新的截图URL
+    if screenshot_data is None:
+        return
+    device = deviceMgr.get_device(device_id)
+    if device is None:
+        return
+    device.save_screenshot(screenshot_data)
 
 
 @socketio.on('load_command_history')
@@ -195,21 +155,19 @@ def handle_load_history(data):
     per_page = 30
     
     try:
-        Log.i('Server', 
-                  f'加载设备 {device_id} 的历史记录, 页码: {page}', 
-                  'INFO')
+        Log.i(f'加载设备 {device_id} 的历史记录, 页码: {page}')
         response_data = CommandHistory.getHistory(device_id, page, per_page)
-        emit('command_history', response_data)
+        deviceMgr.emit_to_console('command_history', response_data)
     except Exception as e:
-        Log.e('Server', f'加载命令历史出错: {e}', 'ERROR')
-        emit('error', {'message': '加载历史记录失败'})
+        Log.ex(e, '加载命令历史出错')
+        deviceMgr.emit_to_console('error', {'message': '加载历史记录失败'})
 
 
 @socketio.on('set_current_device')
 def handle_set_current_device(data):
     """设置当前设备ID"""
     device_id = data.get('device_id')
-    DeviceManager().set_device_id(device_id)
+    deviceMgr.curDeviceID = device_id
 
 
 @socketio.on('client_log')
@@ -217,51 +175,41 @@ def handle_client_log(data):
     """处理客户端日志"""
     device_id = data.get('device_id')
     message = data.get('message')
-    level = data.get('level', 'i')  # 默认为 INFO 级别
-    # 根据级别调用对应的方法
-    log_method = getattr(Log, level.lower()[0])  # 获取 i/w/e 方法
-    # print(f'@@@@handle_client_log: {device_id} {level}  log_method={log_method}')
-    log_method(device_id, message)
+    level = data.get('level', 'i')
+    tag = data.get('tag', None)
+    
+    # 添加到缓存
+    Log.addCLog(device_id, message, level, tag)
+    
+    # 向控制台发送日志消息
+    deviceMgr.emit_to_console('client_log', {
+        'device_id': device_id,
+        'message': message,
+        'level': level,
+        'timestamp': datetime.now().isoformat(),
+        'tag': tag
+    })
 
 
 @socketio.on('get_logs')
 def handle_get_logs(data=None):
     """处理获取日志请求"""
     try:
-        # 获取最近的实时日志
         device_id = data.get('device_id') if data else None
         date = data.get('date') if data else None
-
-        # 如果没有指定日期和设备，返回所有最新日志
-        if not date and not device_id:
-            # 获取服务器日志
-            server_logs = Log.read_logs(None, 'server')
-            # 获取所有设备的日志
-            device_logs = []
-            for device in DeviceManager().devices.values():
-                device_logs.extend(Log.read_logs(None, device.device_id))
-            
-            # 合并所有日志并按时间排序
-            all_logs = server_logs + device_logs
-            all_logs.sort()  # 按时间戳排序
-            
-            emit('logs_data', {
-                'logs': all_logs,
-                'is_realtime': True
-            })
-        else:
-            # 获取指定的历史日志
-            logs = Log.read_logs(date, device_id)
-            emit('logs_data', {
-                'logs': logs,
-                'device_id': device_id,
-                'date': date,
-                'is_realtime': False
-            })
-            
+        
+        # 获取指定的历史日志，不检查设备状态
+        logs = Log().get(device_id)
+        print(f'@@@@@get_logs: {device_id}, logs.length = {len(logs)}')
+        deviceMgr.emit_to_console('logs_data', {
+            'logs': logs,
+            'device_id': device_id,
+            'date': date,
+            'is_realtime': False
+        })
     except Exception as e:
-        Log.e('Server', f'获取日志失败: {e}')
-        emit('error', {'message': '获取日志失败'})
+        Log.ex(e, '获取日志失败')
+        deviceMgr.emit_to_console('error', {'message': '获取日志失败'})
 
 
 @socketio.on('command_result')
@@ -282,14 +230,11 @@ def handle_command_result(data):
                 history.response = result
                 history.response_time = datetime.now()
                 db.session.commit()
-        
-        # 广播结果给所有连接的客户端
-        emit('command_result', {
+
+        deviceMgr.emit_to_console('command_result', {
             'result': result,
             'device_id': device_id
-        }, broadcast=True)
+        })
         
     except Exception as e:
-        Log.e('Server', f'处理命令结果出错: {e}')
-
-
+        Log.ex(e, '处理命令结果出错')

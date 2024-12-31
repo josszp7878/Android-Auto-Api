@@ -43,10 +43,19 @@ class Dashboard {
                         this.commandLogs = [];  // 清空历史
                         this.currentPage = 1;   // 重置页码
                         this.showHistory = true;  // 显示历史窗口
-                        this.loadCommandHistory();  // 加载新设备的历史
+                        
+                        // 加载设备日志，不管设备是否在线
+                        this.socket.emit('get_logs', {
+                            device_id: deviceId
+                        });
+                        
+                        // 加载命令历史
+                        this.loadCommandHistory();
                         
                         // 通知后端设置当前设备ID
-                        this.socket.emit('set_current_device', { device_id: this.selectedDevice });
+                        this.socket.emit('set_current_device', {
+                            device_id: deviceId
+                        });
                     }
                 },
                 showFullScreenshot(device) {
@@ -241,15 +250,17 @@ class Dashboard {
             mounted() {
                 this._lastActivityTime = Date.now();
                 
-                this.socket = io();
-                this.socket.on('connect', () => {
-                    console.log('连接到服务器');
+                // 连接到服务器，并标识为控制台
+                this.socket = io({
+                    query: {
+                        client_type: 'console'  // 明确标识这是控制台连接
+                    }
                 });
                 
-                this.socket.on('device_list_update', (devices) => {
-                    this.updateDeviceList(devices);
+                this.socket.on('connect', () => {
+                    console.log('控制台已连接到服务器');
                 });
-
+                
                 this.socket.on('command_result', (data) => {
                     const resultText = data.result || '';
                     this.updateLastActivity();
@@ -333,7 +344,7 @@ class Dashboard {
                 });
 
                 // 修改实时日志处理
-                this.socket.on('log_message', (data) => {
+                this.socket.on('client_log', (data) => {
                     this.handleLogMessage(data);
                 });
 
@@ -353,6 +364,54 @@ class Dashboard {
                             consoleEl.scrollTop = consoleEl.scrollHeight;
                         }
                     });
+                });
+
+                // 添加日志消息监听
+                this.socket.on('log_message', (data) => {
+                    // 构建日志条目
+                    const logEntry = {
+                        timestamp: new Date(data.timestamp),
+                        level: data.level,
+                        deviceId: data.device_id,
+                        message: data.message,
+                        tag: data.tag
+                    };
+
+                    // 添加到日志显示
+                    this.addLog('log', logEntry.message, logEntry.deviceId, logEntry.level);
+
+                    // 如果在日志标签页并且是实时模式，滚动到底部
+                    if (this.activeTab === 'logs' && this.isRealtime) {
+                        this.$nextTick(() => {
+                            const consoleEl = this.$refs.consoleLogs;
+                            if (consoleEl) {
+                                consoleEl.scrollTop = consoleEl.scrollHeight;
+                            }
+                        });
+                    }
+                });
+
+                // 添加设备状态更新处理
+                this.socket.on('refresh_device', (data) => {
+                    if (!this.devices[data.device_id]) {
+                        console.log('创建新设备:', data);
+                        // 使用 Vue.set 添加新设备以确保响应式
+                        this.$set(this.devices, data.device_id, {
+                            status: data.status,
+                            last_seen: data.timestamp,
+                            screenshot: data.screenshot,
+                            info: {}  // 添加必要的初始属性
+                        });
+                    } else {
+                        // 更新现有设备的属性
+                        const device = this.devices[data.device_id];
+                        // 使用 Vue.set 确保响应式更新
+                        this.$set(device, 'status', data.status);
+                        this.$set(device, 'last_seen', data.timestamp);
+                        this.$set(device, 'screenshot', data.screenshot);
+                        
+                        console.log('设备更新后:', device);  // 添加调试日志
+                    }
                 });
             }
         });

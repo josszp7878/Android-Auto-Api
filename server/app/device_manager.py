@@ -1,8 +1,9 @@
 from flask import current_app
 from .models import db, DeviceModel
 from .SDevice import SDevice
-from .logger import Log
+from scripts.logger import Log
 from datetime import datetime
+from flask_socketio import emit
 
 
 class DeviceManager:
@@ -14,37 +15,37 @@ class DeviceManager:
         if not cls._instance:
             cls._instance = super().__new__(cls)
             cls._instance.device_id = None  # 初始化当前设备ID
+            cls._instance._devices = None   # 在这里初始化 _devices
         return cls._instance
-
+   
     def __init__(self):
-        self.devices = {}
-        self.initialized = False
-        # 移除在初始化时的数据库检查，因为此时可能还没有应用上下文
-    
-    def ensure_initialized(self):
-        """确保已从数据库加载数据"""
-        if not self.initialized:
-            with current_app.app_context():
-                try:
-                    # 在这里进行数据库检查
-                    count = DeviceModel.query.count()
-                    Log.i('DeviceManager', f"数据库中设备数量: {count}")
-                    self._load_from_db()
-                except Exception as e:
-                    Log.e('DeviceManager', f"数据库初始化失败: {e}")
+        # 只在第一次初始化时执行
+        if not hasattr(self, 'initialized'):
+            self.console_sids = set()  # 存储控制台的 SID
             self.initialized = True
+
+    @property
+    def devices(self):
+        # print(f'@@@@@####devices: {len(self._devices)}')
+        if self._devices is None:
+            self._devices = self._load_from_db()
+        return self._devices
+
     
     def _load_from_db(self):
-        """从数据库加载设备"""
-        try:
-            for device_model in DeviceModel.query.all():
-                device = SDevice(device_model.device_id, device_model.info)
-                device._status = device_model.status
-                device.last_seen = device_model.last_seen
-                self.devices[device.device_id] = device
-            Log.i('Server', f'从数据库加载了 {len(self.devices)} 个设备')
-        except Exception as e:
-            Log.e('Server', f'加载数据库出错: {e}')
+        with current_app.app_context():
+            try:
+                deviceList = {}
+                for device_model in DeviceModel.query.all():
+                    device = SDevice(device_model.device_id, device_model.info)
+                    device._status = device_model.status
+                    device.last_seen = device_model.last_seen
+                    deviceList[device.device_id] = device
+                Log.i(f'从数据库加载了 {len(deviceList)} 个设备')
+                return deviceList
+            except Exception as e:
+                Log.ex(e, '加载数据库出错')
+                return None
     
     def _save_to_db(self, device):
         """保存设备到数据库"""
@@ -62,19 +63,22 @@ class DeviceManager:
                     device_model.info = device.info
                 db.session.commit()
         except Exception as e:
-            Log.e('Server', f'保存数据库出错: {e}')
+            Log.ex(e, '保存数据库出错')
     
-    def add_device(self, device_id, info=None):
+    def add_device(self, device_id):
         """添加设备"""
-        self.ensure_initialized()
-        device = SDevice(device_id, info)
-        self.devices[device_id] = device
-        self._save_to_db(device)
-        return device
+        try:
+            device = SDevice(device_id)
+            self.devices[device_id] = device
+            Log.i(f'添加设备: {device_id}')
+            self._save_to_db(device)
+            return device
+        except Exception as e:
+            Log.ex(e, '添加设备失败')
+            return None
     
     def get_device(self, device_id):
         """获取设备"""
-        self.ensure_initialized()
         return self.devices.get(device_id)
 
     def get_device_by_sid(self, sid):
@@ -90,45 +94,32 @@ class DeviceManager:
             db.session.commit()
             Log.i('Server', f'设备 {device.device_id} 信息已更新')
         except Exception as e:
-            Log.e('Server', f'更新设备信息失败: {e}')
+            Log.ex(e, '更新设备信息失败')
     
     def to_dict(self):
         """转换所有设备为字典格式"""
-        self.ensure_initialized()
         return {
             device_id: device.to_dict()
             for device_id, device in self.devices.items()
         } 
 
-    def set_device_id(self, device_id):
-        """设置当前设备ID"""
-        self.device_id = device_id
-        Log.i('Server', f'设置当前设备ID: {device_id}')
-
-    def get_device_id(self):
-        """获取当前设备ID"""
-        Log.i('Server', f'获取当前设备ID: {self.device_id}')
-        return self.device_id
+    _curDeviceID = None
+    @property
+    def curDeviceID(self):
+        return self._curDeviceID
+    
+    @curDeviceID.setter
+    def curDeviceID(self, value):
+        self._curDeviceID = value
+        Log.i(f'设置当前设备ID: {value}')
 
     def update_device(self, device):
         try:
-            Log.i('DeviceManager', f"更新设备 {device.device_id}")
+            # Log.i(f"更新设备 {device.device_id}")
             # 确保设备存在于内存中
-            if not self.devices.get(device.device_id):
-                self.devices[device.device_id] = device            
-
-            # 检查数据库连接
-            try:
-                # 检查数据库中的所有设备
-                all_devices = DeviceModel.query.all()
-                Log.i('DeviceManager', f"数据库中的所有设备: {[d.device_id for d in all_devices]}")
-                
-                # 直接使用 filter_by 查询特定设备
-                test_device = DeviceModel.query.filter_by(device_id=device.device_id).first()
-                Log.i('DeviceManager', f"通过 filter_by 查询设备: {test_device}")
-            except Exception as e:
-                Log.e('DeviceManager', f"数据库查询测试失败: {e}")
-
+            _devices = self.devices
+            if not _devices.get(device.device_id):
+                _devices[device.device_id] = device            
             # 更新数据库 - 使用 merge 模式
             try:
                 # 尝试获取现有设备
@@ -156,11 +147,30 @@ class DeviceManager:
                 db.session.commit()
                 
             except Exception as e:
-                Log.e('DeviceManager', f"数据库更新失败: {e}")
+                Log.ex(e, '数据库更新失败')
                 db.session.rollback()
                 raise
             
             return True
         except Exception as e:
-            Log.e('DeviceManager', f'更新设备失败: {e}')
+            Log.ex(e, '更新设备失败')
             return False
+
+    def add_console(self, sid):
+        """添加控制台连接"""
+        self.console_sids.add(sid)
+        Log.i(f'添加控制台连接: {sid}')
+
+    def remove_console(self, sid):
+        """移除控制台连接"""
+        if sid in self.console_sids:
+            self.console_sids.remove(sid)
+            Log.i(f'移除控制台连接: {sid}')
+
+    def get_console_sids(self):
+        """获取所有控制台的 SID"""
+        return list(self.console_sids)
+
+    def emit_to_console(self, event, data):
+        for sid in self.console_sids:
+            emit(event, data, room=sid)

@@ -9,9 +9,10 @@ eventlet.monkey_patch()
 # 获取server目录的绝对路径
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# 配置日志级别
-logging.getLogger('engineio').setLevel(logging.WARNING)
-logging.getLogger('socketio').setLevel(logging.WARNING)
+# 配置日志级别 - 关闭 Socket.IO 的系统日志
+logging.getLogger('engineio').setLevel(logging.ERROR)
+logging.getLogger('socketio').setLevel(logging.ERROR)
+logging.getLogger('werkzeug').setLevel(logging.ERROR)  # 也关闭 Flask 的开发服务器日志
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'dev'
@@ -31,8 +32,8 @@ socketio = SocketIO(
     app,
     cors_allowed_origins="*",
     async_mode='eventlet',
-    logger=True,
-    engineio_logger=False,
+    logger=False,  # 关闭 Socket.IO 日志
+    engineio_logger=False,  # 关闭 Engine.IO 日志
     ping_interval=25,
     ping_timeout=60
 )
@@ -45,3 +46,4 @@ app.register_blueprint(bp)
 init_db()
 
 from app import routes, websocket 
+

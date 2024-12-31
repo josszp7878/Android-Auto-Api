@@ -11,16 +11,16 @@ def Begin(deviceID=None, server=None):
     deviceID = deviceID or DEFAULT_DEVICE_ID
     server = server or "localhost"
 
-    Log.i(f"设备 {deviceID} 正在连接到服务器{server}")
+    Log.i(f"@@@@%%%%设备 {deviceID} 正在连接到服务器{server}")
     device = CDevice(deviceID)
     if not device.connect(f"http://{server}:5000"):
         Log.e("连接服务器失败")
         return
 
-    Log.i("支持的命令:")
-    Log.i("- status: 查看状态")
-    Log.i("- exit: 退出程序")
-    Log.i("客户端运行中... 按Ctrl+C退出")
+    print("支持的命令:")
+    print("- status: 查看状态")
+    print("- exit: 退出程序")
+    print("客户端运行中... 按Ctrl+C退出")
     
     try:
         while True:
@@ -53,14 +53,14 @@ def Begin(deviceID=None, server=None):
                         device.send_command(cmd_input)
                         
                 except Exception as e:
-                    Log.e(f"执行命令出错: {e} {e.__traceback__}")
+                    Log.ex(e, '执行命令出错')
                 
                 time.sleep(0.1)
             
     except KeyboardInterrupt:
         Log.i('\n正在退出...')
     except Exception as e:
-        Log.e(f'发生错误: {e}, {e.__traceback__}')
+        Log.ex(e, '发生错误')
     finally:
         End()
 
