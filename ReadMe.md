@@ -254,3 +254,10 @@ git push origin main
 3. 改进了前端交互
    - 优化了设备状态显示
    - 改进了日志展示界面
+
+## 重要更新
+- CmdMgr类改进:
+  - PythonServices改名为androidServices并设为私有成员变量
+  - 添加androidServices的getter方法
+  - 统一Android服务访问管理
+  - 完善错误处理机制

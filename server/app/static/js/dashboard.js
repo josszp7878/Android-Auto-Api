@@ -413,6 +413,16 @@ class Dashboard {
                         console.log('设备更新后:', device);  // 添加调试日志
                     }
                 });
+
+                this.socket.on('response', function(data) {
+                    let result = data.result;
+                    if (typeof result === 'string') {
+                        // 将HTML换行转换为实际显示
+                        result = result.replace(/<br>/g, '\n');
+                    }
+                    // 更新显示
+                    console.log(result);
+                });
             }
         });
     }

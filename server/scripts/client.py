@@ -10,18 +10,14 @@ client = None
 def Begin(deviceID=None, server=None):
     deviceID = deviceID or DEFAULT_DEVICE_ID
     server = server or "localhost"
-
     Log.i(f"@@@@%%%%设备 {deviceID} 正在连接到服务器{server}")
     device = CDevice(deviceID)
     if not device.connect(f"http://{server}:5000"):
         Log.e("连接服务器失败")
         return
-
-    print("支持的命令:")
-    print("- status: 查看状态")
-    print("- exit: 退出程序")
-    print("客户端运行中... 按Ctrl+C退出")
-    
+    import CmdMgr
+    import Cmds
+    print("客户端运行中... 按Ctrl+C退出")    
     try:
         while True:
             if device.RunFromApp:
@@ -34,10 +30,6 @@ def Begin(deviceID=None, server=None):
                 parts = cmd_input.split()
                 cmd = parts[0].lower()
                 args = parts[1:] if len(parts) > 1 else []
-                
-                if cmd == 'exit':
-                    Log.i("退出程序")
-                    break                
                 # 尝试调用对应的方法
                 try:
                     cmd = next((x for x in dir(device) if x.lower().startswith(cmd.lower())), None)

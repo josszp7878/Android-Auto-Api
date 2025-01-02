@@ -115,7 +115,21 @@
 }
 .console-response {
     color: #2196F3;  /* 普通响应使用蓝色 */
+    margin: 0;       /* 移除pre标签的默认边距 */
+    font-family: inherit;  /* 继承父元素的字体 */
+    white-space: pre-wrap;  /* 保留换行和空格，允许自动换行 */
+    word-wrap: break-word;  /* 允许长行换行 */
 }
+
+/* 如果需要，可以为不同级别的响应设置不同颜色 */
+.console-response.error {
+    color: #f44336;
+}
+
+.console-response.warning {
+    color: #FFC107;
+}
+
 .console-warning {
     color: #FFC107;  /* 警告使用黄色 */
 }
@@ -210,3 +224,8 @@
 .log-entry.i { color: #333; }
 .log-entry.w { color: #f90; }
 .log-entry.e { color: #f00; }
+
+.console-log .log-content {
+    white-space: pre-wrap;  /* 保留换行和空格 */
+    word-wrap: break-word;  /* 允许长行换行 */
+}

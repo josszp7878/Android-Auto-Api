@@ -238,3 +238,13 @@ def handle_command_result(data):
         
     except Exception as e:
         Log.ex(e, '处理命令结果出错')
+
+
+@socketio.on('command')
+def handle_command(data):
+    # ... 其他代码 ...
+    result = doCmd(cmd)
+    if isinstance(result, str):
+        # 确保换行符被正确处理
+        result = result.replace('\n', '<br>')  # 将\n转换为HTML换行
+    emit('response', {'result': result})

@@ -2,29 +2,32 @@ import re
 from datetime import datetime
 from logger import Log
 
-# 条件导入 Java 相关模块
-try:
-    from java import jclass
-    PythonServices = jclass("cn.vove7.andro_accessibility_api.demo.script.PythonServices")
-except ImportError:
-    pass
-
 class CmdMgr:
     """封装与手机APP交互的基础功能"""
     
     _instance = None  # 单例实例
-
+    
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
-            cls._instance = super(CmdMgr, cls).__new__(cls, *args, **kwargs)
+            cls._instance = super(CmdMgr, cls).__new__(cls)
         return cls._instance
     
     def __init__(self):
-        if not hasattr(self, 'initialized'):  # 确保初始化只执行一次
-            self.registry = {}  # 命令注册表
-            self._register_commands()
+        if not hasattr(self, 'initialized'):
+            self.registry = {}
+            # Android服务初始化
+            try:
+                from java import jclass
+                self._android = jclass("cn.vove7.andro_accessibility_api.demo.script.PythonServices")
+            except ImportError:
+                self._android = None
+            self._reg_commands()
             self.initialized = True
-    
+            
+    @property 
+    def Android(self):
+        return self._android
+
     def reg(self, pattern):
         """注册命令"""
         def decorator(func):
@@ -40,92 +43,32 @@ class CmdMgr:
             if match:
                 try:
                     params = match.groupdict()
-                    if Log.instance().RunFromApp:
-                        return func(**params) if params else func()
-                    else:
-                        return self.testCall(func, params)
+                    return func(**params) if params else func()
                 except Exception as e:
                     Log.ex(e, '命令执行错误')
                     return f"命令执行错误: {str(e)}"
         return "未知命令"
-    
-    def testCall(self, func, params):
-        """模拟调用函数"""
-        return f"模拟调用函数: {func.__name__} 参数: {params}"
-    
-    def _register_commands(self):
-        """注册所有基础命令"""
         
-        @self.reg(r'help')
-        def cmd_help():
-            """显示帮助信息"""
-            return '''可用命令:
-- help: 显示本帮助
-- getinfo: 获取设备信息
-- status: 获取设备状态
-- time: 获取当前时间
-- echo <message>: 回显消息
-- add <x> <y>: 计算两数之和
-- screenshot: 获取设备截图'''
-
-        @self.reg(r'getinfo')
-        def cmd_getinfo():
-            """获取设备信息"""
-            return {
-                'device': 'Android Device',
-                'version': '1.0.0',
-                'timestamp': str(datetime.now())
-            }
-
-        @self.reg(r'time')
-        def cmd_time():
-            """获取当前时间"""
-            return str(datetime.now())
-
-        def click(x, y):
-            try:
-                x, y = int(x), int(y)
-                result = PythonServices.clickPosition(x, y)
-                return f"点击位置 ({x}, {y}) 结果: {result}"
-            except Exception as e:
-                Log.ex(e, '点击位置失败')
-
-        def getScreenText():
-            try:
-                screen_text = PythonServices.getScreenText()
-                return f"屏幕文本: {screen_text}"
-            except Exception as e:
-                Log.ex(e, '获取屏幕文本失败')
-
-        def goBack():
-            return PythonServices.goBack()
-
-        def goHome():
-            return PythonServices.goHome()
-
-        def isInstalled(pkgName):
-            return PythonServices.isAppInstalled(pkgName)
-
-        def startApp(appName):
-            return PythonServices.openApp(appName)
-
-        def closeApp(appName):
-            return PythonServices.closeApp(appName)
-
-        def install(appName):
-            return PythonServices.installApp(appName)
-
-        def uninstall(appName):
-            return PythonServices.uninstallApp(appName)
-
-        def captureScreen():
-            try:
-                result = PythonServices.takeScreenshot()
-                return f"截屏结果: {result}"
-            except Exception as e:
-                Log.ex(e, '截屏失败')
+    def _reg_commands(self):
+        """注册基础命令"""
+        @self.reg(r'help(?:\s+(?P<cmd>\w+))?$')
+        def cmd_help(cmd=None):
+            """显示所有命令和对应的匹配字段"""
+            if cmd:
+                matched_cmds = []
+                for pattern, func in self.registry.items():
+                    if cmd.lower() in func.__name__.lower() or cmd.lower() in pattern.lower():
+                        matched_cmds.append(f"{func.__name__}: {pattern}")
+                if matched_cmds:
+                    return "\r\n".join(matched_cmds)  # 使用\r\n确保跨平台兼容
+                return f"未找到包含 '{cmd}' 的命令"
+            else:
+                cmds = []
+                for pattern, func in self.registry.items():
+                    cmds.append(f"{func.__name__}: {pattern}")
+                return "\n".join(cmds)  # 使用\r\n确保跨平台兼容
 
 # 创建全局命令处理器实例
-doCmd = CmdMgr().do
-regCmd = CmdMgr().reg
 cmdMgr = CmdMgr()
+doCmd = cmdMgr.do
+regCmd = cmdMgr.reg
