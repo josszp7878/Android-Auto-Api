@@ -68,8 +68,10 @@
                         </template>
                         <!-- 命令响应显示 -->
                         <template v-else-if="log.type === 'response'">
-                            <span class="console-device-id">[[ log.deviceId ]] <</span>
-                            <pre class="console-response" :class="log.level">[[ log.content ]]</pre>
+                            <div class="console-line">
+                                <span class="console-device-id">[[ log.deviceId ]] <</span>
+                                <pre class="console-response" :class="log.level">[[ log.content ]]</pre>
+                            </div>
                         </template>
                         <!-- 日志显示 -->
                         <template v-else-if="log.type === 'log'">

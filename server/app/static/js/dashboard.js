@@ -25,9 +25,32 @@ class Dashboard {
             methods: {
                 formatTime(timestamp) {
                     if (!timestamp) return '未知';
-                    // 如果是ISO格式字符串，先转换为Date对象
-                    const date = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
-                    return date.toLocaleString();
+                    try {
+                        // 如果是ISO格式字符串，先转换为Date对象
+                        const date = typeof timestamp === 'string' ? 
+                            new Date(timestamp.replace(' ', 'T')) : // 处理空格分隔的日期时间格式
+                            new Date(timestamp);
+                            
+                        // 检查日期是否有效
+                        if (isNaN(date.getTime())) {
+                            console.warn('Invalid date:', timestamp);
+                            return timestamp; // 如果转换失败，直接返回原始字符串
+                        }
+                        
+                        // 格式化为本地时间字符串
+                        return date.toLocaleString('zh-CN', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            hour12: false
+                        });
+                    } catch (e) {
+                        console.error('Date parsing error:', e);
+                        return timestamp; // 发生错误时返回原始字符串
+                    }
                 },
                 updateDeviceList(devices) {
                     console.log('设备列表更新:', devices);

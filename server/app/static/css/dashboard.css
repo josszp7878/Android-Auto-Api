@@ -105,10 +105,12 @@
     word-wrap: break-word;
     display: flex;
     gap: 8px;
+    align-items: flex-start;  /* 确保内容顶部对齐 */
 }
 .console-device-id {
     color: #f4f0f0;  /* 设备ID使用灰色 */
     min-width: 80px;  /* 固定宽度保持对齐 */
+    flex-shrink: 0;   /* 防止ID被压缩 */
 }
 .console-command {
     color: #4CAF50;  /* 命令使用绿色 */
@@ -119,6 +121,7 @@
     font-family: inherit;  /* 继承父元素的字体 */
     white-space: pre-wrap;  /* 保留换行和空格，允许自动换行 */
     word-wrap: break-word;  /* 允许长行换行 */
+    flex: 1;         /* 允许响应内容占用剩余空间 */
 }
 
 /* 如果需要，可以为不同级别的响应设置不同颜色 */
