@@ -75,8 +75,8 @@
                         </template>
                         <!-- 日志显示 -->
                         <template v-else-if="log.type === 'log'">
-                            <span class="timestamp">[[ formatTime(log.timestamp) ]]</span>
-                            <span class="console-device-id">[[ log.source ]]</span>
+                            <span class="timestamp">[[ log.time ]]</span>
+                            <span class="console-device-id">[[ log.tag ]]</span>
                             <span class="console-log" :class="log.level">[[ log.message ]]</span>
                         </template>
                     </div>
@@ -93,14 +93,14 @@
                         当前显示历史日志，点击标签页恢复实时显示
                     </div>
                     <div v-for="log in systemLogs" :key="log.id" class="console-line">
-                        <span class="timestamp">[[ formatTime(log.timestamp) ]]</span>
-                        <span class="console-device-id">[[ log.source ]]</span>
+                        <span class="timestamp">[[ log.time ]]</span>
+                        <span class="console-device-id">[[ log.tag ]]</span>
                         <span :class="'log-level-' + log.level">[[ log.message ]]</span>
                     </div>
                 </div>
 
                 <!-- 命令输入区域 -->
-                <div class="console-input-container" v-show="activeTab === 'history'">
+                <div class="console-input-container">
                     <input type="text" 
                            class="console-input" 
                            v-model="commandInput"

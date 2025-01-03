@@ -1,53 +1,103 @@
 from datetime import datetime
-import json
-from flask import current_app
-from .models import db
+from . import db
+
 
 class CommandHistory(db.Model):
     """命令历史记录"""
     __tablename__ = 'command_history'
     
     id = db.Column(db.Integer, primary_key=True)
-    sender = db.Column(db.String(64), nullable=False)  # 命令发起者
-    target = db.Column(db.String(64))  # 命令响应者
-    command = db.Column(db.Text, nullable=False)
-    response = db.Column(db.Text)
-    level = db.Column(db.String(20), default='info')
-    created_at = db.Column(db.DateTime, default=datetime.now)
+    sender = db.Column(db.String(50), nullable=False)  # 发送者ID
+    target = db.Column(db.String(50), nullable=False)  # 目标设备ID
+    command = db.Column(db.Text, nullable=False)       # 命令内容
+    response = db.Column(db.Text)                      # 响应内容
+    level = db.Column(db.String(10))                   # 日志级别
+    created_at = db.Column(db.DateTime, default=datetime.now)  # 创建时间
+    response_time = db.Column(db.DateTime)             # 响应时间
 
-    def to_dict(self):
-        """转换为字典格式,处理显示名称"""
-        server_id = current_app.config['SERVER_ID']
-        return {
-            'id': self.id,
-            'sender': 'S' if self.sender == server_id else self.sender,
-            'target': 'S' if self.target == server_id else self.target,
-            'command': self.command,
-            'response': self.response,
-            'level': self.level,
-            'created_at': self.created_at
-        }
-    
     @classmethod
-    def getHistory(cls, device_id, page, per_page):
-        """获取设备的命令历史"""
-        history = cls.query.filter(
-            (cls.sender == device_id) | 
-            (cls.target == device_id)
-        ).order_by(cls.created_at.desc())\
-         .paginate(page=page, per_page=per_page)
-            
-        commands = [cmd.to_dict() for cmd in history.items]
-        print(f'找到 {len(commands)} 条历史记录')
-            
-        # 使用 DateTimeEncoder 序列化数据
-        from .websocket import DateTimeEncoder
-        response_data = json.loads(json.dumps({
-            'commands': commands,
-            'has_next': history.has_next,
-            'total': history.total
-        }, cls=DateTimeEncoder))
+    def create(cls, sender, target, command, level='info'):
+        """创建新的命令记录"""
+        history = cls(
+            sender=sender,
+            target=target,
+            command=command,
+            level=level
+        )
+        db.session.add(history)
+        db.session.commit()
+        return history
+
+    def update_response(self, response):
+        """更新命令响应"""
+        self.response = response
+        self.response_time = datetime.now()
+        db.session.commit()
+
+    @staticmethod
+    def getHistory(device_id, page=1, per_page=30):
+        """获取设备的命令历史
+        Args:
+            device_id: 设备ID
+            page: 页码
+            per_page: 每页数量
+        Returns:
+            dict: {
+                'commands': [...],  # 命令列表
+                'has_next': bool    # 是否有下一页
+            }
+        """
+        # 查询该设备相关的所有命令
+        query = CommandHistory.query.filter(
+            (CommandHistory.sender == device_id) | 
+            (CommandHistory.target == device_id)
+        ).order_by(CommandHistory.created_at.desc())
         
-        return response_data 
+        # 分页
+        offset = (page - 1) * per_page
+        commands = query.offset(offset).limit(per_page + 1).all()
+        
+        # 检查是否有下一页
+        has_next = len(commands) > per_page
+        if has_next:
+            commands = commands[:-1]  # 移除多查询的一条
+        
+        # 转换为字典格式
+        result = []
+        for cmd in commands:
+            result.append({
+                'id': cmd.id,
+                'sender': cmd.sender,
+                'target': cmd.target,
+                'command': cmd.command,
+                'response': cmd.response,
+                'level': cmd.level,
+                'created_at': cmd.created_at.isoformat(),
+                'response_time': (cmd.response_time.isoformat() 
+                               if cmd.response_time else None)
+            })
+            
+        return {
+            'commands': result,
+            'has_next': has_next
+        }
+
+
+    @classmethod
+    def handle_command_result(cls, command_id, result, device_id):
+        """处理命令执行结果"""
+        try:
+            if command_id:
+                history = cls.query.get(command_id)
+                if history:
+                    history.update_response(result)
+            return {
+                'result': result, 
+                'device_id': device_id
+            }
+        except Exception as e:
+            from scripts.logger import Log
+            Log.ex(e, '处理命令结果出错')
+            return None
     
     

@@ -4,10 +4,10 @@ from pathlib import Path
 class Log:
     """统一的日志管理类"""
     _instance = None
-    MAX_CACHE_SIZE = 1000  # 最大缓存条数
+    MAX_CACHE_SIZE = 3000  # 最大缓存条数
     cache = {}  # 设备日志缓存 {device_id: [log_lines]}
-    files = {}  # 设备日志文件 {device_id: file_handle}
-    is_server = True
+    def clear(self):
+        self.cache.clear()
     def __new__(cls):
         if not cls._instance:
             cls._instance = super().__new__(cls)
@@ -23,41 +23,74 @@ class Log:
         self.is_server = is_server
         return self
     
+    def uninit(self):
+        """释放日志系统"""
+        # 保存当前缓存的日志到文件
+        for device_id, logs in self.cache.items():
+            log_file = Path(f"logs/{device_id}.log")
+            with log_file.open('a') as f:
+                for log in logs:
+                    f.write(log)
+        self.clear()
+        self._instance = None
+        
     def _defDeviceID(self):
         """获取当前设备ID"""
         if self.is_server:
-            return 'server'
+            # 服务器端使用当前选中的设备ID
+            try:
+                from app.device_manager import DeviceManager
+                device_id = DeviceManager().curDeviceID
+                return device_id if device_id else '@'
+            except:
+                return '@'
         else:
             from CDevice import CDevice
             device = CDevice()
             return device.deviceID
         
-    @classmethod    
-    def addCLog(self, device_id, message, level='i', tag=None):
-        Log()._log(message, level, tag, device_id)
     
-    def _log(self, message, level='i', tag=None, device_id=None):
-        """内部日志处理方法"""
+    def _log(self, content, level='i', tag=None, device_id=None):
         if device_id is None:
             device_id = self._defDeviceID()
+        if tag is None:
+            tag = device_id
+        print(f'日志: {content} deviceID={device_id}, tag={tag}')    
         timestamp = datetime.now()
-        log_line = f"[{timestamp.strftime('%H:%M:%S')}] [{level}] {tag or device_id}: {message}\n"
-
-        # print(f'@@@@@_log: {device_id}, {message}, {level}, {tag}')
+        # 使用统一的格式化方法
+        content = self.format(timestamp, tag, level, content)
+        self.log(device_id, content)
+       
+    
+    def log(self, device_id, content):
+        """内部日志处理方法"""
+        # 服务器端处理
         if self.is_server:
-            # 服务器端写入缓存
-            self._add(device_id, log_line)
+            # 写入缓存
+            self._add(device_id, content + '\n')            
+            try:
+                # 向控制台发送日志
+                from app.device_manager import DeviceManager
+                DeviceManager().emit_to_console('add_log', {
+                    'message': content,
+                    'device_id': device_id
+                })
+            except Exception as e:
+                import traceback
+                print(f'发送日志到控制台失败: {e}')
+                print(f'traceback: {traceback.format_exc()}')
         else:
             # 客户端发送到服务器
             try:
                 from CDevice import CDevice
                 device = CDevice()
                 if device and device.connected:
-                    device.send_log(message, level, tag)
+                    device.sio.emit('client_log', {
+                        'device_id': device.deviceID,
+                        'message': content
+                    })
             except Exception as e:
-                print(f'发送日志到服务器失败: {e}')
-        
-        print(log_line.strip())
+                print(f'发送日志到服务器失败: {e}')            
     
     @classmethod
     def i(cls, message, tag=None):
@@ -73,6 +106,7 @@ class Log:
     def e(cls, message, tag=None):
         """输出错误级别日志"""
         Log()._log(message, 'e', tag)
+        
     @classmethod
     def ex(cls, e, message, tag=None):
         import traceback
@@ -83,75 +117,99 @@ class Log:
         """获取设备日志路径"""
         return f"logs/{device_id}"
     
+    def _key(self, device_id, date=None):
+        """生成缓存键
+        Args:
+            device_id: 设备ID
+            date: 日期字符串，None表示使用当前日期
+        """
+        if date is None:
+            date = datetime.now().strftime('%Y-%m-%d')
+        return f"{device_id}_{date}"
+    
     def _add(self, device_id, log_line):
         """添加日志到缓存"""
-        cache = self.cache.get(device_id, None)
-        if cache is None:
-            cache = []
-            self.cache[device_id] = cache
-        cache.append(log_line)
+        logs = self.gets(device_id)
+        logs.append(log_line)
         # 限制缓存大小
-        if len(cache) > self.MAX_CACHE_SIZE:
-            cache.pop(0)
+        if len(logs) > self.MAX_CACHE_SIZE:
+            logs.pop(0)
     
-    def get(self, device_id=None):
-        """获取缓存的日志"""
+    def gets(self, device_id, date=None):
+        """获取设备日志，如果缓存不存在则从文件加载"""
         if device_id:
-            return self.cache.get(device_id, [])
-        # 返回所有设备的缓存日志
-        all_logs = []
-        for logs in self.cache.values():
-            all_logs.extend(logs)
-        # 按时间戳排序
-        all_logs.sort()
-        return all_logs
+            # 如果缓存不存在，从文件加载
+            cache_key = self._key(device_id, date)
+            # print(f'ddddddd获取日志: {cache_key}')
+            if cache_key not in self.cache:
+                self._load(device_id, date)
+            logs = self.cache.get(cache_key, [])
+            # print(f'eeeeeeeee 获取日志: {len(logs)}')
+            return logs
     
-    def _save(self, device_id):
-        """将设备日志缓存保存到文件"""
+    def _load(self, device_id, date=None):
+        """从文件加载日志到缓存"""
         try:
-            log_file = self.files.get(device_id)
-            if log_file and device_id in self.cache:
-                for line in self.cache[device_id]:
-                    log_file.write(line)
-                log_file.flush()
-                # 清空缓存
-                self.cache[device_id] = []
+            # 获取日志文件路径
+            if date is None:
+                date = datetime.now().strftime('%Y-%m-%d')
+            
+            log_dir = Path(self._get_log_path(device_id))
+            log_path = log_dir / f"{date}.log"
+            # 生成缓存键
+            cache_key = self._key(device_id, date)
+            
+            # 如果文件存在，读取内容到缓存
+            if log_path.exists():
+                with open(log_path, 'r', encoding='utf-8') as f:
+                    self.cache[cache_key] = f.readlines()
+                print(f'从文件加载日志: {log_path}, 缓存大小: {len(self.cache[cache_key])}')
+            else:
+                # 如果文件不存在，初始化空缓存
+                self.cache[cache_key] = []
+            print(f'dddddd从文件加载日志: {log_path}, 缓存大小: {len(self.cache[cache_key])}')
+        except Exception as e:
+            Log.ex(e, '加载日志文件失败')
+            self.cache[cache_key] = []
+    
+    def save(self, device_id, date=None):
+        """将设备日志缓存保存到文件"""
+        # 生成缓存键
+        cache_key = self._key(device_id, date)
+        if cache_key not in self.cache:
+            return
+        try:
+            # 获取日志文件路径
+            if date is None:
+                date = datetime.now().strftime('%Y-%m-%d')
+            
+            log_dir = Path(self._get_log_path(device_id))
+            log_dir.mkdir(parents=True, exist_ok=True)
+            log_path = log_dir / f"{date}.log"
+            
+            # 打开文件，追加写入缓存的日志
+            with open(log_path, 'a', encoding='utf-8') as f:
+                for line in self.cache[cache_key]:
+                    f.write(line)
+            print(f'日志已保存到文件: {log_path}, 缓存大小: {len(self.cache[cache_key])}')
+            
         except Exception as e:
             Log.ex(e, '保存日志缓存失败')
     
-    def open(self, device_id):
-        """打开设备日志文件"""
-        try:
-            # 关闭已存在的文件
-            self.close(device_id)
-            
-            # 打开新文件
-            timestamp = datetime.now()
-            log_dir = Path(self._get_log_path(device_id))
-            log_dir.mkdir(parents=True, exist_ok=True)
-            log_path = log_dir / f"{timestamp.strftime('%Y-%m-%d')}.log"
-            
-            log_file = open(log_path, 'a', encoding='utf-8', buffering=1)
-            self.files[device_id] = log_file
-            print(f'打开日志文件: {log_path}')
-            
-            # 初始化缓存
-            self.cache[device_id] = []
-            
-        except Exception as e:
-            Log.ex(e, '打开日志文件失败')
-    
-    def close(self, device_id):
-        """关闭设备日志文件"""
-        try:
-            # 保存缓存
-            self._save(device_id)
-            
-            # 关闭文件
-            if device_id in self.files:
-                self.files[device_id].close()
-                del self.files[device_id]
-                print(f'关闭日志文件: {device_id}')
-                
-        except Exception as e:
-            Log.ex(e, '关闭日志文件失败')
+    def format(self, timestamp, tag, level, message):
+        """格式化日志消息
+        格式: "HH:MM:SS##tag##level##message"
+        """
+        # 格式化时间,只保留时分秒
+        time_str = timestamp.strftime('%H:%M:%S')
+        
+        # 确保级别是小写的单个字符
+        level = str(level).lower()[0]
+        if level not in 'ewi':
+            level = 'i'
+        
+        # 确保消息不为空
+        message = str(message or '')
+        tag = str(tag or '@')
+        
+        return f"{time_str}##{tag}##{level}##{message}"

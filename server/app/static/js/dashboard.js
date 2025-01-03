@@ -23,34 +23,9 @@ class Dashboard {
                 isRealtime: true,  // 是否实时显示
             },
             methods: {
-                formatTime(timestamp) {
-                    if (!timestamp) return '未知';
-                    try {
-                        // 如果是ISO格式字符串，先转换为Date对象
-                        const date = typeof timestamp === 'string' ? 
-                            new Date(timestamp.replace(' ', 'T')) : // 处理空格分隔的日期时间格式
-                            new Date(timestamp);
-                            
-                        // 检查日期是否有效
-                        if (isNaN(date.getTime())) {
-                            console.warn('Invalid date:', timestamp);
-                            return timestamp; // 如果转换失败，直接返回原始字符串
-                        }
-                        
-                        // 格式化为本地时间字符串
-                        return date.toLocaleString('zh-CN', {
-                            year: 'numeric',
-                            month: '2-digit',
-                            day: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            second: '2-digit',
-                            hour12: false
-                        });
-                    } catch (e) {
-                        console.error('Date parsing error:', e);
-                        return timestamp; // 发生错误时返回原始字符串
-                    }
+                formatTime(time) {
+                    // 直接返回时间字符串
+                    return time || '未知';
                 },
                 updateDeviceList(devices) {
                     console.log('设备列表更新:', devices);
@@ -124,13 +99,13 @@ class Dashboard {
                     if (!isServerCommand) {
                         const device = this.devices[this.selectedDevice];
                         if (!device || device.status !== 'login') {
-                            this.addLog('response', '设备离线，无法发送命令', 'Server', 'error');
+                            this.addLog('e', 'Server', '设备离线，无法发送命令');
                             return;
                         }
                     }
 
                     this.updateLastActivity();
-                    this.addLog('command', this.commandInput, 'Server');
+                    this.addCmd('command', this.commandInput, 'Server');
                     this.socket.emit('send_command', {
                         device_id: deviceId,
                         command: this.commandInput
@@ -156,28 +131,32 @@ class Dashboard {
                         this.commandInput = '';
                     }
                 },
-                addLog(type, content, source, level = 'info') {
+                addLog(tag, level, content) {
                     const log = {
+                        tag,
+                        level,
+                        content
+                    };
+                    this.systemLogs.push(log);
+                    this.$nextTick(() => {
+                        const consoleEl = this.$refs.consoleLogs;
+                        if (consoleEl) {
+                            consoleEl.scrollTop = consoleEl.scrollHeight;
+                        }
+                    });
+                },               
+                addCmd(type, content, source) {
+                    const cmd = {
                         type,
                         content,
                         source,
-                        level,
                         timestamp: new Date()
                     };
-
-                    if (type === 'log') {
-                        // 系统日志添加到 systemLogs
-                        this.systemLogs.unshift(log);
-                    } else {
-                        // 命令历史添加到 commandLogs
-                        this.commandLogs.push(log);
-                    }
-
+                    
+                    this.commandLogs.push(cmd);
+                    
                     this.$nextTick(() => {
-                        const consoleEl = type === 'log' ? 
-                            this.$refs.consoleLogs : 
-                            this.$refs.consoleHistory;
-                        
+                        const consoleEl = this.$refs.consoleHistory;
                         if (consoleEl) {
                             consoleEl.scrollTop = consoleEl.scrollHeight;
                         }
@@ -210,9 +189,7 @@ class Dashboard {
                 handleLogsScroll(e) {
                     const el = e.target;
                     // 当滚动到顶部时加载更多日志
-                    if (this.hasMoreLogs && 
-                        !this.loadingLogs && 
-                        el.scrollTop <= 30) {
+                    if (!this.loadingLogs && el.scrollTop <= 30) {
                         this.loadMoreLogs();
                     }
                 },
@@ -223,28 +200,33 @@ class Dashboard {
                     this.logsPage++;
                     
                     this.socket.emit('get_logs', {
-                        page: this.logsPage
+                        device_id: this.selectedDevice,
+                        page: this.logsPage,
+                        date: this.currentDate  // 添加日期参数
                     });
                 },
                 switchToLogs() {
                     this.activeTab = 'logs';
-                    this.isRealtime = true;
-                    // 清空现有日志
-                    this.systemLogs = [];
-                    // 重新获取最新日志
-                    this.socket.emit('get_logs');
+                    // 切换标签时重新加载日志
+                    this.socket.emit('get_logs', {
+                        device_id: this.selectedDevice
+                    });
                 },
-                parseLogLine(line) {
-                    const match = line.match(/\[(.*?)\] \[(.*?)\] (.*?): (.*)/);
-                    if (match) {
+                parseLogLine(logLine) {
+                    // 使用##分隔符分割日志行
+                    const parts = logLine.split('##');
+                    if (parts.length === 4) {
+                        const [time, tag, level, message] = parts;
                         return {
-                            timestamp: match[1],
-                            level: match[2],
-                            source: match[3],
-                            message: match[4]
+                            time,
+                            tag,
+                            level,
+                            message
                         };
+                    } else {
+                        console.warn('无法解析日志行:', logLine);
+                        return null;
                     }
-                    return null;
                 },
                 updateLogs(logs, isRealtime = true) {
                     this.systemLogs = logs;
@@ -261,9 +243,9 @@ class Dashboard {
                 handleLogMessage(data) {
                     if (this.isRealtime) {
                         this.systemLogs.push({
-                            timestamp: data.timestamp,
+                            time: data.time,  // 保持为字符串
                             level: data.level,
-                            source: data.source,
+                            tag: data.tag,
                             message: data.message
                         });
                         this.updateLogs(this.systemLogs);
@@ -282,24 +264,20 @@ class Dashboard {
                 
                 this.socket.on('connect', () => {
                     console.log('控制台已连接到服务器');
+                    // 初始获取日志数据
+                    this.socket.emit('get_logs');
                 });
                 
                 this.socket.on('command_result', (data) => {
                     const resultText = data.result || '';
                     this.updateLastActivity();
-                    let level = 'info';
-                    if (resultText.toLowerCase().startsWith('error')) {
-                        level = 'error';
-                    } else if (resultText.toLowerCase().startsWith('warning')) {
-                        level = 'warning';
-                    }
-                    this.addLog('response', resultText, data.device_id, level);
+                    this.addCmd('response', resultText, data.device_id);
                 });
 
                 this.socket.on('error', (data) => {
                     this.updateLastActivity();
-                    this.addLog('response', data.message, this.selectedDevice, 'error');
-                    this.loadingHistory = false;  // 重置加载状态
+                    this.addCmd('response', data.message, this.selectedDevice);
+                    this.loadingHistory = false;
                 });
 
                 this.socket.on('command_history', (data) => {
@@ -349,26 +327,61 @@ class Dashboard {
                     }
                 });
 
-                // 添加日志监听
-                this.socket.on('log_message', (data) => {
-                    console.log('收到日志消息:', data);  // 调试信息
-                    this.addLog('log', data.message, data.source, data.level);
-                });
 
                 // 获取初始日志数据
                 this.socket.emit('get_logs');
                 
                 // 修改日志数据处理
                 this.socket.on('logs_data', (data) => {
+                    console.log('收到日志数据:', data);
                     const logs = data.logs
-                        .map(line => this.parseLogLine(line))
+                        .map(line => this.parseLogLine(line.trim()))
                         .filter(log => log !== null);
-                    this.updateLogs(logs, data.is_realtime);
+                        
+                    if (this.logsPage > 1) {
+                        // 分页加载时，将新日志添加到开头
+                        this.systemLogs.unshift(...logs);
+                    } else {
+                        // 首次加载或刷新时，替换全部日志
+                        this.systemLogs = logs;
+                    }
+                    
+                    this.loadingLogs = false;
+                    this.hasMoreLogs = data.has_more;
+                    
+                    // 如果是分页加载，保持滚动位置
+                    if (this.logsPage > 1) {
+                        this.$nextTick(() => {
+                            const consoleEl = this.$refs.consoleLogs;
+                            if (consoleEl) {
+                                consoleEl.scrollTop = 50;
+                            }
+                        });
+                    } else {
+                        // 首次加载滚动到底部
+                        this.$nextTick(() => {
+                            const consoleEl = this.$refs.consoleLogs;
+                            if (consoleEl) {
+                                consoleEl.scrollTop = consoleEl.scrollHeight;
+                            }
+                        });
+                    }
                 });
 
                 // 修改实时日志处理
                 this.socket.on('client_log', (data) => {
-                    this.handleLogMessage(data);
+                    if (this.isRealtime) {
+                        const parsed = this.parseLogLine(data.message.trim());
+                        if (parsed) {
+                            this.systemLogs.push(parsed);
+                            this.$nextTick(() => {
+                                const consoleEl = this.$refs.consoleLogs;
+                                if (consoleEl) {
+                                    consoleEl.scrollTop = consoleEl.scrollHeight;
+                                }
+                            });
+                        }
+                    }
                 });
 
                 // 修改日志显示处理
@@ -389,28 +402,29 @@ class Dashboard {
                     });
                 });
 
-                // 添加日志消息监听
-                this.socket.on('log_message', (data) => {
-                    // 构建日志条目
-                    const logEntry = {
-                        timestamp: new Date(data.timestamp),
-                        level: data.level,
-                        deviceId: data.device_id,
-                        message: data.message,
-                        tag: data.tag
-                    };
-
-                    // 添加到日志显示
-                    this.addLog('log', logEntry.message, logEntry.deviceId, logEntry.level);
-
-                    // 如果在日志标签页并且是实时模式，滚动到底部
-                    if (this.activeTab === 'logs' && this.isRealtime) {
+                // 修改日志消息监听
+                this.socket.on('add_log', (data) => {
+                    const content = data.message;
+                    const parsed = this.parseLogLine(content);
+                    if (parsed) {
+                        const log = {
+                            time: parsed.time,
+                            tag: parsed.tag,
+                            level: parsed.level,
+                            message: parsed.message
+                        };
+                        
+                        // 使用 push 而不是 unshift
+                        this.systemLogs.push(log);
+                        
                         this.$nextTick(() => {
                             const consoleEl = this.$refs.consoleLogs;
                             if (consoleEl) {
                                 consoleEl.scrollTop = consoleEl.scrollHeight;
                             }
                         });
+                    } else {
+                        console.warn('Failed to parse log:', content);
                     }
                 });
 
@@ -445,6 +459,11 @@ class Dashboard {
                     }
                     // 更新显示
                     console.log(result);
+                });
+
+                this.socket.on('clear_logs', () => {
+                    // 清空系统日志显示
+                    this.systemLogs = [];
                 });
             }
         });

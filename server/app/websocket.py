@@ -9,6 +9,7 @@ from .command_history import CommandHistory
 from .SCommand import SCommand
 from scripts.logger import Log
 from pathlib import Path
+import re
 
 class DateTimeEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -63,9 +64,11 @@ def handle_disconnect():
     
     # 检查是否是控制台断开
     if request.sid in deviceMgr.console_sids:
+        # 保存当前设备的日志
+        Log().save(deviceMgr.curDeviceID, None)
         deviceMgr.remove_console(request.sid)
         return
-        
+    
     # 设备断开处理...
     device = deviceMgr.get_device_by_sid(request.sid)
     if device:
@@ -166,6 +169,8 @@ def handle_load_history(data):
 @socketio.on('set_current_device')
 def handle_set_current_device(data):
     """设置当前设备ID"""
+    
+    # 设置新的当前设备
     device_id = data.get('device_id')
     deviceMgr.curDeviceID = device_id
 
@@ -173,21 +178,13 @@ def handle_set_current_device(data):
 @socketio.on('client_log')
 def handle_client_log(data):
     """处理客户端日志"""
-    device_id = data.get('device_id')
     message = data.get('message')
-    level = data.get('level', 'i')
-    tag = data.get('tag', None)
-    
-    # 添加到缓存
-    Log.addCLog(device_id, message, level, tag)
-    
-    # 向控制台发送日志消息
-    deviceMgr.emit_to_console('client_log', {
-        'device_id': device_id,
-        'message': message,
-        'level': level,
-        'timestamp': datetime.now().isoformat(),
-        'tag': tag
+    device_id = data.get('device_id')
+    # print(f'$$$$收到客户端日志: {message} deviceID={device_id}')
+    Log().log(device_id, message)
+    # 日志消息已经包含了完整格式,直接转发
+    deviceMgr.emit_to_console('add_log', {
+        'message': message
     })
 
 
@@ -195,21 +192,44 @@ def handle_client_log(data):
 def handle_get_logs(data=None):
     """处理获取日志请求"""
     try:
-        device_id = data.get('device_id') if data else None
-        date = data.get('date') if data else None
+        data = data or {}
+        device_id = data.get('device_id')
+        date = data.get('date')
+        page = data.get('page', 1)
+        per_page = 100  # 每页日志条数
         
-        # 获取指定的历史日志，不检查设备状态
-        logs = Log().get(device_id)
-        print(f'@@@@@get_logs: {device_id}, logs.length = {len(logs)}')
+        # 如果没有指定设备ID,使用当前设备ID
+        if device_id is None:
+            device_id = deviceMgr.curDeviceID
+        
+        # 获取设备日志
+        logs = Log().gets(device_id, date)
+        if not logs:
+            logs = []
+        
+        # 计算分页
+        total = len(logs)
+        start = (page - 1) * per_page
+        end = start + per_page
+        page_logs = logs[start:end]
+        has_more = end < total
+            
         deviceMgr.emit_to_console('logs_data', {
-            'logs': logs,
+            'logs': page_logs,
             'device_id': device_id,
             'date': date,
-            'is_realtime': False
+            'is_realtime': False,
+            'has_more': has_more,
+            'page': page,
+            'total': total,
+            'message': f'找到 {len(page_logs)} 条日志记录'
         })
+        
     except Exception as e:
         Log.ex(e, '获取日志失败')
-        deviceMgr.emit_to_console('error', {'message': '获取日志失败'})
+        deviceMgr.emit_to_console('error', {
+            'message': f'获取日志失败: {str(e)}'
+        })
 
 
 @socketio.on('command_result')
@@ -220,22 +240,11 @@ def handle_command_result(data):
         result = data.get('result', '')
         device_id = data.get('device_id')
         
-        # 记录命令结果
-        Log.i(f'{device_id}', f'命令执行结果: {result}')
-        
-        # 更新命令历史
-        if command_id:
-            history = CommandHistory.query.get(command_id)
-            if history:
-                history.response = result
-                history.response_time = datetime.now()
-                db.session.commit()
-
-        deviceMgr.emit_to_console('command_result', {
-            'result': result,
-            'device_id': device_id
-        })
-        
+        # 使用 CommandHistory 类处理结果
+        response = CommandHistory.handle_command_result(command_id, result, device_id)
+        if response:
+            deviceMgr.emit_to_console('command_result', response)
+            
     except Exception as e:
         Log.ex(e, '处理命令结果出错')
 
@@ -244,7 +253,4 @@ def handle_command_result(data):
 def handle_command(data):
     # ... 其他代码 ...
     result = doCmd(cmd)
-    if isinstance(result, str):
-        # 确保换行符被正确处理
-        result = result.replace('\n', '<br>')  # 将\n转换为HTML换行
     emit('response', {'result': result})

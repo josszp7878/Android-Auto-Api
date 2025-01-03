@@ -17,8 +17,6 @@ if __name__ == '__main__':
     
     # 初始化日志系统并打开服务器日志
     Log().init(is_server=True)
-    Log().open('server')
-    
     try:
         # 启动服务器
         Log.i('服务器启动')
@@ -27,4 +25,4 @@ if __name__ == '__main__':
         Log.e(f'服务器启动失败: {e}')
     finally:
         # 确保关闭日志
-        Log().close('server')
+        Log().uninit()

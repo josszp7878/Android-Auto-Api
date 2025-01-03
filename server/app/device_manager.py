@@ -4,6 +4,7 @@ from .SDevice import SDevice
 from scripts.logger import Log
 from datetime import datetime
 from flask_socketio import emit
+import re
 
 
 class DeviceManager:
@@ -66,16 +67,12 @@ class DeviceManager:
             Log.ex(e, '保存数据库出错')
     
     def add_device(self, device_id):
-        """添加设备"""
-        try:
-            device = SDevice(device_id)
-            self.devices[device_id] = device
-            Log.i(f'添加设备: {device_id}')
-            self._save_to_db(device)
-            return device
-        except Exception as e:
-            Log.ex(e, '添加设备失败')
-            return None
+        """添加新设备"""
+        device = SDevice(device_id)
+        self.devices[device_id] = device
+        self._save_to_db(device)
+        Log.i(f'添加设备: {device_id}')
+        return device
     
     def get_device(self, device_id):
         """获取设备"""
@@ -115,7 +112,6 @@ class DeviceManager:
 
     def update_device(self, device):
         try:
-            # Log.i(f"更新设备 {device.device_id}")
             # 确保设备存在于内存中
             _devices = self.devices
             if not _devices.get(device.device_id):
@@ -124,11 +120,10 @@ class DeviceManager:
             try:
                 # 尝试获取现有设备
                 db_device = DeviceModel.query.get(device.device_id)
-                Log.i('DeviceManager', f"设备 {db_device}, {device.device_id}")
-                
+                # Log.i('DeviceManager', f"设备 {db_device}, {device.device_id}")
                 if db_device:   
                     # 更新现有设备
-                    Log.i('DeviceManager', f"更新设备 {db_device}")
+                    Log.i(f"更新设备 {db_device}", 'DeviceManager')
                     db_device.status = device.status
                     db_device.info = device.info
                     db_device.last_seen = datetime.now()

@@ -6,12 +6,11 @@ from logger import Log
 class CDevice:
     _instance = None  # 单例实例
     _cmdMgr = None   # 命令管理器实例
-    _log_file = None # 日志文件句柄
     _RunFromApp = False
     @property
     def RunFromApp(self):
         return self._RunFromApp
-    _deviceID = None
+    
     @property
     def deviceID(self):
         return self._deviceID
@@ -22,7 +21,7 @@ class CDevice:
         return cls._instance
 
     def __new__(cls, device_id=None):  # 显式声明参数
-        if not cls._instance:
+        if not cls._instance:            
             # 创建实例
             cls._instance = super().__new__(cls)
             # 可以在这里就保存参数
@@ -43,9 +42,6 @@ class CDevice:
             self.connected = False
             self._RunFromApp = False
             
-            # 初始化日志系统为客户端模式
-            Log().init(is_server=False)
-            
             # 初始化 socketio 客户端
             self.sio = socketio.Client(
                 reconnection=True,
@@ -55,43 +51,13 @@ class CDevice:
                 logger=False
             )
             
-            # 注册事件处理器 - 省略默认命名空间
+            # 注册事件处理器
             self.sio.on('connect')(self.on_connect)
-            self.sio.on('command')(self.on_command)
+            self.sio.on('clientCommand')(self.on_command)
             self.sio.on('disconnect')(self.on_disconnect)
             self.sio.on('connect_error')(self.on_connect_error)
-            self.sio.on('test_room')(self.on_test_room)
             
             self.initialized = True
-
-    def _open_log_file(self):
-        """打开日志文件"""
-        try:
-            if CDevice._log_file:
-                CDevice._log_file.close()
-                
-            timestamp = datetime.now()
-            log_dir = Path("logs") / self.deviceID
-            log_dir.mkdir(parents=True, exist_ok=True)
-            log_path = log_dir / f"{timestamp.strftime('%Y-%m-%d')}.log"
-            
-            CDevice._log_file = open(log_path, 'a', encoding='utf-8', buffering=1)  # 使用行缓冲
-            # Log.i(f'打开日志文件@@@@@@: {log_path}')
-        except Exception as e:
-            Log.ex(e, '打开日志文件失败')
-            CDevice._log_file = None
-    
-    def _close_log_file(self):
-        """关闭日志文件"""
-        try:
-            if CDevice._log_file:
-                CDevice._log_file.flush()
-                CDevice._log_file.close()
-                CDevice._log_file = None
-                Log.i('关闭日志文件')
-        except Exception as e:
-            Log.ex(e, '关闭日志文件失败')
-    
 
     def isConnected(self):
         """检查是否已连接"""
@@ -110,12 +76,12 @@ class CDevice:
 
     def connect(self, server_url=None):
         try:
-            if not CDevice._log_file:
-                self._open_log_file()
                 
-            Log.i(f'连接参数: device_id={self.deviceID}')
-            
-            self._serverURL = server_url
+            # Log.i(f'连接参数: device_id={self.deviceID}')
+            if not server_url:
+                server_url = self._serverURL
+            else:
+                self._serverURL = server_url
             
             # 连接到服务器，直接通过查询参数传递设备ID
             connect_url = f"{server_url}?device_id={self.deviceID}"
@@ -138,7 +104,7 @@ class CDevice:
             return False
 
     def login(self):
-        Log.i(f'设备 {self.deviceID} 登录: self.connected={self.connected}')
+        # Log.i(f'设备 {self.deviceID} 登录: self.connected={self.connected}')
         if self.connected:
             self.sio.emit('device_login', {
                 'device_id': self.deviceID,
@@ -165,7 +131,7 @@ class CDevice:
             print(f'正在处理命令: {command}, ID: {command_id}')
             # Log.i(f'正在处理命令: {command}, ID: {command_id}')
             
-            # 执行命令 - 使用绝对导入
+            # 使用 CmdMgr 执行命令
             from CmdMgr import CmdMgr
             result = CmdMgr().do(command)
             
@@ -178,7 +144,6 @@ class CDevice:
                     'device_id': self.deviceID,
                     'result': result
                 }
-                # print(f'客户端发送响应: {response}')
                 self.sio.emit('command_result', response)
                 
         except Exception as e:
@@ -201,9 +166,6 @@ class CDevice:
         Log.i(f'已连接到服务器, SID: {sid}')
         print(f'客户端 SID: {sid}')
         
-        # 连接成功后打开日志文件
-        Log().open(self.deviceID)
-        
         # 连接后立即进行登录
         self.login()
 
@@ -215,9 +177,6 @@ class CDevice:
         """断开连接回调"""
         Log.w('断开连接')
         self.connected = False
-        
-        # 断开连接时保存并关闭日志文件
-        Log().close(self.deviceID)
 
     def send_command(self, cmd):
         """发送命令到服务器"""
@@ -232,25 +191,3 @@ class CDevice:
         # }
         # self.sio.emit('command_response', response)
         return True
-
-    def status(self):
-        """查看设备状态"""
-        status = "已连接" if self.connected else "未连接"
-        Log.i(f'设备状态: {status}')
-        return True
-
-    def send_log(self, message, level='INFO', tag=None):
-        """发送日志到服务器"""
-        if self.connected:
-            self.sio.emit('client_log', {
-                'device_id': self.deviceID,
-                'message': message,
-                'level': level,
-                'tag': tag
-            })
-   
-    def on_test_room(self, data):
-        """处理测试消息"""
-        print(f"收到测试消息: {data}")
-
-

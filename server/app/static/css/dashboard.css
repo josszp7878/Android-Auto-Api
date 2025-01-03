@@ -105,12 +105,17 @@
     word-wrap: break-word;
     display: flex;
     gap: 8px;
-    align-items: flex-start;  /* 确保内容顶部对齐 */
+    align-items: flex-start;
+}
+.timestamp {
+    color: #333;
+    font-size: 14px;
+    white-space: nowrap;
 }
 .console-device-id {
-    color: #f4f0f0;  /* 设备ID使用灰色 */
-    min-width: 80px;  /* 固定宽度保持对齐 */
-    flex-shrink: 0;   /* 防止ID被压缩 */
+    color: #f4f0f0;
+    min-width: 60px;
+    white-space: nowrap;
 }
 .console-command {
     color: #4CAF50;  /* 命令使用绿色 */
@@ -188,17 +193,25 @@
 }
 
 /* 日志级别颜色 */
+.log-level-e {
+    color: #f44336 !important;  /* 错误-红色 */
+}
+
+.log-level-w {
+    color: #ff9800 !important;  /* 警告-橙色 */
+}
+
+.log-level-i {
+    color: #2196F3 !important;  /* 信息-蓝色 */
+}
+
+/* 移除旧的颜色类 */
+.console-warning,
+.console-error,
+.log-level-ERROR,
+.log-level-WARN,
 .log-level-INFO {
-    color: #ffffff;  /* 信息-白色 */
-}
-
-.log-level-WARN {
-    color: #ff9800;  /* 警告-橙色 */
-}
-
-.log-level-ERROR {
-    color: #f44336;  /* 错误-红色 */
-    font-weight: bold;
+    display: none;  /* 或者直接删除这些规则 */
 }
 
 .log-status {
@@ -231,4 +244,36 @@
 .console-log .log-content {
     white-space: pre-wrap;  /* 保留换行和空格 */
     word-wrap: break-word;  /* 允许长行换行 */
+}
+
+/* 修改控制台布局 */
+.console-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.console-tabs {
+    flex-shrink: 0;
+}
+
+.console-content {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 200px;
+}
+
+/* 确保输入框始终在底部 */
+.console-input-container {
+    position: sticky;
+    bottom: 0;
+    background: #1e1e1e;  /* 与控制台背景色一致 */
+    padding: 10px;
+    border-top: 1px solid #333;
+    z-index: 10;  /* 确保在内容之上 */
+}
+
+.console-input {
+    width: calc(100% - 80px);  /* 为按钮留出空间 */
+    margin-right: 10px;
 }

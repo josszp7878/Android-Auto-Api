@@ -12,10 +12,12 @@ class SCommand:
     COMMANDS = {
         '@help': ('显示帮助信息', '_cmd_help'),
         '@status': ('显示服务器状态', '_cmd_status'),
-        '@clear': ('清除当前设备的所有指令历史', '_cmd_clear'),
+        '@clearCmd': ('清除当前设备的所有指令历史', '_cmd_clearCmd'),
+        '@clearLog': ('清除当前设备的日志缓存', '_cmd_clearLog'),
         '@list': ('列出所有设备', '_cmd_list'),
         '@echo': ('测试日志输出', '_cmd_echo'),
-        '@showlog': ('显示日志', '_cmd_showlog')
+        '@showlog': ('显示日志', '_cmd_showlog'),
+        '@log': ('手动打印日志，用法: @log <level> <content>', '_cmd_log')
     }
     
     @staticmethod
@@ -23,9 +25,9 @@ class SCommand:
         """执行命令"""
         try:
             if command.startswith('@'):
-                return SCommand._execute_server_command(command)
+                return SCommand._doSeverCmd(command)
             else:
-                return SCommand._execute_device_command(device_id, command)
+                return SCommand._doClientCmd(device_id, command)
         except Exception as e:
             Log.e('Server', f'执行命令出错: {e}')
             emit('error', {'message': '命令执行失败'})
@@ -61,7 +63,7 @@ class SCommand:
             })
     
     @staticmethod
-    def _execute_server_command(command):
+    def _doSeverCmd(command):
         """执行服务器命令"""
         try:
             cmd, args = SCommand._parse_command(command)
@@ -96,7 +98,20 @@ class SCommand:
         return '服务器运行正常'
     
     @staticmethod
-    def _cmd_clear(args):
+    def _cmd_clearLog(args):
+        """清除控制台日志缓存"""
+        try:
+            # 清空日志缓存
+            Log().clear()            
+            # 通知前端清空日志显示
+            emit('clear_logs')            
+            return '控制台日志已清除'
+        except Exception as e:
+            Log.ex(e, '清除日志缓存出错')
+            return '清除日志缓存失败'
+    
+    @staticmethod
+    def _cmd_clearCmd(args):
         """清除当前设备的所有指令历史"""
         device_manager = DeviceManager()
         device_id = args[0] if args and len(args) > 0 else device_manager.curDeviceID
@@ -159,7 +174,7 @@ class SCommand:
                 if not device_id:
                     device_id = 'server'  # 如果没有当前设备，显示服务器日志
             
-            logs = Log().get(device_id)
+            logs = Log().gets(device_id, date)
             if not logs:
                 return f"没有找到{'服务器' if device_id == 'server' else device_id}在{date or '今天'}的日志"
                 
@@ -179,9 +194,34 @@ class SCommand:
             return f"显示日志失败: {e}"
     
     @staticmethod
-    def _execute_device_command(device_id, command):
+    def _cmd_log(args):
+        """手动打印日志
+        用法: @log <level> <content>
+        level: i/w/e (info/warning/error)
+        """
+        if len(args) < 2:
+            return "用法: @log <level> <content>"
+        
+        level = args[0].lower()
+        content = ' '.join(args[1:])
+        
+        if level not in ['i', 'w', 'e']:
+            return "日志级别必须是 i/w/e 之一"
+            
+        # 调用对应的日志方法
+        if level == 'i':
+            Log.i(content)
+        elif level == 'w':
+            Log.w(content)
+        else:
+            Log.e(content)
+            
+        return f"日志已打印: [{level}] {content}"
+    
+    
+    @staticmethod
+    def _doClientCmd(device_id, command):
         """执行设备命令"""
-        Log.i('Server', f'执行设备命令: {device_id} {command}')
         try:
             with current_app.app_context():
                 device_manager = DeviceManager()
@@ -196,28 +236,28 @@ class SCommand:
                     emit('error', {'message': '设备未登录'})
                     return '设备未登录'
                 
-                # 记录命令历史
-                history = CommandHistory(
-                    sender=current_app.config['SERVER_ID'],
-                    target=device_id,
-                    command=command,
-                    level='info'
+                history = CommandHistory.create(
+                    current_app.config['SERVER_ID'], 
+                    device_id, 
+                    command, 
+                    'info'
                 )
-                db.session.add(history)
-                db.session.commit()
                 
                 sid = device.info.get('sid')
                 if sid:
                     # 验证 SID 是否最新
-                    Log.i('Server', f'设备 {device_id} 当前 SID: {sid}')
-                    
+                    Log.i('Server', f'设备 {device_id} 当前 SID: {sid}')                    
                     try:
                         # 直接通过 sid 发送命令
-                        emit('command', {
+                        emit('clientCommand', {
                             'command': command,
                             'device_id': device_id,
                             'command_id': history.id
                         }, to=sid)
+                        
+                        # 更新响应时间
+                        history.response_time = datetime.now()
+                        db.session.commit()
                         
                         Log.i('Server', f'命令已发送到 SID: {sid}')
                         return f'命令已发送到设备 {device_id}'

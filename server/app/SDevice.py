@@ -75,7 +75,7 @@ class SDevice:
             # 获取设备管理器实例
             from .device_manager import DeviceManager
             # 发送设备状态更新
-            print(f'@@@@@refresh_device: {self.device_id}, {self.status}')
+            # print(f'@@@@@refresh_device: {self.device_id}, {self.status}')
             DeviceManager().emit_to_console('refresh_device', {
                 'device_id': self.device_id,
                 'status': self.status,
@@ -87,8 +87,6 @@ class SDevice:
     
     def onConnect(self):
         try:
-            # 打开设备日志文件
-            Log().open(self.device_id)
             self.status = 'online'
             Log.i(f'设备 {self.device_id} 已连接')
             self._commit()
@@ -101,7 +99,7 @@ class SDevice:
     def onDisconnect(self):
         try:
             # 保存并关闭日志文件
-            Log().close(self.device_id)
+            Log().save(self.device_id)
             self.status = 'offline'
             Log.i(f'设备 {self.device_id} 已断开连接')
             self._commit()
@@ -123,7 +121,7 @@ class SDevice:
             return False
     
     def logout(self):
-        Log.i(f'设备 {self.device_id} 登出')
+        Log.w(f'设备 {self.device_id} 登出')
         try:
             self.status = 'logout'
             self.info['logout_time'] = str(datetime.now())
