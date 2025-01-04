@@ -47,8 +47,8 @@ class CmdMgr:
                     return func(**params) if params else func()
                 except Exception as e:
                     Log.ex(e, '命令执行错误')
-                    return "e#命令执行错误"
-        return "w#未知命令"
+                    return "e##命令执行错误"
+        return "w##未知命令"
 
 
 # 创建全局命令处理器实例

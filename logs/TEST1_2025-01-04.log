@@ -1,0 +1,68 @@
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:22:38##TEST1##i##设备 TEST1 已断开连接
+15:22:50##TEST1##i##Client disconnected: luUb4njjT4s53NMSAAAD
+15:22:50##TEST1##i##移除控制台连接: luUb4njjT4s53NMSAAAD
+15:22:50##TEST1##e##服务器启动失败: 'Log' object has no attribute 'close'
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:22:38##TEST1##i##设备 TEST1 已断开连接
+15:22:50##TEST1##i##Client disconnected: luUb4njjT4s53NMSAAAD
+15:23:05##TEST1##i##设置当前设备ID: TEST1
+15:23:40##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'aa'}
+15:23:40##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:40##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:43##TEST1##i##Client disconnected: 1ZdVsHnyXPvDhcnrAAAF
+15:23:43##TEST1##i##移除控制台连接: 1ZdVsHnyXPvDhcnrAAAF
+15:23:43##访问首页##i##Server
+15:23:43##TEST1##i##添加控制台连接: zRXdjNwutkwjdlsDAAAH
+15:23:43##TEST1##i##控制台连接: zRXdjNwutkwjdlsDAAAH
+15:23:46##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:23:46##TEST1##i##设置当前设备ID: TEST1
+15:23:50##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:23:50##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:50##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:24:02##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:24:02##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:24:02##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:28:42##TEST1##i##Client disconnected: zRXdjNwutkwjdlsDAAAH
+15:28:42##TEST1##i##移除控制台连接: zRXdjNwutkwjdlsDAAAH
+15:28:42##访问首页##i##Server
+15:28:42##TEST1##i##添加控制台连接: yAt1DJ8yZ42H8AGBAAAJ
+15:28:42##TEST1##i##控制台连接: yAt1DJ8yZ42H8AGBAAAJ
+15:28:43##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:28:43##TEST1##i##设置当前设备ID: TEST1
+15:28:59##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:28:59##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:28:59##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:29:07##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'ddf'}
+15:29:07##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:29:08##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:52##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:31:52##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:52##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:59##TEST1##i##Client disconnected: fY8097ln_l1w4punAAAD
+15:31:59##TEST1##i##设备 TEST1 已断开连接
+15:31:59##TEST1##i##Client disconnected: yAt1DJ8yZ42H8AGBAAAJ
+15:31:59##TEST1##i##移除控制台连接: yAt1DJ8yZ42H8AGBAAAJ
+15:32:00##TEST1##e##服务器启动失败: 'Log' object has no attribute 'close'
