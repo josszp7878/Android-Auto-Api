@@ -90,9 +90,20 @@ class CommandHistory(db.Model):
             if command_id:
                 history = cls.query.get(command_id)
                 if history:
-                    history.update_response(result)
+                    # 默认info级别
+                    level = 'i'
+                    # 检查结果是否包含错误关键词
+                    if isinstance(result, str):
+                        if '错误' in result or 'error' in result.lower():
+                            level = 'e'
+                        elif '警告' in result or 'warning' in result.lower():
+                            level = 'w'
+                    # 格式化响应
+                    formatted_result = f"{level}##{result}"
+                    history.update_response(formatted_result)
+                    
             return {
-                'result': result, 
+                'result': result,
                 'device_id': device_id
             }
         except Exception as e:

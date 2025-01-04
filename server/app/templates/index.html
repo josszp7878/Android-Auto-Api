@@ -60,25 +60,19 @@
                         加载历史记录...
                     </div>
                     <!-- 命令记录 -->
-                    <div v-for="log in commandLogs" :key="log.index" class="console-line">
-                        <!-- 发送命令显示 -->
-                        <template v-if="log.type === 'command'">
-                            <span class="console-device-id">[[ log.deviceId ]] ></span>
-                            <span class="console-command">[[ log.content ]]</span>
-                        </template>
-                        <!-- 命令响应显示 -->
-                        <template v-else-if="log.type === 'response'">
-                            <div class="console-line">
-                                <span class="console-device-id">[[ log.deviceId ]] <</span>
-                                <pre class="console-response" :class="log.level">[[ log.content ]]</pre>
-                            </div>
-                        </template>
-                        <!-- 日志显示 -->
-                        <template v-else-if="log.type === 'log'">
-                            <span class="timestamp">[[ log.time ]]</span>
-                            <span class="console-device-id">[[ log.tag ]]</span>
-                            <span class="console-log" :class="log.level">[[ log.message ]]</span>
-                        </template>
+                    <div v-for="log in commandLogs" :key="log.timestamp" class="console-line">
+                        <div class="command-header">
+                            <span class="timestamp">[[ log.timestamp ]]</span>
+                            <span>[[ log.sender ]]</span>
+                            <span class="command-arrow">-></span>
+                            <span>[[ log.target ]]</span>
+                            <span>:</span>
+                            <span class="console-command">[[ log.command ]]</span>
+                        </div>
+                        <div class="command-result" v-if="log.response">
+                            <span class="result-prefix">--</span>
+                            <span :class="'result-' + log.level">[[ log.response ]]</span>
+                        </div>
                     </div>
                 </div>
 

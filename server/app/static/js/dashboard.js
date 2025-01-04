@@ -104,16 +104,37 @@ class Dashboard {
                         }
                     }
 
+                    // 立即添加命令到历史记录
+                    const currentTime = new Date().toLocaleString('zh-CN', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: false
+                    });
+
+                    this.commandLogs.push({
+                        timestamp: currentTime,
+                        sender: 'Server',
+                        target: this.selectedDevice,
+                        command: this.commandInput,
+                        response: '',
+                        level: 'i'
+                    });
+
                     this.updateLastActivity();
-                    this.addCmd('command', this.commandInput, 'Server');
                     this.socket.emit('send_command', {
                         device_id: deviceId,
                         command: this.commandInput
                     });
 
+                    // 保存到命令历史
                     this.commandHistory.push(this.commandInput);
                     this.currentHistoryIndex = this.commandHistory.length;
                     
+                    // 清空输入
                     this.commandInput = '';
                 },
                 prevCommand() {
@@ -270,8 +291,22 @@ class Dashboard {
                 
                 this.socket.on('command_result', (data) => {
                     const resultText = data.result || '';
+                    let level = 'i';
+                    let content = resultText;
+                    
+                    // 解析响应格式
+                    if(resultText.includes('##')) {
+                        [level, content] = resultText.split('##');
+                    }
+                    
+                    // 更新最后一条命令的响应
+                    if (this.commandLogs.length > 0) {
+                        const lastLog = this.commandLogs[this.commandLogs.length - 1];
+                        lastLog.response = content;
+                        lastLog.level = level;
+                    }
+                    
                     this.updateLastActivity();
-                    this.addCmd('response', resultText, data.device_id);
                 });
 
                 this.socket.on('error', (data) => {
@@ -285,38 +320,37 @@ class Dashboard {
                     const commands = data.commands;
                     this.hasMoreHistory = data.has_next;
                     
-                    // 转换为日志格式
                     const logs = commands.map(cmd => {
-                        const entries = [];
-                        
-                        // 添加命令
-                        entries.push({
-                            type: 'command',
-                            content: cmd.command,
-                            deviceId: cmd.sender,  // 显示发起者
-                            timestamp: cmd.created_at
-                        });
-                        
-                        // 如果有响应,添加响应记录
-                        if (cmd.response) {
-                            entries.push({
-                                type: 'response',
-                                content: cmd.response,
-                                deviceId: cmd.target,  // 显示响应者
-                                level: cmd.level,
-                                timestamp: cmd.created_at
-                            });
+                        // 解析响应level和内容
+                        let level = 'i';
+                        let content = cmd.response || '';
+                        if(content.includes('##')) {
+                            [level, content] = content.split('##');
                         }
                         
-                        return entries;
-                    }).flat();
+                        // 格式化时间
+                        const timestamp = new Date(cmd.created_at).toLocaleString('zh-CN', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            hour12: false
+                        });
+                        
+                        return {
+                            timestamp: timestamp,
+                            sender: cmd.sender,
+                            target: cmd.target,
+                            command: cmd.command,
+                            response: content,
+                            level: level
+                        };
+                    });
                     
-                    // 按时间排序，确保最近的在最下面
                     logs.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-                    
-                    // 添加到历史记录
-                    this.commandLogs.push(...logs);
-                    this.loadingHistory = false;
+                    this.commandLogs = logs;
                 });
 
                 this.socket.on('clear_history', (data) => {
