@@ -136,6 +136,8 @@ class Dashboard {
                     
                     // 清空输入
                     this.commandInput = '';
+                    // 发送命令后滚动到底部
+                    setTimeout(() => this.scrollToBottom(), 100);
                 },
                 prevCommand() {
                     if (this.currentHistoryIndex > 0) {
@@ -197,6 +199,10 @@ class Dashboard {
                         device_id: this.selectedDevice,
                         page: this.currentPage
                     });
+                    // 首次加载时滚动到底部
+                    if (this.currentPage === 1) {
+                        setTimeout(() => this.scrollToBottom(), 100);
+                    }
                 },
                 handleHistoryScroll(e) {
                     const el = e.target;
@@ -232,6 +238,8 @@ class Dashboard {
                     this.socket.emit('get_logs', {
                         device_id: this.selectedDevice
                     });
+                    // 使用 setTimeout 确保在数据加载后滚动
+                    setTimeout(() => this.scrollToBottom(), 100);
                 },
                 parseLogLine(logLine) {
                     // 使用##分隔符分割日志行
@@ -252,14 +260,7 @@ class Dashboard {
                 updateLogs(logs, isRealtime = true) {
                     this.systemLogs = logs;
                     this.isRealtime = isRealtime;
-                    
-                    // 滚动到底部
-                    this.$nextTick(() => {
-                        const consoleEl = this.$refs.consoleLogs;
-                        if (consoleEl) {
-                            consoleEl.scrollTop = consoleEl.scrollHeight;
-                        }
-                    });
+                    setTimeout(() => this.scrollToBottom(), 100);
                 },
                 handleLogMessage(data) {
                     if (this.isRealtime) {
@@ -270,6 +271,16 @@ class Dashboard {
                             message: data.message
                         });
                         this.updateLogs(this.systemLogs);
+                    }
+                },
+                scrollToBottom() {
+                    const consoleHistory = this.$refs.consoleHistory;
+                    const consoleLogs = this.$refs.consoleLogs;
+                    
+                    if (this.activeTab === 'history' && consoleHistory) {
+                        consoleHistory.scrollTop = consoleHistory.scrollHeight;
+                    } else if (this.activeTab === 'logs' && consoleLogs) {
+                        consoleLogs.scrollTop = consoleLogs.scrollHeight;
                     }
                 }
             },
@@ -287,6 +298,8 @@ class Dashboard {
                     console.log('控制台已连接到服务器');
                     // 初始获取日志数据
                     this.socket.emit('get_logs');
+                    // 初始化时滚动到底部
+                    this.$nextTick(this.scrollToBottom);
                 });
                 
                 this.socket.on('command_result', (data) => {
@@ -351,6 +364,8 @@ class Dashboard {
                     
                     logs.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
                     this.commandLogs = logs;
+                    // 数据加载完成后滚动到底部
+                    setTimeout(() => this.scrollToBottom(), 100);
                 });
 
                 this.socket.on('clear_history', (data) => {

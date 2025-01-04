@@ -372,3 +372,1125 @@
 15:32:22##设备 TEST1 当前 SID: fcTYNxV365lcShPwAAAB##i##Server
 15:32:22##命令已发送到 SID: fcTYNxV365lcShPwAAAB##i##Server
 15:33:04##TEST1##i##Client disconnected: fcTYNxV365lcShPwAAAB
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:22:38##TEST1##i##设备 TEST1 已断开连接
+15:22:50##TEST1##i##Client disconnected: luUb4njjT4s53NMSAAAD
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:22:38##TEST1##i##设备 TEST1 已断开连接
+15:22:50##TEST1##i##Client disconnected: luUb4njjT4s53NMSAAAD
+15:23:05##TEST1##i##设置当前设备ID: TEST1
+15:23:40##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'aa'}
+15:23:40##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:40##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:43##TEST1##i##Client disconnected: 1ZdVsHnyXPvDhcnrAAAF
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:22:38##TEST1##i##设备 TEST1 已断开连接
+15:22:50##TEST1##i##Client disconnected: luUb4njjT4s53NMSAAAD
+15:23:05##TEST1##i##设置当前设备ID: TEST1
+15:23:40##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'aa'}
+15:23:40##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:40##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:43##TEST1##i##Client disconnected: 1ZdVsHnyXPvDhcnrAAAF
+15:23:43##TEST1##i##移除控制台连接: 1ZdVsHnyXPvDhcnrAAAF
+15:23:43##访问首页##i##Server
+15:23:43##TEST1##i##添加控制台连接: zRXdjNwutkwjdlsDAAAH
+15:23:43##TEST1##i##控制台连接: zRXdjNwutkwjdlsDAAAH
+15:23:46##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:23:46##TEST1##i##设置当前设备ID: TEST1
+15:23:50##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:23:50##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:50##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:24:02##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:24:02##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:24:02##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:28:42##TEST1##i##Client disconnected: zRXdjNwutkwjdlsDAAAH
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:22:38##TEST1##i##设备 TEST1 已断开连接
+15:22:50##TEST1##i##Client disconnected: luUb4njjT4s53NMSAAAD
+15:23:05##TEST1##i##设置当前设备ID: TEST1
+15:23:40##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'aa'}
+15:23:40##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:40##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:43##TEST1##i##Client disconnected: 1ZdVsHnyXPvDhcnrAAAF
+15:23:43##TEST1##i##移除控制台连接: 1ZdVsHnyXPvDhcnrAAAF
+15:23:43##访问首页##i##Server
+15:23:43##TEST1##i##添加控制台连接: zRXdjNwutkwjdlsDAAAH
+15:23:43##TEST1##i##控制台连接: zRXdjNwutkwjdlsDAAAH
+15:23:46##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:23:46##TEST1##i##设置当前设备ID: TEST1
+15:23:50##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:23:50##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:50##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:24:02##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:24:02##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:24:02##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:28:42##TEST1##i##Client disconnected: zRXdjNwutkwjdlsDAAAH
+15:28:42##TEST1##i##移除控制台连接: zRXdjNwutkwjdlsDAAAH
+15:28:42##访问首页##i##Server
+15:28:42##TEST1##i##添加控制台连接: yAt1DJ8yZ42H8AGBAAAJ
+15:28:42##TEST1##i##控制台连接: yAt1DJ8yZ42H8AGBAAAJ
+15:28:43##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:28:43##TEST1##i##设置当前设备ID: TEST1
+15:28:59##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:28:59##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:28:59##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:29:07##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'ddf'}
+15:29:07##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:29:08##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:52##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:31:52##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:52##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:59##TEST1##i##Client disconnected: fY8097ln_l1w4punAAAD
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:22:38##TEST1##i##设备 TEST1 已断开连接
+15:22:50##TEST1##i##Client disconnected: luUb4njjT4s53NMSAAAD
+15:23:05##TEST1##i##设置当前设备ID: TEST1
+15:23:40##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'aa'}
+15:23:40##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:40##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:43##TEST1##i##Client disconnected: 1ZdVsHnyXPvDhcnrAAAF
+15:23:43##TEST1##i##移除控制台连接: 1ZdVsHnyXPvDhcnrAAAF
+15:23:43##访问首页##i##Server
+15:23:43##TEST1##i##添加控制台连接: zRXdjNwutkwjdlsDAAAH
+15:23:43##TEST1##i##控制台连接: zRXdjNwutkwjdlsDAAAH
+15:23:46##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:23:46##TEST1##i##设置当前设备ID: TEST1
+15:23:50##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:23:50##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:50##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:24:02##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:24:02##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:24:02##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:28:42##TEST1##i##Client disconnected: zRXdjNwutkwjdlsDAAAH
+15:28:42##TEST1##i##移除控制台连接: zRXdjNwutkwjdlsDAAAH
+15:28:42##访问首页##i##Server
+15:28:42##TEST1##i##添加控制台连接: yAt1DJ8yZ42H8AGBAAAJ
+15:28:42##TEST1##i##控制台连接: yAt1DJ8yZ42H8AGBAAAJ
+15:28:43##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:28:43##TEST1##i##设置当前设备ID: TEST1
+15:28:59##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:28:59##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:28:59##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:29:07##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'ddf'}
+15:29:07##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:29:08##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:52##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:31:52##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:52##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:59##TEST1##i##Client disconnected: fY8097ln_l1w4punAAAD
+15:31:59##TEST1##i##设备 TEST1 已断开连接
+15:31:59##TEST1##i##Client disconnected: yAt1DJ8yZ42H8AGBAAAJ
+15:32:12##TEST1##i##设置当前设备ID: TEST1
+15:32:16##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:32:16##设备 TEST1 当前 SID: fcTYNxV365lcShPwAAAB##i##Server
+15:32:16##命令已发送到 SID: fcTYNxV365lcShPwAAAB##i##Server
+15:32:22##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'fff'}
+15:32:22##设备 TEST1 当前 SID: fcTYNxV365lcShPwAAAB##i##Server
+15:32:22##命令已发送到 SID: fcTYNxV365lcShPwAAAB##i##Server
+15:33:04##TEST1##i##Client disconnected: fcTYNxV365lcShPwAAAB
+15:33:04##TEST1##i##设备 TEST1 已断开连接
+15:33:12##DeviceManager##i##更新设备 <Device TEST1>
+15:33:12##TEST1##i##设备 TEST1 已连接
+15:33:12##TEST1##i##设备 TEST1 登录
+15:33:14##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'ddd'}
+15:33:14##设备 TEST1 当前 SID: L_B0xHQmqBar7KriAAAF##i##Server
+15:33:14##命令已发送到 SID: L_B0xHQmqBar7KriAAAF##i##Server
+15:33:33##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': '点击 1 11'}
+15:33:33##设备 TEST1 当前 SID: L_B0xHQmqBar7KriAAAF##i##Server
+15:33:33##命令已发送到 SID: L_B0xHQmqBar7KriAAAF##i##Server
+15:33:33##TEST1##e##命令执行错误 Exception: 'NoneType' object has no attribute 'clickPosition', Traceback (most recent call last):
+  File "E:\Project\Android-Auto-Api\server\scripts\CmdMgr.py", line 47, in do
+    return func(**params) if params else func()
+  File "E:\Project\Android-Auto-Api\server\scripts\Cmds.py", line 65, in click
+    result = cmdMgr.Android.clickPosition(x, y)
+AttributeError: 'NoneType' object has no attribute 'clickPosition'
+
+15:43:49##TEST1##i##Client disconnected: wM1Ty3paRTCr73aAAAAD
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:22:38##TEST1##i##设备 TEST1 已断开连接
+15:22:50##TEST1##i##Client disconnected: luUb4njjT4s53NMSAAAD
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:22:38##TEST1##i##设备 TEST1 已断开连接
+15:22:50##TEST1##i##Client disconnected: luUb4njjT4s53NMSAAAD
+15:23:05##TEST1##i##设置当前设备ID: TEST1
+15:23:40##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'aa'}
+15:23:40##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:40##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:43##TEST1##i##Client disconnected: 1ZdVsHnyXPvDhcnrAAAF
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:22:38##TEST1##i##设备 TEST1 已断开连接
+15:22:50##TEST1##i##Client disconnected: luUb4njjT4s53NMSAAAD
+15:23:05##TEST1##i##设置当前设备ID: TEST1
+15:23:40##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'aa'}
+15:23:40##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:40##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:43##TEST1##i##Client disconnected: 1ZdVsHnyXPvDhcnrAAAF
+15:23:43##TEST1##i##移除控制台连接: 1ZdVsHnyXPvDhcnrAAAF
+15:23:43##访问首页##i##Server
+15:23:43##TEST1##i##添加控制台连接: zRXdjNwutkwjdlsDAAAH
+15:23:43##TEST1##i##控制台连接: zRXdjNwutkwjdlsDAAAH
+15:23:46##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:23:46##TEST1##i##设置当前设备ID: TEST1
+15:23:50##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:23:50##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:50##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:24:02##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:24:02##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:24:02##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:28:42##TEST1##i##Client disconnected: zRXdjNwutkwjdlsDAAAH
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:22:38##TEST1##i##设备 TEST1 已断开连接
+15:22:50##TEST1##i##Client disconnected: luUb4njjT4s53NMSAAAD
+15:23:05##TEST1##i##设置当前设备ID: TEST1
+15:23:40##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'aa'}
+15:23:40##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:40##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:43##TEST1##i##Client disconnected: 1ZdVsHnyXPvDhcnrAAAF
+15:23:43##TEST1##i##移除控制台连接: 1ZdVsHnyXPvDhcnrAAAF
+15:23:43##访问首页##i##Server
+15:23:43##TEST1##i##添加控制台连接: zRXdjNwutkwjdlsDAAAH
+15:23:43##TEST1##i##控制台连接: zRXdjNwutkwjdlsDAAAH
+15:23:46##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:23:46##TEST1##i##设置当前设备ID: TEST1
+15:23:50##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:23:50##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:50##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:24:02##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:24:02##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:24:02##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:28:42##TEST1##i##Client disconnected: zRXdjNwutkwjdlsDAAAH
+15:28:42##TEST1##i##移除控制台连接: zRXdjNwutkwjdlsDAAAH
+15:28:42##访问首页##i##Server
+15:28:42##TEST1##i##添加控制台连接: yAt1DJ8yZ42H8AGBAAAJ
+15:28:42##TEST1##i##控制台连接: yAt1DJ8yZ42H8AGBAAAJ
+15:28:43##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:28:43##TEST1##i##设置当前设备ID: TEST1
+15:28:59##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:28:59##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:28:59##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:29:07##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'ddf'}
+15:29:07##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:29:08##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:52##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:31:52##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:52##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:59##TEST1##i##Client disconnected: fY8097ln_l1w4punAAAD
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:22:38##TEST1##i##设备 TEST1 已断开连接
+15:22:50##TEST1##i##Client disconnected: luUb4njjT4s53NMSAAAD
+15:23:05##TEST1##i##设置当前设备ID: TEST1
+15:23:40##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'aa'}
+15:23:40##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:40##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:43##TEST1##i##Client disconnected: 1ZdVsHnyXPvDhcnrAAAF
+15:23:43##TEST1##i##移除控制台连接: 1ZdVsHnyXPvDhcnrAAAF
+15:23:43##访问首页##i##Server
+15:23:43##TEST1##i##添加控制台连接: zRXdjNwutkwjdlsDAAAH
+15:23:43##TEST1##i##控制台连接: zRXdjNwutkwjdlsDAAAH
+15:23:46##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:23:46##TEST1##i##设置当前设备ID: TEST1
+15:23:50##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:23:50##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:50##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:24:02##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:24:02##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:24:02##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:28:42##TEST1##i##Client disconnected: zRXdjNwutkwjdlsDAAAH
+15:28:42##TEST1##i##移除控制台连接: zRXdjNwutkwjdlsDAAAH
+15:28:42##访问首页##i##Server
+15:28:42##TEST1##i##添加控制台连接: yAt1DJ8yZ42H8AGBAAAJ
+15:28:42##TEST1##i##控制台连接: yAt1DJ8yZ42H8AGBAAAJ
+15:28:43##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:28:43##TEST1##i##设置当前设备ID: TEST1
+15:28:59##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:28:59##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:28:59##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:29:07##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'ddf'}
+15:29:07##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:29:08##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:52##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:31:52##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:52##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:59##TEST1##i##Client disconnected: fY8097ln_l1w4punAAAD
+15:31:59##TEST1##i##设备 TEST1 已断开连接
+15:31:59##TEST1##i##Client disconnected: yAt1DJ8yZ42H8AGBAAAJ
+15:32:12##TEST1##i##设置当前设备ID: TEST1
+15:32:16##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:32:16##设备 TEST1 当前 SID: fcTYNxV365lcShPwAAAB##i##Server
+15:32:16##命令已发送到 SID: fcTYNxV365lcShPwAAAB##i##Server
+15:32:22##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'fff'}
+15:32:22##设备 TEST1 当前 SID: fcTYNxV365lcShPwAAAB##i##Server
+15:32:22##命令已发送到 SID: fcTYNxV365lcShPwAAAB##i##Server
+15:33:04##TEST1##i##Client disconnected: fcTYNxV365lcShPwAAAB
+15:33:04##TEST1##i##设备 TEST1 已断开连接
+15:33:12##DeviceManager##i##更新设备 <Device TEST1>
+15:33:12##TEST1##i##设备 TEST1 已连接
+15:33:12##TEST1##i##设备 TEST1 登录
+15:33:14##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'ddd'}
+15:33:14##设备 TEST1 当前 SID: L_B0xHQmqBar7KriAAAF##i##Server
+15:33:14##命令已发送到 SID: L_B0xHQmqBar7KriAAAF##i##Server
+15:33:33##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': '点击 1 11'}
+15:33:33##设备 TEST1 当前 SID: L_B0xHQmqBar7KriAAAF##i##Server
+15:33:33##命令已发送到 SID: L_B0xHQmqBar7KriAAAF##i##Server
+15:33:33##TEST1##e##命令执行错误 Exception: 'NoneType' object has no attribute 'clickPosition', Traceback (most recent call last):
+  File "E:\Project\Android-Auto-Api\server\scripts\CmdMgr.py", line 47, in do
+    return func(**params) if params else func()
+  File "E:\Project\Android-Auto-Api\server\scripts\Cmds.py", line 65, in click
+    result = cmdMgr.Android.clickPosition(x, y)
+AttributeError: 'NoneType' object has no attribute 'clickPosition'
+
+15:43:49##TEST1##i##Client disconnected: wM1Ty3paRTCr73aAAAAD
+15:43:49##TEST1##i##移除控制台连接: wM1Ty3paRTCr73aAAAAD
+15:43:49##访问首页##i##Server
+15:43:50##TEST1##i##添加控制台连接: RSgr3wtu0fBgLQKWAAAH
+15:43:50##TEST1##i##控制台连接: RSgr3wtu0fBgLQKWAAAH
+15:43:52##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:43:52##TEST1##i##设置当前设备ID: TEST1
+15:44:30##TEST1##i##设置当前设备ID: TEST1
+15:44:35##TEST1##i##Client disconnected: RSgr3wtu0fBgLQKWAAAH
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:22:38##TEST1##i##设备 TEST1 已断开连接
+15:22:50##TEST1##i##Client disconnected: luUb4njjT4s53NMSAAAD
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:22:38##TEST1##i##设备 TEST1 已断开连接
+15:22:50##TEST1##i##Client disconnected: luUb4njjT4s53NMSAAAD
+15:23:05##TEST1##i##设置当前设备ID: TEST1
+15:23:40##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'aa'}
+15:23:40##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:40##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:43##TEST1##i##Client disconnected: 1ZdVsHnyXPvDhcnrAAAF
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:22:38##TEST1##i##设备 TEST1 已断开连接
+15:22:50##TEST1##i##Client disconnected: luUb4njjT4s53NMSAAAD
+15:23:05##TEST1##i##设置当前设备ID: TEST1
+15:23:40##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'aa'}
+15:23:40##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:40##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:43##TEST1##i##Client disconnected: 1ZdVsHnyXPvDhcnrAAAF
+15:23:43##TEST1##i##移除控制台连接: 1ZdVsHnyXPvDhcnrAAAF
+15:23:43##访问首页##i##Server
+15:23:43##TEST1##i##添加控制台连接: zRXdjNwutkwjdlsDAAAH
+15:23:43##TEST1##i##控制台连接: zRXdjNwutkwjdlsDAAAH
+15:23:46##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:23:46##TEST1##i##设置当前设备ID: TEST1
+15:23:50##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:23:50##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:50##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:24:02##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:24:02##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:24:02##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:28:42##TEST1##i##Client disconnected: zRXdjNwutkwjdlsDAAAH
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:22:38##TEST1##i##设备 TEST1 已断开连接
+15:22:50##TEST1##i##Client disconnected: luUb4njjT4s53NMSAAAD
+15:23:05##TEST1##i##设置当前设备ID: TEST1
+15:23:40##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'aa'}
+15:23:40##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:40##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:43##TEST1##i##Client disconnected: 1ZdVsHnyXPvDhcnrAAAF
+15:23:43##TEST1##i##移除控制台连接: 1ZdVsHnyXPvDhcnrAAAF
+15:23:43##访问首页##i##Server
+15:23:43##TEST1##i##添加控制台连接: zRXdjNwutkwjdlsDAAAH
+15:23:43##TEST1##i##控制台连接: zRXdjNwutkwjdlsDAAAH
+15:23:46##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:23:46##TEST1##i##设置当前设备ID: TEST1
+15:23:50##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:23:50##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:50##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:24:02##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:24:02##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:24:02##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:28:42##TEST1##i##Client disconnected: zRXdjNwutkwjdlsDAAAH
+15:28:42##TEST1##i##移除控制台连接: zRXdjNwutkwjdlsDAAAH
+15:28:42##访问首页##i##Server
+15:28:42##TEST1##i##添加控制台连接: yAt1DJ8yZ42H8AGBAAAJ
+15:28:42##TEST1##i##控制台连接: yAt1DJ8yZ42H8AGBAAAJ
+15:28:43##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:28:43##TEST1##i##设置当前设备ID: TEST1
+15:28:59##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:28:59##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:28:59##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:29:07##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'ddf'}
+15:29:07##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:29:08##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:52##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:31:52##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:52##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:59##TEST1##i##Client disconnected: fY8097ln_l1w4punAAAD
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:22:38##TEST1##i##设备 TEST1 已断开连接
+15:22:50##TEST1##i##Client disconnected: luUb4njjT4s53NMSAAAD
+15:23:05##TEST1##i##设置当前设备ID: TEST1
+15:23:40##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'aa'}
+15:23:40##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:40##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:43##TEST1##i##Client disconnected: 1ZdVsHnyXPvDhcnrAAAF
+15:23:43##TEST1##i##移除控制台连接: 1ZdVsHnyXPvDhcnrAAAF
+15:23:43##访问首页##i##Server
+15:23:43##TEST1##i##添加控制台连接: zRXdjNwutkwjdlsDAAAH
+15:23:43##TEST1##i##控制台连接: zRXdjNwutkwjdlsDAAAH
+15:23:46##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:23:46##TEST1##i##设置当前设备ID: TEST1
+15:23:50##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:23:50##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:50##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:24:02##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:24:02##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:24:02##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:28:42##TEST1##i##Client disconnected: zRXdjNwutkwjdlsDAAAH
+15:28:42##TEST1##i##移除控制台连接: zRXdjNwutkwjdlsDAAAH
+15:28:42##访问首页##i##Server
+15:28:42##TEST1##i##添加控制台连接: yAt1DJ8yZ42H8AGBAAAJ
+15:28:42##TEST1##i##控制台连接: yAt1DJ8yZ42H8AGBAAAJ
+15:28:43##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:28:43##TEST1##i##设置当前设备ID: TEST1
+15:28:59##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:28:59##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:28:59##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:29:07##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'ddf'}
+15:29:07##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:29:08##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:52##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:31:52##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:52##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:59##TEST1##i##Client disconnected: fY8097ln_l1w4punAAAD
+15:31:59##TEST1##i##设备 TEST1 已断开连接
+15:31:59##TEST1##i##Client disconnected: yAt1DJ8yZ42H8AGBAAAJ
+15:32:12##TEST1##i##设置当前设备ID: TEST1
+15:32:16##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:32:16##设备 TEST1 当前 SID: fcTYNxV365lcShPwAAAB##i##Server
+15:32:16##命令已发送到 SID: fcTYNxV365lcShPwAAAB##i##Server
+15:32:22##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'fff'}
+15:32:22##设备 TEST1 当前 SID: fcTYNxV365lcShPwAAAB##i##Server
+15:32:22##命令已发送到 SID: fcTYNxV365lcShPwAAAB##i##Server
+15:33:04##TEST1##i##Client disconnected: fcTYNxV365lcShPwAAAB
+15:33:04##TEST1##i##设备 TEST1 已断开连接
+15:33:12##DeviceManager##i##更新设备 <Device TEST1>
+15:33:12##TEST1##i##设备 TEST1 已连接
+15:33:12##TEST1##i##设备 TEST1 登录
+15:33:14##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'ddd'}
+15:33:14##设备 TEST1 当前 SID: L_B0xHQmqBar7KriAAAF##i##Server
+15:33:14##命令已发送到 SID: L_B0xHQmqBar7KriAAAF##i##Server
+15:33:33##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': '点击 1 11'}
+15:33:33##设备 TEST1 当前 SID: L_B0xHQmqBar7KriAAAF##i##Server
+15:33:33##命令已发送到 SID: L_B0xHQmqBar7KriAAAF##i##Server
+15:33:33##TEST1##e##命令执行错误 Exception: 'NoneType' object has no attribute 'clickPosition', Traceback (most recent call last):
+  File "E:\Project\Android-Auto-Api\server\scripts\CmdMgr.py", line 47, in do
+    return func(**params) if params else func()
+  File "E:\Project\Android-Auto-Api\server\scripts\Cmds.py", line 65, in click
+    result = cmdMgr.Android.clickPosition(x, y)
+AttributeError: 'NoneType' object has no attribute 'clickPosition'
+
+15:43:49##TEST1##i##Client disconnected: wM1Ty3paRTCr73aAAAAD
+15:43:49##TEST1##i##移除控制台连接: wM1Ty3paRTCr73aAAAAD
+15:43:49##访问首页##i##Server
+15:43:50##TEST1##i##添加控制台连接: RSgr3wtu0fBgLQKWAAAH
+15:43:50##TEST1##i##控制台连接: RSgr3wtu0fBgLQKWAAAH
+15:43:52##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:43:52##TEST1##i##设置当前设备ID: TEST1
+15:44:30##TEST1##i##设置当前设备ID: TEST1
+15:44:35##TEST1##i##Client disconnected: RSgr3wtu0fBgLQKWAAAH
+15:44:35##TEST1##i##移除控制台连接: RSgr3wtu0fBgLQKWAAAH
+15:44:35##访问首页##i##Server
+15:44:35##TEST1##i##添加控制台连接: 3bIJkAOXIK9OTbW1AAAJ
+15:44:35##TEST1##i##控制台连接: 3bIJkAOXIK9OTbW1AAAJ
+15:44:37##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:44:37##TEST1##i##设置当前设备ID: TEST1
+15:45:05##TEST1##i##设置当前设备ID: TEST1
+15:45:23##TEST1##i##Client disconnected: 3bIJkAOXIK9OTbW1AAAJ
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:22:38##TEST1##i##设备 TEST1 已断开连接
+15:22:50##TEST1##i##Client disconnected: luUb4njjT4s53NMSAAAD
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:22:38##TEST1##i##设备 TEST1 已断开连接
+15:22:50##TEST1##i##Client disconnected: luUb4njjT4s53NMSAAAD
+15:23:05##TEST1##i##设置当前设备ID: TEST1
+15:23:40##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'aa'}
+15:23:40##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:40##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:43##TEST1##i##Client disconnected: 1ZdVsHnyXPvDhcnrAAAF
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:22:38##TEST1##i##设备 TEST1 已断开连接
+15:22:50##TEST1##i##Client disconnected: luUb4njjT4s53NMSAAAD
+15:23:05##TEST1##i##设置当前设备ID: TEST1
+15:23:40##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'aa'}
+15:23:40##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:40##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:43##TEST1##i##Client disconnected: 1ZdVsHnyXPvDhcnrAAAF
+15:23:43##TEST1##i##移除控制台连接: 1ZdVsHnyXPvDhcnrAAAF
+15:23:43##访问首页##i##Server
+15:23:43##TEST1##i##添加控制台连接: zRXdjNwutkwjdlsDAAAH
+15:23:43##TEST1##i##控制台连接: zRXdjNwutkwjdlsDAAAH
+15:23:46##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:23:46##TEST1##i##设置当前设备ID: TEST1
+15:23:50##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:23:50##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:50##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:24:02##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:24:02##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:24:02##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:28:42##TEST1##i##Client disconnected: zRXdjNwutkwjdlsDAAAH
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:22:38##TEST1##i##设备 TEST1 已断开连接
+15:22:50##TEST1##i##Client disconnected: luUb4njjT4s53NMSAAAD
+15:23:05##TEST1##i##设置当前设备ID: TEST1
+15:23:40##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'aa'}
+15:23:40##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:40##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:43##TEST1##i##Client disconnected: 1ZdVsHnyXPvDhcnrAAAF
+15:23:43##TEST1##i##移除控制台连接: 1ZdVsHnyXPvDhcnrAAAF
+15:23:43##访问首页##i##Server
+15:23:43##TEST1##i##添加控制台连接: zRXdjNwutkwjdlsDAAAH
+15:23:43##TEST1##i##控制台连接: zRXdjNwutkwjdlsDAAAH
+15:23:46##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:23:46##TEST1##i##设置当前设备ID: TEST1
+15:23:50##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:23:50##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:50##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:24:02##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:24:02##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:24:02##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:28:42##TEST1##i##Client disconnected: zRXdjNwutkwjdlsDAAAH
+15:28:42##TEST1##i##移除控制台连接: zRXdjNwutkwjdlsDAAAH
+15:28:42##访问首页##i##Server
+15:28:42##TEST1##i##添加控制台连接: yAt1DJ8yZ42H8AGBAAAJ
+15:28:42##TEST1##i##控制台连接: yAt1DJ8yZ42H8AGBAAAJ
+15:28:43##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:28:43##TEST1##i##设置当前设备ID: TEST1
+15:28:59##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:28:59##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:28:59##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:29:07##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'ddf'}
+15:29:07##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:29:08##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:52##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:31:52##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:52##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:59##TEST1##i##Client disconnected: fY8097ln_l1w4punAAAD
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:22:38##TEST1##i##设备 TEST1 已断开连接
+15:22:50##TEST1##i##Client disconnected: luUb4njjT4s53NMSAAAD
+15:23:05##TEST1##i##设置当前设备ID: TEST1
+15:23:40##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'aa'}
+15:23:40##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:40##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:43##TEST1##i##Client disconnected: 1ZdVsHnyXPvDhcnrAAAF
+15:23:43##TEST1##i##移除控制台连接: 1ZdVsHnyXPvDhcnrAAAF
+15:23:43##访问首页##i##Server
+15:23:43##TEST1##i##添加控制台连接: zRXdjNwutkwjdlsDAAAH
+15:23:43##TEST1##i##控制台连接: zRXdjNwutkwjdlsDAAAH
+15:23:46##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:23:46##TEST1##i##设置当前设备ID: TEST1
+15:23:50##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:23:50##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:50##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:24:02##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:24:02##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:24:02##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:28:42##TEST1##i##Client disconnected: zRXdjNwutkwjdlsDAAAH
+15:28:42##TEST1##i##移除控制台连接: zRXdjNwutkwjdlsDAAAH
+15:28:42##访问首页##i##Server
+15:28:42##TEST1##i##添加控制台连接: yAt1DJ8yZ42H8AGBAAAJ
+15:28:42##TEST1##i##控制台连接: yAt1DJ8yZ42H8AGBAAAJ
+15:28:43##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:28:43##TEST1##i##设置当前设备ID: TEST1
+15:28:59##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:28:59##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:28:59##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:29:07##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'ddf'}
+15:29:07##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:29:08##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:52##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:31:52##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:52##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:59##TEST1##i##Client disconnected: fY8097ln_l1w4punAAAD
+15:31:59##TEST1##i##设备 TEST1 已断开连接
+15:31:59##TEST1##i##Client disconnected: yAt1DJ8yZ42H8AGBAAAJ
+15:32:12##TEST1##i##设置当前设备ID: TEST1
+15:32:16##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:32:16##设备 TEST1 当前 SID: fcTYNxV365lcShPwAAAB##i##Server
+15:32:16##命令已发送到 SID: fcTYNxV365lcShPwAAAB##i##Server
+15:32:22##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'fff'}
+15:32:22##设备 TEST1 当前 SID: fcTYNxV365lcShPwAAAB##i##Server
+15:32:22##命令已发送到 SID: fcTYNxV365lcShPwAAAB##i##Server
+15:33:04##TEST1##i##Client disconnected: fcTYNxV365lcShPwAAAB
+15:33:04##TEST1##i##设备 TEST1 已断开连接
+15:33:12##DeviceManager##i##更新设备 <Device TEST1>
+15:33:12##TEST1##i##设备 TEST1 已连接
+15:33:12##TEST1##i##设备 TEST1 登录
+15:33:14##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'ddd'}
+15:33:14##设备 TEST1 当前 SID: L_B0xHQmqBar7KriAAAF##i##Server
+15:33:14##命令已发送到 SID: L_B0xHQmqBar7KriAAAF##i##Server
+15:33:33##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': '点击 1 11'}
+15:33:33##设备 TEST1 当前 SID: L_B0xHQmqBar7KriAAAF##i##Server
+15:33:33##命令已发送到 SID: L_B0xHQmqBar7KriAAAF##i##Server
+15:33:33##TEST1##e##命令执行错误 Exception: 'NoneType' object has no attribute 'clickPosition', Traceback (most recent call last):
+  File "E:\Project\Android-Auto-Api\server\scripts\CmdMgr.py", line 47, in do
+    return func(**params) if params else func()
+  File "E:\Project\Android-Auto-Api\server\scripts\Cmds.py", line 65, in click
+    result = cmdMgr.Android.clickPosition(x, y)
+AttributeError: 'NoneType' object has no attribute 'clickPosition'
+
+15:43:49##TEST1##i##Client disconnected: wM1Ty3paRTCr73aAAAAD
+15:43:49##TEST1##i##移除控制台连接: wM1Ty3paRTCr73aAAAAD
+15:43:49##访问首页##i##Server
+15:43:50##TEST1##i##添加控制台连接: RSgr3wtu0fBgLQKWAAAH
+15:43:50##TEST1##i##控制台连接: RSgr3wtu0fBgLQKWAAAH
+15:43:52##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:43:52##TEST1##i##设置当前设备ID: TEST1
+15:44:30##TEST1##i##设置当前设备ID: TEST1
+15:44:35##TEST1##i##Client disconnected: RSgr3wtu0fBgLQKWAAAH
+15:44:35##TEST1##i##移除控制台连接: RSgr3wtu0fBgLQKWAAAH
+15:44:35##访问首页##i##Server
+15:44:35##TEST1##i##添加控制台连接: 3bIJkAOXIK9OTbW1AAAJ
+15:44:35##TEST1##i##控制台连接: 3bIJkAOXIK9OTbW1AAAJ
+15:44:37##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:44:37##TEST1##i##设置当前设备ID: TEST1
+15:45:05##TEST1##i##设置当前设备ID: TEST1
+15:45:23##TEST1##i##Client disconnected: 3bIJkAOXIK9OTbW1AAAJ
+15:45:23##TEST1##i##移除控制台连接: 3bIJkAOXIK9OTbW1AAAJ
+15:45:23##访问首页##i##Server
+15:45:24##TEST1##i##添加控制台连接: XHxBsYZ9S2rGJEpCAAAL
+15:45:24##TEST1##i##控制台连接: XHxBsYZ9S2rGJEpCAAAL
+15:45:24##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:45:24##TEST1##i##设置当前设备ID: TEST1
+15:46:15##TEST1##i##Client disconnected: XHxBsYZ9S2rGJEpCAAAL
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:22:38##TEST1##i##设备 TEST1 已断开连接
+15:22:50##TEST1##i##Client disconnected: luUb4njjT4s53NMSAAAD
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:22:38##TEST1##i##设备 TEST1 已断开连接
+15:22:50##TEST1##i##Client disconnected: luUb4njjT4s53NMSAAAD
+15:23:05##TEST1##i##设置当前设备ID: TEST1
+15:23:40##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'aa'}
+15:23:40##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:40##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:43##TEST1##i##Client disconnected: 1ZdVsHnyXPvDhcnrAAAF
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:22:38##TEST1##i##设备 TEST1 已断开连接
+15:22:50##TEST1##i##Client disconnected: luUb4njjT4s53NMSAAAD
+15:23:05##TEST1##i##设置当前设备ID: TEST1
+15:23:40##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'aa'}
+15:23:40##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:40##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:43##TEST1##i##Client disconnected: 1ZdVsHnyXPvDhcnrAAAF
+15:23:43##TEST1##i##移除控制台连接: 1ZdVsHnyXPvDhcnrAAAF
+15:23:43##访问首页##i##Server
+15:23:43##TEST1##i##添加控制台连接: zRXdjNwutkwjdlsDAAAH
+15:23:43##TEST1##i##控制台连接: zRXdjNwutkwjdlsDAAAH
+15:23:46##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:23:46##TEST1##i##设置当前设备ID: TEST1
+15:23:50##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:23:50##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:50##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:24:02##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:24:02##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:24:02##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:28:42##TEST1##i##Client disconnected: zRXdjNwutkwjdlsDAAAH
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:22:38##TEST1##i##设备 TEST1 已断开连接
+15:22:50##TEST1##i##Client disconnected: luUb4njjT4s53NMSAAAD
+15:23:05##TEST1##i##设置当前设备ID: TEST1
+15:23:40##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'aa'}
+15:23:40##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:40##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:43##TEST1##i##Client disconnected: 1ZdVsHnyXPvDhcnrAAAF
+15:23:43##TEST1##i##移除控制台连接: 1ZdVsHnyXPvDhcnrAAAF
+15:23:43##访问首页##i##Server
+15:23:43##TEST1##i##添加控制台连接: zRXdjNwutkwjdlsDAAAH
+15:23:43##TEST1##i##控制台连接: zRXdjNwutkwjdlsDAAAH
+15:23:46##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:23:46##TEST1##i##设置当前设备ID: TEST1
+15:23:50##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:23:50##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:50##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:24:02##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:24:02##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:24:02##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:28:42##TEST1##i##Client disconnected: zRXdjNwutkwjdlsDAAAH
+15:28:42##TEST1##i##移除控制台连接: zRXdjNwutkwjdlsDAAAH
+15:28:42##访问首页##i##Server
+15:28:42##TEST1##i##添加控制台连接: yAt1DJ8yZ42H8AGBAAAJ
+15:28:42##TEST1##i##控制台连接: yAt1DJ8yZ42H8AGBAAAJ
+15:28:43##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:28:43##TEST1##i##设置当前设备ID: TEST1
+15:28:59##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:28:59##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:28:59##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:29:07##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'ddf'}
+15:29:07##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:29:08##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:52##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:31:52##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:52##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:59##TEST1##i##Client disconnected: fY8097ln_l1w4punAAAD
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:14:31##TEST1##i##设置当前设备ID: TEST1
+15:14:37##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:14:37##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:14:37##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:15:31##设备 TEST1 当前 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:15:31##命令已发送到 SID: ghZEzZtovR-_zSviAAAB##i##Server
+15:22:38##TEST1##i##Client disconnected: ghZEzZtovR-_zSviAAAB
+15:22:38##TEST1##i##设备 TEST1 已断开连接
+15:22:50##TEST1##i##Client disconnected: luUb4njjT4s53NMSAAAD
+15:23:05##TEST1##i##设置当前设备ID: TEST1
+15:23:40##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'aa'}
+15:23:40##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:40##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:43##TEST1##i##Client disconnected: 1ZdVsHnyXPvDhcnrAAAF
+15:23:43##TEST1##i##移除控制台连接: 1ZdVsHnyXPvDhcnrAAAF
+15:23:43##访问首页##i##Server
+15:23:43##TEST1##i##添加控制台连接: zRXdjNwutkwjdlsDAAAH
+15:23:43##TEST1##i##控制台连接: zRXdjNwutkwjdlsDAAAH
+15:23:46##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:23:46##TEST1##i##设置当前设备ID: TEST1
+15:23:50##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:23:50##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:23:50##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:24:02##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:24:02##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:24:02##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:28:42##TEST1##i##Client disconnected: zRXdjNwutkwjdlsDAAAH
+15:28:42##TEST1##i##移除控制台连接: zRXdjNwutkwjdlsDAAAH
+15:28:42##访问首页##i##Server
+15:28:42##TEST1##i##添加控制台连接: yAt1DJ8yZ42H8AGBAAAJ
+15:28:42##TEST1##i##控制台连接: yAt1DJ8yZ42H8AGBAAAJ
+15:28:43##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:28:43##TEST1##i##设置当前设备ID: TEST1
+15:28:59##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:28:59##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:28:59##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:29:07##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'ddf'}
+15:29:07##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:29:08##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:52##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:31:52##设备 TEST1 当前 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:52##命令已发送到 SID: fY8097ln_l1w4punAAAD##i##Server
+15:31:59##TEST1##i##Client disconnected: fY8097ln_l1w4punAAAD
+15:31:59##TEST1##i##设备 TEST1 已断开连接
+15:31:59##TEST1##i##Client disconnected: yAt1DJ8yZ42H8AGBAAAJ
+15:32:12##TEST1##i##设置当前设备ID: TEST1
+15:32:16##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+15:32:16##设备 TEST1 当前 SID: fcTYNxV365lcShPwAAAB##i##Server
+15:32:16##命令已发送到 SID: fcTYNxV365lcShPwAAAB##i##Server
+15:32:22##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'fff'}
+15:32:22##设备 TEST1 当前 SID: fcTYNxV365lcShPwAAAB##i##Server
+15:32:22##命令已发送到 SID: fcTYNxV365lcShPwAAAB##i##Server
+15:33:04##TEST1##i##Client disconnected: fcTYNxV365lcShPwAAAB
+15:33:04##TEST1##i##设备 TEST1 已断开连接
+15:33:12##DeviceManager##i##更新设备 <Device TEST1>
+15:33:12##TEST1##i##设备 TEST1 已连接
+15:33:12##TEST1##i##设备 TEST1 登录
+15:33:14##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': 'ddd'}
+15:33:14##设备 TEST1 当前 SID: L_B0xHQmqBar7KriAAAF##i##Server
+15:33:14##命令已发送到 SID: L_B0xHQmqBar7KriAAAF##i##Server
+15:33:33##TEST1##i##收到命令请求: {'device_id': 'TEST1', 'command': '点击 1 11'}
+15:33:33##设备 TEST1 当前 SID: L_B0xHQmqBar7KriAAAF##i##Server
+15:33:33##命令已发送到 SID: L_B0xHQmqBar7KriAAAF##i##Server
+15:33:33##TEST1##e##命令执行错误 Exception: 'NoneType' object has no attribute 'clickPosition', Traceback (most recent call last):
+  File "E:\Project\Android-Auto-Api\server\scripts\CmdMgr.py", line 47, in do
+    return func(**params) if params else func()
+  File "E:\Project\Android-Auto-Api\server\scripts\Cmds.py", line 65, in click
+    result = cmdMgr.Android.clickPosition(x, y)
+AttributeError: 'NoneType' object has no attribute 'clickPosition'
+
+15:43:49##TEST1##i##Client disconnected: wM1Ty3paRTCr73aAAAAD
+15:43:49##TEST1##i##移除控制台连接: wM1Ty3paRTCr73aAAAAD
+15:43:49##访问首页##i##Server
+15:43:50##TEST1##i##添加控制台连接: RSgr3wtu0fBgLQKWAAAH
+15:43:50##TEST1##i##控制台连接: RSgr3wtu0fBgLQKWAAAH
+15:43:52##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:43:52##TEST1##i##设置当前设备ID: TEST1
+15:44:30##TEST1##i##设置当前设备ID: TEST1
+15:44:35##TEST1##i##Client disconnected: RSgr3wtu0fBgLQKWAAAH
+15:44:35##TEST1##i##移除控制台连接: RSgr3wtu0fBgLQKWAAAH
+15:44:35##访问首页##i##Server
+15:44:35##TEST1##i##添加控制台连接: 3bIJkAOXIK9OTbW1AAAJ
+15:44:35##TEST1##i##控制台连接: 3bIJkAOXIK9OTbW1AAAJ
+15:44:37##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:44:37##TEST1##i##设置当前设备ID: TEST1
+15:45:05##TEST1##i##设置当前设备ID: TEST1
+15:45:23##TEST1##i##Client disconnected: 3bIJkAOXIK9OTbW1AAAJ
+15:45:23##TEST1##i##移除控制台连接: 3bIJkAOXIK9OTbW1AAAJ
+15:45:23##访问首页##i##Server
+15:45:24##TEST1##i##添加控制台连接: XHxBsYZ9S2rGJEpCAAAL
+15:45:24##TEST1##i##控制台连接: XHxBsYZ9S2rGJEpCAAAL
+15:45:24##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:45:24##TEST1##i##设置当前设备ID: TEST1
+15:46:15##TEST1##i##Client disconnected: XHxBsYZ9S2rGJEpCAAAL
+15:46:15##TEST1##i##移除控制台连接: XHxBsYZ9S2rGJEpCAAAL
+15:46:15##访问首页##i##Server
+15:46:15##TEST1##i##添加控制台连接: tsmmuwhoQMrddLJRAAAN
+15:46:15##TEST1##i##控制台连接: tsmmuwhoQMrddLJRAAAN
+15:46:16##TEST1##i##加载设备 TEST1 的历史记录, 页码: 1
+15:46:16##TEST1##i##设置当前设备ID: TEST1
+15:49:20##TEST1##i##Client disconnected: tsmmuwhoQMrddLJRAAAN
