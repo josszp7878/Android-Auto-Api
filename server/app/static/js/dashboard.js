@@ -21,6 +21,11 @@ class Dashboard {
                 loadingLogs: false,
                 hasMoreLogs: false,
                 isRealtime: true,  // 是否实时显示
+                logStats: {
+                    start: 0,
+                    end: 0,
+                    total: 0
+                }
             },
             methods: {
                 formatTime(time) {
@@ -37,13 +42,15 @@ class Dashboard {
                     const oldDevice = this.selectedDevice;
                     this.selectedDevice = this.selectedDevice === deviceId ? null : deviceId;
                     
-                    if (this.selectedDevice && this.selectedDevice !== oldDevice) {
-                        this.commandLogs = [];  // 清空历史
-                        this.currentPage = 1;   // 重置页码
-                        this.showHistory = true;  // 显示历史窗口
+                    // 清空当前历史记录
+                    this.commandLogs = [];
+                    this.currentPage = 1;
+                    
+                    if (this.selectedDevice) {  // 选中新设备
+                        this.showHistory = true;
                         
-                        // 加载设备日志，不管设备是否在线
-                        this.socket.emit('get_logs', {
+                        // 加载设备日志
+                        this.socket.emit('B2S_GetLogs', {
                             device_id: deviceId
                         });
                         
@@ -54,6 +61,9 @@ class Dashboard {
                         this.socket.emit('set_current_device', {
                             device_id: deviceId
                         });
+                    } else if (oldDevice) {  // 取消选中设备
+                        this.showHistory = false;
+                        // 可以在这里清理其他状态
                     }
                 },
                 showFullScreenshot(device) {
@@ -226,7 +236,7 @@ class Dashboard {
                     this.loadingLogs = true;
                     this.logsPage++;
                     
-                    this.socket.emit('get_logs', {
+                    this.socket.emit('B2S_GetLogs', {
                         device_id: this.selectedDevice,
                         page: this.logsPage,
                         date: this.currentDate  // 添加日期参数
@@ -234,12 +244,14 @@ class Dashboard {
                 },
                 switchToLogs() {
                     this.activeTab = 'logs';
-                    // 切换标签时重新加载日志
-                    this.socket.emit('get_logs', {
-                        device_id: this.selectedDevice
+                    // 如果日志为空，重新获取
+                    if (this.systemLogs.length === 0) {
+                        this.socket.emit('B2S_GetLogs');
+                    }
+                    // 切换标签页后立即滚动到底部
+                    this.$nextTick(() => {
+                        this.scrollToBottom();
                     });
-                    // 使用 setTimeout 确保在数据加载后滚动
-                    setTimeout(() => this.scrollToBottom(), 100);
                 },
                 parseLogLine(logLine) {
                     // 使用##分隔符分割日志行
@@ -277,10 +289,15 @@ class Dashboard {
                     const consoleHistory = this.$refs.consoleHistory;
                     const consoleLogs = this.$refs.consoleLogs;
                     
+                    // 禁用平滑滚动，直接跳转
                     if (this.activeTab === 'history' && consoleHistory) {
+                        consoleHistory.style.scrollBehavior = 'auto';
                         consoleHistory.scrollTop = consoleHistory.scrollHeight;
+                        consoleHistory.style.scrollBehavior = 'smooth';  // 恢复平滑滚动，用于用户手动滚动
                     } else if (this.activeTab === 'logs' && consoleLogs) {
+                        consoleLogs.style.scrollBehavior = 'auto';
                         consoleLogs.scrollTop = consoleLogs.scrollHeight;
+                        consoleLogs.style.scrollBehavior = 'smooth';
                     }
                 }
             },
@@ -297,7 +314,7 @@ class Dashboard {
                 this.socket.on('connect', () => {
                     console.log('控制台已连接到服务器');
                     // 初始获取日志数据
-                    this.socket.emit('get_logs');
+                    this.socket.emit('B2S_GetLogs');
                     // 初始化时滚动到底部
                     this.$nextTick(this.scrollToBottom);
                 });
@@ -364,8 +381,14 @@ class Dashboard {
                     
                     logs.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
                     this.commandLogs = logs;
-                    // 数据加载完成后滚动到底部
-                    setTimeout(() => this.scrollToBottom(), 100);
+                    
+                    // 首次加载时滚动到底部
+                    if (this.currentPage === 1) {
+                        this.$nextTick(() => {
+                            this.scrollToBottom();
+                        });
+                    }
+                    updateCommandCount();
                 });
 
                 this.socket.on('clear_history', (data) => {
@@ -374,14 +397,15 @@ class Dashboard {
                         this.commandLogs = [];  // 清空当前设备的命令历史
                         console.log(`设备 ${deviceId} 的指令历史已清除`);
                     }
+                    updateCommandCount();
                 });
 
 
                 // 获取初始日志数据
-                this.socket.emit('get_logs');
+                this.socket.emit('B2S_GetLogs');
                 
                 // 修改日志数据处理
-                this.socket.on('logs_data', (data) => {
+                this.socket.on('S2B_RefreshLogs', (data) => {
                     console.log('收到日志数据:', data);
                     const logs = data.logs
                         .map(line => this.parseLogLine(line.trim()))
@@ -390,16 +414,7 @@ class Dashboard {
                     if (this.logsPage > 1) {
                         // 分页加载时，将新日志添加到开头
                         this.systemLogs.unshift(...logs);
-                    } else {
-                        // 首次加载或刷新时，替换全部日志
-                        this.systemLogs = logs;
-                    }
-                    
-                    this.loadingLogs = false;
-                    this.hasMoreLogs = data.has_more;
-                    
-                    // 如果是分页加载，保持滚动位置
-                    if (this.logsPage > 1) {
+                        // 保持滚动位置
                         this.$nextTick(() => {
                             const consoleEl = this.$refs.consoleLogs;
                             if (consoleEl) {
@@ -407,39 +422,17 @@ class Dashboard {
                             }
                         });
                     } else {
-                        // 首次加载滚动到底部
+                        // 首次加载或刷新时，替换全部日志并滚动到底部
+                        this.systemLogs = logs;
                         this.$nextTick(() => {
-                            const consoleEl = this.$refs.consoleLogs;
-                            if (consoleEl) {
-                                consoleEl.scrollTop = consoleEl.scrollHeight;
-                            }
+                            this.scrollToBottom();
                         });
                     }
+                    
+                    this.loadingLogs = false;
+                    this.hasMoreLogs = data.has_more;
                 });
 
-                // 修改实时日志处理
-                this.socket.on('client_log', (data) => {
-                    if (this.isRealtime) {
-                        const parsed = this.parseLogLine(data.message.trim());
-                        if (parsed) {
-                            this.systemLogs.push(parsed);
-                            this.$nextTick(() => {
-                                const consoleEl = this.$refs.consoleLogs;
-                                if (consoleEl) {
-                                    consoleEl.scrollTop = consoleEl.scrollHeight;
-                                }
-                            });
-                        }
-                    }
-                });
-
-                // 修改日志显示处理
-                this.socket.on('show_logs', (data) => {
-                    const logs = data.logs
-                        .map(line => this.parseLogLine(line))
-                        .filter(log => log !== null);
-                    this.updateLogs(logs, false);
-                });
 
                 // 添加滚动到底部的处理
                 this.socket.on('scroll_logs', () => {
@@ -452,7 +445,7 @@ class Dashboard {
                 });
 
                 // 修改日志消息监听
-                this.socket.on('add_log', (data) => {
+                this.socket.on('S2B_AddLog', (data) => {
                     const content = data.message;
                     const parsed = this.parseLogLine(content);
                     if (parsed) {
@@ -514,6 +507,22 @@ class Dashboard {
                     // 清空系统日志显示
                     this.systemLogs = [];
                 });
+
+                // 更新日志统计信息
+                this.socket.on('S2B_LogCount', (data) => {
+                    this.logStats = {
+                        start: data.start,
+                        end: data.end,
+                        total: data.total
+                    };
+                });
+
+                // 更新命令历史统计
+                function updateCommandCount() {
+                    const historyList = document.getElementById('historyList');
+                    const count = historyList.getElementsByTagName('li').length;
+                    document.getElementById('cmdCount').textContent = count;
+                }
             }
         });
     }
