@@ -75,6 +75,7 @@
     flex-direction: column;
 }
 .console-history {
+    position: relative;
     height: 0;
     overflow: hidden;
     transition: height 0.3s ease;
@@ -85,6 +86,7 @@
     height: 300px;
     padding: 10px;
     overflow-y: auto;
+    position: relative;
 }
 .console-input-container {
     display: flex;
@@ -399,13 +401,13 @@
 }
 
 .window-footer {
-    position: absolute;
-    bottom: 60px;
-    right: 100px;
+    position: absolute;  /* 使用 absolute 相对于最近的定位父元素 */
+    bottom: 50px;       /* 放在输入框上方 */
+    right: 50px;        /* 与右边缘对齐 */
     padding: 4px 8px;
     background: rgba(0, 0, 0, 0.3);
     border-radius: 3px;
-    z-index: 100;
+    z-index: 99;
 }
 
 .cache-stats {
@@ -419,4 +421,24 @@
 .cache-stats span {
     color: #fff;
     font-weight: bold;
+}
+
+.filter-button {
+    position: absolute;
+    bottom: 45px;       /* 与统计信息在同一行 */
+    right: 200px;       /* 放在统计信息左边，增加间距 */
+    padding: 4px 8px;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 12px;
+    color: #aaa;
+    z-index: 100;
+    border: 1px solid #666;
+    display: inline-block;  /* 确保按钮可见 */
+}
+
+.filter-button:hover {
+    background: rgba(0, 0, 0, 0.7);
+    color: #fff;
 }

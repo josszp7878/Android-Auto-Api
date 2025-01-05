@@ -112,3 +112,73 @@
 18:06:18##@##i##Client disconnected: y434LD8tjCtKNm8pAAAB
 18:06:18##@##i##移除控制台连接: y434LD8tjCtKNm8pAAAB
 18:06:19##@##e##服务器启动失败: 'Log' object has no attribute 'close'
+18:10:24##@##i##服务器启动
+18:10:25##访问首页##i##Server
+18:10:25##@##i##从数据库加载了 2 个设备
+18:10:25##@##i##添加控制台连接: nYWzxaNXqhZvE0zpAAAB
+18:11:15##DeviceManager##i##更新设备 <Device TEST1>
+18:11:15##@##i##设备 TEST1 已连接
+18:11:15##@##i##设备 TEST1 登录
+18:11:18##@##i##加载设备 TEST1 的历史记录, 页码: 1
+18:11:41##@##i##收到命令请求: {'device_id': 'TEST1', 'command': 'click 1 2'}
+18:11:41##命令已发送到 SID: M4gMaGJ5GET8gk6YAAAD##i##Server
+18:18:32##@##i##Client disconnected: nYWzxaNXqhZvE0zpAAAB
+18:18:32##@##i##移除控制台连接: nYWzxaNXqhZvE0zpAAAB
+18:18:33##访问首页##i##Server
+18:18:33##@##i##添加控制台连接: LFDotUiony9esYVOAAAF
+18:18:34##@##i##加载设备 TEST1 的历史记录, 页码: 1
+18:33:39##@##i##Client disconnected: LFDotUiony9esYVOAAAF
+18:33:39##@##i##移除控制台连接: LFDotUiony9esYVOAAAF
+18:33:40##访问首页##i##Server
+18:33:40##@##i##添加控制台连接: 2G8BPnCUUppIFnbRAAAH
+18:36:52##@##i##Client disconnected: 2G8BPnCUUppIFnbRAAAH
+18:36:52##@##i##移除控制台连接: 2G8BPnCUUppIFnbRAAAH
+18:36:52##访问首页##i##Server
+18:36:52##@##i##添加控制台连接: zcEbx3efEXv5udadAAAJ
+18:39:54##@##i##Client disconnected: zcEbx3efEXv5udadAAAJ
+18:39:54##@##i##移除控制台连接: zcEbx3efEXv5udadAAAJ
+18:39:54##访问首页##i##Server
+18:39:54##@##i##添加控制台连接: O7WV9dXZD0F1bFI9AAAL
+18:42:06##@##i##Client disconnected: O7WV9dXZD0F1bFI9AAAL
+18:42:06##@##i##移除控制台连接: O7WV9dXZD0F1bFI9AAAL
+18:42:06##访问首页##i##Server
+18:42:06##@##i##添加控制台连接: K6UJciC0kWiDc6FZAAAN
+18:45:00##@##i##Client disconnected: K6UJciC0kWiDc6FZAAAN
+18:45:00##@##i##移除控制台连接: K6UJciC0kWiDc6FZAAAN
+18:45:01##访问首页##i##Server
+18:45:01##@##i##添加控制台连接: KG9Z3yByd1b6mIdOAAAP
+18:45:49##@##i##Client disconnected: KG9Z3yByd1b6mIdOAAAP
+18:45:49##@##i##移除控制台连接: KG9Z3yByd1b6mIdOAAAP
+18:45:49##访问首页##i##Server
+18:45:49##@##i##添加控制台连接: 49-4f342Knr-22gLAAAR
+18:46:36##@##i##收到命令请求: {'device_id': 'TEST1', 'command': 'dd'}
+18:46:37##命令已发送到 SID: M4gMaGJ5GET8gk6YAAAD##i##Server
+18:48:14##@##i##Client disconnected: 49-4f342Knr-22gLAAAR
+18:48:14##@##i##移除控制台连接: 49-4f342Knr-22gLAAAR
+18:48:14##访问首页##i##Server
+18:48:14##@##i##添加控制台连接: OORNAC1eXq012H_WAAAT
+18:53:18##@##i##Client disconnected: OORNAC1eXq012H_WAAAT
+18:53:18##@##i##移除控制台连接: OORNAC1eXq012H_WAAAT
+18:53:18##访问首页##i##Server
+18:53:19##@##i##添加控制台连接: sgtzz6_wKRsS6w0wAAAV
+18:59:22##@##i##Client disconnected: sgtzz6_wKRsS6w0wAAAV
+18:59:22##@##i##移除控制台连接: sgtzz6_wKRsS6w0wAAAV
+18:59:23##访问首页##i##Server
+18:59:23##@##i##添加控制台连接: SeEa2KzfTcYVTA4aAAAX
+19:07:49##@##i##Client disconnected: SeEa2KzfTcYVTA4aAAAX
+19:07:49##@##i##移除控制台连接: SeEa2KzfTcYVTA4aAAAX
+19:07:49##访问首页##i##Server
+19:07:49##@##i##添加控制台连接: v3puJjgDTL8vM28yAAAZ
+19:07:57##@##i##Client disconnected: v3puJjgDTL8vM28yAAAZ
+19:07:57##@##i##移除控制台连接: v3puJjgDTL8vM28yAAAZ
+19:07:57##访问首页##i##Server
+19:07:57##@##i##添加控制台连接: _1GocPCOBxEHOU02AAAb
+19:08:42##@##i##Client disconnected: _1GocPCOBxEHOU02AAAb
+19:08:42##@##i##移除控制台连接: _1GocPCOBxEHOU02AAAb
+19:08:42##访问首页##i##Server
+19:08:42##@##i##添加控制台连接: rUqr3laA1f4CYQORAAAd
+19:11:32##@##i##Client disconnected: M4gMaGJ5GET8gk6YAAAD
+19:11:32##@##i##设备 TEST1 已断开连接
+19:11:37##@##i##Client disconnected: rUqr3laA1f4CYQORAAAd
+19:11:37##@##i##移除控制台连接: rUqr3laA1f4CYQORAAAd
+19:11:38##@##e##服务器启动失败: 'Log' object has no attribute 'close'

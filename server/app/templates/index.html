@@ -83,20 +83,32 @@
                      ref="consoleLogs"
                      @scroll="handleLogsScroll"
                      @click.stop="keepHistoryOpen">
+                    <!-- 过滤按钮 -->
+                    <div class="filter-button" 
+                         v-if="selectedDevice" 
+                         @click="filterByCurrentDevice">
+                        仅看 [[ selectedDevice ]]
+                    </div>
                     <div class="log-status" v-if="!isRealtime">
                         当前显示历史日志，点击标签页恢复实时显示
                     </div>
+                    <!-- 日志内容 -->
                     <div v-for="log in systemLogs" :key="log.id" class="console-log-line">
                         <span class="log-timestamp">[[ log.time ]]</span>
                         <span class="log-deviceid">[[ log.tag ]]</span>
                         <span :class="'log-message log-' + log.level">[[ log.message ]]</span>
                     </div>
-                    <!-- 添加日志统计信息 -->
-                    <div class="window-footer">
-                        <span class="cache-stats">
-                            [[ logStats.start ]]-[[ logStats.end ]]/[[ logStats.total ]]
-                        </span>
-                    </div>
+                </div>
+
+                <!-- 统一的统计信息显示 -->
+                <div class="window-footer" v-show="showHistory">
+                    <span class="cache-stats" v-if="activeTab === 'logs'">
+                        [[ logStats.start ]]-[[ logStats.end ]]/[[ logStats.total ]] 
+                        (总数: [[ systemLogs.length ]])
+                    </span>
+                    <span class="cache-stats" v-else>
+                        命令: [[ commandLogs.length ]]
+                    </span>
                 </div>
 
                 <!-- 命令输入区域 -->
@@ -116,21 +128,6 @@
                             :disabled="!selectedDevice">
                         发送
                     </button>
-                </div>
-            </div>
-
-            <!-- 在命令历史窗口添加统计信息 -->
-            <div id="historyWindow" class="window">
-                <div class="window-header">
-                    <!-- 原有内容 -->
-                </div>
-                <div class="window-content">
-                    <!-- 原有内容 -->
-                </div>
-                <div class="window-footer">
-                    <span class="cache-stats">
-                        历史: <span id="cmdCount">0</span>
-                    </span>
                 </div>
             </div>
         </div>

@@ -42,20 +42,8 @@ class Dashboard {
                     const oldDevice = this.selectedDevice;
                     this.selectedDevice = this.selectedDevice === deviceId ? null : deviceId;
                     
-                    // 清空当前历史记录
-                    this.commandLogs = [];
-                    this.currentPage = 1;
-                    
                     if (this.selectedDevice) {  // 选中新设备
                         this.showHistory = true;
-                        
-                        // 加载设备日志
-                        this.socket.emit('B2S_GetLogs', {
-                            device_id: deviceId
-                        });
-                        
-                        // 加载命令历史
-                        this.loadCommandHistory();
                         
                         // 通知后端设置当前设备ID
                         this.socket.emit('set_current_device', {
@@ -63,7 +51,6 @@ class Dashboard {
                         });
                     } else if (oldDevice) {  // 取消选中设备
                         this.showHistory = false;
-                        // 可以在这里清理其他状态
                     }
                 },
                 showFullScreenshot(device) {
@@ -299,6 +286,14 @@ class Dashboard {
                         consoleLogs.scrollTop = consoleLogs.scrollHeight;
                         consoleLogs.style.scrollBehavior = 'smooth';
                     }
+                },
+                filterByCurrentDevice() {
+                    if (this.selectedDevice) {
+                        // 使用设备ID作为过滤条件
+                        this.socket.emit('B2S_GetLogs', {
+                            filter: this.selectedDevice
+                        });
+                    }
                 }
             },
             mounted() {
@@ -379,8 +374,14 @@ class Dashboard {
                         };
                     });
                     
-                    logs.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-                    this.commandLogs = logs;
+                    // 更新命令历史
+                    if (this.currentPage > 1) {
+                        // 分页加载时，添加到现有历史
+                        this.commandLogs = [...this.commandLogs, ...logs];
+                    } else {
+                        // 首次加载时，替换全部历史
+                        this.commandLogs = logs;
+                    }
                     
                     // 首次加载时滚动到底部
                     if (this.currentPage === 1) {
@@ -388,7 +389,6 @@ class Dashboard {
                             this.scrollToBottom();
                         });
                     }
-                    updateCommandCount();
                 });
 
                 this.socket.on('clear_history', (data) => {
@@ -397,7 +397,6 @@ class Dashboard {
                         this.commandLogs = [];  // 清空当前设备的命令历史
                         console.log(`设备 ${deviceId} 的指令历史已清除`);
                     }
-                    updateCommandCount();
                 });
 
 
@@ -414,23 +413,22 @@ class Dashboard {
                     if (this.logsPage > 1) {
                         // 分页加载时，将新日志添加到开头
                         this.systemLogs.unshift(...logs);
-                        // 保持滚动位置
-                        this.$nextTick(() => {
-                            const consoleEl = this.$refs.consoleLogs;
-                            if (consoleEl) {
-                                consoleEl.scrollTop = 50;
-                            }
-                        });
                     } else {
-                        // 首次加载或刷新时，替换全部日志并滚动到底部
+                        // 首次加载或刷新时，替换全部日志
                         this.systemLogs = logs;
-                        this.$nextTick(() => {
-                            this.scrollToBottom();
-                        });
                     }
+                    
+                    // 更新统计信息
+                    this.logStats = {
+                        start: data.start || 1,
+                        end: data.end || this.systemLogs.length,
+                        total: data.total || this.systemLogs.length
+                    };
                     
                     this.loadingLogs = false;
                     this.hasMoreLogs = data.has_more;
+                    
+                    // 滚动处理...
                 });
 
 
@@ -516,13 +514,6 @@ class Dashboard {
                         total: data.total
                     };
                 });
-
-                // 更新命令历史统计
-                function updateCommandCount() {
-                    const historyList = document.getElementById('historyList');
-                    const count = historyList.getElementsByTagName('li').length;
-                    document.getElementById('cmdCount').textContent = count;
-                }
             }
         });
     }
