@@ -16,8 +16,9 @@ class SCommand:
         '@clearLog': ('清除当前设备的日志缓存', '_cmd_clearLog'),
         '@list': ('列出所有设备', '_cmd_list'),
         '@echo': ('测试日志输出', '_cmd_echo'),
-        '@showlog': ('显示日志', '_cmd_showlog'),
-        '@log': ('手动打印日志，用法: @log <level> <content>', '_cmd_log')
+        '@log': ('手动打印日志，用法: @log <level> <content>', '_cmd_log'),
+        '@show': ('显示日志，用法: @show [filter]', 'filterLogs')
+
     }
     
     @staticmethod
@@ -102,7 +103,9 @@ class SCommand:
         """清除控制台日志缓存"""
         try:
             # 清空日志缓存
-            Log().clear()            
+            Log().clear()
+            # 使用覆盖模式保存
+            Log().save(mode='w')            
             # 通知前端清空日志显示
             emit('clear_logs')            
             return '控制台日志已清除'
@@ -114,7 +117,8 @@ class SCommand:
     def _cmd_clearCmd(args):
         """清除当前设备的所有指令历史"""
         device_manager = DeviceManager()
-        device_id = args[0] if args and len(args) > 0 else device_manager.curDeviceID
+        device_id = (args[0] if args and len(args) > 0 
+                    else device_manager.curDeviceID)
         if device_id is None:
             return '未指定设备ID'
         
@@ -137,7 +141,10 @@ class SCommand:
         """列出所有设备"""
         device_manager = DeviceManager()
         devices = device_manager.to_dict()
-        return '\n'.join([f"{id}: {dev['status']}" for id, dev in devices.items()])
+        return '\n'.join([
+            f"{id}: {dev['status']}" 
+            for id, dev in devices.items()
+        ])
     
     @staticmethod
     def _cmd_echo(args):
@@ -146,53 +153,7 @@ class SCommand:
         # 测试不同级别的日志
         Log.i('Server', f'[INFO] {message}')
         return f"Echo: {message}"
-    
-    @staticmethod
-    def _cmd_showlog(args):
-        """显示日志
-        用法: @showlog [date] - 显示服务器日志
-             @showlog <device_id> [date] - 显示设备日志
-        """
-        try:
-            date = None
-            device_id = None
-            
-            if args:
-                if args[0].startswith('@'):
-                    # 服务器日志
-                    if len(args) > 1:
-                        date = args[1]
-                else:
-                    # 设备日志
-                    device_id = args[0]
-                    if len(args) > 1:
-                        date = args[1]
-            else:
-                # 如果没有参数，显示当前设备的日志
-                device_manager = DeviceManager()
-                device_id = device_manager.curDeviceID
-                if not device_id:
-                    device_id = 'server'  # 如果没有当前设备，显示服务器日志
-            
-            logs = Log().gets(device_id, date)
-            if not logs:
-                return f"没有找到{'服务器' if device_id == 'server' else device_id}在{date or '今天'}的日志"
-                
-            # 发送日志到前端显示
-            from app import socketio
-            Log.i('Server', f'正在显示{device_id}在{date or datetime.now().strftime("%Y-%m-%d")}的日志')
-            socketio.emit('show_logs', {
-                'logs': logs,
-                'device_id': device_id,
-                'date': date or datetime.now().strftime('%Y-%m-%d')
-            })
-            
-            return f"正在显示{'服务器' if device_id == 'server' else device_id}在{date or '今天'}的日志"
-            
-        except Exception as e:
-            Log.ex(e, "显示日志失败")
-            return f"显示日志失败: {e}"
-    
+
     @staticmethod
     def _cmd_log(args):
         """手动打印日志
@@ -228,12 +189,10 @@ class SCommand:
                 device = device_manager.get_device(device_id)
                 if device is None:
                     Log.e('Server', f'设备 {device_id} 不存在')
-                    emit('error', {'message': '设备不存在'})
                     return '设备不存在'
-                print(f'!!!device.status: {device.status}')
+                # print(f'!!!device.status: {device.status}')
                 if device.status != 'login':
                     Log.w('Server', f'设备 {device_id} 未登录')
-                    emit('error', {'message': '设备未登录'})
                     return '设备未登录'
                 
                 history = CommandHistory.create(
@@ -246,7 +205,7 @@ class SCommand:
                 sid = device.info.get('sid')
                 if sid:
                     # 验证 SID 是否最新
-                    Log.i('Server', f'设备 {device_id} 当前 SID: {sid}')                    
+                    # Log.i('Server', f'设备 {device_id} 当前 SID: {sid}')                    
                     try:
                         # 直接通过 sid 发送命令
                         emit('clientCommand', {
@@ -258,20 +217,17 @@ class SCommand:
                         # 更新响应时间
                         history.response_time = datetime.now()
                         db.session.commit()
-                        
-                        Log.i('Server', f'命令已发送到 SID: {sid}')
+                        # Log.d('Server', f'命令已发送到 SID: {sid}')
                         return f'命令已发送到设备 {device_id}'
                     except Exception as e:
                         Log.ex(e, '发送命令时出错')
                         return f'发送命令失败: {e}'
                 else:
                     Log.e('Server', f'设备 {device_id} 会话无效')
-                    emit('error', {'message': '设备会话无效'})
                     return '设备会话无效'
                 
         except Exception as e:
             Log.ex(e, '执行设备命令出错')
-            emit('error', {'message': '执行命令失败'})
             return '执行命令失败'
     
     @staticmethod
@@ -300,3 +256,23 @@ class SCommand:
         except Exception as e:
             Log.ex(e, '处理命令响应出错')
             return {'success': False, 'error': '处理响应失败'} 
+    
+    @staticmethod
+    def filterLogs(filter_str=''):
+        """显示日志
+        用法: @show [filter]
+        filter: 过滤条件
+            - 空: 显示当天全部日志
+            - 日期(YYYY-MM-DD): 显示指定日期的日志
+            - 其他: 按TAG过滤当前日志
+        """
+        from .device_manager import DeviceManager
+        
+        logs = Log.show(filter_str.strip() if filter_str else None)
+        if not logs:
+            return "w##未找到匹配的日志"
+        
+        DeviceManager().emit_to_console('show_logs', {
+            'logs': logs,
+            'filter': filter_str
+        })

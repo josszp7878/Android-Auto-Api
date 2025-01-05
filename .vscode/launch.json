@@ -1,0 +1,29 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Client",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/server/scripts/client.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "python": "D:/Program Files/Python38/python.exe",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/server/scripts;${workspaceFolder}/server"
+            }
+        },
+        {
+            "name": "Python: Server",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/server/MyServer.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "python": "D:/Program Files/Python38/python.exe",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/server/scripts;${workspaceFolder}/server"
+            }
+        }
+    ]
+} 

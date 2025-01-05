@@ -84,31 +84,19 @@ class CommandHistory(db.Model):
 
 
     @classmethod
-    def handle_command_result(cls, command_id, result, device_id):
+    def add(cls, command_id, result, device_id):
         """处理命令执行结果"""
         try:
+            print(f"@@@@@ command_id= {command_id}")
             if command_id:
-                history = cls.query.get(command_id)
-                if history:
-                    # 默认info级别
-                    level = 'i'
-                    # 检查结果是否包含错误关键词
-                    if isinstance(result, str):
-                        if '错误' in result or 'error' in result.lower():
-                            level = 'e'
-                        elif '警告' in result or 'warning' in result.lower():
-                            level = 'w'
+                cmd = cls.query.get(command_id)
+                if cmd:
                     # 格式化响应
-                    formatted_result = f"{level}##{result}"
-                    history.update_response(formatted_result)
-                    
-            return {
-                'result': result,
-                'device_id': device_id
-            }
+                    cmd.update_response(result)
+            return True 
         except Exception as e:
             from scripts.logger import Log
             Log.ex(e, '处理命令结果出错')
-            return None
+            return False
     
     

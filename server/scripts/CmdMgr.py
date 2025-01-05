@@ -18,15 +18,17 @@ class CmdMgr:
         if not hasattr(self, 'initialized'):
             self.cmdRegistry = {}     # 命令注册表 {cmd_pattern: (func, param_pattern)}
             self.nameRegistry = {}    # 方法名匹配表 {method_name: (func, param_pattern)}
-            print("初始化命令管理器...")  # 调试输出
-            self.RunFromApp = False
-            try:
-                from java import jclass
-                self._android = jclass("cn.vove7.andro_accessibility_api.demo.script.PythonServices")
-                self.RunFromApp = True
-            except ImportError:
-                self._android = None
             self.initialized = True
+    
+    def init(self):
+        self.RunFromApp = False
+        try:
+            from java import jclass
+            self._android = jclass("cn.vove7.andro_accessibility_api.demo.script.PythonServices")
+            self.RunFromApp = True
+        except ImportError:
+            self._android = None
+        Log.d(f"初始化命令管理器... RunFromApp: {self.RunFromApp}")  # 调试输出
             
     @property 
     def Android(self):
@@ -86,7 +88,7 @@ class CmdMgr:
                 for name, (f, p) in self.nameRegistry.items():
                     if name.startswith(cmdName):
                         func, param_pattern = f, p
-                        print(f"模糊匹配到命令名: {cmdName} -> {f.__name__} param_pattern: {p}")
+                        # print(f"模糊匹配到命令名: {cmdName} -> {f.__name__} param_pattern: {p}")
                         break
             
             if not func:
@@ -155,20 +157,14 @@ def connect(server_url=None):
 
 @regCmd(r'日志', r'(?P<level>[iwe])\s+(?P<content>.+)')
 def log(level, content):
-    """手动打印日志
-    用法: 日志 <level> <content>
-    level: i/w/e (info/warning/error)
-    """
     if level not in ['i', 'w', 'e']:
         return "日志级别必须是 i/w/e 之一"
-        
     if level == 'i':
         Log.i(content)
     elif level == 'w':
         Log.w(content)
     else:
         Log.e(content)
-    return f"日志已打印: [{level}] {content}"
 
 @regCmd(r'登录')
 def login():
@@ -239,6 +235,3 @@ def restartApp(pkgName):
 def captureScreen():
     return cmdMgr.Android.captureScreen()
 
-@regCmd
-def aa():
-    print("aa")

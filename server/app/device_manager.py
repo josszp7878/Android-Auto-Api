@@ -108,7 +108,7 @@ class DeviceManager:
     @curDeviceID.setter
     def curDeviceID(self, value):
         self._curDeviceID = value
-        Log.i(f'设置当前设备ID: {value}')
+        # Log.i(f'设置当前设备ID: {value}')
 
     def update_device(self, device):
         try:

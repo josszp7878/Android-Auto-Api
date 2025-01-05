@@ -1,5 +1,13 @@
-import time
 import sys
+# print("Python Path:", sys.executable)
+# print("PYTHONPATH:", sys.path)
+try:
+    import socketio
+    print("SocketIO Path:", socketio.__file__)
+except ImportError as e:
+    print("Import Error:", e)
+
+import time
 from CDevice import CDevice
 from CmdMgr import cmdMgr
 from logger import Log
@@ -10,8 +18,10 @@ client = None
 
 def Begin(deviceID=None, server=None):
     deviceID = deviceID or DEFAULT_DEVICE_ID
-    server = server or "localhost"
     device = CDevice(deviceID)
+    Log().init(False)
+    cmdMgr.init()
+    server = server or "localhost"
     Log.i(f"@@@@%%%%设备 {deviceID} 正在连接到服务器{server} {device.deviceID}")
     if not device.connect(f"http://{server}:5000"):
         Log.e("连接服务器失败")
@@ -51,7 +61,6 @@ def End():
 
 if __name__ == '__main__':
     # 如果有命令行参数，则使用第一个参数作为设备ID，第二个参数作为服务器URL
-    Log().init(is_server=False)
     device_id = sys.argv[1] if len(sys.argv) > 1 else None
     server_url = sys.argv[2] if len(sys.argv) > 2 else None
     Begin(device_id, server_url)

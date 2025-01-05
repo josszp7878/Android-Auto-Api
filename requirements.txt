@@ -1,0 +1,4 @@
+python-socketio
+flask-socketio
+eventlet
+# 其他依赖... 

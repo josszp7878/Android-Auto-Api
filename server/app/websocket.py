@@ -32,7 +32,6 @@ def handle_connect():
         if client_type == 'console':
             # 控制台连接，记录 SID
             deviceMgr.add_console(request.sid)
-            Log.i(f"控制台连接: {request.sid}")
             return True
             
         elif device_id:
@@ -64,8 +63,6 @@ def handle_disconnect():
     
     # 检查是否是控制台断开
     if request.sid in deviceMgr.console_sids:
-        # 保存当前设备的日志
-        Log().save(deviceMgr.curDeviceID, None)
         deviceMgr.remove_console(request.sid)
         return
     
@@ -175,61 +172,20 @@ def handle_set_current_device(data):
     deviceMgr.curDeviceID = device_id
 
 
-@socketio.on('client_log')
-def handle_client_log(data):
+@socketio.on('C2S_Log')
+def handle_C2S_Log(data):
     """处理客户端日志"""
     message = data.get('message')
-    device_id = data.get('device_id')
-    # print(f'$$$$收到客户端日志: {message} deviceID={device_id}')
-    Log().log(device_id, message)
-    # 日志消息已经包含了完整格式,直接转发
-    deviceMgr.emit_to_console('add_log', {
-        'message': message
-    })
+    print(f'$$$$收到客户端日志: {message}')
+    Log().add(message)
 
 
-@socketio.on('get_logs')
-def handle_get_logs(data=None):
+@socketio.on('B2S_GetLogs')
+def handle_B2S_GetLogs(data=None):
     """处理获取日志请求"""
-    try:
-        data = data or {}
-        device_id = data.get('device_id')
-        date = data.get('date')
-        page = data.get('page', 1)
-        per_page = 100  # 每页日志条数
-        
-        # 如果没有指定设备ID,使用当前设备ID
-        if device_id is None:
-            device_id = deviceMgr.curDeviceID
-        
-        # 获取设备日志
-        logs = Log().gets(device_id, date)
-        if not logs:
-            logs = []
-        
-        # 计算分页
-        total = len(logs)
-        start = (page - 1) * per_page
-        end = start + per_page
-        page_logs = logs[start:end]
-        has_more = end < total
-            
-        deviceMgr.emit_to_console('logs_data', {
-            'logs': page_logs,
-            'device_id': device_id,
-            'date': date,
-            'is_realtime': False,
-            'has_more': has_more,
-            'page': page,
-            'total': total,
-            'message': f'找到 {len(page_logs)} 条日志记录'
-        })
-        
-    except Exception as e:
-        Log.ex(e, '获取日志失败')
-        deviceMgr.emit_to_console('error', {
-            'message': f'获取日志失败: {str(e)}'
-        })
+    data = data or {}
+    page = data.get('page', 1)
+    Log.show(page=page)
 
 
 @socketio.on('command_result')
@@ -241,9 +197,11 @@ def handle_command_result(data):
         device_id = data.get('device_id')
         
         # 使用 CommandHistory 类处理结果
-        response = CommandHistory.handle_command_result(command_id, result, device_id)
-        if response:
-            deviceMgr.emit_to_console('command_result', response)
+        CommandHistory.add(command_id, result, device_id)
+        deviceMgr.emit_to_console('command_result', {
+                'result': result,
+                'device_id': device_id
+            })
             
     except Exception as e:
         Log.ex(e, '处理命令结果出错')

@@ -73,7 +73,7 @@ public class ScriptEngine {
             // 执行Begin入口函数，传入服务器名和设备名
             try {
                 mainModule = py.getModule("client");
-                mainModule.callAttr("Begin", "_"+deviceName, serverName);
+                mainModule.callAttr("Begin", deviceName, serverName);
                 Timber.d("Python Begin()函数执行成功");
             } catch (Exception e) {
                 Timber.e(e, "执行Python Begin()函数失败");

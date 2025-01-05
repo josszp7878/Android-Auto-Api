@@ -26,17 +26,8 @@ class CDevice:
     def __init__(self, deviceID=None):  # 同样的参数
         # 只在第一次初始化时设置属性
         if not hasattr(self, 'initialized'):
-            # 使用已保存的参数或传入的参数
-            if deviceID is None:
-                deviceID = "1"            
-            if deviceID and deviceID.startswith("_"):
-                # self._RunFromApp = True
-                deviceID = deviceID[1:]
-
             self._deviceID = deviceID
-            self.connected = False
-            # self._RunFromApp = False
-            
+            self.connected = False            
             # 初始化 socketio 客户端
             self.sio = socketio.Client(
                 reconnection=True,

@@ -98,8 +98,6 @@ class SDevice:
     
     def onDisconnect(self):
         try:
-            # 保存并关闭日志文件
-            Log().save(self.device_id)
             self.status = 'offline'
             Log.i(f'设备 {self.device_id} 已断开连接')
             self._commit()
