@@ -6,11 +6,6 @@ from logger import Log
 class CDevice:
     _instance = None  # 单例实例
     _cmdMgr = None   # 命令管理器实例
-    _RunFromApp = False
-    @property
-    def RunFromApp(self):
-        return self._RunFromApp
-    
     @property
     def deviceID(self):
         return self._deviceID
@@ -35,12 +30,12 @@ class CDevice:
             if deviceID is None:
                 deviceID = "1"            
             if deviceID and deviceID.startswith("_"):
-                self._RunFromApp = True
+                # self._RunFromApp = True
                 deviceID = deviceID[1:]
 
             self._deviceID = deviceID
             self.connected = False
-            self._RunFromApp = False
+            # self._RunFromApp = False
             
             # 初始化 socketio 客户端
             self.sio = socketio.Client(

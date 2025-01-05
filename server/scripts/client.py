@@ -1,6 +1,7 @@
 import time
 import sys
 from CDevice import CDevice
+from CmdMgr import cmdMgr
 from logger import Log
 
 # 固定配置
@@ -16,11 +17,10 @@ def Begin(deviceID=None, server=None):
         Log.e("连接服务器失败")
         return
     import CmdMgr
-    import Cmds
     print("客户端运行中... 按Ctrl+C退出")    
     try:
         while True:
-            if not device.RunFromApp:
+            if not cmdMgr.RunFromApp:
                 cmd_input = input(f"{deviceID}> ").strip()
                 if cmd_input:
                     # 直接使用 CmdMgr 处理命令

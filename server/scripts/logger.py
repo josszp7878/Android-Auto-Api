@@ -55,7 +55,7 @@ class Log:
             device_id = self._defDeviceID()
         if tag is None:
             tag = device_id
-        print(f'日志: {content} deviceID={device_id}, tag={tag}')    
+        # print(f'日志: {content} deviceID={device_id}, tag={tag}')    
         timestamp = datetime.now()
         # 使用统一的格式化方法
         content = self.format(timestamp, tag, level, content)
@@ -91,6 +91,11 @@ class Log:
                     })
             except Exception as e:
                 print(f'发送日志到服务器失败: {e}')            
+    
+    @classmethod
+    def d(cls, message, tag=None):
+        """输出调试级别日志"""
+        Log()._log(message, 'd', tag)
     
     @classmethod
     def i(cls, message, tag=None):
@@ -140,11 +145,9 @@ class Log:
         if device_id:
             # 如果缓存不存在，从文件加载
             cache_key = self._key(device_id, date)
-            # print(f'ddddddd获取日志: {cache_key}')
             if cache_key not in self.cache:
                 self._load(device_id, date)
             logs = self.cache.get(cache_key, [])
-            # print(f'eeeeeeeee 获取日志: {len(logs)}')
             return logs
     
     def _load(self, device_id, date=None):

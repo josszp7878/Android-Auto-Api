@@ -301,3 +301,9 @@
 .result-i { color: #B8B8B8; }  
 .result-w { color: #FFC107; }
 .result-e { color: #f44336; }
+
+/* 日志级别颜色 */
+.log-d { color: #007bff; }  /* 调试-蓝色 */
+.log-i { color: #28a745; }  /* 信息-绿色 */
+.log-w { color: #ffc107; }  /* 警告-黄色 */
+.log-e { color: #dc3545; }  /* 错误-红色 */

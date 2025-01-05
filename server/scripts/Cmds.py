@@ -58,12 +58,16 @@ def cmd_log(level, content):
         Log.e(content)
     return f"日志已打印: [{level}] {content}"
 
-# 保留其他原有的Android命令
-@regCmd(r"点击\s+(?P<x>\d+)\s+(?P<y>\d+)")
+# 所有命令定义统一放这里
+@regCmd(r'点击', r'(?P<x>\d+)\D+(?P<y>\d+)')
 def click(x, y):
     x, y = int(x), int(y)
     result = cmdMgr.Android.clickPosition(x, y)
     return f"点击位置 ({x}, {y}) 结果: {result}"
+
+@regCmd(r'启动', r'(?P<pkgName>\S+)')
+def startApp(pkgName):
+    return cmdMgr.Android.startApp(pkgName)
 
 @regCmd(r"返回")
 def go_back():
