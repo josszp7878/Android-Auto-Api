@@ -3,5 +3,5 @@
 @REM cd /d %~dp0
 
 :: 如果有参数，将其作为设备ID传递
-cmd /c python server/scripts/client.py %1 %2
+cmd /c python server/scripts/CMain.py %1 %2
 pause

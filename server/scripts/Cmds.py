@@ -145,3 +145,30 @@ def restartApp(pkgName):
 @regCmd(r'截图')
 def captureScreen():
     return Tools().Android().captureScreen()
+
+
+@regCmd(r'热加载', r'(?P<module_name>\w+)')
+def reload(module_name):
+    """热加载指定模块
+    用法: reload <module_name>
+    示例: 
+        reload Cmds  # 重新加载命令模块
+        reload CmdMgr  # 重新加载命令管理器
+    """
+    Log.i(f"热加ddddd载模块: {module_name}")
+    try:
+        if Tools().reloadModule(module_name):
+            return f"模块 {module_name} 重新加载成功"
+        return f"模块 {module_name} 重新加载失败"
+    except Exception as e:
+        Log.ex(e, f"重新加载模块失败: {module_name}")
+        return f"重新加载失败: {str(e)}"
+
+
+def OnReload():
+    Log.w("Cmds模块热更新 OnReload")
+
+def OnPreload():
+    Log.w("Cmds模块热更新 onPreload")
+
+

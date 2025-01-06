@@ -28,13 +28,16 @@ class CDevice:
         if not hasattr(self, 'initialized'):
             self._deviceID = deviceID
             self.connected = False            
-            # 初始化 socketio 客户端
+            # 初始化 socketio 客户端，添加更多配置
             self.sio = socketio.Client(
                 reconnection=True,
-                reconnection_attempts=5,
+                reconnection_attempts=3,
                 reconnection_delay=1,
                 reconnection_delay_max=5,
-                logger=False
+                logger=True,
+                engineio_logger=True,
+                ssl_verify=False,  # Android环境可能需要禁用SSL验证
+                request_timeout=30
             )
             
             # 注册事件处理器
@@ -55,15 +58,10 @@ class CDevice:
             self.sio.disconnect()
             Log.i(f'设备 {self.deviceID} 已断开连接')
             self.connected = False
-            # 关闭日志文件
-            self._close_log_file()
             
     _serverURL = None
-
     def connect(self, server_url=None):
         try:
-                
-            # Log.i(f'连接参数: device_id={self.deviceID}')
             if not server_url:
                 server_url = self._serverURL
             else:
@@ -72,19 +70,41 @@ class CDevice:
             # 连接到服务器，直接通过查询参数传递设备ID
             connect_url = f"{server_url}?device_id={self.deviceID}"
             print(f"连接 URL: {connect_url}")
-            self.sio.connect(
-                connect_url,
-                transports=['websocket'],
-                wait=True
-            )
             
-            # 打印连接后的 sid
-            sid = self.sio.sid
-            Log.i(f'连接成功，设备ID: {self.deviceID}, SID: {sid}')
-            print(f'连接成功，SID: {sid}')
+            try:
+                # 添加更多连接选项
+                self.sio.connect(
+                    connect_url,
+                    transports=['websocket', 'polling'],  # 允许降级到polling
+                    wait=True,
+                    wait_timeout=10,
+                    headers={
+                        'Device-ID': self.deviceID,
+                        'Client-Type': 'Android'
+                    },
+                    auth={
+                        'device_id': self.deviceID
+                    },
+                    namespaces='/'  # 明确指定命名空间
+                )
+                
+                # 打印连接后的 sid
+                sid = self.sio.sid
+                Log.i(f'连接成功，设备ID: {self.deviceID}, SID: {sid}')
+                print(f'连接成功，SID: {sid}')
+                
+                self.connected = True
+                return True
+                
+            except socketio.exceptions.ConnectionError as e:
+                if "One or more namespaces failed to connect" in str(e):
+                    error_msg = f"设备ID '{self.deviceID}' 已被使用，请使用其他设备ID"
+                    Log.e(error_msg)
+                    print(error_msg)
+                else:
+                    Log.ex(e, '连接错误')
+                return False
             
-            self.connected = True
-            return True
         except Exception as e:
             Log.ex(e, '连接错误')
             return False

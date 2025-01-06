@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.util.Base64
+import cn.vove7.andro_accessibility_api.demo.MainActivity
 import cn.vove7.andro_accessibility_api.demo.service.ScreenCapture
 import cn.vove7.auto.AutoApi
 import cn.vove7.auto.api.back
@@ -18,6 +19,7 @@ import cn.vove7.auto.viewnode.ViewNode
 import kotlinx.coroutines.runBlocking
 import timber.log.Timber
 import java.io.File
+import com.chaquo.python.PyObject
 
 /**
  * Python服务接口的Kotlin实现
@@ -27,7 +29,7 @@ class PythonServices {
         private const val TAG = "PythonServices"
 
         @SuppressLint("StaticFieldLeak")
-        private lateinit var context: Context
+        private lateinit var context: MainActivity
 
         // 缓存应用的包名和显示名称
         private val appNameToPackageMap = mutableMapOf<String, String>()
@@ -36,8 +38,8 @@ class PythonServices {
          * 初始化 Context 和应用信息
          */
         @JvmStatic
-        fun init(context: Context) {
-            this.context = context.applicationContext
+        fun init(context: MainActivity) {
+            this.context = context
             loadInstalledApps()
         }
 
@@ -289,8 +291,68 @@ class PythonServices {
         }
 
         @JvmStatic
-        fun getFilesDir(): String {
-            return context.filesDir.absolutePath
+        fun getFilesDir(subDir: String? = null, create: Boolean = false): String {
+            val baseDir = context.filesDir
+            return when {
+                subDir == null -> baseDir.absolutePath
+                create -> {
+                    val dir = File(baseDir, subDir)
+                    if (!dir.exists() && create) {
+                        try {
+                            dir.mkdirs()
+                        } catch (e: Exception) {
+                            Timber.tag(TAG).e(e, "创建目录失败: %s", subDir)
+                        }
+                    }
+                    dir.absolutePath
+                }
+                else -> File(baseDir, subDir).absolutePath
+            }
+        }
+
+        @JvmStatic
+        fun updateScript(fileName: String): Boolean {
+            Timber.tag(TAG).d("正在更新脚本: %s", fileName)
+            return try {
+                val latch = java.util.concurrent.CountDownLatch(1)
+                var updateSuccess = false
+                
+                Thread {
+                    try {
+                        // 使用单例的 FileServer
+                        FileServer.getInstance(context).download(fileName)
+                        updateSuccess = true
+                    } catch (e: Exception) {
+                        Timber.tag(TAG).e(e, "更新脚本失败: %s", fileName)
+                    } finally {
+                        latch.countDown()
+                    }
+                }.start()
+                
+                latch.await(10, java.util.concurrent.TimeUnit.SECONDS)
+                updateSuccess
+            } catch (e: Exception) {
+                Timber.tag(TAG).e(e, "更新脚本异常: %s", fileName)
+                false
+            }
+        }
+
+        @JvmStatic
+        fun download(fileName: String, callback: PyObject): Boolean {
+            Timber.tag(TAG).d("正在下载脚本: %s", fileName)
+            Thread {
+                try {
+                    // 使用 FileServer 单例下载文件
+                    FileServer.getInstance(context as MainActivity).download(fileName)
+                    // 调用 Python 回调函数，传递成功状态
+                    callback.call(true, null)
+                } catch (e: Exception) {
+                    Timber.tag(TAG).e(e, "下载脚本失败: %s", fileName)
+                    // 调用 Python 回调函数，传递失败状态和错误信息
+                    callback.call(false, e.message)
+                }
+            }.start()
+            return true  // 返回值表示是否成功启动下载
         }
     }
         

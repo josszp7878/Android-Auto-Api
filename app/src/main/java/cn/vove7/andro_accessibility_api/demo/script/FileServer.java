@@ -25,14 +25,30 @@ import timber.log.Timber;
 
 public class FileServer {
     private static final String TAG = "FileServer";
+    private static volatile FileServer INSTANCE;
+    private final MainActivity context;
+    private final ExecutorService executorService;
+
+    // 私有构造函数
+    private FileServer(MainActivity context) {
+        this.context = context;
+        this.executorService = Executors.newSingleThreadExecutor();
+    }
+
+    // 单例获取方法
+    public static FileServer getInstance(MainActivity context) {
+        if (INSTANCE == null) {
+            synchronized (FileServer.class) {
+                if (INSTANCE == null) {
+                    INSTANCE = new FileServer(context);
+                }
+            }
+        }
+        return INSTANCE;
+    }
+
     public String UrlBase() {
         return "http://" + context.getServerIP();
-    }
-    private final MainActivity context;
-    private final ExecutorService executorService = Executors.newSingleThreadExecutor();
-
-    public FileServer(MainActivity context) {
-        this.context = context;
     }
 
     public void checkAndUpdateScripts(UpdateCallback callback) {
@@ -53,7 +69,7 @@ public class FileServer {
 
                         if (Long.parseLong(remoteVersion) > Long.parseLong(currentVersion)) {
                             Timber.tag(TAG).d("检测到脚本更新: %s", filename);
-                            downloadScript(filename);
+                            download(filename);
                             success = true;
                         }
                     }
@@ -98,7 +114,7 @@ public class FileServer {
         void onComplete(boolean success);
     }
 
-    private void downloadScript(String filename) throws IOException {
+    public void download(String filename) throws IOException {
         Timber.tag(TAG).d("正在下载: %s", filename);
         URL url = new URL(UrlBase() + ":" + Port + "/scripts/" + filename);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();

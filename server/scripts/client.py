@@ -1,72 +1,79 @@
 import sys
-# print("Python Path:", sys.executable)
-# print("PYTHONPATH:", sys.path)
-try:
-    import socketio
-    print("SocketIO Path:", socketio.__file__)
-except ImportError as e:
-    print("Import Error:", e)
-
 import time
-from CDevice import CDevice
-from CmdMgr import cmdMgr
+import importlib
 from logger import Log
 from tools import Tools
 
-# 固定配置
-DEFAULT_DEVICE_ID = 'TEST1'
-client = None
+class Client:
+    """客户端管理类"""
+    _instance = None
+    
+    def __new__(cls):
+        if not cls._instance:
+            cls._instance = super(Client, cls).__new__(cls)
+        return cls._instance
+    
+    def __init__(self):
+        if not hasattr(self, 'initialized'):
+            self.deviceID = None
+            self.server = None
+            self.device = None
+            self.initialized = False
+            
+    
+    def Begin(self, deviceID=None, server=None):
+        """客户端启动入口"""
+        log = Log()
+        log.init(is_server=False)
+        try:
+             # 导入需要的模块（这些模块可能已经被重新加载）
+            from CDevice import CDevice
+            from CmdMgr import CmdMgr
+            import Cmds
+            try:
+                self.deviceID = deviceID or 'TEST1'
+                self.server = server or "localhost"
+                self.device = CDevice(self.deviceID)
+                
+                log.i(f"设备 {self.deviceID} 正在连接到服务器 {self.server}")
+                if not self.device.connect(f"http://{self.server}:5000"):
+                    log.e("连接服务器失败")
+                    return  # 这里直接返回会触发 finally
+                
+                print("客户端运行中... 按Ctrl+C退出")    
+                
+                runFromApp = log.isAndroid()
+                while True:
+                    if not runFromApp:
+                        cmd_input = input(f"{self.deviceID}> ").strip()
+                        if cmd_input:
+                            try:
+                                result = CmdMgr().do(cmd_input)
+                                if result:
+                                    print(result)
+                            except Exception as e:
+                                log.ex(e, '执行命令出错')
+                    time.sleep(0.1)
+                
+            except KeyboardInterrupt:
+                log.i('\n正在退出...')
+            except Exception as e:
+                log.ex(e, '发生错误')
+        except Exception as e:
+            log.e(f"初始化失败: {e}")
+        finally:
+            self.End()
+    
+    
+    def End(self):
+        """清理函数"""
+        # Tools().printCallStack()
+        print("End")
+        if self.device and self.device.connected:
+            self.device.logout()
+            self.device.disconnect()
+            print("已断开服务器连接")
+        self.initialized = False
 
-def Begin(deviceID=None, server=None):
-    """客户端启动入口"""
-    # 初始化平台判定
-    Tools().initPlatform()
-    # 初始化日志系统
-    Log().init(is_server=False)
-    deviceID = deviceID or DEFAULT_DEVICE_ID
-    device = CDevice(deviceID)
-    import Cmds
-    server = server or "localhost"
-    Log.i(f"@@@@%%%%设备 {deviceID} 正在连接到服务器{server} {device.deviceID}")
-    if not device.connect(f"http://{server}:5000"):
-        Log.e("连接服务器失败")
-        return
-    import CmdMgr
-    print("客户端运行中... 按Ctrl+C退出")    
-    try:
-        runFromApp = Tools().isAndroid()
-        while True:
-            if not runFromApp:
-                cmd_input = input(f"{deviceID}> ").strip()
-                if cmd_input:
-                    # 直接使用 CmdMgr 处理命令
-                    try:
-                        result = CmdMgr.CmdMgr().do(cmd_input)
-                        if result:
-                            print(result)
-                    except Exception as e:
-                        Log.ex(e, '执行命令出错')
-            time.sleep(0.1)
-    except KeyboardInterrupt:
-        Log.i('\n正在退出...')
-    except Exception as e:
-        Log.ex(e, '发生错误')
-    finally:
-        End()
-
-
-def End():
-    Log.i("End")
-    if client:
-        client.logout()
-        client.disconnect()
-        Log.i("已断开服务器连接")
-    # 在这里添加任何需要的清理逻辑
-
-
-
-if __name__ == '__main__':
-    # 如果有命令行参数，则使用第一个参数作为设备ID，第二个参数作为服务器URL
-    device_id = sys.argv[1] if len(sys.argv) > 1 else None
-    server_url = sys.argv[2] if len(sys.argv) > 2 else None
-    Begin(device_id, server_url)
+# 创建全局单例实例
+client = Client()

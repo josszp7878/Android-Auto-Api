@@ -38,7 +38,7 @@ public class ScriptEngine {
     private ScriptEngine(MainActivity context) {
         this.context = context.getApplicationContext();
         applicationContext = this.context;
-        this.fileServer = new FileServer(context);
+        this.fileServer = FileServer.getInstance(context);
         this.scriptLastModified = new HashMap<>();
         this.executor = Executors.newSingleThreadExecutor();
         this.mainHandler = new Handler(Looper.getMainLooper());
@@ -58,7 +58,7 @@ public class ScriptEngine {
     public void init(String deviceName, String serverName) {
         Timber.tag(TAG).d("初始化ScriptEngine with server: %s, device: %s", serverName, deviceName);
         
-        // 检查并更新脚本，完成后继续初始化
+        // 使用 FileServer 单例检查和更新脚本
         fileServer.checkAndUpdateScripts(success -> initPython(deviceName, serverName));
     }
 
@@ -82,7 +82,7 @@ public class ScriptEngine {
 
             // 执行Begin入口函数
             try {
-                mainModule = py.getModule("client");
+                mainModule = py.getModule("CMain");
                 mainModule.callAttr("Begin", deviceName, serverName);
                 Timber.d("Python Begin()函数执行成功");
             } catch (Exception e) {

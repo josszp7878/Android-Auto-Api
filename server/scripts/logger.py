@@ -1,17 +1,27 @@
 from datetime import datetime
 from pathlib import Path
-from tools import Tools
 
 class Log:
     """统一的日志管理类"""
     _instance = None
     _initialized = False
     MAX_CACHE_SIZE = 3000  # 最大缓存条数
+    _android = None  # Android 平台接口
     
     def __init__(self):
         if not hasattr(self, '_cache'):
             self._cache = []
             self._visualLogs = []
+    
+   
+    def isAndroid(self):
+        # print(f'self._android =={self._android}')
+        return self._android is not None
+    
+    @property
+    def Android(self):
+        """获取 Android 接口"""
+        return self._android
     
     def clear(self):
         """清空日志缓存"""
@@ -29,16 +39,24 @@ class Log:
         if self._initialized:
             return self
         self.is_server = is_server
-        if Tools().isAndroid():
-            android = Tools().Android
-            # 使用 PythonServices 的 getFilesDir 方法获取应用目录
-            log_dir = Path(android.getFilesDir()) / "logs"
+        try:
+            from java import jclass            
+            self._android = jclass("cn.vove7.andro_accessibility_api.demo.script.PythonServices")
+        except Exception as e:
+            self._android = None
+        print(f'self._android = {self._android}')
+
+        # 确定日志目录
+        if self.isAndroid():
+            # 在应用私有目录下创建 logs 目录，并确保目录存在
+            log_dir = Path(self.Android.getFilesDir("logs", True))
         else:
             log_dir = Path("logs")
-        Log.i(f"@@@ddddlog_dir: {log_dir}")
+            log_dir.mkdir(parents=True, exist_ok=True)
+
+        print(f"日志目录@@@@@: {log_dir}")
         
-        # 确保日志目录存在
-        log_dir.mkdir(parents=True, exist_ok=True)
+        self._log_dir = log_dir  # 保存日志目录路径
         self._initialized = True
         
         if is_server:
@@ -55,7 +73,7 @@ class Log:
         """获取日志文件路径"""
         if date is None:
             date = datetime.now().strftime('%Y-%m-%d')
-        return Path(f"logs/{date}.log")
+        return self._log_dir / f"{date}.log"  # 使用保存的日志目录路径
     
     def _load(self, date=None):
         """从文件加载日志到缓存"""
@@ -233,6 +251,7 @@ class Log:
     def ex(cls, e, message, tag=None):
         import traceback
         message = f'{message} Exception: {e}, {traceback.format_exc()}'
+        print(message)
         Log()._log(message, 'e', tag)     
     
     def format(self, timestamp, tag, level, message):

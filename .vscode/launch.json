@@ -5,7 +5,7 @@
             "name": "Python: Client",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/server/scripts/client.py",
+            "program": "${workspaceFolder}/server/scripts/CMain.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "python": "D:/Program Files/Python38/python.exe",
