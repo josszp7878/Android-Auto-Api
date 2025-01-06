@@ -1,0 +1,42 @@
+09:30:48##@##i##服务器启动
+09:30:59##@##i##从数据库加载了 2 个设备
+09:30:59##DeviceManager##i##更新设备 <Device TEST1>
+09:31:00##@##i##设备 TEST1 已连接
+09:31:00##@##i##设备 TEST1 登录
+09:31:00##@##i##Client disconnected: AXBGHfPb9ZuB92kCAAAB
+09:31:00##@##i##设备 TEST1 已断开连接
+09:31:31##访问首页##i##Server
+09:31:32##@##i##添加控制台连接: BMJFehycmRHGhC6qAAAD
+09:31:44##DeviceManager##i##更新设备 <Device TEST1>
+09:31:45##@##i##设备 TEST1 已连接
+09:31:45##@##i##设备 TEST1 登录
+09:31:45##@##i##Client disconnected: 5XqEmmTtxnD66CwLAAAF
+09:31:46##@##i##设备 TEST1 已断开连接
+09:39:27##@##i##Client disconnected: BMJFehycmRHGhC6qAAAD
+09:39:27##@##i##移除控制台连接: BMJFehycmRHGhC6qAAAD
+09:39:27##@##e##服务器启动失败: 'Log' object has no attribute 'close'
+09:40:20##@##i##服务器启动
+09:40:20##@##e##服务器启动失败: name 'Flask' is not defined
+09:42:45##@##i##服务器启动
+09:42:45##@##e##服务器启动失败: name 'Flask' is not defined
+09:44:22##@##i##服务器启动
+09:44:23##@##i##添加控制台连接: iad1MuBMjqRfB1qXAAAB
+09:44:38##@##i##从数据库加载了 2 个设备
+09:44:38##DeviceManager##i##更新设备 <Device TEST1>
+09:44:38##@##i##设备 TEST1 已连接
+09:44:38##@##i##设备 TEST1 登录
+09:45:13##@##i##Client disconnected: iad1MuBMjqRfB1qXAAAB
+09:45:13##@##i##移除控制台连接: iad1MuBMjqRfB1qXAAAB
+09:45:13##@##i##Client disconnected: 1muzgz8dfvJN2sMJAAAD
+09:45:13##@##i##设备 TEST1 已断开连接
+09:45:14##@##e##服务器启动失败: 'Log' object has no attribute 'close'
+09:45:43##@##i##服务器启动
+09:45:45##@##i##添加控制台连接: 9wU2x2IjxxtzkwNnAAAB
+09:45:48##@##i##从数据库加载了 2 个设备
+09:45:48##DeviceManager##i##更新设备 <Device TEST1>
+09:45:49##@##i##设备 TEST1 已连接
+09:45:49##@##i##设备 TEST1 登录
+09:46:10##@##i##Client disconnected: 9wU2x2IjxxtzkwNnAAAB
+09:46:10##@##i##移除控制台连接: 9wU2x2IjxxtzkwNnAAAB
+09:46:10##@##i##Client disconnected: l13PxAYH8WLSr0VzAAAD
+09:46:10##@##i##设备 TEST1 已断开连接

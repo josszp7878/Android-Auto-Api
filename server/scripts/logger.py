@@ -1,5 +1,6 @@
 from datetime import datetime
 from pathlib import Path
+from tools import Tools
 
 class Log:
     """统一的日志管理类"""
@@ -27,21 +28,27 @@ class Log:
         """初始化日志系统"""
         if self._initialized:
             return self
-            
-        # 确保日志根目录存在
-        Path("logs").mkdir(parents=True, exist_ok=True)
         self.is_server = is_server
+        if Tools().isAndroid():
+            android = Tools().Android
+            # 使用 PythonServices 的 getFilesDir 方法获取应用目录
+            log_dir = Path(android.getFilesDir()) / "logs"
+        else:
+            log_dir = Path("logs")
+        Log.i(f"@@@ddddlog_dir: {log_dir}")
+        
+        # 确保日志目录存在
+        log_dir.mkdir(parents=True, exist_ok=True)
         self._initialized = True
         
         if is_server:
-            # 加载当天的日志
             self._load()
         return self
         
     def uninit(self):
         """反初始化日志系统"""
         # 保存日志
-        self.save()  # 这里调用了一次
+        self.save()
         self.clear()
     
     def _get_log_path(self, date=None):
@@ -70,12 +77,6 @@ class Log:
             log_path = self._get_log_path()
             if not self._cache:
                 return
-                
-            # 打印调用栈
-            import traceback
-            print('\n保存日志调用栈:')
-            for line in traceback.format_stack()[:-1]:  # 去掉最后一行(当前函数)
-                print(line.strip())
                 
             print(f'@@@保存日志到文件: {log_path}')
             with open(log_path, 'w', encoding='utf-8') as f:

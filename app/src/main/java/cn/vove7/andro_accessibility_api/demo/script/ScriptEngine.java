@@ -1,5 +1,6 @@
 package cn.vove7.andro_accessibility_api.demo.script;
 
+import android.app.AlertDialog;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
@@ -9,6 +10,8 @@ import com.chaquo.python.Python;
 import com.chaquo.python.android.AndroidPlatform;
 
 import java.io.File;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -30,6 +33,7 @@ public class ScriptEngine {
     private final FileServer fileServer;
     private final ExecutorService executor;
     private final Handler mainHandler;
+    private boolean versionChecked = false;
 
     private ScriptEngine(MainActivity context) {
         this.context = context.getApplicationContext();
@@ -53,14 +57,20 @@ public class ScriptEngine {
 
     public void init(String deviceName, String serverName) {
         Timber.tag(TAG).d("初始化ScriptEngine with server: %s, device: %s", serverName, deviceName);
-        fileServer.checkAndUpdateScripts();
         
+        // 检查并更新脚本，完成后继续初始化
+        fileServer.checkAndUpdateScripts(success -> initPython(deviceName, serverName));
+    }
+
+    private void initPython(String deviceName, String serverName) {
         try {
-            // 初始化Python
             if (!Python.isStarted()) {
                 Python.start(new AndroidPlatform(applicationContext));
             }
-            py = Python.getInstance();
+            
+            if (py == null) {
+                py = Python.getInstance();
+            }
 
             // 设置Python脚本路径
             File scriptDir = fileServer.getScriptDir();
@@ -70,7 +80,7 @@ public class ScriptEngine {
             PyObject pathList = sysModule.get("path");
             pathList.callAttr("insert", 0, scriptDir.getAbsolutePath());
 
-            // 执行Begin入口函数，传入服务器名和设备名
+            // 执行Begin入口函数
             try {
                 mainModule = py.getModule("client");
                 mainModule.callAttr("Begin", deviceName, serverName);
@@ -85,6 +95,7 @@ public class ScriptEngine {
             Timber.e(e, "初始化Python环境失败");
         }
     }
+
 
     public void uninit() {
         try {

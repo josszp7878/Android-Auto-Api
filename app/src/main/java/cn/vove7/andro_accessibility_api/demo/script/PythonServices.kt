@@ -287,6 +287,11 @@ class PythonServices {
                 emptyArray()
             }
         }
+
+        @JvmStatic
+        fun getFilesDir(): String {
+            return context.filesDir.absolutePath
+        }
     }
         
 } 

@@ -2,6 +2,9 @@ package cn.vove7.andro_accessibility_api.demo.script;
 
 import android.os.Build;
 import android.util.Log;
+import android.os.Handler;
+import android.os.Looper;
+import android.app.AlertDialog;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -32,39 +35,72 @@ public class FileServer {
         this.context = context;
     }
 
-    public void checkAndUpdateScripts()
-    {
-        executorService.submit(() -> {
-            boolean updated = false;
+    public void checkAndUpdateScripts(UpdateCallback callback) {
+        new Thread(() -> {
             try {
-                JSONObject currentVersions = getCurrentVersions();
-                JSONObject remoteVersions = fetchRemoteVersions();
-                Iterator<String> keys = remoteVersions.keys();
-                while (keys.hasNext()) {
-                    String filename = keys.next();
-                    String remoteVersion = remoteVersions.getString(filename);
-                    String currentVersion = currentVersions.optString(filename, "0");
+                boolean success = false;
+                String errorMsg = null;
+                
+                try {
+                    JSONObject currentVersions = getCurrentVersions();
+                    JSONObject remoteVersions = fetchRemoteVersions();
+                    Iterator<String> keys = remoteVersions.keys();
+                    
+                    while (keys.hasNext()) {
+                        String filename = keys.next();
+                        String remoteVersion = remoteVersions.getString(filename);
+                        String currentVersion = currentVersions.optString(filename, "0");
 
-                    if (Long.parseLong(remoteVersion) > Long.parseLong(currentVersion)) {
-                        Timber.tag(TAG).d("检测到脚本更新: %s", filename);
-                        downloadScript(filename);
-                        updated = true;
+                        if (Long.parseLong(remoteVersion) > Long.parseLong(currentVersion)) {
+                            Timber.tag(TAG).d("检测到脚本更新: %s", filename);
+                            downloadScript(filename);
+                            success = true;
+                        }
                     }
-                }
 
-                if (updated) {
-                    saveVersions(remoteVersions);
-                    Timber.tag(TAG).d("脚本版本信息已更新");
+                    if (success) {
+                        saveVersions(remoteVersions);
+                        Timber.tag(TAG).d("脚本版本信息已更新");
+                    }
+                } catch (Exception e) {
+                    Timber.e(e, "更新脚本失败");
+                    errorMsg = "更新失败: " + e.getMessage();
                 }
-            } catch (JSONException | IOException e) {
-                Timber.tag(TAG).e(e, "处理版本信息时出错");
+                
+                final String finalErrorMsg = errorMsg;
+                final boolean finalSuccess = success;
+                
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    if (!finalSuccess && finalErrorMsg != null) {
+                        showMessage("更新提示", "脚本" + finalErrorMsg + "，将使用本地脚本继续运行");
+                    }
+                    callback.onComplete(finalSuccess);
+                });
+            } catch (Exception e) {
+                Timber.e(e, "检查更新失败");
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    showMessage("更新提示", "检查更新失败，将使用本地脚本继续运行");
+                    callback.onComplete(false);
+                });
             }
-        });
+        }).start();
+    }
+
+    private void showMessage(String title, String message) {
+        new AlertDialog.Builder(context)
+            .setTitle(title)
+            .setMessage(message)
+            .setPositiveButton("确定", null)
+            .show();
+    }
+
+    public interface UpdateCallback {
+        void onComplete(boolean success);
     }
 
     private void downloadScript(String filename) throws IOException {
         Timber.tag(TAG).d("正在下载: %s", filename);
-        URL url = new URL(UrlBase() + ":8000/scripts/" + filename);
+        URL url = new URL(UrlBase() + ":" + Port + "/scripts/" + filename);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         try {
             conn.setConnectTimeout(8000);
@@ -128,9 +164,11 @@ public class FileServer {
         return null;
     }
 
+    private static final int Port = 5000;
+
     private JSONObject fetchRemoteVersions() throws IOException {
         Timber.tag(TAG).d("获取远程文件时间戳...");
-        String urlStr = UrlBase() + ":8000/timestamps";
+        String urlStr = UrlBase() + ":" + Port + "/timestamps";
         Timber.tag(TAG).d("请求URL: %s", urlStr);
 
         URL url = new URL(urlStr);

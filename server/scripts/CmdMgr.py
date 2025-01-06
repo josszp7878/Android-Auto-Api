@@ -1,7 +1,6 @@
 import re
-from datetime import datetime
 from logger import Log
-from CDevice import CDevice
+from tools import Tools
 
 
 class CmdMgr:
@@ -20,19 +19,7 @@ class CmdMgr:
             self.nameRegistry = {}    # 方法名匹配表 {method_name: (func, param_pattern)}
             self.initialized = True
     
-    def init(self):
-        self.RunFromApp = False
-        try:
-            from java import jclass
-            self._android = jclass("cn.vove7.andro_accessibility_api.demo.script.PythonServices")
-            self.RunFromApp = True
-        except ImportError:
-            self._android = None
-        Log.d(f"初始化命令管理器... RunFromApp: {self.RunFromApp}")  # 调试输出
             
-    @property 
-    def Android(self):
-        return self._android
 
     def reg(self, cmd_pattern, param_pattern=None):
         """注册命令"""
@@ -80,7 +67,7 @@ class CmdMgr:
             for pattern, (f, p) in self.cmdRegistry.items():
                 if re.match(f"^{pattern}$", cmdName):
                     func, param_pattern = f, p
-                    print(f"模式匹配到命令名: {cmdName} -> {f.__name__} param_pattern: {p}")
+                    #print(f"模式匹配到命令名: {cmdName} -> {f.__name__} param_pattern: {p}")
                     break
                 
             # 再尝试方法名模糊匹配
@@ -100,138 +87,77 @@ class CmdMgr:
             match = re.match(f"^{param_pattern}$", cmdArgs)
             if not match:
                 return "w##参数格式错误"
-            
             return func(**match.groupdict())
 
-        except AttributeError as e:
-            if not self.RunFromApp:
-                return f"w##当前客户端是测试模式，不支持设备接口调用：{cmd}"
-            Log.ex(e, '命令执行错误')
-            return "e##命令执行错误"
         except Exception as e:
-            Log.ex(e, '命令执行错误')
-            return "e##命令执行错误"
+            Log.ex(e, f'{cmd}命令执行错误')
+            return "e##Error"
+        
+############################################################
+#工具方法
+############################################################
+    def isHarmonyOS(self) -> bool:
+        """检查是否是鸿蒙系统"""
+        try:
+            # 检查系统属性中是否包含鸿蒙特征
+            manufacturer = Build.MANUFACTURER.lower()
+            return "huawei" in manufacturer or "honor" in manufacturer
+        except Exception as e:
+            print(e, '检查系统类型失败')
+            return False
+
+    def openApp(self, app_name: str) -> bool:
+        """智能打开应用，根据系统类型选择不同的打开方式
+        
+        Args:
+            app_name: 应用名称
+            go_back: 是否在打开后返回
+            
+        Returns:
+            bool: 是否成功打开
+        """
+        Log.i(Tools.TAG, f"Opening app: {app_name}")
+        
+        try:
+            # 检查系统类型
+            if self.isHarmonyOS():
+                Log.i(Tools.TAG, "Using HarmonyOS method (click)")
+                return self._openAppByClick(app_name)
+            else:
+                Log.i(Tools.TAG, "Using Android method (service)")
+                return PythonServices.openApp(app_name)
+        except Exception as e:
+            Log.ex(e, '打开应用失败')
+            return False
+
+    def _openAppByClick(self, app_name: str) -> bool:
+        """通过点击方式打开应用（原来的实现移到这里）"""
+        try:
+            if not PythonServices.goHome():
+                Log.ex(e, '返回主页失败')
+                return False
+                
+            time.sleep(0.5)
+            
+            nodes = PythonServices.findTextNodes()
+            targetNode = next((node for node in nodes if app_name in node.getText()), None)
+            
+            if not targetNode:
+                Log.e(Tools.TAG, f"App icon not found: {app_name}")
+                return False
+            
+            bounds = targetNode.getBounds()
+            if not PythonServices.clickPosition(bounds.centerX(), bounds.centerY()):
+                Log.e(Tools.TAG, "Failed to click app icon")
+                return False
+            return True
+            
+        except Exception as e:
+            Log.ex(e, '通过点击打开应用失败')
+            return False        
 
 
 # 创建全局单例实例
 cmdMgr = CmdMgr()
 regCmd = cmdMgr.reg
-
-
-# 命令定义
-@regCmd(r'信息')
-def info():
-    """获取设备信息"""
-    return {
-        'device': 'Android Device',
-        'version': '1.0.0',
-        'timestamp': str(datetime.now())
-    }
-
-@regCmd(r'时间')
-def time():
-    """获取当前时间"""
-    return str(datetime.now())
-
-@regCmd(r'状态')
-def status():
-    """查看设备状态"""
-    device = CDevice.instance()
-    status = "已连接" if device.connected else "未连接"
-    return f'设备状态: {status}'
-
-@regCmd(r'断开')
-def disconnect():
-    """断开连接"""
-    device = CDevice.instance()
-    device.disconnect()
-    return "已断开连接"
-
-@regCmd(r'连接(?:\s+(?P<server_url>\S+))?')
-def connect(server_url=None):
-    """连接服务器"""
-    device = CDevice.instance()
-    if device.connect(server_url):
-        return "连接成功"
-    return "连接失败"
-
-@regCmd(r'日志', r'(?P<level>[iwe])\s+(?P<content>.+)')
-def log(level, content):
-    if level not in ['i', 'w', 'e']:
-        return "日志级别必须是 i/w/e 之一"
-    if level == 'i':
-        Log.i(content)
-    elif level == 'w':
-        Log.w(content)
-    else:
-        Log.e(content)
-
-@regCmd(r'登录')
-def login():
-    """登录设备"""
-    device = CDevice.instance()
-    if device.login():
-        return "登录成功"
-    return "登录失败"
-
-@regCmd(r'登出')
-def logout():
-    """登出设备"""
-    device = CDevice.instance()
-    device.logout()
-    return "已登出"
-
-@regCmd(r'连接状态')
-def isConnect():
-    """检查连接状态"""
-    device = CDevice.instance()
-    if device.connected:
-        return f"已连接到服务器，设备ID: {device.deviceID}"
-    return "未连接到服务器"
-
-@regCmd(r'点击', r'(?P<x>\d+)\D+(?P<y>\d+)')
-def click(x, y):
-    x, y = int(x), int(y)
-    result = cmdMgr.Android.clickPosition(x, y)
-    return f"点击位置 ({x}, {y}) 结果: {result}"
-
-@regCmd(r'返回')
-def goBack():
-    return cmdMgr.Android.goBack()
-    
-@regCmd(r'屏幕内容')
-def screenText():
-    return cmdMgr.Android.getScreenText()
-    
-@regCmd(r'主屏幕')
-def goHome():
-    return cmdMgr.Android.goHome()
-    
-@regCmd(r'检查安装\s+(?P<pkgName>\S+)')
-def isInstalled(pkgName):
-    return cmdMgr.Android.isAppInstalled(pkgName)
-    
-@regCmd(r'安装\s+(?P<pkgName>\S+)')
-def install(pkgName):
-    return cmdMgr.Android.installApp(pkgName)
-    
-@regCmd(r'卸载\s+(?P<pkgName>\S+)')
-def uninstall(pkgName):
-    return cmdMgr.Android.uninstallApp(pkgName)
-    
-@regCmd(r'启动', r'(?P<pkgName>\S+)')
-def startApp(pkgName):
-    return cmdMgr.Android.startApp(pkgName)
-    
-@regCmd(r'停止', r'(?P<pkgName>\S+)')
-def stopApp(pkgName):
-    return cmdMgr.Android.stopApp(pkgName)
-    
-@regCmd(r'重启', r'(?P<pkgName>\S+)')
-def restartApp(pkgName):
-    return cmdMgr.Android.restartApp(pkgName)
-
-@regCmd(r'截图')
-def captureScreen():
-    return cmdMgr.Android.captureScreen()
 

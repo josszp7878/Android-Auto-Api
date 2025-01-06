@@ -11,16 +11,21 @@ import time
 from CDevice import CDevice
 from CmdMgr import cmdMgr
 from logger import Log
+from tools import Tools
 
 # 固定配置
 DEFAULT_DEVICE_ID = 'TEST1'
 client = None
 
 def Begin(deviceID=None, server=None):
+    """客户端启动入口"""
+    # 初始化平台判定
+    Tools().initPlatform()
+    # 初始化日志系统
+    Log().init(is_server=False)
     deviceID = deviceID or DEFAULT_DEVICE_ID
     device = CDevice(deviceID)
-    Log().init(False)
-    cmdMgr.init()
+    import Cmds
     server = server or "localhost"
     Log.i(f"@@@@%%%%设备 {deviceID} 正在连接到服务器{server} {device.deviceID}")
     if not device.connect(f"http://{server}:5000"):
@@ -29,8 +34,9 @@ def Begin(deviceID=None, server=None):
     import CmdMgr
     print("客户端运行中... 按Ctrl+C退出")    
     try:
+        runFromApp = Tools().isAndroid()
         while True:
-            if not cmdMgr.RunFromApp:
+            if not runFromApp:
                 cmd_input = input(f"{deviceID}> ").strip()
                 if cmd_input:
                     # 直接使用 CmdMgr 处理命令
