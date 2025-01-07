@@ -270,3 +270,14 @@ class Log:
         tag = str(tag or '@')
         
         return f"{time_str}##{tag}##{level}##{message}"
+
+def requireAndroid(func):
+    """装饰器: 检查Android环境"""
+    def wrapper(*args, **kwargs):
+        if not Log().isAndroid():
+            return "w##Android指令，当前环境不支持"
+        return func(*args, **kwargs)
+    # 保持原始函数的属性
+    wrapper.__name__ = func.__name__
+    wrapper.__doc__ = func.__doc__
+    return wrapper

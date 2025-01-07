@@ -1,5 +1,5 @@
 from datetime import datetime
-from logger import Log
+from logger import Log, requireAndroid
 from CDevice import CDevice
 from tools import Tools
 from CmdMgr import regCmd
@@ -91,60 +91,71 @@ def isConnect():
 
 
 @regCmd(r'点击', r'(?P<x>\d+)\D+(?P<y>\d+)')
+@requireAndroid
 def click(x, y):
     x, y = int(x), int(y)
-    result = Tools().Android().clickPosition(x, y)
+    result = Log().Android().clickPosition(x, y)
     return f"点击位置 ({x}, {y}) 结果: {result}"
 
 
 @regCmd(r'返回')
+@requireAndroid
 def goBack():
-    return Tools().Android().goBack()
+    return Log().Android().goBack()
 
 
 @regCmd(r'屏幕内容')
+@requireAndroid
 def screenText():
-    return Tools().Android().getScreenText()
+    return Log().Android().getScreenText()
 
 
 @regCmd(r'主屏幕')
+@requireAndroid
 def goHome():
-    return Tools().Android().goHome()
+    return Log().Android().goHome()
 
 
 @regCmd(r'检查安装\s+(?P<pkgName>\S+)')
+@requireAndroid
 def isInstalled(pkgName):
-    return Tools().Android().isAppInstalled(pkgName)
+    return Log().Android().isAppInstalled(pkgName)
 
 
 @regCmd(r'安装\s+(?P<pkgName>\S+)')
+@requireAndroid
 def install(pkgName):
-    return Tools().Android().installApp(pkgName)
+    return Log().Android().installApp(pkgName)
 
 
 @regCmd(r'卸载\s+(?P<pkgName>\S+)')
+@requireAndroid
 def uninstall(pkgName):
-    return Tools().Android().uninstallApp(pkgName)
+    return Log().Android().uninstallApp(pkgName)
 
 
 @regCmd(r'启动', r'(?P<pkgName>\S+)')
+@requireAndroid
 def startApp(pkgName):
-    return Tools().Android().startApp(pkgName)
+    return Log().Android().startApp(pkgName)
 
 
 @regCmd(r'停止', r'(?P<pkgName>\S+)')
+@requireAndroid
 def stopApp(pkgName):
-    return Tools().Android().stopApp(pkgName)
+    return Log().Android().stopApp(pkgName)
 
 
 @regCmd(r'重启', r'(?P<pkgName>\S+)')
+@requireAndroid
 def restartApp(pkgName):
-    return Tools().Android().restartApp(pkgName)
+    return Log().Android().restartApp(pkgName)
 
 
 @regCmd(r'截图')
+@requireAndroid
 def captureScreen():
-    return Tools().Android().captureScreen()
+    return Log().Android().captureScreen()
 
 
 @regCmd(r'热加载', r'(?P<module_name>\w+)')
@@ -155,10 +166,10 @@ def reload(module_name):
         reload Cmds  # 重新加载命令模块
         reload CmdMgr  # 重新加载命令管理器
     """
-    Log.i(f"热加ddddd载模块: {module_name}")
+    print(f"热加载模块: {module_name}")
     try:
         if Tools().reloadModule(module_name):
-            return f"模块 {module_name} 重新加载成功"
+            return f"模块 {module_name} 重新加载成功ee"
         return f"模块 {module_name} 重新加载失败"
     except Exception as e:
         Log.ex(e, f"重新加载模块失败: {module_name}")

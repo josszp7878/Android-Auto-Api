@@ -1,6 +1,7 @@
 import re
 from logger import Log
 from tools import Tools
+import sys
 
 
 class CmdMgr:
@@ -11,16 +12,10 @@ class CmdMgr:
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
             cls._instance = super(CmdMgr, cls).__new__(cls)
+            cls._instance.cmdRegistry = {}
+            cls._instance.nameRegistry = {}
         return cls._instance
     
-    def __init__(self):
-        if not hasattr(self, 'initialized'):
-            self.cmdRegistry = {}     # 命令注册表 {cmd_pattern: (func, param_pattern)}
-            self.nameRegistry = {}    # 方法名匹配表 {method_name: (func, param_pattern)}
-            self.initialized = True
-    
-            
-
     def reg(self, cmd_pattern, param_pattern=None):
         """注册命令"""
         # 如果第一个参数是函数，说明装饰器没有参数
@@ -51,6 +46,7 @@ class CmdMgr:
         cmdParts = cmd.split(None, 1)
         cmdName = cmdParts[0].lower()
         cmdArgs = cmdParts[1] if len(cmdParts) > 1 else ""
+        Log.d(f"cmdName===> {cmdName}, cmdArgs===> {cmdArgs}")
 
         try:
             # print("\n当前命令注册表:")
@@ -82,6 +78,7 @@ class CmdMgr:
                 return "w##未知命令"
             # 2. 验证参数
             if not param_pattern:
+                Log.d(f"cmdArgs===> {cmdArgs}")
                 return func() if not cmdArgs else "w##该命令不支持参数"
             
             match = re.match(f"^{param_pattern}$", cmdArgs)
@@ -160,4 +157,41 @@ class CmdMgr:
 # 创建全局单例实例
 cmdMgr = CmdMgr()
 regCmd = cmdMgr.reg
+
+# 模块级别的热更新回调函数
+def OnPreload():
+    """热更新前保存当前命令注册状态到sys.modules"""
+    try:
+        # 保存到sys.modules['__main__']中
+        main_module = sys.modules['__main__']
+        if not hasattr(main_module, '_saved_cmd_registry'):
+            main_module._saved_cmd_registry = {}
+            main_module._saved_name_registry = {}
+        
+        # 保存当前注册表
+        main_module._saved_cmd_registry.update(cmdMgr.cmdRegistry)
+        main_module._saved_name_registry.update(cmdMgr.nameRegistry)
+        Log.i("CmdMgr保存命令注册状态到sys.modules")
+        return True
+    except Exception as e:
+        Log.ex(e, "保存命令注册状态失败")
+        return False
+
+def OnReload():
+    """热更新后从sys.modules恢复命令注册状态"""
+    try:
+        # 从sys.modules['__main__']恢复
+        main_module = sys.modules['__main__']
+        if hasattr(main_module, '_saved_cmd_registry'):
+            cmdMgr.cmdRegistry.update(main_module._saved_cmd_registry)
+            cmdMgr.nameRegistry.update(main_module._saved_name_registry)
+            Log.i("CmdMgr从sys.modules恢复命令注册状态")
+            
+            # 清理保存的状态
+            delattr(main_module, '_saved_cmd_registry')
+            delattr(main_module, '_saved_name_registry')
+        return True
+    except Exception as e:
+        Log.ex(e, "恢复命令注册状态失败")
+        return False
 
