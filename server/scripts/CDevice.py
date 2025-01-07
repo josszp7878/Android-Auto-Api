@@ -1,7 +1,9 @@
 import socketio
+import threading
 from datetime import datetime
 from pathlib import Path
 from logger import Log
+import time
 
 class CDevice:
     _instance = None  # 单例实例
@@ -34,8 +36,8 @@ class CDevice:
                 reconnection_attempts=3,
                 reconnection_delay=1,
                 reconnection_delay_max=5,
-                logger=True,
-                engineio_logger=True,
+                logger=False,
+                engineio_logger=False,
                 ssl_verify=False,  # Android环境可能需要禁用SSL验证
                 request_timeout=30
             )
@@ -61,65 +63,72 @@ class CDevice:
             
     _serverURL = None
     def connect(self, server_url=None):
+        """连接到服务器（异步方式）"""
         try:
             if not server_url:
                 server_url = self._serverURL
             else:
                 self._serverURL = server_url
             
-            # 连接到服务器，直接通过查询参数传递设备ID
             connect_url = f"{server_url}?device_id={self.deviceID}"
-            print(f"连接 URL: {connect_url}")
+            Log.i(f"开始连接: {connect_url}")
             
-            try:
-                # 添加更多连接选项
-                self.sio.connect(
-                    connect_url,
-                    transports=['websocket', 'polling'],  # 允许降级到polling
-                    wait=True,
-                    wait_timeout=10,
-                    headers={
-                        'Device-ID': self.deviceID,
-                        'Client-Type': 'Android'
-                    },
-                    auth={
-                        'device_id': self.deviceID
-                    },
-                    namespaces='/'  # 明确指定命名空间
-                )
-                
-                # 打印连接后的 sid
-                sid = self.sio.sid
-                Log.i(f'连接成功，设备ID: {self.deviceID}, SID: {sid}')
-                print(f'连接成功，SID: {sid}')
-                
-                self.connected = True
-                return True
-                
-            except socketio.exceptions.ConnectionError as e:
-                if "One or more namespaces failed to connect" in str(e):
-                    error_msg = f"设备ID '{self.deviceID}' 已被使用，请使用其他设备ID"
-                    Log.e(error_msg)
-                    print(error_msg)
-                else:
-                    Log.ex(e, '连接错误')
-                return False
+            # 使用线程进行异步连接
+            def connect_async():
+                try:
+                    self.sio.connect(
+                        connect_url,
+                        transports=['websocket', 'polling'],
+                        wait=True,
+                        wait_timeout=10,
+                        headers={
+                            'Device-ID': self.deviceID,
+                            'Client-Type': 'Android'
+                        },
+                        auth={
+                            'device_id': self.deviceID
+                        },
+                        namespaces='/'
+                    )
+                except socketio.exceptions.ConnectionError as e:
+                    if "One or more namespaces failed to connect" in str(e):
+                        error_msg = f"设备ID '{self.deviceID}' 已被使用，请使用其他设备ID"
+                        Log.e(error_msg)
+                    else:
+                        Log.ex(e, '连接错误')
+                except Exception as e:
+                    Log.ex(e, '连接过程出错')
+            
+            # 启动连接线程
+            threading.Thread(target=connect_async, daemon=True).start()
+            return True  # 返回启动连接的状态
             
         except Exception as e:
-            Log.ex(e, '连接错误')
+            Log.ex(e, '启动连接失败')
             return False
 
     def login(self):
-        # Log.i(f'设备 {self.deviceID} 登录: self.connected={self.connected}')
-        if self.connected:
-            self.sio.emit('device_login', {
-                'device_id': self.deviceID,
-                'timestamp': str(datetime.now()),
-                'status': 'login'
-            })
-            return True
-        return False
-    
+        """登录设备（带重试）"""
+        if not self.connected:
+            return False
+            
+        retry_count = 3
+        while retry_count > 0:
+            try:
+                self.sio.emit('device_login', {
+                    'device_id': self.deviceID,
+                    'timestamp': str(datetime.now()),
+                    'status': 'login'
+                })
+                return True
+            except Exception as e:
+                retry_count -= 1
+                if retry_count == 0:
+                    Log.ex(e, '登录重试失败')
+                    return False
+                Log.w(f'登录失败，剩余重试次数: {retry_count}')
+                time.sleep(1)  # 重试前等待
+
     def logout(self):
         self.sio.emit('device_logout', {
             'device_id': self.deviceID,
@@ -170,10 +179,19 @@ class CDevice:
         """连接成功回调"""
         sid = self.sio.sid
         Log.i(f'已连接到服务器, SID: {sid}')
-        print(f'客户端 SID: {sid}')
+        self.connected = True
         
-        # 连接后立即进行登录
-        self.login()
+        # 连接成功后在新线程中执行登录
+        def do_login():
+            try:
+                if self.login():
+                    Log.i("登录成功")
+                else:
+                    Log.e("登录失败")
+            except Exception as e:
+                Log.ex(e, "登录过程出错")
+        
+        threading.Thread(target=do_login, daemon=True).start()
 
     def on_connect_error(self, data):
         """连接错误回调"""
