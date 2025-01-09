@@ -2,6 +2,7 @@ package cn.vove7.andro_accessibility_api.demo
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -10,6 +11,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
+import android.os.StrictMode
 import android.provider.Settings
 import android.widget.Button
 import android.widget.EditText
@@ -40,7 +42,10 @@ class MainActivity : AppCompatActivity() {
         ActivityMainBinding.inflate(layoutInflater)
     }
 
-    private val REQUEST_CODE_PERMISSIONS = 1001
+    
+    companion object {
+        const val REQUEST_CODE_PERMISSIONS = 1001
+    }
     private val PREFS_NAME = "DevicePrefs"
     private val SERVER_NAME_KEY = "serverName"
     private val DEVICE_NAME_KEY = "deviceName"
@@ -59,6 +64,17 @@ class MainActivity : AppCompatActivity() {
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // 设置ANR监控
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            Application.getProcessName()?.let { processName ->
+                StrictMode.setThreadPolicy(StrictMode.ThreadPolicy.Builder()
+                    .detectCustomSlowCalls()
+                    .penaltyLog()
+                    .build())
+            }
+        }
+        
         setContentView(binding.root)
 
         // 初始化 PythonServices 的 Context

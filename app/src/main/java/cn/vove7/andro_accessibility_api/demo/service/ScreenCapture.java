@@ -276,11 +276,19 @@ public class ScreenCapture extends Service {
                     
             lastWidth = width;
             lastHeight = height;
+            
+            // 添加短暂延迟让 VirtualDisplay 初始化
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException e) {
+                Log.e("ScreenCapture", "Sleep interrupted", e);
+            }
+            
             Log.d("ScreenCapture", "Created new virtual display");
         }
     }
 
-    public byte[] takeScreenshot() {
+    public Image takeScreenshot() {
         Log.d("ScreenCapture", "takeScreenshot called");
         if (mediaProjection == null) {
             Log.e("ScreenCapture", "MediaProjection not initialized");
@@ -294,38 +302,28 @@ public class ScreenCapture extends Service {
 
         ensureVirtualDisplay(screenWidth, screenHeight);
 
-        Image image = null;
-        try {
-            image = imageReader.acquireLatestImage();
-            if (image == null) {
-                Log.e("ScreenCapture", "Failed to acquire image");
-                return null;
-            }
-
-            Image.Plane[] planes = image.getPlanes();
-            ByteBuffer buffer = planes[0].getBuffer();
-            int pixelStride = planes[0].getPixelStride();
-            int rowStride = planes[0].getRowStride();
-            int rowPadding = rowStride - pixelStride * screenWidth;
-
-            // Create a bitmap with the correct size
-            Bitmap bitmap = Bitmap.createBitmap(screenWidth + rowPadding / pixelStride, screenHeight, Bitmap.Config.ARGB_8888);
-            bitmap.copyPixelsFromBuffer(buffer);
-
-            ByteArrayOutputStream stream = new ByteArrayOutputStream();
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream);
-            byte[] byteArray = stream.toByteArray();
-            stream.close();
-
-            return byteArray;
-        } catch (Exception e) {
-            Log.e("ScreenCapture", "Error taking screenshot: " + e.getMessage());
-            e.printStackTrace();
-        } finally {
-            if (image != null) {
-                image.close();
+        // 添加重试机制
+        int maxAttempts = 3;
+        int attempt = 0;
+        while (attempt < maxAttempts) {
+            try {
+                // 等待一小段时间让 VirtualDisplay 准备就绪
+                Thread.sleep(100);
+                
+                Image image = imageReader.acquireLatestImage();
+                if (image != null) {
+                    Log.d("ScreenCapture", "Successfully acquired image on attempt " + (attempt + 1));
+                    return image;
+                }
+                Log.w("ScreenCapture", "Failed to acquire image on attempt " + (attempt + 1));
+                attempt++;
+            } catch (Exception e) {
+                Log.e("ScreenCapture", "Error taking screenshot on attempt " + (attempt + 1), e);
+                attempt++;
             }
         }
+        
+        Log.e("ScreenCapture", "Failed to acquire image after " + maxAttempts + " attempts");
         return null;
     }
 
@@ -407,61 +405,86 @@ public class ScreenCapture extends Service {
     }
 
 
-    private void recognizeText(Bitmap bitmap, int screenX, int screenY, OcrCallback callback) {
+    private void recognizeText(Image image, OcrCallback callback) {
         TextRecognizer recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
-        InputImage image = InputImage.fromBitmap(bitmap, 0);
+        
+        // 获取屏幕尺寸
         DisplayMetrics metrics = getResources().getDisplayMetrics();
         float screenWidth = metrics.widthPixels;
         float screenHeight = metrics.heightPixels;
 
-        recognizer.process(image)
-                .addOnSuccessListener(text -> {
-                    List<TextInfo> textInfos = new ArrayList<>();
-                    
-                    for (Text.TextBlock block : text.getTextBlocks()) {
-                        for (Text.Line line : block.getLines()) {
-                            for (Text.Element element : line.getElements()) {
-                                Rect imageBounds = element.getBoundingBox();
-                                if (imageBounds != null) {
-                                    // 计算屏幕坐标
-                                    Point screenPos = new Point(
-                                        screenX + imageBounds.left,
-                                        screenY + imageBounds.top
-                                    );
+        try {
+            // 将 Image 转换为 Bitmap
+            Image.Plane[] planes = image.getPlanes();
+            ByteBuffer buffer = planes[0].getBuffer();
+            int pixelStride = planes[0].getPixelStride();
+            int rowStride = planes[0].getRowStride();
+            int rowPadding = rowStride - pixelStride * (int)screenWidth;
 
-                                    // 计算归一化坐标 (0-1)
-                                    PointF normalizedPos = new PointF(
-                                        screenPos.x / screenWidth,
-                                        screenPos.y / screenHeight
-                                    );
+            // 创建 Bitmap
+            Bitmap bitmap = Bitmap.createBitmap((int)screenWidth + rowPadding / pixelStride, 
+                                              (int)screenHeight, 
+                                              Bitmap.Config.ARGB_8888);
+            bitmap.copyPixelsFromBuffer(buffer);
 
-                                    // 计算屏幕空间中的边界
-                                    Rect screenBounds = new Rect(
-                                        screenX + imageBounds.left,
-                                        screenY + imageBounds.top,
-                                        screenX + imageBounds.right,
-                                        screenY + imageBounds.bottom
-                                    );
+            // 使用 Bitmap 创建 InputImage
+            InputImage inputImage = InputImage.fromBitmap(bitmap, 0);
 
-                                    textInfos.add(new TextInfo(
-                                        element.getText(),
-                                        screenPos,
-                                        normalizedPos,
-                                        screenBounds
-                                    ));
+            recognizer.process(inputImage)
+                    .addOnSuccessListener(text -> {
+                        List<TextInfo> textInfos = new ArrayList<>();
+                        
+                        for (Text.TextBlock block : text.getTextBlocks()) {
+                            for (Text.Line line : block.getLines()) {
+                                for (Text.Element element : line.getElements()) {
+                                    Rect imageBounds = element.getBoundingBox();
+                                    if (imageBounds != null) {
+                                        // 计算屏幕坐标
+                                        Point screenPos = new Point(
+                                            imageBounds.left,
+                                            imageBounds.top
+                                        );
+
+                                        // 计算归一化坐标 (0-1)
+                                        PointF normalizedPos = new PointF(
+                                            screenPos.x / screenWidth,
+                                            screenPos.y / screenHeight
+                                        );
+
+                                        // 计算屏幕空间中的边界
+                                        Rect screenBounds = new Rect(
+                                            imageBounds.left,
+                                            imageBounds.top,
+                                            imageBounds.right,
+                                            imageBounds.bottom
+                                        );
+
+                                        textInfos.add(new TextInfo(
+                                            element.getText(),
+                                            screenPos,
+                                            normalizedPos,
+                                            screenBounds
+                                        ));
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    new Handler(Looper.getMainLooper()).post(() -> 
-                        callback.onTextRecognized(textInfos));
-                })
-                .addOnFailureListener(e -> {
-                    Log.e("ScreenCapture", "Error recognizing text: " + e.getMessage());
-                    new Handler(Looper.getMainLooper()).post(() -> 
-                        callback.onTextRecognized(Collections.emptyList()));
-                });
+                        bitmap.recycle();  // 释放 Bitmap
+                        new Handler(Looper.getMainLooper()).post(() -> 
+                            callback.onTextRecognized(textInfos));
+                    })
+                    .addOnFailureListener(e -> {
+                        bitmap.recycle();  // 释放 Bitmap
+                        Log.e("ScreenCapture", "Error recognizing text: " + e.getMessage());
+                        new Handler(Looper.getMainLooper()).post(() -> 
+                            callback.onTextRecognized(Collections.emptyList()));
+                    });
+        } catch (Exception e) {
+            Log.e("ScreenCapture", "Error processing image for OCR: " + e.getMessage());
+            new Handler(Looper.getMainLooper()).post(() -> 
+                callback.onTextRecognized(Collections.emptyList()));
+        }
     }
 
     private void acquireWakeLock() {
@@ -487,13 +510,58 @@ public class ScreenCapture extends Service {
     }
 
     public String captureScreen() {
-        // 使用 takeScreenshot 方法获取 byte[]
-        byte[] screenshotBytes = takeScreenshot();
-        if (screenshotBytes != null) {
-            // 将 byte[] 转换为 Base64 编码的字符串
-            return Base64.encodeToString(screenshotBytes, Base64.DEFAULT);
+        Image image = takeScreenshot();
+        if (image != null) {
+            try {
+                // 从 Image 获取数据
+                Image.Plane[] planes = image.getPlanes();
+                ByteBuffer buffer = planes[0].getBuffer();
+                int pixelStride = planes[0].getPixelStride();
+                int rowStride = planes[0].getRowStride();
+                int rowPadding = rowStride - pixelStride * image.getWidth();
+
+                // 创建 Bitmap
+                Bitmap bitmap = Bitmap.createBitmap(
+                    image.getWidth() + rowPadding / pixelStride,
+                    image.getHeight(),
+                    Bitmap.Config.ARGB_8888
+                );
+                bitmap.copyPixelsFromBuffer(buffer);
+
+                // 压缩为JPEG
+                ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream);
+                byte[] imageBytes = outputStream.toByteArray();
+                
+                // 转换为base64
+                String base64Image = Base64.encodeToString(imageBytes, Base64.NO_WRAP);
+                
+                // 添加data URI前缀
+                return "data:image/jpeg;base64," + base64Image;
+                
+            } catch (Exception e) {
+                Log.e("ScreenCapture", "Error processing image: " + e.getMessage(), e);
+            } finally {
+                image.close();
+                Log.d("ScreenCapture", "Image closed");
+            }
+        } else {
+            Log.e("ScreenCapture", "Failed to take screenshot: image is null");
         }
         return null;
+    }
+
+    public void captureScreenText(OcrCallback cb) {
+        Image image = takeScreenshot();
+        if (image != null) {
+            try {
+                recognizeText(image, cb);
+            } finally {
+                image.close();
+            }
+        } else {
+            cb.onTextRecognized(Collections.emptyList());
+        }
     }
 
 }

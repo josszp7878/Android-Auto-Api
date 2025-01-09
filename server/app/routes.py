@@ -1,4 +1,4 @@
-from flask import Blueprint, send_file, render_template, jsonify, request
+from flask import Blueprint, send_file, render_template, jsonify
 from .device_manager import DeviceManager
 from .command_history import CommandHistory
 from scripts.logger import Log

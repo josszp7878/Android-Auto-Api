@@ -1,10 +1,10 @@
-import os
 from datetime import datetime
 from pathlib import Path
 from flask import current_app
 from .models import db, DeviceModel
 from scripts.logger import Log
 import json
+import base64
 
 class SDevice:
     """设备类：管理设备状态和信息"""
@@ -14,11 +14,13 @@ class SDevice:
         self._status = 'offline'
         self.last_seen = datetime.now()
         self.info = info or {}
+        self._lastScreenshot = None
         self._ensure_screenshot_dir()
     
     def _ensure_screenshot_dir(self):
         """确保设备的截图目录存在"""
-        self.screenshot_dir = Path('app/static/screenshots') / self.device_id
+        from . import SCREENSHOTS_DIR
+        self.screenshot_dir = Path(SCREENSHOTS_DIR) / self.device_id
         self.screenshot_dir.mkdir(parents=True, exist_ok=True)
     
     @property
@@ -44,46 +46,7 @@ class SDevice:
                     # print(f'设备 {self.device_id} 状态已同步到数据库')
         except Exception as e:
             Log.ex(e, '同步设备状态到数据库出错')
-    
 
-    _lastScreenshot = '/static/screenshots/default.jpg'
-    def screenshot(self, screenshot_data):
-        """保存新的截图"""
-        try:
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f'SC{timestamp}.jpg'
-            filepath = self.screenshot_dir / filename
-            self._lastScreenshot = filepath
-            with open(filepath, 'wb') as f:
-                f.write(screenshot_data)
-            self.refresh()    
-        except Exception as e:
-            Log.ex(e, '保存截图出错')
-    
-    def to_dict(self):
-        """转换为字典格式"""
-        return {
-            'status': self.status,
-            'last_seen': self.last_seen,
-            'info': self.info,
-            'screenshot': self._lastScreenshot
-        } 
-    
-   
-    def refresh(self): 
-        try:
-            # 获取设备管理器实例
-            from .device_manager import DeviceManager
-            # 发送设备状态更新
-            # print(f'@@@@@refresh_device: {self.device_id}, {self.status}')
-            DeviceManager().emit_to_console('refresh_device', {
-                'device_id': self.device_id,
-                'status': self.status,
-                'timestamp': datetime.now().isoformat(),
-                'screenshot': self._lastScreenshot
-            })
-        except Exception as e:
-            Log.ex(e, '刷新设备状态失败')
     
     def onConnect(self):
         try:
@@ -129,3 +92,72 @@ class SDevice:
         except Exception as e:
             Log.ex(e, '设备 {self.device_id} 登出失败')
             return False    
+        
+    def to_dict(self):
+        """返回设备信息字典
+        Returns:
+            dict: {
+                deviceId: 设备ID,
+                status: 设备状态,
+                screenshot: 截图路径,
+                screenshotTime: 截图时间(HH:MM:SS)
+            }
+        """
+        # 获取截图文件的最后修改时间
+        screenshotTime = None
+        screenshotFile = None
+        
+        if self._lastScreenshot:
+            try:
+                # 获取文件时间
+                mtime = datetime.fromtimestamp(Path(self._lastScreenshot).stat().st_mtime)
+                screenshotTime = mtime.strftime('%H:%M:%S')
+                # 从绝对路径中提取相对路径(从static开始)
+                screenshotFile = '/static' + str(self._lastScreenshot).replace('\\', '/').split('static')[1]
+            except Exception as e:
+                Log.ex(e, '获取截图时间失败')
+        
+        return {
+            'deviceId': self.device_id,
+            'status': self.status,
+            'screenshot': screenshotFile,
+            'screenshotTime': screenshotTime
+        }
+    
+    def refresh(self): 
+        try:
+            from .device_manager import DeviceManager
+            DeviceManager().emit2Console('refresh_device', self.to_dict())
+        except Exception as e:
+            Log.ex(e, '刷新设备状态失败')    
+        
+    def saveScreenshot(self, base64_data):
+        """保存截图并刷新设备信息
+        Args:
+            base64_data: Base64编码的图片数据
+        Returns:
+            str: 保存成功返回截图路径,失败返回None
+        """
+        try:
+            # 解码base64数据
+            image_data = base64_data.split(',', 1)[1]
+            image_bytes = base64.b64decode(image_data)            
+            # 确保目录存在
+            self._ensure_screenshot_dir()
+            
+            # 生成文件名
+            filename = datetime.now().strftime('%Y%m%d_%H%M%S.jpg')
+            file_path = self.screenshot_dir / filename
+            # 保存文件
+            with open(file_path, 'wb') as f:
+                f.write(image_bytes)
+            Log.i(f'保存截图: {file_path}')
+            
+            # 更新截图路径，保存为字符串形式的相对路径
+            self._lastScreenshot = file_path
+            # 直接刷新设备信息到前端
+            self.refresh()
+            return True
+        except Exception as e:
+            Log.ex(e, "保存截图失败")
+            return False

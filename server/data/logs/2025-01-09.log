@@ -1,0 +1,39 @@
+17:13:35##@##i##服务器正在关闭
+17:16:42##@##i##服务器启动
+17:16:51##访问首页##i##Server
+17:16:51##@##i##从数据库加载了 1 个设备
+17:16:51##@##i##添加控制台连接: 5xTtkfqsQbDsMy4oAAAB
+17:17:26##处理时间戳请求##i##Server
+17:17:29##DeviceManager##i##更新设备 <Device 看看>
+17:17:29##@##i##设备 看看 已连接
+17:17:29##@##i##设备 看看 登录
+17:17:30##@##i##设备 看看 登录
+17:17:26##看看##i##登录成功
+17:17:44##@##i##收到命令请求: {'device_id': '看看', 'command': 'captureS'}
+17:17:45##@##i##保存截图: E:\Project\Android-Auto-Api\server\app\static\screenshots\看看\20250109_171745.jpg
+17:17:45##@##e##获取截图时间失败 Exception: 'WindowsPath' object has no attribute 'split', Traceback (most recent call last):
+  File "E:\Project\Android-Auto-Api\server\app\SDevice.py", line 116, in to_dict
+    screenshotFile = '/static' + self._lastScreenshot.split('static')[1]
+AttributeError: 'WindowsPath' object has no attribute 'split'
+17:23:46##@##i##服务器正在关闭
+17:23:58##@##i##服务器启动
+17:23:58##@##i##添加控制台连接: ipeucuzONq5wwq9tAAAB
+17:23:59##@##i##从数据库加载了 1 个设备
+17:23:59##DeviceManager##i##更新设备 <Device 看看>
+17:24:00##@##i##设备 看看 已连接
+17:24:00##@##i##设备 看看 登录
+17:24:00##@##i##Client disconnected: nhPvVyarNRbZ9ap9AAAD
+17:24:00##@##i##设备 看看 已断开连接
+17:24:02##DeviceManager##i##更新设备 <Device 看看>
+17:24:03##@##i##设备 看看 已连接
+17:24:03##@##i##设备 看看 登录
+17:24:03##@##i##Client disconnected: dhTxKgxosENvOCntAAAF
+17:24:04##@##i##设备 看看 已断开连接
+17:24:07##DeviceManager##i##更新设备 <Device 看看>
+17:24:08##@##i##设备 看看 已连接
+17:24:08##@##i##设备 看看 登录
+17:24:08##@##i##设备 看看 登录
+17:24:05##看看##i##登录成功
+17:24:13##@##i##收到命令请求: {'device_id': '看看', 'command': 'captureS'}
+17:24:14##@##i##保存截图: E:\Project\Android-Auto-Api\server\app\static\screenshots\看看\20250109_172414.jpg
+17:40:48##@##i##服务器正在关闭

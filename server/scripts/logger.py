@@ -45,20 +45,7 @@ class Log:
         except Exception as e:
             self._android = None
         print(f'self._android = {self._android}')
-
-        # 确定日志目录
-        if self.isAndroid():
-            # 在应用私有目录下创建 logs 目录，并确保目录存在
-            log_dir = Path(self.Android.getFilesDir("logs", True))
-        else:
-            log_dir = Path("logs")
-            log_dir.mkdir(parents=True, exist_ok=True)
-
-        print(f"日志目录@@@@@: {log_dir}")
-        
-        self._log_dir = log_dir  # 保存日志目录路径
-        self._initialized = True
-        
+        self._initialized = True        
         if is_server:
             self._load()
         return self
@@ -73,7 +60,8 @@ class Log:
         """获取日志文件路径"""
         if date is None:
             date = datetime.now().strftime('%Y-%m-%d')
-        return self._log_dir / f"{date}.log"  # 使用保存的日志目录路径
+        from app import APP_LOGS
+        return Path(APP_LOGS) / f"{date}.log"  # 使用保存的日志目录路径
     
     def _load(self, date=None):
         """从文件加载日志到缓存"""
@@ -242,15 +230,13 @@ class Log:
         Log()._log(message, 'e', tag)
 
     @classmethod
-    def printEx(cls, message, e=None, tag=None):
+    def formatEx(cls, message, e=None, tag=None):
         import traceback
-        message = f'{message} Exception: {e}, {traceback.format_exc()}'
-        print(message)     
+        return f'{message} Exception: {e}, {traceback.format_exc()}'
         
     @classmethod
     def ex(cls, e, message, tag=None):
-        import traceback
-        message = f'{message} Exception: {e}, {traceback.format_exc()}'
+        message = cls.formatEx(message, e, tag)
         print(message)
         Log()._log(message, 'e', tag)     
     

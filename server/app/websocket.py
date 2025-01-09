@@ -82,7 +82,7 @@ def handle_login(data):
         return
     ok = device.login()
     # 向设备发送结果
-    emit('command_result', {'result': ok}, room=device.info['sid'])
+    emit('S2B_CmdResult', {'result': ok}, room=device.info['sid'])
 
 
 @socketio.on('device_logout')
@@ -96,13 +96,13 @@ def handle_logout(data):
     ret = False
     if device:
         ret = device.logout()
-    emit('command_result', {'result': ret}, room=device.info['sid'])
+    emit('S2C_CmdResult', {'result': ret}, room=device.info['sid'])
     return ret
 
 
 
-@socketio.on('send_command')
-def handle_command(data):
+@socketio.on('B2S_DoCmd')
+def handle_B2S_DoCmd(data):
     """处理命令请求"""
     Log.i(f'收到命令请求: {data}')
     device_id = data.get('device_id')
@@ -110,41 +110,23 @@ def handle_command(data):
     SCommand.execute(device_id, command)
 
 
-@socketio.on('command_response')
-def handle_command_response(data):
+@socketio.on('C2S_CmdResult')
+def handle_C2S_CmdResult(data):
     """处理命令响应"""
-    try:
-        result = data.get('result')
-        device_id = data.get('device_id')
-        level = data.get('level', 'info')
-        print(f'收到命令响应: {device_id} result= {result}')
-        
-        response = SCommand.handle_response(device_id, result, level)
-        if not response['success']:
-            deviceMgr.emit_to_console('error', {'message': response['error']})
-            return
-        deviceMgr.emit_to_console('command_result', {
-            'result': response['result'],
-            'command_id': response['command_id'],
-            'level': response['level'],
-            'device_id': response['device_id']
-        })
-    except Exception as e:
-        Log.ex(e, '处理命令响应出错')
-        deviceMgr.emit_to_console('error', {'message': '处理响应失败'})
+    SCommand.handCmdResult(data)
 
 
-@socketio.on('update_screenshot')
-def handle_screenshot(data):
+@socketio.on('C2S_UpdateScreenshot')
+def handle_C2S_UpdateScreenshot(data):
     """处理设备截图更新"""
     device_id = data.get('device_id')
-    screenshot_data = data.get('screenshot')  # 应该是base64或二进制数据
+    screenshot_data = data.get('screenshot')
     if screenshot_data is None:
         return
     device = deviceMgr.get_device(device_id)
     if device is None:
         return
-    device.save_screenshot(screenshot_data)
+    device.saveScreenshot(screenshot_data)  # 保存后会自动刷新前端
 
 
 @socketio.on('load_command_history')
@@ -157,10 +139,10 @@ def handle_load_history(data):
     try:
         Log.i(f'加载设备 {device_id} 的历史记录, 页码: {page}')
         response_data = CommandHistory.getHistory(device_id, page, per_page)
-        deviceMgr.emit_to_console('command_history', response_data)
+        deviceMgr.emit2Console('command_history', response_data)
     except Exception as e:
         Log.ex(e, '加载命令历史出错')
-        deviceMgr.emit_to_console('error', {'message': '加载历史记录失败'})
+        deviceMgr.emit2Console('error', {'message': '加载历史记录失败'})
 
 
 @socketio.on('set_current_device')
@@ -176,7 +158,7 @@ def handle_set_current_device(data):
 def handle_C2S_Log(data):
     """处理客户端日志"""
     message = data.get('message')
-    print(f'$$$$收到客户端日志: {message}')
+    # print(f'$$$$收到客户端日志: {message}')
     Log().add(message)
 
 
@@ -188,27 +170,27 @@ def handle_B2S_GetLogs(data=None):
     Log.show(page=page)
 
 
-@socketio.on('command_result')
-def handle_command_result(data):
-    """处理命令执行结果"""
-    try:
-        command_id = data.get('command_id')
-        result = data.get('result', '')
-        device_id = data.get('device_id')
+# @socketio.on('command_result')
+# def handle_command_result(data):
+#     """处理命令执行结果"""
+#     try:
+#         command_id = data.get('command_id')
+#         result = data.get('result', '')
+#         device_id = data.get('device_id')
         
-        # 使用 CommandHistory 类处理结果
-        CommandHistory.add(command_id, result, device_id)
-        deviceMgr.emit_to_console('command_result', {
-                'result': result,
-                'device_id': device_id
-            })
+#         # 使用 CommandHistory 类处理结果
+#         CommandHistory.add(command_id, result, device_id)
+#         deviceMgr.emit2Console('command_result', {
+#                 'result': result,
+#                 'device_id': device_id
+#             })
             
-    except Exception as e:
-        Log.ex(e, '处理命令结果出错')
+#     except Exception as e:
+#         Log.ex(e, '处理命令结果出错')
 
 
-@socketio.on('command')
-def handle_command(data):
-    # ... 其他代码 ...
-    result = doCmd(cmd)
-    emit('response', {'result': result})
+# @socketio.on('command')
+# def handle_command(data):
+#     # ... 其他代码 ...
+#     result = doCmd(cmd)
+#     emit('response', {'result': result})

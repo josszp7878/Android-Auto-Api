@@ -20,6 +20,10 @@ import kotlinx.coroutines.runBlocking
 import timber.log.Timber
 import java.io.File
 import com.chaquo.python.PyObject
+import java.util.concurrent.CompletableFuture
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import androidx.core.content.PackageManagerCompat
 
 /**
  * Python服务接口的Kotlin实现
@@ -94,18 +98,36 @@ class PythonServices {
 
         /**
          * 获取屏幕上的所有文本
-         * 使用ScreenTextFinder实现
+         * 使用 ScreenCapture 的文字识别功能
+         * @return List<TextInfo> Python端可以直接处理的文本信息列表
          */
+        @SuppressLint("NewApi")
         @JvmStatic
-        fun getScreenText(): String {
-            Timber.tag(TAG).i("Get screen text")
+        fun getScreenText(): List<Map<String, Any>> {
+            Timber.tag(TAG).i("Get screen text using OCR")
             return try {
-                runBlocking {
-                    ScreenTextFinder().find().joinToString("\n\n")
+                val future = CompletableFuture<List<ScreenCapture.TextInfo>>()
+                
+                ScreenCapture.getInstance().captureScreenText { textInfoList ->
+                    future.complete(textInfoList ?: emptyList())
+                }
+                
+                val result = future.get(10, java.util.concurrent.TimeUnit.SECONDS)
+                
+                result.map { textInfo ->
+                    mapOf(
+                        "text" to textInfo.text,
+                        "x" to textInfo.screenPosition.x,
+                        "y" to textInfo.screenPosition.y,
+                        "left" to textInfo.bounds.left,
+                        "top" to textInfo.bounds.top,
+                        "right" to textInfo.bounds.right,
+                        "bottom" to textInfo.bounds.bottom
+                    )
                 }
             } catch (e: Exception) {
                 Timber.tag(TAG).e(e, "Get screen text failed")
-                return ""
+                emptyList()
             }
         }
 
@@ -262,13 +284,7 @@ class PythonServices {
             Timber.tag(TAG).i("Taking screenshot using ScreenCapture service")
             return try {
                 // 调用新的全屏截图方法
-                val data = ScreenCapture.getInstance().takeScreenshot()
-                if (data != null) {
-                    // 返回 Base64 编码的字符串
-                    Base64.encodeToString(data, Base64.DEFAULT)
-                } else {
-                    "截屏失败"
-                }
+                return ScreenCapture.getInstance().captureScreen()
             } catch (e: SecurityException) {
                 Timber.tag(TAG).e(e, "权限不足，无法截屏")
                 "截屏失败: 权限不足"
@@ -353,6 +369,44 @@ class PythonServices {
                 }
             }.start()
             return true  // 返回值表示是否成功启动下载
+        }
+
+        /**
+         * 唤起应用切换界面
+         */
+        @JvmStatic
+        fun showRecentApps(): Boolean {
+            Timber.tag(TAG).i("Show recent apps")
+            return try {
+                // 使用 AutoApi 调用系统的最近任务界面
+                AutoApi.recents()
+                
+                // 等待界面切换
+                Thread.sleep(200)
+                
+                // 检查是否成功切换到最近任务界面
+                val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    val currentApp = am.appTasks.firstOrNull()?.taskInfo?.topActivity?.packageName
+                    val isRecentScreen = currentApp?.contains("systemui") == true || 
+                                       currentApp?.contains("launcher") == true
+                    Timber.tag(TAG).d("Current app after showing recents: %s", currentApp)
+                    isRecentScreen
+                } else {
+                    true
+                }
+            } catch (e: Exception) {
+                Timber.tag(TAG).e(e, "Show recent apps failed")
+                false
+            }
+        }
+
+        fun checkPermission(permission: String): Boolean {
+            return ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED;
+        }
+
+        fun requestPermission(permission: String) {
+            ActivityCompat.requestPermissions(context, arrayOf(permission), MainActivity.REQUEST_CODE_PERMISSIONS);
         }
     }
         

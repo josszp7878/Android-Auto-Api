@@ -166,6 +166,6 @@ class DeviceManager:
         """获取所有控制台的 SID"""
         return list(self.console_sids)
 
-    def emit_to_console(self, event, data):
+    def emit2Console(self, event, data):
         for sid in self.console_sids:
             emit(event, data, room=sid)

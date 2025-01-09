@@ -58,7 +58,7 @@
             },
             mounted() {
                 this.socket = io();
-                this.socket.on('command_result', (data) => {
+                this.socket.on('C2S_CmdResult', (data) => {
                     console.log('收到命令响应:', data);
                     this.commandResult = data;
                 });
@@ -67,7 +67,7 @@
                 sendCommand() {
                     if (!this.command) return;
                     console.log('发送命令:', this.command);
-                    this.socket.emit('send_command', {
+                    this.socket.emit('B2S_DoCmd', {
                         device_id: this.device_id,
                         command: this.command
                     });

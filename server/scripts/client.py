@@ -60,7 +60,7 @@ class Client:
             except Exception as e:
                 log.ex(e, '发生错误')
         except Exception as e:
-            log.e(f"初始化失败: {e}")
+            log.ex(e, '初始化失败')
         finally:
             self.End()
     

@@ -16,13 +16,15 @@ class CommandHistory(db.Model):
     response_time = db.Column(db.DateTime)             # 响应时间
 
     @classmethod
-    def create(cls, sender, target, command, level='info'):
+    def create(cls, sender, target, command, level='info', response=None):
         """创建新的命令记录"""
         history = cls(
             sender=sender,
             target=target,
             command=command,
-            level=level
+            level=level,
+            response=response,
+            response_time=datetime.now()
         )
         db.session.add(history)
         db.session.commit()

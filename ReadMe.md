@@ -303,3 +303,20 @@ git push origin main
 - `server/app/static/js/dashboard.js`: 优化命令处理逻辑
 - `server/app/templates/index.html`: 更新显示模板
 - `server/app/command_history.py`: 增加响应级别处理
+
+### 截图功能优化
+
+1. 截图保存与显示
+- 支持实时截图保存到服务器
+- 自动更新设备监控界面的截图显示
+- 使用时间戳命名避免缓存问题
+
+2. 数据处理优化  
+- 支持 base64 格式的图片数据
+- 添加数据格式校验
+- 优化图片存储路径管理
+
+3. 界面交互改进
+- 实时刷新设备截图
+- 添加图片加载状态提示
+- 支持点击查看大图

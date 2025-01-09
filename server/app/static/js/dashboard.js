@@ -32,12 +32,6 @@ class Dashboard {
                     // 直接返回时间字符串
                     return time || '未知';
                 },
-                updateDeviceList(devices) {
-                    console.log('设备列表更新:', devices);
-                    const selected = this.selectedDevice;
-                    this.devices = devices;
-                    this.selectedDevice = selected;
-                },
                 selectDevice(deviceId) {
                     const oldDevice = this.selectedDevice;
                     this.selectedDevice = this.selectedDevice === deviceId ? null : deviceId;
@@ -122,7 +116,7 @@ class Dashboard {
                     });
 
                     this.updateLastActivity();
-                    this.socket.emit('send_command', {
+                    this.socket.emit('B2S_DoCmd', {
                         device_id: deviceId,
                         command: this.commandInput
                     });
@@ -314,15 +308,9 @@ class Dashboard {
                     this.$nextTick(this.scrollToBottom);
                 });
                 
-                this.socket.on('command_result', (data) => {
-                    const resultText = data.result || '';
-                    let level = 'i';
-                    let content = resultText;
-                    
-                    // 解析响应格式
-                    if(resultText.includes('##')) {
-                        [level, content] = resultText.split('##');
-                    }
+                this.socket.on('S2B_CmdResult', (data) => {
+                    const content = data.result || '';
+                    let level = data.level || 'i';
                     
                     // 更新最后一条命令的响应
                     if (this.commandLogs.length > 0) {
@@ -470,24 +458,19 @@ class Dashboard {
 
                 // 添加设备状态更新处理
                 this.socket.on('refresh_device', (data) => {
-                    if (!this.devices[data.device_id]) {
-                        console.log('创建新设备:', data);
-                        // 使用 Vue.set 添加新设备以确保响应式
-                        this.$set(this.devices, data.device_id, {
+                    if (!this.devices[data.deviceId]) {  // 注意这里使用 deviceId
+                        // 创建新设备，只包含后端提供的字段
+                        this.$set(this.devices, data.deviceId, {
                             status: data.status,
-                            last_seen: data.timestamp,
                             screenshot: data.screenshot,
-                            info: {}  // 添加必要的初始属性
+                            screenshotTime: data.screenshotTime
                         });
                     } else {
-                        // 更新现有设备的属性
-                        const device = this.devices[data.device_id];
-                        // 使用 Vue.set 确保响应式更新
+                        // 更新现有设备
+                        const device = this.devices[data.deviceId];
                         this.$set(device, 'status', data.status);
-                        this.$set(device, 'last_seen', data.timestamp);
                         this.$set(device, 'screenshot', data.screenshot);
-                        
-                        console.log('设备更新后:', device);  // 添加调试日志
+                        this.$set(device, 'screenshotTime', data.screenshotTime);
                     }
                 });
 

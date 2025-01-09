@@ -44,7 +44,8 @@ class CDevice:
             
             # 注册事件处理器
             self.sio.on('connect')(self.on_connect)
-            self.sio.on('clientCommand')(self.on_command)
+            self.sio.on('S2C_DoCmd')(self.onS2C_DoCmd)
+            self.sio.on('S2C_CmdResult')(self.onS2C_CmdResult)
             self.sio.on('disconnect')(self.on_disconnect)
             self.sio.on('connect_error')(self.on_connect_error)
             
@@ -138,43 +139,30 @@ class CDevice:
     
 
     
-    def on_command(self, data):
+    def onS2C_DoCmd(self, data):
         """处理客户端收到的命令"""
         try:
             command = data.get('command')
-            command_id = data.get('command_id')
-            print(f'正在处理命令: {command}, ID: {command_id}')
-            # Log.i(f'正在处理命令: {command}, ID: {command_id}')
-            
+            print(f'正在处理命令: {command}')
             # 使用 CmdMgr 执行命令
             from CmdMgr import CmdMgr
-            result = CmdMgr().do(command)
+            result, cmdName = CmdMgr().do(command)
             
-            # print(f'客户端执行命令结果: {result}')
-            
-            # 发送响应
-            if result is not None:
-                response = {
-                    'command_id': command_id,
-                    'device_id': self.deviceID,
-                    'result': result
-                }
-                self.sio.emit('command_result', response)
-                
+            self.sio.emit('C2S_CmdResult', {
+                'result': result,
+                'device_id': self.deviceID,
+                'command': command,
+                'cmdName': cmdName
+            })
         except Exception as e:
-            error_msg = f'执行命令出错: {e}'
-            Log.ex(e, '执行命令出错')
-            if self.connected:
-                self.sio.emit('command_result', {
-                    'command_id': data.get('command_id'),
-                    'result': error_msg,
-                    'device_id': self.deviceID
-                })
-
-    def on_command_result(self, data):
-        """处理命令结果"""
-        Log.i(f'命令结果: {data["result"]}')
-
+            result = Log.formatEx(f'执行命令出错: {e}')
+            self.sio.emit('C2S_CmdResult', {
+                'result': result,
+                'device_id': self.deviceID,
+                'command': command,
+                'cmdName': None
+            })
+    
     def on_connect(self):
         """连接成功回调"""
         sid = self.sio.sid
@@ -205,13 +193,8 @@ class CDevice:
     def send_command(self, cmd):
         """发送命令到服务器"""
         Log.i(f'TODO:发送命令到服务器: {cmd}')
-        # if not self.connected:
-        #     print('未连接到服务器')
-        #     return False
-        
-        # response = {
-        #     'status': 'success',
-        #     'result': f'执行命令: {cmd}'
-        # }
-        # self.sio.emit('command_response', response)
         return True
+    
+    def onS2C_CmdResult(self, data):
+        print(f'结果: {data["result"]}')
+ 

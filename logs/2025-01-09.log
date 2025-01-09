@@ -1,0 +1,709 @@
+09:28:28##@##i##服务器启动
+09:28:28##访问首页##i##Server
+09:28:28##@##i##从数据库加载了 7 个设备
+09:29:16##处理时间戳请求##i##Server
+09:29:16##处理脚本文件请求: CmdMgr.py##i##Server
+09:29:19##DeviceManager##i##更新设备 <Device ff>
+09:29:20##@##i##设备 ff 已连接
+09:29:20##@##i##设备 ff 登录
+09:29:20##@##i##设备 ff 登录
+09:29:19##ff##i##登录成功
+09:29:23##访问首页##i##Server
+09:29:24##@##i##添加控制台连接: bUqsjCbPg0hUK6rQAAAD
+09:29:36##@##i##收到命令请求: {'device_id': 'ff', 'command': 'captureS'}
+09:35:03##@##i##收到命令请求: {'device_id': 'ff', 'command': 'reload Cmds'}
+09:35:03##处理脚本文件请求: Cmds.py##i##Server
+09:35:02##ff##w##Cmds模块热更新 onPreload
+09:35:02##ff##w##Cmds模块热更新 OnReload
+09:35:02##ff##i##重新加载模块成功: Cmds
+09:35:08##@##i##收到命令请求: {'device_id': 'ff', 'command': 'captureS'}
+09:35:07##ff##e##保存测试截图失败 Exception: [Errno 30] Read-only file system: 'test_screenshots', Traceback (most recent call last):
+  File "/data/user/0/cn.vove7.andro_accessibility_api.demo/files/scripts/Cmds.py", line 200, in captureScreen
+    os.makedirs(save_dir)
+  File "stdlib/os.py", line 223, in makedirs
+OSError: [Errno 30] Read-only file system: 'test_screenshots'
+09:38:38##@##i##收到命令请求: {'device_id': 'ff', 'command': 'captureS'}
+09:38:38##ff##e##保存测试截图失败 Exception: [Errno 30] Read-only file system: 'test_screenshots', Traceback (most recent call last):
+  File "/data/user/0/cn.vove7.andro_accessibility_api.demo/files/scripts/Cmds.py", line 200, in captureScreen
+    os.makedirs(save_dir)
+  File "stdlib/os.py", line 223, in makedirs
+OSError: [Errno 30] Read-only file system: 'test_screenshots'
+09:39:00##@##i##收到命令请求: {'device_id': 'ff', 'command': 'reload Cmds'}
+09:39:00##处理脚本文件请求: Cmds.py##i##Server
+09:38:59##ff##w##Cmds模块热更新 onPreload
+09:38:59##ff##w##Cmds模块热更新 OnReload
+09:38:59##ff##i##重新加载模块成功: Cmds
+09:39:04##@##i##收到命令请求: {'device_id': 'ff', 'command': 'captureS'}
+09:39:03##ff##i##测试截图已保存到: /data/user/0/cn.vove7.andro_accessibility_api.demo/files/test_screenshots/test_screenshot_20250109_093903.jpg
+09:39:03##ff##i##截图文件大小: 9574400 字节
+09:45:13##@##i##收到命令请求: {'device_id': 'ff', 'command': 'reload Cmds'}
+09:45:14##处理脚本文件请求: Cmds.py##i##Server
+09:45:13##ff##w##Cmds模块热更新 onPreload
+09:45:13##ff##w##Cmds模块热更新 OnReload
+09:45:13##ff##i##重新加载模块成功: Cmds
+09:45:25##@##i##收到命令请求: {'device_id': 'ff', 'command': 'captureS'}
+09:45:25##ff##e##保存测试截图失败 Exception: type object 'PythonServices' has no attribute 'getExternalStoragePublicDirectory', Traceback (most recent call last):
+  File "/data/user/0/cn.vove7.andro_accessibility_api.demo/files/scripts/Cmds.py", line 191, in captureScreen
+    save_dir = android.getExternalStoragePublicDirectory('Pictures/AutoApi')  # 或者用 'DCIM/AutoApi'
+  File "class.pxi", line 142, in java.chaquopy.JavaClass.__getattribute__
+AttributeError: type object 'PythonServices' has no attribute 'getExternalStoragePublicDirectory'
+09:46:33##@##i##收到命令请求: {'device_id': 'ff', 'command': 'reload Cmds'}
+09:46:33##处理脚本文件请求: Cmds.py##i##Server
+09:46:32##ff##w##Cmds模块热更新 onPreload
+09:46:32##ff##w##Cmds模块热更新 OnReload
+09:46:32##ff##i##重新加载模块成功: Cmds
+09:46:36##@##i##收到命令请求: {'device_id': 'ff', 'command': 'captureS'}
+09:46:36##ff##e##保存测试截图失败 Exception: [Errno 13] Permission denied: '/storage/emulated/0/Pictures/AutoApi', Traceback (most recent call last):
+  File "/data/user/0/cn.vove7.andro_accessibility_api.demo/files/scripts/Cmds.py", line 192, in captureScreen
+    os.makedirs(save_dir, exist_ok=True)
+  File "stdlib/os.py", line 223, in makedirs
+PermissionError: [Errno 13] Permission denied: '/storage/emulated/0/Pictures/AutoApi'
+09:49:36##@##i##收到命令请求: {'device_id': 'ff', 'command': 'reload Cmds'}
+09:49:37##处理脚本文件请求: Cmds.py##i##Server
+09:49:36##ff##w##Cmds模块热更新 onPreload
+09:49:36##ff##w##Cmds模块热更新 OnReload
+09:49:36##ff##i##重新加载模块成功: Cmds
+09:49:40##@##i##收到命令请求: {'device_id': 'ff', 'command': 'captureS'}
+09:49:39##ff##e##保存测试截图失败 Exception: [Errno 13] Permission denied: '/sdcard/DCIM/AutoApi', Traceback (most recent call last):
+  File "/data/user/0/cn.vove7.andro_accessibility_api.demo/files/scripts/Cmds.py", line 192, in captureScreen
+    os.makedirs(save_dir, exist_ok=True)
+  File "stdlib/os.py", line 223, in makedirs
+PermissionError: [Errno 13] Permission denied: '/sdcard/DCIM/AutoApi'
+09:57:53##@##i##收到命令请求: {'device_id': 'ff', 'command': 'captureS'}
+09:57:53##ff##e##保存测试截图失败 Exception: [Errno 13] Permission denied: '/sdcard/DCIM/AutoApi', Traceback (most recent call last):
+  File "/data/user/0/cn.vove7.andro_accessibility_api.demo/files/scripts/Cmds.py", line 192, in captureScreen
+    os.makedirs(save_dir, exist_ok=True)
+  File "stdlib/os.py", line 223, in makedirs
+PermissionError: [Errno 13] Permission denied: '/sdcard/DCIM/AutoApi'
+09:58:49##@##i##收到命令请求: {'device_id': 'ff', 'command': 'reload Cmds'}
+09:58:49##处理脚本文件请求: Cmds.py##i##Server
+09:58:48##ff##w##Cmds模块热更新 onPreload
+09:58:48##ff##w##Cmds模块热更新 OnReload
+09:58:48##ff##i##重新加载模块成功: Cmds
+09:58:52##@##i##收到命令请求: {'device_id': 'ff', 'command': 'captureS'}
+09:58:52##ff##e##保存测试截图失败 Exception: type object 'PythonServices' has no attribute 'getExternalFilesDir', Traceback (most recent call last):
+  File "/data/user/0/cn.vove7.andro_accessibility_api.demo/files/scripts/Cmds.py", line 191, in captureScreen
+    save_dir = androidServices.getExternalFilesDir('screenshots')  # 获取应用的外部文件目录
+  File "class.pxi", line 142, in java.chaquopy.JavaClass.__getattribute__
+AttributeError: type object 'PythonServices' has no attribute 'getExternalFilesDir'
+10:00:13##@##i##收到命令请求: {'device_id': 'ff', 'command': 'reload Cmds'}
+10:00:13##处理脚本文件请求: Cmds.py##i##Server
+10:00:12##ff##w##Cmds模块热更新 onPreload
+10:00:12##ff##w##Cmds模块热更新 OnReload
+10:00:12##ff##i##重新加载模块成功: Cmds
+10:00:15##@##i##收到命令请求: {'device_id': 'ff', 'command': 'captureS'}
+10:00:15##ff##e##保存测试截图失败 Exception: [Errno 2] No such file or directory: '/storage/emulated/0/Android/data/cn.vove7.andro_accessibility_api.demo/files/screenshots/test_screenshot_20250109_100015.jpg', Traceback (most recent call last):
+  File "/data/user/0/cn.vove7.andro_accessibility_api.demo/files/scripts/Cmds.py", line 198, in captureScreen
+    with open(filepath, 'wb') as f:
+FileNotFoundError: [Errno 2] No such file or directory: '/storage/emulated/0/Android/data/cn.vove7.andro_accessibility_api.demo/files/screenshots/test_screenshot_20250109_100015.jpg'
+10:01:02##@##i##收到命令请求: {'device_id': 'ff', 'command': 'reload Cmds'}
+10:01:03##处理脚本文件请求: Cmds.py##i##Server
+10:01:02##ff##w##Cmds模块热更新 onPreload
+10:01:02##ff##w##Cmds模块热更新 OnReload
+10:01:02##ff##i##重新加载模块成功: Cmds
+10:01:04##@##i##收到命令请求: {'device_id': 'ff', 'command': 'captureS'}
+10:01:04##ff##e##保存测试截图失败 Exception: [Errno 13] Permission denied: '/storage/emulated/0/Android/data/cn.vove7.andro_accessibility_api.demo', Traceback (most recent call last):
+  File "/data/user/0/cn.vove7.andro_accessibility_api.demo/files/scripts/Cmds.py", line 193, in captureScreen
+    os.makedirs(save_dir, exist_ok=True)
+  File "stdlib/os.py", line 213, in makedirs
+  File "stdlib/os.py", line 213, in makedirs
+  File "stdlib/os.py", line 223, in makedirs
+PermissionError: [Errno 13] Permission denied: '/storage/emulated/0/Android/data/cn.vove7.andro_accessibility_api.demo'
+10:04:14##@##i##收到命令请求: {'device_id': 'ff', 'command': 'reload Cmds'}
+10:04:15##处理脚本文件请求: Cmds.py##i##Server
+10:04:14##ff##w##Cmds模块热更新 onPreload
+10:04:14##ff##w##Cmds模块热更新 OnReload
+10:04:14##ff##i##重新加载模块成功: Cmds
+10:04:17##@##i##收到命令请求: {'device_id': 'ff', 'command': 'captureS'}
+10:04:17##ff##i##当前目录: /data/user/0/cn.vove7.andro_accessibility_api.demo/files/scripts
+10:04:17##ff##i##测试截图已保存到: /data/user/0/cn.vove7.andro_accessibility_api.demo/files/scripts/test_screenshot_20250109_100417.jpg
+10:04:17##ff##i##截图文件大小: 9574400 字节
+10:05:18##@##i##收到命令请求: {'device_id': 'ff', 'command': 'reload Cmds'}
+10:05:19##处理脚本文件请求: Cmds.py##i##Server
+10:05:18##ff##w##Cmds模块热更新 onPreload
+10:05:18##ff##w##Cmds模块热更新 OnReload
+10:05:18##ff##i##重新加载模块成功: Cmds
+10:05:22##@##i##收到命令请求: {'device_id': 'ff', 'command': 'captureS'}
+10:05:21##ff##e##保存测试截图失败 Exception: [Errno 13] Permission denied: '/storage/emulated/0/Download/AutoApi', Traceback (most recent call last):
+  File "/data/user/0/cn.vove7.andro_accessibility_api.demo/files/scripts/Cmds.py", line 190, in captureScreen
+    os.makedirs(save_dir, exist_ok=True)
+  File "stdlib/os.py", line 223, in makedirs
+PermissionError: [Errno 13] Permission denied: '/storage/emulated/0/Download/AutoApi'
+10:10:26##@##i##Client disconnected: LSKRPwFqYU3xz9FeAAAB
+10:10:26##@##i##设备 ff 已断开连接
+10:15:38##处理时间戳请求##i##Server
+10:15:38##处理脚本文件请求: CDevice.py##i##Server
+10:15:39##处理脚本文件请求: client.py##i##Server
+10:15:39##处理脚本文件请求: CMain.py##i##Server
+10:15:39##处理脚本文件请求: CmdMgr.py##i##Server
+10:15:39##处理脚本文件请求: Cmds.py##i##Server
+10:15:39##处理脚本文件请求: logger.py##i##Server
+10:15:39##处理脚本文件请求: SCommand.py##i##Server
+10:15:39##处理脚本文件请求: tools.py##i##Server
+10:15:41##@##i##添加设备: 呵呵
+10:15:41##DeviceManager##i##更新设备 <Device 呵呵>
+10:15:42##@##i##设备 呵呵 已连接
+10:15:42##@##i##设备 呵呵 登录
+10:15:42##@##i##设备 呵呵 登录
+10:16:28##呵呵##i##登录成功
+10:16:03##@##i##收到命令请求: {'device_id': '呵呵', 'command': 'captreS'}
+10:17:03##@##i##收到命令请求: {'device_id': '呵呵', 'command': 'captureS'}
+10:17:49##呵呵##e##截图失败 Exception: type object 'PythonServices' has no attribute 'checkPermission', Traceback (most recent call last):
+  File "/data/user/0/cn.vove7.andro_accessibility_api.demo/files/scripts/Cmds.py", line 172, in captureScreen
+    if not androidServices.checkPermission("android.permission.WRITE_EXTERNAL_STORAGE"):
+  File "class.pxi", line 142, in java.chaquopy.JavaClass.__getattribute__
+AttributeError: type object 'PythonServices' has no attribute 'checkPermission'
+10:18:23##@##i##Client disconnected: ZN8HokNwkH1252-SAAAF
+10:18:23##@##i##设备 呵呵 已断开连接
+10:28:46##处理时间戳请求##i##Server
+10:28:46##处理脚本文件请求: CDevice.py##i##Server
+10:28:46##处理脚本文件请求: client.py##i##Server
+10:28:46##处理脚本文件请求: CMain.py##i##Server
+10:28:46##处理脚本文件请求: CmdMgr.py##i##Server
+10:28:46##处理脚本文件请求: Cmds.py##i##Server
+10:28:46##处理脚本文件请求: logger.py##i##Server
+10:28:46##处理脚本文件请求: SCommand.py##i##Server
+10:28:46##处理脚本文件请求: tools.py##i##Server
+10:28:48##DeviceManager##i##更新设备 <Device 呵呵>
+10:28:49##@##i##设备 呵呵 已连接
+10:28:49##@##i##设备 呵呵 登录
+10:28:49##@##i##设备 呵呵 登录
+10:29:34##呵呵##i##登录成功
+10:28:59##@##i##收到命令请求: {'device_id': '呵呵', 'command': 'captureS'}
+10:29:45##呵呵##e##截图失败 Exception: type object 'PythonServices' has no attribute 'checkPermission', Traceback (most recent call last):
+  File "/data/user/0/cn.vove7.andro_accessibility_api.demo/files/scripts/Cmds.py", line 172, in captureScreen
+    if not androidServices.checkPermission("android.permission.WRITE_EXTERNAL_STORAGE"):
+  File "class.pxi", line 142, in java.chaquopy.JavaClass.__getattribute__
+AttributeError: type object 'PythonServices' has no attribute 'checkPermission'
+10:30:52##@##i##收到命令请求: {'device_id': '呵呵', 'command': 'reload Cmds'}
+10:30:53##处理脚本文件请求: Cmds.py##i##Server
+10:31:38##呵呵##w##Cmds模块热更新 onPreload
+10:31:38##呵呵##w##Cmds模块热更新 OnReload
+10:31:38##呵呵##i##重新加载模块成功: Cmds
+10:30:57##@##i##收到命令请求: {'device_id': '呵呵', 'command': 'captureS'}
+10:31:44##呵呵##i##测试截图已保存到: /storage/emulated/0/Download/AutoApi/screenshot_20250109_103144.jpg
+10:31:44##呵呵##i##截图文件大小: 9892096 字节
+10:34:21##@##i##收到命令请求: {'device_id': '呵呵', 'command': 'captureS'}
+10:35:08##呵呵##i##测试截图已保存到: /storage/emulated/0/Download/AutoApi/screenshot_20250109_103508.jpg
+10:35:08##呵呵##i##截图文件大小: 9892096 字节
+10:56:05##@##i##Client disconnected: 6GmlpXwDAHsGqiFJAAAH
+10:56:05##@##i##设备 呵呵 已断开连接
+10:56:29##处理时间戳请求##i##Server
+10:56:29##处理脚本文件请求: Cmds.py##i##Server
+10:56:31##DeviceManager##i##更新设备 <Device 呵呵>
+10:56:31##@##i##设备 呵呵 已连接
+10:56:31##@##i##设备 呵呵 登录
+10:56:31##@##i##设备 呵呵 登录
+10:57:17##呵呵##i##登录成功
+10:56:38##@##i##收到命令请求: {'device_id': '呵呵', 'command': 'captureS'}
+10:57:25##呵呵##i##测试截图已保存到: /storage/emulated/0/Download/AutoApi/screenshot_20250109_105725.jpg
+10:57:25##呵呵##i##截图文件大小: 94474 字节
+10:57:21##@##i##收到命令请求: {'device_id': '呵呵', 'command': 'captureS'}
+10:58:08##呵呵##i##测试截图已保存到: /storage/emulated/0/Download/AutoApi/screenshot_20250109_105808.jpg
+10:58:08##呵呵##i##截图文件大小: 840238 字节
+11:09:17##@##i##收到命令请求: {'device_id': '呵呵', 'command': 'reload Cmds'}
+11:09:17##处理脚本文件请求: Cmds.py##i##Server
+11:10:03##呵呵##w##Cmds模块热更新 onPreload
+11:10:03##呵呵##w##Cmds模块热更新 OnReload
+11:10:03##呵呵##i##重新加载模块成功: Cmds
+11:09:20##@##i##收到命令请求: {'device_id': '呵呵', 'command': 'captureS'}
+11:10:45##@##i##收到命令请求: {'device_id': '呵呵', 'command': 'captureS'}
+11:48:50##@##i##Client disconnected: bUqsjCbPg0hUK6rQAAAD
+11:48:50##@##i##移除控制台连接: bUqsjCbPg0hUK6rQAAAD
+11:48:50##@##i##Client disconnected: Tjje0tg4pguV7XfzAAAJ
+11:48:50##@##i##设备 呵呵 已断开连接
+11:58:14##@##i##服务器启动
+11:58:14##@##i##添加控制台连接: u9yn8iR9a9hJtqpwAAAB
+11:58:39##@##i##服务器正在关闭
+11:58:51##@##i##服务器启动
+11:58:51##@##i##添加控制台连接: gf1Bw2CxtoI2-KnFAAAB
+11:58:57##@##i##Client disconnected: gf1Bw2CxtoI2-KnFAAAB
+11:58:57##@##i##移除控制台连接: gf1Bw2CxtoI2-KnFAAAB
+11:58:57##访问首页##i##Server
+11:58:57##@##i##从数据库加载了 8 个设备
+11:58:58##@##i##添加控制台连接: 58uutc-IM5DzaW58AAAD
+11:59:38##处理时间戳请求##i##Server
+11:59:38##处理脚本文件请求: Cmds.py##i##Server
+11:59:39##DeviceManager##i##更新设备 <Device 呵呵>
+11:59:39##@##i##设备 呵呵 已连接
+11:59:39##@##i##设备 呵呵 登录
+11:59:40##@##i##设备 呵呵 登录
+12:00:25##呵呵##i##登录成功
+11:59:51##@##i##收到命令请求: {'device_id': '呵呵', 'command': 'captrueS'}
+11:59:58##@##i##收到命令请求: {'device_id': '呵呵', 'command': 'captureS'}
+12:11:38##@##i##服务器正在关闭
+12:11:49##@##i##服务器启动
+12:11:51##访问首页##i##Server
+12:11:51##@##i##从数据库加载了 8 个设备
+12:11:52##@##i##添加控制台连接: RqpUfsSMlSe7rlc8AAAC
+12:11:56##DeviceManager##i##更新设备 <Device 呵呵>
+12:11:57##@##i##设备 呵呵 已连接
+12:11:57##@##i##设备 呵呵 登录
+12:11:57##@##i##设备 呵呵 登录
+12:12:43##呵呵##i##登录成功
+12:12:17##@##i##收到命令请求: {'device_id': '呵呵', 'command': 'captrueS'}
+12:12:26##@##i##收到命令请求: {'device_id': '呵呵', 'command': 'captureS'}
+12:14:12##@##i##Client disconnected: RqpUfsSMlSe7rlc8AAAC
+12:14:12##@##i##移除控制台连接: RqpUfsSMlSe7rlc8AAAC
+14:28:14##@##i##Client disconnected: KcZewUsD_l6IkVh0AAAE
+14:28:18##@##i##设备 呵呵 已断开连接
+14:28:18##@##i##添加控制台连接: 5VJeeIMXBcYfYW5OAAAG
+14:29:58##@##i##服务器正在关闭
+14:30:04##@##i##服务器启动
+14:30:04##@##i##添加控制台连接: YqXdFHUveWsnx3ssAAAB
+14:30:46##处理时间戳请求##i##Server
+14:30:47##@##i##从数据库加载了 8 个设备
+14:30:47##DeviceManager##i##更新设备 <Device 呵呵>
+14:30:47##@##i##设备 呵呵 已连接
+14:30:47##@##i##设备 呵呵 登录
+14:30:48##@##i##设备 呵呵 登录
+14:31:34##呵呵##i##登录成功
+14:30:58##@##i##Client disconnected: VBAp3Lfc0q2n31aTAAAD
+14:30:59##@##i##设备 呵呵 已断开连接
+14:31:02##@##i##Client disconnected: YqXdFHUveWsnx3ssAAAB
+14:31:02##@##i##移除控制台连接: YqXdFHUveWsnx3ssAAAB
+14:31:02##访问首页##i##Server
+14:31:02##@##i##添加控制台连接: GaU7Y3sneDy2QssUAAAF
+14:31:16##DeviceManager##i##更新设备 <Device 呵呵>
+14:31:16##@##i##设备 呵呵 已连接
+14:31:16##@##i##设备 呵呵 登录
+14:31:16##@##i##设备 呵呵 登录
+14:32:02##呵呵##i##登录成功
+14:31:25##@##i##Client disconnected: gy3xuOOQ3v1hhCsJAAAH
+14:31:25##@##i##设备 呵呵 已断开连接
+14:32:18##处理时间戳请求##i##Server
+14:32:19##DeviceManager##i##更新设备 <Device 呵呵>
+14:32:20##@##i##设备 呵呵 已连接
+14:32:20##@##i##设备 呵呵 登录
+14:32:20##@##i##设备 呵呵 登录
+14:33:06##呵呵##i##登录成功
+14:32:28##@##i##收到命令请求: {'device_id': '呵呵', 'command': 'log e aa'}
+14:33:14##呵呵##e##aa
+14:32:31##@##i##Client disconnected: 6KGsGBiKCyocvB5aAAAJ
+14:32:31##@##i##设备 呵呵 已断开连接
+14:33:17##DeviceManager##i##更新设备 <Device 呵呵>
+14:33:18##@##i##设备 呵呵 已连接
+14:33:18##@##i##设备 呵呵 登录
+14:33:18##@##i##设备 呵呵 登录
+14:34:04##呵呵##i##登录成功
+14:33:34##@##i##收到命令请求: {'device_id': '呵呵', 'command': 'captureS'}
+14:33:35##@##i##保存截图: 20250109_143335.jpg
+14:34:28##@##i##Client disconnected: zUGcFD_jJvO5rTYkAAAL
+14:34:28##@##i##设备 呵呵 已断开连接
+14:34:44##DeviceManager##i##更新设备 <Device 呵呵>
+14:34:44##@##i##设备 呵呵 已连接
+14:34:44##@##i##设备 呵呵 登录
+14:34:45##@##i##设备 呵呵 登录
+14:35:31##呵呵##i##登录成功
+14:34:46##@##i##Client disconnected: 3GSmQpK6LHHhyyX4AAAN
+14:34:46##@##i##设备 呵呵 已断开连接
+14:34:47##DeviceManager##i##更新设备 <Device 呵呵>
+14:34:47##@##i##设备 呵呵 已连接
+14:34:47##@##i##设备 呵呵 登录
+14:34:48##@##i##设备 呵呵 登录
+14:35:34##呵呵##i##登录成功
+14:34:49##@##i##Client disconnected: 3J6lPzDiO6JbqZ3pAAAP
+14:34:49##@##i##设备 呵呵 已断开连接
+14:34:55##DeviceManager##i##更新设备 <Device 呵呵>
+14:34:55##@##i##设备 呵呵 已连接
+14:34:55##@##i##设备 呵呵 登录
+14:34:56##@##i##设备 呵呵 登录
+14:35:42##呵呵##i##登录成功
+14:34:58##@##i##Client disconnected: jHt19NWalvG54tgZAAAR
+14:34:58##@##i##设备 呵呵 已断开连接
+14:35:14##DeviceManager##i##更新设备 <Device 呵呵>
+14:35:14##@##i##设备 呵呵 已连接
+14:35:14##@##i##设备 呵呵 登录
+14:35:14##@##i##设备 呵呵 登录
+14:36:01##呵呵##i##登录成功
+14:35:16##@##i##Client disconnected: 6vmwHYEmSOOLYF-NAAAT
+14:35:16##@##i##设备 呵呵 已断开连接
+14:35:17##DeviceManager##i##更新设备 <Device 呵呵>
+14:35:17##@##i##设备 呵呵 已连接
+14:35:17##@##i##设备 呵呵 登录
+14:35:18##@##i##设备 呵呵 登录
+14:36:04##呵呵##i##登录成功
+14:35:19##@##i##Client disconnected: UGlEZ9KvTzJay8EtAAAV
+14:35:19##@##i##设备 呵呵 已断开连接
+14:35:27##DeviceManager##i##更新设备 <Device 呵呵>
+14:35:27##@##i##设备 呵呵 已连接
+14:35:27##@##i##设备 呵呵 登录
+14:35:27##@##i##设备 呵呵 登录
+14:36:13##呵呵##i##登录成功
+14:35:28##@##i##Client disconnected: 90_YmSp87hYOPDAjAAAX
+14:35:29##@##i##设备 呵呵 已断开连接
+14:35:35##DeviceManager##i##更新设备 <Device 呵呵>
+14:35:36##@##i##设备 呵呵 已连接
+14:35:36##@##i##设备 呵呵 登录
+14:35:36##@##i##设备 呵呵 登录
+14:36:22##呵呵##i##登录成功
+14:35:41##@##i##Client disconnected: iovTJFxgxqabRhwdAAAZ
+14:35:41##@##i##设备 呵呵 已断开连接
+14:35:58##DeviceManager##i##更新设备 <Device 呵呵>
+14:35:58##@##i##设备 呵呵 已连接
+14:35:58##@##i##设备 呵呵 登录
+14:35:58##@##i##设备 呵呵 登录
+14:36:44##呵呵##i##登录成功
+14:35:59##@##i##Client disconnected: aReizfW7c-ihe8OXAAAb
+14:35:59##@##i##设备 呵呵 已断开连接
+14:36:05##DeviceManager##i##更新设备 <Device 呵呵>
+14:36:05##@##i##设备 呵呵 已连接
+14:36:05##@##i##设备 呵呵 登录
+14:36:06##@##i##设备 呵呵 登录
+14:36:52##呵呵##i##登录成功
+14:36:11##@##i##Client disconnected: vtgK5TDJN6MJEThvAAAd
+14:36:11##@##i##设备 呵呵 已断开连接
+14:36:14##DeviceManager##i##更新设备 <Device 呵呵>
+14:36:15##@##i##设备 呵呵 已连接
+14:36:15##@##i##设备 呵呵 登录
+14:36:15##@##i##设备 呵呵 登录
+14:37:01##呵呵##i##登录成功
+14:36:17##@##i##Client disconnected: 97C6UQwDAtQbgrZOAAAf
+14:36:17##@##i##设备 呵呵 已断开连接
+14:36:33##DeviceManager##i##更新设备 <Device 呵呵>
+14:36:33##@##i##设备 呵呵 已连接
+14:36:33##@##i##设备 呵呵 登录
+14:36:33##@##i##设备 呵呵 登录
+14:37:19##呵呵##i##登录成功
+14:36:35##@##i##Client disconnected: F4rEEzaARvCFLtD5AAAh
+14:36:35##@##i##设备 呵呵 已断开连接
+14:36:53##DeviceManager##i##更新设备 <Device 呵呵>
+14:36:53##@##i##设备 呵呵 已连接
+14:36:53##@##i##设备 呵呵 登录
+14:36:54##@##i##设备 呵呵 登录
+14:37:40##呵呵##i##登录成功
+14:36:55##@##i##Client disconnected: AY5MSXrJZMN2dhOJAAAj
+14:36:56##@##i##设备 呵呵 已断开连接
+14:36:56##DeviceManager##i##更新设备 <Device 呵呵>
+14:36:56##@##i##设备 呵呵 已连接
+14:36:56##@##i##设备 呵呵 登录
+14:36:57##@##i##设备 呵呵 登录
+14:37:43##呵呵##i##登录成功
+14:36:59##@##i##Client disconnected: HH4stAKMMV8gjvnpAAAl
+14:36:59##@##i##设备 呵呵 已断开连接
+14:37:04##DeviceManager##i##更新设备 <Device 呵呵>
+14:37:04##@##i##设备 呵呵 已连接
+14:37:04##@##i##设备 呵呵 登录
+14:37:04##@##i##设备 呵呵 登录
+14:37:51##呵呵##i##登录成功
+14:37:06##@##i##Client disconnected: qQeXiH7D66CbLeZaAAAn
+14:37:06##@##i##设备 呵呵 已断开连接
+14:37:14##DeviceManager##i##更新设备 <Device 呵呵>
+14:37:15##@##i##设备 呵呵 已连接
+14:37:15##@##i##设备 呵呵 登录
+14:37:15##@##i##设备 呵呵 登录
+14:38:01##呵呵##i##登录成功
+14:37:16##@##i##Client disconnected: MB7Ni4e3EF9PH8JdAAAp
+14:37:17##@##i##设备 呵呵 已断开连接
+14:37:35##DeviceManager##i##更新设备 <Device 呵呵>
+14:37:35##@##i##设备 呵呵 已连接
+14:37:35##@##i##设备 呵呵 登录
+14:37:35##@##i##设备 呵呵 登录
+14:38:21##呵呵##i##登录成功
+14:37:36##@##i##Client disconnected: 3FWLudvlsnt-BX_bAAAr
+14:37:37##@##i##设备 呵呵 已断开连接
+14:37:45##DeviceManager##i##更新设备 <Device 呵呵>
+14:37:45##@##i##设备 呵呵 已连接
+14:37:45##@##i##设备 呵呵 登录
+14:37:45##@##i##设备 呵呵 登录
+14:38:31##呵呵##i##登录成功
+14:37:47##@##i##Client disconnected: 8QfABrzVpxYdbpAnAAAt
+14:37:47##@##i##设备 呵呵 已断开连接
+14:37:48##DeviceManager##i##更新设备 <Device 呵呵>
+14:37:48##@##i##设备 呵呵 已连接
+14:37:48##@##i##设备 呵呵 登录
+14:37:49##@##i##设备 呵呵 登录
+14:38:35##呵呵##i##登录成功
+14:37:50##@##i##Client disconnected: K1p6Rzp1DdWK0VuZAAAv
+14:37:50##@##i##设备 呵呵 已断开连接
+14:38:05##DeviceManager##i##更新设备 <Device 呵呵>
+14:38:05##@##i##设备 呵呵 已连接
+14:38:05##@##i##设备 呵呵 登录
+14:38:05##@##i##设备 呵呵 登录
+14:38:51##呵呵##i##登录成功
+14:38:07##@##i##Client disconnected: CkwaecVDn4fZe8W4AAAx
+14:38:07##@##i##设备 呵呵 已断开连接
+14:38:12##DeviceManager##i##更新设备 <Device 呵呵>
+14:38:12##@##i##设备 呵呵 已连接
+14:38:12##@##i##设备 呵呵 登录
+14:38:12##@##i##设备 呵呵 登录
+14:38:58##呵呵##i##登录成功
+14:38:13##@##i##Client disconnected: tN3h863L9yLNZcrTAAAz
+14:38:13##@##i##设备 呵呵 已断开连接
+14:38:14##DeviceManager##i##更新设备 <Device 呵呵>
+14:38:15##@##i##设备 呵呵 已连接
+14:38:15##@##i##设备 呵呵 登录
+14:38:15##@##i##设备 呵呵 登录
+14:39:01##呵呵##i##登录成功
+14:38:16##@##i##Client disconnected: W3xLXzMrYknolHkgAAA1
+14:38:17##@##i##设备 呵呵 已断开连接
+14:38:23##DeviceManager##i##更新设备 <Device 呵呵>
+14:38:23##@##i##设备 呵呵 已连接
+14:38:23##@##i##设备 呵呵 登录
+14:38:23##@##i##设备 呵呵 登录
+14:39:09##呵呵##i##登录成功
+14:38:25##@##i##Client disconnected: zAJ0tYp47odJmRJuAAA3
+14:38:25##@##i##设备 呵呵 已断开连接
+14:38:41##DeviceManager##i##更新设备 <Device 呵呵>
+14:38:42##@##i##设备 呵呵 已连接
+14:38:42##@##i##设备 呵呵 登录
+14:38:42##@##i##设备 呵呵 登录
+14:39:28##呵呵##i##登录成功
+14:38:43##@##i##Client disconnected: XC7rg9TvazZfdewgAAA5
+14:38:43##@##i##设备 呵呵 已断开连接
+14:39:06##@##i##服务器正在关闭
+14:39:13##@##i##服务器启动
+14:39:13##@##i##从数据库加载了 8 个设备
+14:39:13##DeviceManager##i##更新设备 <Device 呵呵>
+14:39:13##@##i##设备 呵呵 已连接
+14:39:13##@##i##设备 呵呵 登录
+14:39:13##@##i##添加控制台连接: YevrxqYIMG6sUmKFAAAD
+14:39:13##@##i##设备 呵呵 登录
+14:40:00##呵呵##i##登录成功
+14:39:16##@##i##Client disconnected: gVOUP25uaAjg3wq2AAAB
+14:39:16##@##i##设备 呵呵 已断开连接
+14:39:18##DeviceManager##i##更新设备 <Device 呵呵>
+14:39:19##@##i##设备 呵呵 已连接
+14:39:19##@##i##设备 呵呵 登录
+14:39:19##@##i##设备 呵呵 登录
+14:40:05##呵呵##i##登录成功
+14:39:30##@##i##收到命令请求: {'device_id': '呵呵', 'command': 'captureS'}
+14:39:31##@##i##保存截图: 20250109_143931.jpg
+14:40:23##@##i##Client disconnected: DZhHimQ4j7JP_kKNAAAF
+14:40:24##@##i##设备 呵呵 已断开连接
+14:40:49##DeviceManager##i##更新设备 <Device 呵呵>
+14:40:49##@##i##设备 呵呵 已连接
+14:40:49##@##i##设备 呵呵 登录
+14:40:50##@##i##设备 呵呵 登录
+14:41:36##呵呵##i##登录成功
+14:40:51##@##i##Client disconnected: FVIctTpbw-KeQnPNAAAH
+14:40:51##@##i##设备 呵呵 已断开连接
+14:41:14##DeviceManager##i##更新设备 <Device 呵呵>
+14:41:14##@##i##设备 呵呵 已连接
+14:41:14##@##i##设备 呵呵 登录
+14:41:15##@##i##设备 呵呵 登录
+14:42:01##呵呵##i##登录成功
+14:41:22##@##i##Client disconnected: kS8KVgeJBT7nTn5QAAAJ
+14:41:23##@##i##设备 呵呵 已断开连接
+14:41:33##@##i##服务器正在关闭
+14:41:42##@##i##服务器启动
+14:41:42##@##i##添加控制台连接: lCd6B9g7XZ5z77ADAAAB
+14:41:50##@##i##从数据库加载了 8 个设备
+14:41:50##DeviceManager##i##更新设备 <Device 呵呵>
+14:41:50##@##i##设备 呵呵 已连接
+14:41:50##@##i##设备 呵呵 登录
+14:41:51##@##i##设备 呵呵 登录
+14:42:37##呵呵##i##登录成功
+14:41:52##@##i##Client disconnected: 6u-TbEc5_lP8oxTVAAAD
+14:41:53##@##i##设备 呵呵 已断开连接
+14:42:12##@##i##Client disconnected: lCd6B9g7XZ5z77ADAAAB
+14:42:12##@##i##移除控制台连接: lCd6B9g7XZ5z77ADAAAB
+14:42:12##访问首页##i##Server
+14:42:12##@##i##添加控制台连接: C11vmLvlWux2VeqwAAAF
+14:42:14##DeviceManager##i##更新设备 <Device 呵呵>
+14:42:14##@##i##设备 呵呵 已连接
+14:42:14##@##i##设备 呵呵 登录
+14:42:15##@##i##设备 呵呵 登录
+14:43:01##呵呵##i##登录成功
+14:42:16##@##i##Client disconnected: pp-vq3xOt1P-JcwTAAAH
+14:42:17##@##i##设备 呵呵 已断开连接
+14:42:22##DeviceManager##i##更新设备 <Device 呵呵>
+14:42:22##@##i##设备 呵呵 已连接
+14:42:22##@##i##设备 呵呵 登录
+14:42:22##@##i##设备 呵呵 登录
+14:43:08##呵呵##i##登录成功
+14:42:23##@##i##Client disconnected: iGZ-vkLj4mQ5hg61AAAJ
+14:42:23##@##i##设备 呵呵 已断开连接
+14:42:40##DeviceManager##i##更新设备 <Device 呵呵>
+14:42:41##@##i##设备 呵呵 已连接
+14:42:41##@##i##设备 呵呵 登录
+14:42:41##@##i##设备 呵呵 登录
+14:43:27##呵呵##i##登录成功
+14:42:46##@##i##收到命令请求: {'device_id': '呵呵', 'command': 'captures'}
+14:42:47##@##i##保存截图: app\static\screenshots\呵呵\20250109_144247.jpg
+14:42:47##@##i##Client disconnected: pLGcGTpKWEQjnXvRAAAL
+14:42:47##@##i##设备 呵呵 已断开连接
+14:42:54##DeviceManager##i##更新设备 <Device 呵呵>
+14:42:54##@##i##设备 呵呵 已连接
+14:42:54##@##i##设备 呵呵 登录
+14:42:55##@##i##设备 呵呵 登录
+14:43:41##呵呵##i##登录成功
+14:43:00##@##i##Client disconnected: Niric8ViM4zfPyaiAAAN
+14:43:01##@##i##设备 呵呵 已断开连接
+14:43:14##DeviceManager##i##更新设备 <Device 呵呵>
+14:43:14##@##i##设备 呵呵 已连接
+14:43:14##@##i##设备 呵呵 登录
+14:43:15##@##i##设备 呵呵 登录
+14:44:01##呵呵##i##登录成功
+14:43:16##@##i##Client disconnected: PdozgOv4gvWzqVTVAAAP
+14:43:17##@##i##设备 呵呵 已断开连接
+14:43:28##DeviceManager##i##更新设备 <Device 呵呵>
+14:43:28##@##i##设备 呵呵 已连接
+14:43:28##@##i##设备 呵呵 登录
+14:43:28##@##i##设备 呵呵 登录
+14:44:14##呵呵##i##登录成功
+14:43:30##@##i##Client disconnected: 87E9kuzwyIAitjw6AAAR
+14:43:30##@##i##设备 呵呵 已断开连接
+14:43:58##DeviceManager##i##更新设备 <Device 呵呵>
+14:43:58##@##i##设备 呵呵 已连接
+14:43:58##@##i##设备 呵呵 登录
+14:43:58##@##i##设备 呵呵 登录
+14:44:44##呵呵##i##登录成功
+14:44:05##@##i##Client disconnected: z4fHBIDE17XVuspRAAAT
+14:44:06##@##i##设备 呵呵 已断开连接
+14:44:15##DeviceManager##i##更新设备 <Device 呵呵>
+14:44:15##@##i##设备 呵呵 已连接
+14:44:15##@##i##设备 呵呵 登录
+14:44:15##@##i##设备 呵呵 登录
+14:45:01##呵呵##i##登录成功
+14:44:16##@##i##Client disconnected: fioWTTt1wZoxTL63AAAV
+14:44:17##@##i##设备 呵呵 已断开连接
+14:44:23##DeviceManager##i##更新设备 <Device 呵呵>
+14:44:23##@##i##设备 呵呵 已连接
+14:44:23##@##i##设备 呵呵 登录
+14:44:23##@##i##设备 呵呵 登录
+14:45:09##呵呵##i##登录成功
+14:44:31##@##i##Client disconnected: cC6mwat3GhTPoS94AAAX
+14:44:31##@##i##设备 呵呵 已断开连接
+14:44:32##DeviceManager##i##更新设备 <Device 呵呵>
+14:44:33##@##i##设备 呵呵 已连接
+14:44:33##@##i##设备 呵呵 登录
+14:44:33##@##i##设备 呵呵 登录
+14:45:19##呵呵##i##登录成功
+14:44:34##@##i##Client disconnected: iaA80LdZgQQLZsPaAAAZ
+14:44:34##@##i##设备 呵呵 已断开连接
+14:44:35##DeviceManager##i##更新设备 <Device 呵呵>
+14:44:35##@##i##设备 呵呵 已连接
+14:44:35##@##i##设备 呵呵 登录
+14:44:36##@##i##设备 呵呵 登录
+14:45:22##呵呵##i##登录成功
+14:44:37##@##i##Client disconnected: XDfau1wyAMqzeeLFAAAb
+14:44:37##@##i##设备 呵呵 已断开连接
+14:44:44##DeviceManager##i##更新设备 <Device 呵呵>
+14:44:44##@##i##设备 呵呵 已连接
+14:44:44##@##i##设备 呵呵 登录
+14:44:44##@##i##设备 呵呵 登录
+14:45:30##呵呵##i##登录成功
+14:44:46##@##i##Client disconnected: EoYPxRg4zuGr-tDrAAAd
+14:44:46##@##i##设备 呵呵 已断开连接
+14:44:47##DeviceManager##i##更新设备 <Device 呵呵>
+14:44:47##@##i##设备 呵呵 已连接
+14:44:47##@##i##设备 呵呵 登录
+14:44:47##@##i##设备 呵呵 登录
+14:45:33##呵呵##i##登录成功
+14:44:49##@##i##Client disconnected: 40yKOtzT-67Kd3kbAAAf
+14:44:49##@##i##设备 呵呵 已断开连接
+14:44:53##DeviceManager##i##更新设备 <Device 呵呵>
+14:44:54##@##i##设备 呵呵 已连接
+14:44:54##@##i##设备 呵呵 登录
+14:44:54##@##i##设备 呵呵 登录
+14:45:40##呵呵##i##登录成功
+14:44:55##@##i##Client disconnected: WD119YZ6eShuf0oJAAAh
+14:44:55##@##i##设备 呵呵 已断开连接
+14:44:56##DeviceManager##i##更新设备 <Device 呵呵>
+14:44:56##@##i##设备 呵呵 已连接
+14:44:56##@##i##设备 呵呵 登录
+14:44:57##@##i##设备 呵呵 登录
+14:45:43##呵呵##i##登录成功
+14:44:58##@##i##Client disconnected: 5uuYLWJoC0ELt8ScAAAj
+14:44:58##@##i##设备 呵呵 已断开连接
+14:45:05##DeviceManager##i##更新设备 <Device 呵呵>
+14:45:06##@##i##设备 呵呵 已连接
+14:45:06##@##i##设备 呵呵 登录
+14:45:06##@##i##设备 呵呵 登录
+14:45:52##呵呵##i##登录成功
+14:45:07##@##i##Client disconnected: dyc5qJ-8jChx_eBWAAAl
+14:45:07##@##i##设备 呵呵 已断开连接
+14:45:08##DeviceManager##i##更新设备 <Device 呵呵>
+14:45:09##@##i##设备 呵呵 已连接
+14:45:09##@##i##设备 呵呵 登录
+14:45:09##@##i##设备 呵呵 登录
+14:45:55##呵呵##i##登录成功
+14:45:10##@##i##Client disconnected: 1enBRy5UcwJtEVcoAAAn
+14:45:10##@##i##设备 呵呵 已断开连接
+14:45:15##DeviceManager##i##更新设备 <Device 呵呵>
+14:45:15##@##i##设备 呵呵 已连接
+14:45:15##@##i##设备 呵呵 登录
+14:45:15##@##i##设备 呵呵 登录
+14:46:01##呵呵##i##登录成功
+14:45:16##@##i##Client disconnected: 2Bg5aCWjJCN3rSL8AAAp
+14:45:16##@##i##设备 呵呵 已断开连接
+14:45:17##DeviceManager##i##更新设备 <Device 呵呵>
+14:45:17##@##i##设备 呵呵 已连接
+14:45:17##@##i##设备 呵呵 登录
+14:45:17##@##i##设备 呵呵 登录
+14:46:04##呵呵##i##登录成功
+14:45:19##@##i##Client disconnected: Yt-QWYOBSricTTNEAAAr
+14:45:19##@##i##设备 呵呵 已断开连接
+14:45:23##DeviceManager##i##更新设备 <Device 呵呵>
+14:45:23##@##i##设备 呵呵 已连接
+14:45:23##@##i##设备 呵呵 登录
+14:45:24##@##i##设备 呵呵 登录
+14:46:10##呵呵##i##登录成功
+14:45:25##@##i##Client disconnected: nWZ4GcNZbZsl61HCAAAt
+14:45:25##@##i##设备 呵呵 已断开连接
+14:45:26##DeviceManager##i##更新设备 <Device 呵呵>
+14:45:27##@##i##设备 呵呵 已连接
+14:45:27##@##i##设备 呵呵 登录
+14:45:27##@##i##设备 呵呵 登录
+14:46:13##呵呵##i##登录成功
+14:45:28##@##i##Client disconnected: fI6GfYkK1T97X0iYAAAv
+14:45:28##@##i##设备 呵呵 已断开连接
+14:45:32##DeviceManager##i##更新设备 <Device 呵呵>
+14:45:33##@##i##设备 呵呵 已连接
+14:45:33##@##i##设备 呵呵 登录
+14:45:33##@##i##设备 呵呵 登录
+14:46:19##呵呵##i##登录成功
+14:45:34##@##i##Client disconnected: F2vY4j1RNjTlX23rAAAx
+14:45:35##@##i##设备 呵呵 已断开连接
+14:45:36##DeviceManager##i##更新设备 <Device 呵呵>
+14:45:36##@##i##设备 呵呵 已连接
+14:45:36##@##i##设备 呵呵 登录
+14:45:37##@##i##设备 呵呵 登录
+14:46:23##呵呵##i##登录成功
+14:45:37##@##i##Client disconnected: j3tIlsjAW1pboJA4AAAz
+14:45:38##@##i##设备 呵呵 已断开连接
+14:45:44##DeviceManager##i##更新设备 <Device 呵呵>
+14:45:45##@##i##设备 呵呵 已连接
+14:45:45##@##i##设备 呵呵 登录
+14:45:45##@##i##设备 呵呵 登录
+14:46:31##呵呵##i##登录成功
+14:45:46##@##i##Client disconnected: oueD5MhNZebr-lyEAAA1
+14:45:47##@##i##设备 呵呵 已断开连接
+14:45:47##DeviceManager##i##更新设备 <Device 呵呵>
+14:45:48##@##i##设备 呵呵 已连接
+14:45:48##@##i##设备 呵呵 登录
+14:45:48##@##i##设备 呵呵 登录
+14:46:34##呵呵##i##登录成功
+14:45:49##@##i##Client disconnected: Ld3VIe6anttu2s7TAAA3
+14:45:50##@##i##设备 呵呵 已断开连接
+14:45:54##DeviceManager##i##更新设备 <Device 呵呵>
+14:45:54##@##i##设备 呵呵 已连接
+14:45:54##@##i##设备 呵呵 登录
+14:45:54##@##i##设备 呵呵 登录
+14:46:41##呵呵##i##登录成功
+14:46:11##@##i##Client disconnected: a2sluQopNzKq19LQAAA5
+14:46:11##@##i##设备 呵呵 已断开连接
+14:49:23##处理时间戳请求##i##Server
+14:49:24##处理脚本文件请求: CDevice.py##i##Server
+14:49:24##处理脚本文件请求: client.py##i##Server
+14:49:24##处理脚本文件请求: CmdMgr.py##i##Server
+14:49:24##处理脚本文件请求: Cmds.py##i##Server
+14:49:24##处理脚本文件请求: logger.py##i##Server
+14:49:24##处理脚本文件请求: SCommand.py##i##Server
+14:49:29##@##i##添加设备: 看看
+14:49:29##DeviceManager##i##更新设备 <Device 看看>
+14:49:29##@##i##设备 看看 已连接
+14:49:29##@##i##设备 看看 登录
+14:49:30##@##i##设备 看看 登录
+14:49:27##看看##i##登录成功
+14:49:42##@##i##Client disconnected: RRqeDv9WONLbGel7AAA7
+14:49:42##@##i##设备 看看 已断开连接
+14:49:57##DeviceManager##i##更新设备 <Device 看看>
+14:49:58##@##i##设备 看看 已连接
+14:49:58##@##i##设备 看看 登录
+14:49:58##@##i##设备 看看 登录
+14:49:54##看看##i##登录成功
+14:50:31##@##i##收到命令请求: {'device_id': '看看', 'command': 'captureS'}
+14:50:33##@##i##保存截图: app\static\screenshots\看看\20250109_145033.jpg
+15:20:32##@##i##服务器正在关闭

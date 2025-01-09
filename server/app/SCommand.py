@@ -56,16 +56,12 @@ class SCommand:
         # 总是打印到控制台
         Log.i(device_id, response)
         
-        # 如果在Web上下文中，通过WebSocket发送
-        if has_request_context():
-            emit('command_result', {
-                'result': response,
-                'device_id': device_id
-            })
+
     
     @staticmethod
     def _doSeverCmd(command):
         """执行服务器命令"""
+        response = ''
         try:
             cmd, args = SCommand._parse_command(command)
             matched_cmd = SCommand._find_command(cmd)
@@ -76,14 +72,16 @@ class SCommand:
                 handler_name = SCommand.COMMANDS[matched_cmd][1]
                 handler = getattr(SCommand, handler_name)
                 response = handler(args)
-            
-            SCommand._send_response(response)
-            
         except Exception as e:
-            error_msg = f'执行服务器命令出错: {e}'
-            Log.e('Server', error_msg)
-            if has_request_context():
-                emit('error', {'message': '执行命令失败'})
+            response = f'执行服务器命令出错: {e}'
+        # 如果在Web上下文中，通过WebSocket发送
+        if has_request_context():
+            DeviceManager().emit2Console('S2B_CmdResult', {
+                'result': response,
+                'device_id': '@'
+            })
+        else:
+            print(response)
     
     @staticmethod
     def _cmd_help(args=None):
@@ -190,34 +188,20 @@ class SCommand:
                 if device is None:
                     Log.e('Server', f'设备 {device_id} 不存在')
                     return '设备不存在'
-                # print(f'!!!device.status: {device.status}')
                 if device.status != 'login':
                     Log.w('Server', f'设备 {device_id} 未登录')
                     return '设备未登录'
                 
-                history = CommandHistory.create(
-                    current_app.config['SERVER_ID'], 
-                    device_id, 
-                    command, 
-                    'info'
-                )
-                
                 sid = device.info.get('sid')
                 if sid:
-                    # 验证 SID 是否最新
-                    # Log.i('Server', f'设备 {device_id} 当前 SID: {sid}')                    
                     try:
                         # 直接通过 sid 发送命令
-                        emit('clientCommand', {
+                        emit('S2C_DoCmd', {
                             'command': command,
                             'device_id': device_id,
-                            'command_id': history.id
+                            'sender': current_app.config['SERVER_ID']
                         }, to=sid)
                         
-                        # 更新响应时间
-                        history.response_time = datetime.now()
-                        db.session.commit()
-                        # Log.d('Server', f'命令已发送到 SID: {sid}')
                         return f'命令已发送到设备 {device_id}'
                     except Exception as e:
                         Log.ex(e, '发送命令时出错')
@@ -230,32 +214,30 @@ class SCommand:
             Log.ex(e, '执行设备命令出错')
             return '执行命令失败'
     
-    @staticmethod
-    def handle_response(device_id, result, level='info'):
-        """处理命令响应"""
-        try:
-            history = CommandHistory.query.filter_by(
-                sender=current_app.config['SERVER_ID'],
-                target=device_id,
-                response=None
-            ).order_by(CommandHistory.created_at.desc()).first()
+    # @staticmethod
+    # def Add(device_id, result, level='info'):
+    #     """处理命令响应"""
+    #     try:
+    #         history = CommandHistory(
+    #             sender=current_app.config['SERVER_ID'],
+    #             target=device_id,
+    #             response=result,
+    #             level=level
+    #         )
+    #         db.session.add(history)
+    #         db.session.commit()
+    #         print(f'命令响应已保存: {result}')
             
-            if history:
-                history.response = result
-                history.level = level
-                db.session.commit()
-                print(f'命令响应已保存: {result}')
-            
-            return {
-                'success': True,
-                'result': result,
-                'command_id': history.id if history else None,
-                'level': level,
-                'device_id': device_id
-            }
-        except Exception as e:
-            Log.ex(e, '处理命令响应出错')
-            return {'success': False, 'error': '处理响应失败'} 
+    #         return {
+    #             'success': True,
+    #             'result': result,
+    #             'command_id': history.id if history else None,
+    #             'level': level,
+    #             'device_id': device_id
+    #         }
+    #     except Exception as e:
+    #         Log.ex(e, '处理命令响应出错')
+    #         return {'success': False, 'error': '处理响应失败'} 
     
     @staticmethod
     def filterLogs(filter_str=''):
@@ -272,7 +254,48 @@ class SCommand:
         if not logs:
             return "w##未找到匹配的日志"
         
-        DeviceManager().emit_to_console('show_logs', {
+        DeviceManager().emit2Console('show_logs', {
             'logs': logs,
             'filter': filter_str
         })
+    
+    @staticmethod
+    def handCmdResult(data):
+        """处理命令响应"""
+        try:
+            result = data.get('result')
+            device_id = data.get('device_id')
+            command = data.get('command')
+            cmdName = data.get('cmdName')  # 获取命令方法名
+            sender = "@"
+            level = result.split('#')[0] if '#' in result else 'i'
+            
+            deviceMgr = DeviceManager()
+            
+            # 根据命令方法名处理响应
+            if cmdName == 'captureScreen':  # 使用方法名而不是命令文本判断
+                if isinstance(result, str) and result.startswith('data:image'):
+                    device = deviceMgr.get_device(device_id)
+                    if device is None:
+                        Log.e(f'设备 {device_id} 不存在')
+                        return
+                    if  device.saveScreenshot(result):
+                        result = '截图已更新'
+                    else:
+                        result = '截图更新失败'
+            # 创建命令历史记录
+            CommandHistory.create(
+                sender=sender,
+                target=device_id,
+                command=command,
+                level=level,
+                response=result
+            )
+                
+        except Exception as e:
+            result = Log.formatEx('处理命令响应出错', e)
+            
+        deviceMgr.emit2Console('S2B_CmdResult', {
+            'result': result,
+            'level': level,
+        })    

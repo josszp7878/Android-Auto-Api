@@ -4,7 +4,8 @@ from CDevice import CDevice
 from tools import Tools
 from CmdMgr import regCmd
 
-
+# 缓存 Android 实例
+androidServices = Log().Android
 @regCmd(r'aa')
 def cmdAa():
     """获取设备信息"""
@@ -94,71 +95,134 @@ def isConnect():
 @requireAndroid
 def click(x, y):
     x, y = int(x), int(y)
-    result = Log().Android().clickPosition(x, y)
+    result = androidServices.clickPosition(x, y)
     return f"点击位置 ({x}, {y}) 结果: {result}"
 
 
 @regCmd(r'返回')
 @requireAndroid
 def goBack():
-    return Log().Android().goBack()
+    return androidServices.goBack()
 
 
-@regCmd(r'屏幕内容')
+@regCmd(r'拷屏')
 @requireAndroid
 def screenText():
-    return Log().Android().getScreenText()
+    """获取屏幕文本
+    返回格式: List[Dict]
+    字典包含:
+        - text: 文本内容
+        - x, y: 文本中心点坐标
+        - left, top, right, bottom: 文本框边界
+    """
+    text_infos = androidServices.getScreenText()
+    if not text_infos:
+        return "未识别到文本"
+    result = []
+    for info in text_infos:
+        text = info["text"]
+        pos = f"({info['x']}, {info['y']})"
+        result.append(f"{text} at {pos}")
+            
+    return "\n".join(result) if result else "未找到文本"
 
 
 @regCmd(r'主屏幕')
 @requireAndroid
 def goHome():
-    return Log().Android().goHome()
+    return androidServices.goHome()
 
 
 @regCmd(r'检查安装\s+(?P<pkgName>\S+)')
 @requireAndroid
 def isInstalled(pkgName):
-    return Log().Android().isAppInstalled(pkgName)
+    return androidServices.isAppInstalled(pkgName)
 
 
 @regCmd(r'安装\s+(?P<pkgName>\S+)')
 @requireAndroid
 def install(pkgName):
-    return Log().Android().installApp(pkgName)
+    return androidServices.installApp(pkgName)
 
 
 @regCmd(r'卸载\s+(?P<pkgName>\S+)')
 @requireAndroid
 def uninstall(pkgName):
-    return Log().Android().uninstallApp(pkgName)
+    return androidServices.uninstallApp(pkgName)
 
 
 @regCmd(r'启动', r'(?P<pkgName>\S+)')
 @requireAndroid
 def startApp(pkgName):
-    return Log().Android().startApp(pkgName)
+    return androidServices.openApp(pkgName)
 
 
 @regCmd(r'停止', r'(?P<pkgName>\S+)')
 @requireAndroid
 def stopApp(pkgName):
-    return Log().Android().stopApp(pkgName)
+    return androidServices.closeApp(pkgName)
 
 
-@regCmd(r'重启', r'(?P<pkgName>\S+)')
-@requireAndroid
-def restartApp(pkgName):
-    return Log().Android().restartApp(pkgName)
+def saveScreenshotToLocal(base64_data, prefix="screenshot"):
+    """保存截图到本地
+    Args:
+        base64_data: base64格式的图片数据
+        prefix: 文件名前缀
+    Returns:
+        str: 保存的文件路径，失败返回 None
+    """
+    try:
+        import base64
+        from datetime import datetime
+        import os
+
+        image_data = base64.b64decode(base64_data)
+        
+        # 使用下载目录
+        save_dir = '/storage/emulated/0/Download/AutoApi'
+        os.makedirs(save_dir, exist_ok=True)
+        
+        # 生成文件名
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'{prefix}_{timestamp}.jpg'
+        filepath = os.path.join(save_dir, filename)
+        
+        # 保存文件
+        with open(filepath, 'wb') as f:
+            f.write(image_data)
+        
+        Log.i(f"截图已保存到: {filepath}")
+        
+        # 检查文件大小
+        if os.path.exists(filepath):
+            filesize = os.path.getsize(filepath)
+            Log.i(f"文件大小: {filesize} 字节")
+            return filepath
+            
+    except Exception as e:
+        Log.ex(e, "保存截图失败")
+        return None
 
 
 @regCmd(r'截图')
 @requireAndroid
 def captureScreen():
-    return Log().Android().captureScreen()
+    """截图指令"""
+    try:
+        image = androidServices.takeScreenshot()
+        if not image:
+            return "e##截图失败:未获取到图片数据"
+        # 可选：同时保存到本地
+        # saveScreenshotToLocal(image)
+        if not image.startswith('data:image'):
+            image = f"data:image/jpeg;base64,{image}"
+        return image
+    except Exception as e:
+        Log.ex(e, "截图失败")
+        return f"e##截图失败:{str(e)}"
 
 
-@regCmd(r'热加载', r'(?P<module_name>\w+)')
+@regCmd(r'加载', r'(?P<module_name>\w+)')
 def reload(module_name):
     """热加载指定模块
     用法: reload <module_name>
@@ -181,5 +245,14 @@ def OnReload():
 
 def OnPreload():
     Log.w("Cmds模块热更新 onPreload")
+
+
+@regCmd(r'切换应用|任务列表|最近任务')
+@requireAndroid
+def switchApp():
+    """显示最近任务列表
+    用法: 切换应用/任务列表/最近任务
+    """
+    return androidServices.showRecentApps()
 
 
