@@ -5,6 +5,8 @@ from tools import Tools
 from CmdMgr import regCmd
 from java import jclass
 from cn.vove7.andro_accessibility_api.demo.script import PythonServices
+import re
+import json
 
 # 缓存 Android 实例
 androidServices = Log().Android
@@ -281,22 +283,28 @@ def getScreenText():
         return "获取文本失败"
 
 
+def _getScreenInfos():
+    """获取并解析屏幕信息"""
+    info = PythonServices.getScreenInfo()
+    size = info.size()
+    result = []
+    
+    for i in range(size):
+        item = info.get(i)
+        result.append({
+            't': item.get('t'),
+            'b': item.get('b')
+        })
+    return result
+
+
 @regCmd(r'屏幕文本信息')
 @requireAndroid
 def getScreenInfo():
     try:
-        # 获取屏幕信息
-        info = PythonServices.getScreenInfo()
-         # 使用 ArrayList 的 size() 方法而不是 len()
-        size = info.size()
-        result = []
+        # 使用封装的方法获取屏幕信息
+        result = _getScreenInfos()
         
-        for i in range(size):
-            item = info.get(i)
-            result.append({
-                't': item.get('t'),
-                'b': item.get('b')
-            })
         # 直接使用返回的列表
         for item in result:
             bounds = item['b'].split(',')
@@ -307,5 +315,34 @@ def getScreenInfo():
     except Exception as e:
         Log.ex(e, "获取屏幕文本信息失败")
         return "获取信息失败"
+
+
+@regCmd(r'查找', r'(?P<pattern>.+)')
+@requireAndroid
+def findUI(pattern):
+    try:
+        # 编译正则表达式
+        regex = re.compile(pattern)
+        
+        # 使用封装的方法获取屏幕信息
+        screenInfo = _getScreenInfos()
+        
+        position = None
+        # 遍历屏幕信息，查找匹配的文本
+        for item in screenInfo:
+            if regex.search(item['t']):
+                bounds = item['b'].split(',')
+                centerX = (int(bounds[0]) + int(bounds[2])) // 2
+                centerY = (int(bounds[1]) + int(bounds[3])) // 2
+                position = {'centerX': centerX, 'centerY': centerY}
+                break
+        
+        Log.i(f"找到匹配的位置: {pattern}")
+        
+        # 将结果转换为 JSON 字符串
+        return json.dumps(position) if position else None
+    except Exception as e:
+        Log.ex(e, "FindUI 指令执行失败")
+        return "执行失败"
 
 
