@@ -24,6 +24,8 @@ import java.util.concurrent.CompletableFuture
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.PackageManagerCompat
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /**
  * Python服务接口的Kotlin实现
@@ -96,41 +98,7 @@ class PythonServices {
             }
         }
 
-        /**
-         * 获取屏幕上的所有文本
-         * 使用 ScreenCapture 的文字识别功能
-         * @return List<TextInfo> Python端可以直接处理的文本信息列表
-         */
-        @SuppressLint("NewApi")
-        @JvmStatic
-        fun getScreenText(): List<Map<String, Any>> {
-            Timber.tag(TAG).i("Get screen text using OCR")
-            return try {
-                val future = CompletableFuture<List<ScreenCapture.TextInfo>>()
-                
-                ScreenCapture.getInstance().captureScreenText { textInfoList ->
-                    future.complete(textInfoList ?: emptyList())
-                }
-                
-                val result = future.get(10, java.util.concurrent.TimeUnit.SECONDS)
-                
-                result.map { textInfo ->
-                    mapOf(
-                        "text" to textInfo.text,
-                        "x" to textInfo.screenPosition.x,
-                        "y" to textInfo.screenPosition.y,
-                        "left" to textInfo.bounds.left,
-                        "top" to textInfo.bounds.top,
-                        "right" to textInfo.bounds.right,
-                        "bottom" to textInfo.bounds.bottom
-                    )
-                }
-            } catch (e: Exception) {
-                Timber.tag(TAG).e(e, "Get screen text failed")
-                emptyList()
-            }
-        }
-
+       
         /**
          * 返回上一个界面
          */
@@ -408,6 +376,44 @@ class PythonServices {
         fun requestPermission(permission: String) {
             ActivityCompat.requestPermissions(context, arrayOf(permission), MainActivity.REQUEST_CODE_PERMISSIONS);
         }
+
+        @JvmStatic
+        fun getScreenText(): String {
+            val screenCapture = ScreenCapture.getInstance()
+            var result = ""
+            val latch = CountDownLatch(1)
+            
+            screenCapture?.recognizeText({ text ->
+                result = text as String
+                latch.countDown()
+            }, false)
+            
+            // 等待结果，最多等待10秒
+            latch.await(10, TimeUnit.SECONDS)
+            return result
+        }
+
+        @JvmStatic
+        fun getScreenInfo(): List<Map<String, String>> {
+            val screenCapture = ScreenCapture.getInstance()
+            val result = mutableListOf<Map<String, String>>()
+            val latch = CountDownLatch(1)
+            
+            screenCapture?.recognizeText({ textBlockInfos ->
+                @Suppress("UNCHECKED_CAST")
+                val infos = textBlockInfos as List<ScreenCapture.TextBlockInfo>
+                result.addAll(infos.map { textBlockInfo ->
+                    mapOf(
+                        "t" to textBlockInfo.text,
+                        "b" to "${textBlockInfo.bounds.left},${textBlockInfo.bounds.top},${textBlockInfo.bounds.right},${textBlockInfo.bounds.bottom}"
+                    )
+                })
+                latch.countDown()
+            }, true)
+            
+            // 等待结果，最多等待10秒
+            latch.await(10, TimeUnit.SECONDS)
+            return result
+        }
     }
-        
 } 

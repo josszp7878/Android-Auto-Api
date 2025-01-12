@@ -3,9 +3,12 @@ from logger import Log, requireAndroid
 from CDevice import CDevice
 from tools import Tools
 from CmdMgr import regCmd
+from java import jclass
+from cn.vove7.andro_accessibility_api.demo.script import PythonServices
 
 # 缓存 Android 实例
 androidServices = Log().Android
+
 @regCmd(r'aa')
 def cmdAa():
     """获取设备信息"""
@@ -105,26 +108,32 @@ def goBack():
     return androidServices.goBack()
 
 
-@regCmd(r'拷屏')
+@regCmd(r'获取屏幕文本')
 @requireAndroid
 def screenText():
-    """获取屏幕文本
-    返回格式: List[Dict]
-    字典包含:
-        - text: 文本内容
-        - x, y: 文本中心点坐标
-        - left, top, right, bottom: 文本框边界
-    """
-    text_infos = androidServices.getScreenText()
-    if not text_infos:
-        return "未识别到文本"
-    result = []
-    for info in text_infos:
-        text = info["text"]
-        pos = f"({info['x']}, {info['y']})"
-        result.append(f"{text} at {pos}")
-            
-    return "\n".join(result) if result else "未找到文本"
+    try:
+        # 调用 Kotlin 方法获取屏幕文本和位置信息
+        textInfos = PythonServices.getScreenTextWithInfo()
+        
+        # 将结果转换为 Python 格式，使用单字符键名
+        result = []
+        for info in textInfos:
+            text = info['text']
+            bounds = info['bounds']
+            result.append({
+                't': text,  # text -> t
+                'b': {      # bounds -> b
+                    'l': bounds['left'],   # left -> l
+                    't': bounds['top'],    # top -> t
+                    'r': bounds['right'],  # right -> r
+                    'b': bounds['bottom']  # bottom -> b
+                }
+            })
+        
+        return result
+    except Exception as e:
+        Log.ex(e, "获取屏幕文本失败")
+        return []
 
 
 @regCmd(r'主屏幕')
@@ -254,5 +263,49 @@ def switchApp():
     用法: 切换应用/任务列表/最近任务
     """
     return androidServices.showRecentApps()
+
+
+@regCmd(r'屏幕文本')
+@requireAndroid
+def getScreenText():
+    try:
+        text = PythonServices.getScreenText()
+        if text:
+            Log.i("识别到的文本: " + text)
+            return text
+        else:
+            Log.i("未识别到文本")
+            return "未识别到文本"
+    except Exception as e:
+        Log.ex(e, "获取屏幕文本失败")
+        return "获取文本失败"
+
+
+@regCmd(r'屏幕文本信息')
+@requireAndroid
+def getScreenInfo():
+    try:
+        # 获取屏幕信息
+        info = PythonServices.getScreenInfo()
+         # 使用 ArrayList 的 size() 方法而不是 len()
+        size = info.size()
+        result = []
+        
+        for i in range(size):
+            item = info.get(i)
+            result.append({
+                't': item.get('t'),
+                'b': item.get('b')
+            })
+        # 直接使用返回的列表
+        for item in result:
+            bounds = item['b'].split(',')
+            Log.i("Text:", item['t'])
+            Log.i("Bounds:", f"left={bounds[0]}, top={bounds[1]}, right={bounds[2]}, bottom={bounds[3]}")
+        
+        return result
+    except Exception as e:
+        Log.ex(e, "获取屏幕文本信息失败")
+        return "获取信息失败"
 
 

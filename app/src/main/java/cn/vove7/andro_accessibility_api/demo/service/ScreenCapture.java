@@ -9,16 +9,14 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.pm.ServiceInfo;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
+import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.hardware.display.DisplayManager;
 import android.media.ImageReader;
 import android.media.projection.MediaProjection;
 import android.media.Image;
 import android.os.Binder;
-import android.os.Handler;
 import android.os.IBinder;
-import android.os.Looper;
 import android.hardware.display.VirtualDisplay;
 import android.media.projection.MediaProjectionManager;
 import android.util.DisplayMetrics;
@@ -34,19 +32,13 @@ import android.os.Environment;
 import android.content.ContentResolver;
 
 import java.io.ByteArrayOutputStream;
-
-import com.google.mlkit.vision.common.InputImage;
-import com.google.mlkit.vision.text.Text;
-import com.google.mlkit.vision.text.TextRecognition;
-import com.google.mlkit.vision.text.TextRecognizer;
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
-import android.graphics.Point;
-import android.graphics.PointF;
 import android.graphics.Rect;
 
 import android.os.PowerManager;
@@ -58,12 +50,21 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
-import android.content.Intent;
-import android.os.Build;
+
 import androidx.core.app.NotificationCompat;
 
 import cn.vove7.andro_accessibility_api.demo.MainActivity;
 import cn.vove7.andro_accessibility_api.demo.R;
+import com.google.mlkit.vision.common.InputImage;
+import com.google.mlkit.vision.text.Text;
+import com.google.mlkit.vision.text.TextRecognition;
+import com.google.mlkit.vision.text.TextRecognizer;
+import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.function.Consumer;
+import java.util.Collections;
 
 /** @noinspection ALL*/
 public class ScreenCapture extends Service {
@@ -92,6 +93,8 @@ public class ScreenCapture extends Service {
     private int lastHeight = -1;
     private PowerManager.WakeLock wakeLock;
     private static final int NOTIFICATION_ID = 1001;
+
+    private final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     @Override
     public void onCreate() {
@@ -385,108 +388,6 @@ public class ScreenCapture extends Service {
         super.onRebind(intent);
     }
 
-    public interface OcrCallback {
-        void onTextRecognized(List<TextInfo> textInfos);
-    }
-
-    // 添加一个数据类来存储文字信息
-    public static class TextInfo {
-        public final String text;
-        public final Point screenPosition;    // 屏幕像素坐标
-        public final PointF normalizedPos;    // 归一化坐标 (0-1)
-        public final Rect bounds;             // 文字区域边界
-
-        public TextInfo(String text, Point screenPosition, PointF normalizedPos, Rect bounds) {
-            this.text = text;
-            this.screenPosition = screenPosition;
-            this.normalizedPos = normalizedPos;
-            this.bounds = bounds;
-        }
-    }
-
-
-    private void recognizeText(Image image, OcrCallback callback) {
-        TextRecognizer recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
-        
-        // 获取屏幕尺寸
-        DisplayMetrics metrics = getResources().getDisplayMetrics();
-        float screenWidth = metrics.widthPixels;
-        float screenHeight = metrics.heightPixels;
-
-        try {
-            // 将 Image 转换为 Bitmap
-            Image.Plane[] planes = image.getPlanes();
-            ByteBuffer buffer = planes[0].getBuffer();
-            int pixelStride = planes[0].getPixelStride();
-            int rowStride = planes[0].getRowStride();
-            int rowPadding = rowStride - pixelStride * (int)screenWidth;
-
-            // 创建 Bitmap
-            Bitmap bitmap = Bitmap.createBitmap((int)screenWidth + rowPadding / pixelStride, 
-                                              (int)screenHeight, 
-                                              Bitmap.Config.ARGB_8888);
-            bitmap.copyPixelsFromBuffer(buffer);
-
-            // 使用 Bitmap 创建 InputImage
-            InputImage inputImage = InputImage.fromBitmap(bitmap, 0);
-
-            recognizer.process(inputImage)
-                    .addOnSuccessListener(text -> {
-                        List<TextInfo> textInfos = new ArrayList<>();
-                        
-                        for (Text.TextBlock block : text.getTextBlocks()) {
-                            for (Text.Line line : block.getLines()) {
-                                for (Text.Element element : line.getElements()) {
-                                    Rect imageBounds = element.getBoundingBox();
-                                    if (imageBounds != null) {
-                                        // 计算屏幕坐标
-                                        Point screenPos = new Point(
-                                            imageBounds.left,
-                                            imageBounds.top
-                                        );
-
-                                        // 计算归一化坐标 (0-1)
-                                        PointF normalizedPos = new PointF(
-                                            screenPos.x / screenWidth,
-                                            screenPos.y / screenHeight
-                                        );
-
-                                        // 计算屏幕空间中的边界
-                                        Rect screenBounds = new Rect(
-                                            imageBounds.left,
-                                            imageBounds.top,
-                                            imageBounds.right,
-                                            imageBounds.bottom
-                                        );
-
-                                        textInfos.add(new TextInfo(
-                                            element.getText(),
-                                            screenPos,
-                                            normalizedPos,
-                                            screenBounds
-                                        ));
-                                    }
-                                }
-                            }
-                        }
-
-                        bitmap.recycle();  // 释放 Bitmap
-                        new Handler(Looper.getMainLooper()).post(() -> 
-                            callback.onTextRecognized(textInfos));
-                    })
-                    .addOnFailureListener(e -> {
-                        bitmap.recycle();  // 释放 Bitmap
-                        Log.e("ScreenCapture", "Error recognizing text: " + e.getMessage());
-                        new Handler(Looper.getMainLooper()).post(() -> 
-                            callback.onTextRecognized(Collections.emptyList()));
-                    });
-        } catch (Exception e) {
-            Log.e("ScreenCapture", "Error processing image for OCR: " + e.getMessage());
-            new Handler(Looper.getMainLooper()).post(() -> 
-                callback.onTextRecognized(Collections.emptyList()));
-        }
-    }
-
     private void acquireWakeLock() {
         if (checkSelfPermission(android.Manifest.permission.WAKE_LOCK) 
                 == android.content.pm.PackageManager.PERMISSION_GRANTED) {
@@ -509,24 +410,27 @@ public class ScreenCapture extends Service {
         // 服务应该继续运行，不要在这里调用 stopSelf()
     }
 
+    public Bitmap getBitmapFromImage(Image image) {
+        Image.Plane[] planes = image.getPlanes();
+        ByteBuffer buffer = planes[0].getBuffer();
+        int pixelStride = planes[0].getPixelStride();
+        int rowStride = planes[0].getRowStride();
+        int rowPadding = rowStride - pixelStride * image.getWidth();
+
+        Bitmap bitmap = Bitmap.createBitmap(
+            image.getWidth() + rowPadding / pixelStride,
+            image.getHeight(),
+            Bitmap.Config.ARGB_8888
+        );
+        bitmap.copyPixelsFromBuffer(buffer);
+        return bitmap;
+    }
+
     public String captureScreen() {
         Image image = takeScreenshot();
         if (image != null) {
             try {
-                // 从 Image 获取数据
-                Image.Plane[] planes = image.getPlanes();
-                ByteBuffer buffer = planes[0].getBuffer();
-                int pixelStride = planes[0].getPixelStride();
-                int rowStride = planes[0].getRowStride();
-                int rowPadding = rowStride - pixelStride * image.getWidth();
-
-                // 创建 Bitmap
-                Bitmap bitmap = Bitmap.createBitmap(
-                    image.getWidth() + rowPadding / pixelStride,
-                    image.getHeight(),
-                    Bitmap.Config.ARGB_8888
-                );
-                bitmap.copyPixelsFromBuffer(buffer);
+                Bitmap bitmap = getBitmapFromImage(image);
 
                 // 压缩为JPEG
                 ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
@@ -551,16 +455,81 @@ public class ScreenCapture extends Service {
         return null;
     }
 
-    public void captureScreenText(OcrCallback cb) {
+    public static class TextBlockInfo {
+        public final String text;
+        public final Rect bounds;
+
+        public TextBlockInfo(String text, Rect bounds) {
+            this.text = text;
+            this.bounds = bounds;
+        }
+    }
+
+
+    private Bitmap convertImageToBitmap(Bitmap bitmap) {
+        // 灰度化处理
+        Bitmap grayBitmap = Bitmap.createBitmap(bitmap.getWidth(), bitmap.getHeight(), Bitmap.Config.ARGB_8888);
+        for (int y = 0; y < bitmap.getHeight(); y++) {
+            for (int x = 0; x < bitmap.getWidth(); x++) {
+                int pixel = bitmap.getPixel(x, y);
+                int gray = (Color.red(pixel) + Color.green(pixel) + Color.blue(pixel)) / 3;
+                grayBitmap.setPixel(x, y, Color.rgb(gray, gray, gray));
+            }
+        }
+        return grayBitmap;
+    }
+
+   
+    public void recognizeText(Consumer<Object> callback, boolean withPos) {
         Image image = takeScreenshot();
         if (image != null) {
             try {
-                recognizeText(image, cb);
-            } finally {
+                Bitmap bitmap = getBitmapFromImage(image);
+                InputImage inputImage = InputImage.fromBitmap(bitmap, 0);
+                TextRecognizer recognizer = TextRecognition.getClient(new ChineseTextRecognizerOptions.Builder().build());
+
+                // 使用自定义线程执行回调
+                Executor customExecutor = Executors.newSingleThreadExecutor();
+
+                recognizer.process(inputImage)
+                    .addOnCompleteListener(customExecutor, task -> {
+                        try {
+                            if (task.isSuccessful()) {
+                                Text text = task.getResult();
+                                if (withPos) {
+                                    List<TextBlockInfo> textBlockInfos = new ArrayList<>();
+                                    for (Text.TextBlock block : text.getTextBlocks()) {
+                                        String recognizedText = block.getText();
+                                        Rect boundingBox = block.getBoundingBox();
+                                        if (boundingBox != null) {
+                                            textBlockInfos.add(new TextBlockInfo(recognizedText, boundingBox));
+                                        }
+                                    }
+                                    callback.accept(textBlockInfos);
+                                } else {
+                                    StringBuilder recognizedText = new StringBuilder();
+                                    for (Text.TextBlock block : text.getTextBlocks()) {
+                                        recognizedText.append(block.getText()).append("\n");
+                                    }
+                                    callback.accept(recognizedText.toString().trim());
+                                }
+                            } else {
+                                Log.e("ScreenCapture", "Error recognizing text with ML Kit: " + task.getException().getMessage());
+                                callback.accept(withPos ? Collections.emptyList() : "");
+                            }
+                        } finally {
+                            image.close();
+                            Log.d("ScreenCapture", "Image closed after completion");
+                        }
+                    });
+            } catch (Exception e) {
+                Log.e("ScreenCapture", "Error processing image: " + e.getMessage(), e);
                 image.close();
+                callback.accept(withPos ? Collections.emptyList() : "");
             }
         } else {
-            cb.onTextRecognized(Collections.emptyList());
+            Log.e("ScreenCapture", "Failed to take screenshot: image is null");
+            callback.accept(withPos ? Collections.emptyList() : "");
         }
     }
 

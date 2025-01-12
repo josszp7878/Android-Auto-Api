@@ -320,3 +320,24 @@ git push origin main
 - 实时刷新设备截图
 - 添加图片加载状态提示
 - 支持点击查看大图
+
+### Tesseract OCR 配置
+
+为了支持中文识别，请确保在项目的 `assets/tessdata` 目录中包含以下语言数据文件：
+
+- `chi_sim.traineddata`：用于简体中文识别
+
+#### 配置步骤
+
+1. 在 `app/src/main` 目录下创建 `assets` 目录。
+2. 在 `assets` 目录下创建 `tessdata` 目录。
+3. 将 `chi_sim.traineddata` 文件放置在 `tessdata` 目录中。
+
+在代码中使用 Tesseract OCR 时，指定语言为 `chi_sim` 以进行中文识别。
+
+## 2025-01-09 使用 Google ML Kit 实现 OCR
+
+### 功能更新
+1. 使用 Google ML Kit 实现 OCR，成功获取文字位置信息。
+2. 更新了 `PythonServices.kt` 和 `Cmds.py` 以支持新的 OCR 功能。
+
