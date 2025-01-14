@@ -28,6 +28,15 @@
 - 如果未找到符合条件的文字，返回 `None`。
 - 该功能增强了对屏幕元素的识别和定位能力，便于自动化操作。
 
+### 2025-10-15 更新
+- 将设置服务器 IP 和设备名的逻辑从 `MainActivity` 移动到 `ToolBarService`。
+- `ToolBarService` 启动时会检查是否已设置设备信息，未设置则自动弹出设置对话框。
+- `ToolBarService` 的按钮点击事件已实现：`startStopButton` 用于启动/停止脚本引擎，`settingsButton` 用于打开设置对话框。
+
+### 2025-10-16 更新
+- 将 `SERVER_NAME_KEY` 和 `DEVICE_NAME_KEY` 移动到 `ToolBarService`。
+- 将 `MainActivity` 中的 `enter` 方法逻辑移动到 `ToolBarService`，并重命名为 `startScriptEngine`。
+
 ## 使用说明
 
 ### Python 脚本示例

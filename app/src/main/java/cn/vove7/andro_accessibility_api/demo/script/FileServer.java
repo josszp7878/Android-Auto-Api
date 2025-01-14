@@ -5,6 +5,7 @@ import android.util.Log;
 import android.os.Handler;
 import android.os.Looper;
 import android.app.AlertDialog;
+import android.content.Context;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -15,36 +16,41 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import org.json.JSONObject;
-import org.json.JSONException;
+
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import cn.vove7.andro_accessibility_api.demo.MainActivity;
+import cn.vove7.andro_accessibility_api.demo.service.ToolBarService;
 import timber.log.Timber;
 
 public class FileServer {
     private static final String TAG = "FileServer";
-    private static volatile FileServer INSTANCE;
-    private final MainActivity context;
+    private static volatile FileServer _instance;
+    private ToolBarService context;
     private final ExecutorService executorService;
 
     // 私有构造函数
-    private FileServer(MainActivity context) {
+    private FileServer(ToolBarService context) {
         this.context = context;
         this.executorService = Executors.newSingleThreadExecutor();
     }
 
     // 单例获取方法
-    public static FileServer getInstance(MainActivity context) {
-        if (INSTANCE == null) {
+    public static FileServer getInstance(ToolBarService context) {
+        if (_instance == null) {
             synchronized (FileServer.class) {
-                if (INSTANCE == null) {
-                    INSTANCE = new FileServer(context);
+                if (_instance == null) {
+                    _instance = new FileServer(context);
                 }
             }
         }
-        return INSTANCE;
+        return _instance;
+    }
+
+    // 重载方法，允许 context 为 null
+    public static FileServer getInstance() {
+        return getInstance(null);
     }
 
     public String UrlBase() {

@@ -304,7 +304,7 @@ class PythonServices {
                 Thread {
                     try {
                         // 使用单例的 FileServer
-                        FileServer.getInstance(context).download(fileName)
+                        FileServer.getInstance().download(fileName)
                         updateSuccess = true
                     } catch (e: Exception) {
                         Timber.tag(TAG).e(e, "更新脚本失败: %s", fileName)
@@ -327,7 +327,7 @@ class PythonServices {
             Thread {
                 try {
                     // 使用 FileServer 单例下载文件
-                    FileServer.getInstance(context as MainActivity).download(fileName)
+                    FileServer.getInstance().download(fileName)
                     // 调用 Python 回调函数，传递成功状态
                     callback.call(true, null)
                 } catch (e: Exception) {

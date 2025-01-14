@@ -41,35 +41,25 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
+import java.lang.ref.WeakReference
 
 class MainActivity : AppCompatActivity() {
+
+    companion object {
+        const val REQUEST_CODE_PERMISSIONS = 1001
+        const val REQUEST_CODE_OVERLAY_PERMISSION = 1002
+        private var instance: WeakReference<MainActivity>? = null
+
+        fun getInstance(): MainActivity? {
+            return instance?.get()
+        }
+    }
 
     private val binding by lazy {
         ActivityMainBinding.inflate(layoutInflater)
     }
 
-    
-    companion object {
-        const val REQUEST_CODE_PERMISSIONS = 1001
-        const val REQUEST_CODE_OVERLAY_PERMISSION = 1002
-    }
-    private val PREFS_NAME = "DevicePrefs"
-    private val SERVER_NAME_KEY = "serverName"
-    private val DEVICE_NAME_KEY = "deviceName"
-
-    // 封装 ServerIP 属性
-    var serverIP: String
-        get() = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getString(SERVER_NAME_KEY, "192.168.31.217") ?: "192.168.31.217"
-        set(value) {
-            getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().apply {
-                putString(SERVER_NAME_KEY, value)
-                apply()
-            }
-        }
-
     private val permissionRequests = mutableListOf<PermissionRequest>()
-
     data class PermissionRequest(
         val requestCode: Int,
         val checkGranted: () -> Boolean,
@@ -79,6 +69,7 @@ class MainActivity : AppCompatActivity() {
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        instance = WeakReference(this)
         
         // 设置ANR监控
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -105,7 +96,6 @@ class MainActivity : AppCompatActivity() {
             { Settings.canDrawOverlays(this) },
             {
                 startService(Intent(this, ToolBarService::class.java))
-                moveTaskToBack(true)
             }
         )
         // 检查并请求忽略电池优化权限
@@ -128,32 +118,6 @@ class MainActivity : AppCompatActivity() {
                 // 无障碍服务已启用，执行相关操作
             }
         )
-    }
-
-    private fun enter(device:String, server:String) : Boolean {
-        if (server.isEmpty() || device.isEmpty()) {
-            Toast.makeText(this, "请先设置设备名和服务器名", Toast.LENGTH_SHORT).show()
-            return false;
-        }
-        // 初始化并启动脚本引擎
-        //使用 CoroutineScope 和 Dispatchers.IO 在后台线程中执行网络请求
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                val scriptEngine = ScriptEngine.getInstance(this@MainActivity)
-                scriptEngine.init(device, server)
-                // 切换回主线程更新 UI
-                withContext(Dispatchers.Main) {
-                    // 隐藏应用
-                    moveTaskToBack(true)
-                }
-            } catch (e: Exception) {
-                // 切换回主线程更新 UI
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, "脚本引擎启动失败: ${e.message}", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-        return true;
     }
 
     @SuppressLint("SetTextI18n")
@@ -203,8 +167,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        val scriptEngine = ScriptEngine.getInstance(this)
-        scriptEngine.uninit()
+        instance?.clear()
     }
 
 
@@ -290,36 +253,36 @@ class MainActivity : AppCompatActivity() {
     }
 
 
-    private fun Start() {
-        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        var deviceName = prefs.getString(DEVICE_NAME_KEY, "") ?: ""
-
-        // 显示对话框以获取用户输入
-        val dialogView = layoutInflater.inflate(R.layout.dialog_device_info, null)
-        val serverIPInput = dialogView.findViewById<EditText>(R.id.serverNameInput)
-        val deviceNameInput = dialogView.findViewById<EditText>(R.id.deviceNameInput)
-
-        // 设置初始值
-        serverIPInput.setText(serverIP)
-        deviceNameInput.setText(deviceName)
-
-        AlertDialog.Builder(this)
-            .setTitle("设置设备信息")
-            .setView(dialogView)
-            .setPositiveButton("保存") { _, _ ->
-                serverIP = serverIPInput.text.toString()
-                val deviceName = deviceNameInput.text.toString()
-
-                // 保存到SharedPreferences
-                prefs.edit().apply {
-                    putString(DEVICE_NAME_KEY, deviceName)
-                    apply()
-                }
-                enter(deviceName, serverIP)
-            }
-            .setNegativeButton("取消", null)
-            .show()
-    }
+//    private fun Start() {
+//        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+//        var deviceName = prefs.getString(DEVICE_NAME_KEY, "") ?: ""
+//
+//        // 显示对话框以获取用户输入
+//        val dialogView = layoutInflater.inflate(R.layout.dialog_device_info, null)
+//        val serverIPInput = dialogView.findViewById<EditText>(R.id.serverNameInput)
+//        val deviceNameInput = dialogView.findViewById<EditText>(R.id.deviceNameInput)
+//
+//        // 设置初始值
+//        serverIPInput.setText(serverIP)
+//        deviceNameInput.setText(deviceName)
+//
+//        AlertDialog.Builder(this)
+//            .setTitle("设置设备信息")
+//            .setView(dialogView)
+//            .setPositiveButton("保存") { _, _ ->
+//                serverIP = serverIPInput.text.toString()
+//                val deviceName = deviceNameInput.text.toString()
+//
+//                // 保存到SharedPreferences
+//                prefs.edit().apply {
+//                    putString(DEVICE_NAME_KEY, deviceName)
+//                    apply()
+//                }
+//                enter(deviceName, serverIP)
+//            }
+//            .setNegativeButton("取消", null)
+//            .show()
+//    }
 
     private fun requestSpecialPermission(action: String, checkGranted: () -> Boolean, onGranted: () -> Unit) {
         if (checkGranted()) {

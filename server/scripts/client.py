@@ -30,35 +30,33 @@ class Client:
             from CDevice import CDevice
             from CmdMgr import CmdMgr
             import Cmds
-            try:
-                self.deviceID = deviceID or 'TEST1'
-                self.server = server or "localhost"
-                self.device = CDevice(self.deviceID)
-                
-                log.i(f"设备 {self.deviceID} 正在连接到服务器 {self.server}")
-                if not self.device.connect(f"http://{self.server}:5000"):
-                    log.e("连接服务器失败")
-                    return  # 这里直接返回会触发 finally
-                
-                print("客户端运行中... 按Ctrl+C退出")    
-                
-                runFromApp = log.isAndroid()
-                while True:
-                    if not runFromApp:
-                        cmd_input = input(f"{self.deviceID}> ").strip()
-                        if cmd_input:
-                            try:
-                                result = CmdMgr().do(cmd_input)
-                                if result:
-                                    print(result)
-                            except Exception as e:
-                                log.ex(e, '执行命令出错')
-                    time.sleep(0.1)
-                
-            except KeyboardInterrupt:
-                log.i('\n正在退出...')
-            except Exception as e:
-                log.ex(e, '发生错误')
+            self.deviceID = deviceID or 'TEST1'
+            self.server = server or "localhost"
+            self.device = CDevice(self.deviceID)
+            
+            log.i(f"设备 {self.deviceID} 正在连接到服务器 {self.server}")
+            if not self.device.connect(f"http://{self.server}:5000"):
+                log.e("连接服务器失败")
+                return  # 这里直接返回会触发 finally
+            
+            print("客户端运行中... 按Ctrl+C退出")    
+            
+            runFromApp = log.isAndroid()
+            if not runFromApp: # 如果不是从App运行，则进入命令行模式
+                    while True:
+                        try:
+                            cmd_input = input(f"{self.deviceID}> ").strip()
+                            if cmd_input:
+                                try:
+                                    result = CmdMgr().do(cmd_input)
+                                    if result:
+                                        print(result)
+                                except Exception as e:
+                                    log.ex(e, '执行命令出错')    
+                        except KeyboardInterrupt: # 捕获Ctrl+C
+                            log.i('\n正在退出...') 
+                            break       
+                        time.sleep(0.1)                
         except Exception as e:
             log.ex(e, '初始化失败')
         finally:

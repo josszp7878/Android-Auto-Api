@@ -20,6 +20,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import cn.vove7.andro_accessibility_api.demo.MainActivity;
+import cn.vove7.andro_accessibility_api.demo.service.ToolBarService;
 import timber.log.Timber;
 
 public class ScriptEngine {
@@ -36,14 +37,14 @@ public class ScriptEngine {
     private boolean versionChecked = false;
     private static final long ANR_TIMEOUT = 10000; // 10秒
 
-    private ScriptEngine(MainActivity context) {
+    private ScriptEngine(ToolBarService context) {
         this.context = context.getApplicationContext();
         applicationContext = this.context;
         this.fileServer = FileServer.getInstance(context);
         this.scriptLastModified = new HashMap<>();
     }
 
-    public static ScriptEngine getInstance(MainActivity context) {
+    public static ScriptEngine getInstance(ToolBarService context) {
         if (INSTANCE == null) {
             synchronized (ScriptEngine.class) {
                 if (INSTANCE == null) {
@@ -56,9 +57,9 @@ public class ScriptEngine {
 
     public void init(String deviceName, String serverName) {
         Timber.tag(TAG).d("初始化ScriptEngine with server: %s, device: %s", serverName, deviceName);
-        
         // 使用 FileServer 单例检查和更新脚本
         fileServer.checkAndUpdateScripts(success -> initPython(deviceName, serverName));
+        Log.d("ScriptEngine", "init started on thread: " + Thread.currentThread().getName());
     }
 
     private void initPython(String deviceName, String serverName) {

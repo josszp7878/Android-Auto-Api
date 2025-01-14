@@ -3,18 +3,11 @@ from logger import Log, requireAndroid
 from CDevice import CDevice
 from tools import Tools
 from CmdMgr import regCmd
-from java import jclass
-from cn.vove7.andro_accessibility_api.demo.script import PythonServices
 import re
 import json
 
 # 缓存 Android 实例
 androidServices = Log().Android
-
-@regCmd(r'aa')
-def cmdAa():
-    """获取设备信息"""
-    Log.d("cmdAa")
 
 
 @regCmd(r'信息')
