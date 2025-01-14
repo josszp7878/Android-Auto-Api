@@ -5,14 +5,19 @@ import android.annotation.SuppressLint
 import android.app.Application
 import android.content.Context
 import android.content.Intent
-import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.graphics.PixelFormat
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.os.StrictMode
 import android.provider.Settings
+import android.view.Gravity
+import android.view.LayoutInflater
+import android.view.MotionEvent
+import android.view.View
+import android.view.WindowManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.Toast
@@ -28,6 +33,7 @@ import cn.vove7.andro_accessibility_api.demo.script.PythonServices
 import cn.vove7.andro_accessibility_api.demo.script.ScriptEngine
 import cn.vove7.andro_accessibility_api.demo.service.ScreenCapture
 import cn.vove7.auto.AutoApi
+import cn.vove7.andro_accessibility_api.demo.service.ToolBarService
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -45,6 +51,7 @@ class MainActivity : AppCompatActivity() {
     
     companion object {
         const val REQUEST_CODE_PERMISSIONS = 1001
+        const val REQUEST_CODE_OVERLAY_PERMISSION = 1002
     }
     private val PREFS_NAME = "DevicePrefs"
     private val SERVER_NAME_KEY = "serverName"
@@ -61,6 +68,14 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+    private val permissionRequests = mutableListOf<PermissionRequest>()
+
+    data class PermissionRequest(
+        val requestCode: Int,
+        val checkGranted: () -> Boolean,
+        val onGranted: () -> Unit
+    )
+
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -75,31 +90,50 @@ class MainActivity : AppCompatActivity() {
             }
         }
         
-        setContentView(binding.root)
-
+        //setContentView(binding.root)
         // 初始化 PythonServices 的 Context
         PythonServices.init(this)
         // 启动 ScreenCapture 服务
         ScreenCapture.Begin(this)
         // 启动无障碍服务
-        startAccessibilityService()
+        //startAccessibilityService()
         // 检查并请求权限
         requestPermissions()
+        // 检查悬浮窗权限
+        requestSpecialPermission(
+            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+            { Settings.canDrawOverlays(this) },
+            {
+                startService(Intent(this, ToolBarService::class.java))
+                moveTaskToBack(true)
+            }
+        )
+        // 检查并请求忽略电池优化权限
+        requestSpecialPermission(
+            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+            {
+                val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+                pm.isIgnoringBatteryOptimizations(packageName)
+            },
+            {
+                // 忽略电池优化权限已授予，执行相关操作
+            }
+        )
 
-        // 设置按钮点击事件
-        val startButton: Button = findViewById(R.id.startButton)
-        startButton.setOnClickListener {
-            Start()
-        }
+        // 检查并请求无障碍服务权限
+        requestSpecialPermission(
+            Settings.ACTION_ACCESSIBILITY_SETTINGS,
+            { isAccessibilityServiceEnabled() },
+            {
+                // 无障碍服务已启用，执行相关操作
+            }
+        )
     }
 
     private fun enter(device:String, server:String) : Boolean {
         if (server.isEmpty() || device.isEmpty()) {
             Toast.makeText(this, "请先设置设备名和服务器名", Toast.LENGTH_SHORT).show()
             return false;
-        }
-        if(!areAllPermissionsGranted()) {
-            Toast.makeText(this, "部分权限未申请成功，可能会影响使用功能，可以重启应用重新申请", Toast.LENGTH_SHORT).show()
         }
         // 初始化并启动脚本引擎
         //使用 CoroutineScope 和 Dispatchers.IO 在后台线程中执行网络请求
@@ -173,14 +207,6 @@ class MainActivity : AppCompatActivity() {
         scriptEngine.uninit()
     }
 
-    private fun startAccessibilityService() {
-        if (!isAccessibilityServiceEnabled()) {
-            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-            runOnUiThread {
-                Toast.makeText(this, "请开启无障碍服务", Toast.LENGTH_LONG).show()
-            }
-        }
-    }
 
     private fun isAccessibilityServiceEnabled(): Boolean {
         val serviceName = packageName + "/" + AccessibilityApi.BASE_SERVICE_CLS
@@ -197,6 +223,15 @@ class MainActivity : AppCompatActivity() {
         if (requestCode == ScreenCapture.REQUEST_CODE_SCREEN_CAPTURE) {
             val screenCapture = ScreenCapture.getInstance()
             screenCapture?.handlePermissionResult(resultCode, data)
+        } else {
+            permissionRequests.find { it.requestCode == requestCode }?.let { request ->
+                if (request.checkGranted()) {
+                    request.onGranted()
+                    permissionRequests.remove(request)
+                } else {
+                    Toast.makeText(this, "权限未授予", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
     }
     private val requiredPermissions = arrayOf(
@@ -254,21 +289,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun areAllPermissionsGranted(): Boolean {
-        val allPermissionsGranted = requiredPermissions.all {
-            val ok = checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
-            if (ok) {
-                Toast.makeText(this, "权限"+it +"未授权", Toast.LENGTH_SHORT).show()
-            }
-            return ok
-        }
-        val isAccessibilityEnabled = AccessibilityApi.isServiceEnable
-        if (!allPermissionsGranted) {
-            Toast.makeText(this, "无障碍服务未开启", Toast.LENGTH_SHORT).show()
-        }
-        return allPermissionsGranted && isAccessibilityEnabled
-    }
-
 
     private fun Start() {
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -301,12 +321,21 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun getDeviceInfo(): Pair<String, String> {
-        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val serverName = prefs.getString(SERVER_NAME_KEY, "") ?: ""
-        val deviceName = prefs.getString(DEVICE_NAME_KEY, "") ?: ""
-        return Pair(serverName, deviceName)
+    private fun requestSpecialPermission(action: String, checkGranted: () -> Boolean, onGranted: () -> Unit) {
+        if (checkGranted()) {
+            onGranted()
+        } else {
+            permissionRequests.add(PermissionRequest(action.hashCode(), checkGranted, onGranted))
+            val intent = Intent(action).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            if (action == Settings.ACTION_ACCESSIBILITY_SETTINGS) {
+                startActivity(intent) // 不使用 startActivityForResult
+            } else {
+                intent.data = Uri.parse("package:$packageName")
+                startActivityForResult(intent, action.hashCode())
+            }
+        }
     }
-
 }
 
