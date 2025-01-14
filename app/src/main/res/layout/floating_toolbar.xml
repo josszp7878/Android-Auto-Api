@@ -3,18 +3,27 @@
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:background="@android:drawable/alert_dark_frame"
+    android:gravity="end"
     android:orientation="horizontal"
     android:padding="10dp">
 
     <Button
         android:id="@+id/startStopButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="开始" />
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:background="@android:drawable/ic_media_play"
+        android:visibility="gone" />
 
     <Button
         android:id="@+id/settingsButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="设置" />
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:background="@android:drawable/ic_menu_set_as"
+        android:visibility="gone" />
+
+    <Button
+        android:id="@+id/toggleButton"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:background="@drawable/googleg_standard_color_18" />
 </LinearLayout> 

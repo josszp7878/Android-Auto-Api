@@ -92,13 +92,23 @@ class ToolBarService : LifecycleService() {
      */
     @SuppressLint("ClickableViewAccessibility")
     fun showWindow() {
-        if (floatRootView != null) return // 如果已经显示，则不重复添加
+        if (floatRootView != null) return
 
         Log.d("ToolBarService", "Attempting to show window")
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         val outMetrics = DisplayMetrics()
         windowManager.defaultDisplay.getMetrics(outMetrics)
-        val layoutParam = WindowManager.LayoutParams().apply {
+        val layoutParam = createLayoutParams(outMetrics)
+
+        floatRootView = LayoutInflater.from(this).inflate(R.layout.floating_toolbar, null)
+        setupButtons(layoutParam)
+
+        windowManager.addView(floatRootView, layoutParam)
+        Log.d("ToolBarService", "Window shown")
+    }
+
+    private fun createLayoutParams(outMetrics: DisplayMetrics): WindowManager.LayoutParams {
+        return WindowManager.LayoutParams().apply {
             type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             } else {
@@ -108,19 +118,47 @@ class ToolBarService : LifecycleService() {
             flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
             width = WRAP_CONTENT
             height = WRAP_CONTENT
-            gravity = Gravity.LEFT or Gravity.TOP
-            x = outMetrics.widthPixels / 2 - width / 2
-            y = outMetrics.heightPixels / 2 - height / 2
+            gravity = Gravity.TOP or Gravity.END
+            x = 0 // 初始停靠在屏幕右边
+            y = outMetrics.heightPixels / 2 - height / 2 // 屏幕中间
         }
-        floatRootView = LayoutInflater.from(this).inflate(R.layout.floating_toolbar, null)
+    }
 
-        // 实现拖动功能
-        val touchListener = object : View.OnTouchListener {
+    private fun setupButtons(layoutParam: WindowManager.LayoutParams) {
+        val toggleButton = floatRootView?.findViewById<Button>(R.id.toggleButton)
+        val startStopButton = floatRootView?.findViewById<Button>(R.id.startStopButton)
+        val settingsButton = floatRootView?.findViewById<Button>(R.id.settingsButton)
+
+        toggleButton?.setOnClickListener {
+            toggleVisibility(startStopButton, settingsButton)
+        }
+
+        val touchListener = createTouchListener(layoutParam)
+        listOf(startStopButton, settingsButton, toggleButton).forEach { button ->
+            button?.setOnTouchListener(touchListener)
+        }
+
+        startStopButton?.setOnClickListener { onStartStopButtonClick() }
+        settingsButton?.setOnClickListener { showSetting() }
+    }
+
+    private fun toggleVisibility(vararg buttons: Button?) {
+        val isVisible = buttons.first()?.visibility == View.VISIBLE
+        val targetAlpha = if (isVisible) 0f else 1f
+        buttons.forEach { button ->
+            button?.animate()?.alpha(targetAlpha)?.setDuration(300)?.withEndAction {
+                button.visibility = if (isVisible) View.GONE else View.VISIBLE
+            }?.start()
+        }
+    }
+
+    private fun createTouchListener(layoutParam: WindowManager.LayoutParams): View.OnTouchListener {
+        return object : View.OnTouchListener {
             private var initialX = 0
             private var initialY = 0
             private var initialTouchX = 0f
             private var initialTouchY = 0f
-            private val clickThreshold = 10 // 点击的阈值
+            private val clickThreshold = 10
 
             override fun onTouch(v: View, event: MotionEvent): Boolean {
                 when (event.action) {
@@ -141,7 +179,7 @@ class ToolBarService : LifecycleService() {
                         val deltaX = (event.rawX - initialTouchX).toInt()
                         val deltaY = (event.rawY - initialTouchY).toInt()
                         if (Math.abs(deltaX) < clickThreshold && Math.abs(deltaY) < clickThreshold) {
-                            v.performClick() // 处理点击事件
+                            v.performClick()
                         }
                         return true
                     }
@@ -149,21 +187,6 @@ class ToolBarService : LifecycleService() {
                 return false
             }
         }
-
-        floatRootView?.findViewById<Button>(R.id.startStopButton)?.setOnTouchListener(touchListener)
-        floatRootView?.findViewById<Button>(R.id.settingsButton)?.setOnTouchListener(touchListener)
-
-        // 设置按钮点击事件
-        floatRootView?.findViewById<Button>(R.id.startStopButton)?.setOnClickListener {
-            onStartStopButtonClick()               
-        }
-
-        floatRootView?.findViewById<Button>(R.id.settingsButton)?.setOnClickListener {
-            showSetting()
-        }
-
-        windowManager.addView(floatRootView, layoutParam)
-        Log.d("ToolBarService", "Window shown")
     }
 
     /**

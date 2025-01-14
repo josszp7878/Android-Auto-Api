@@ -37,6 +37,12 @@
 - 将 `SERVER_NAME_KEY` 和 `DEVICE_NAME_KEY` 移动到 `ToolBarService`。
 - 将 `MainActivity` 中的 `enter` 方法逻辑移动到 `ToolBarService`，并重命名为 `startScriptEngine`。
 
+### 2025-10-20 更新
+- 修改了悬浮工具栏的样式：
+  - 将按钮文字替换为图标。
+  - 工具栏支持收缩和展开功能，默认显示一个按钮，点击后展开，再次点击收缩。
+  - 添加了收缩和展开的动画效果。
+
 ## 使用说明
 
 ### Python 脚本示例
