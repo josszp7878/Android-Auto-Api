@@ -80,14 +80,12 @@ class MainActivity : AppCompatActivity() {
                     .build())
             }
         }
-        
-        //setContentView(binding.root)
         // 初始化 PythonServices 的 Context
         PythonServices.init(this)
         // 启动 ScreenCapture 服务
         ScreenCapture.Begin(this)
         // 启动无障碍服务
-        //startAccessibilityService()
+        startAccessibilityService()
         // 检查并请求权限
         requestPermissions()
         // 检查悬浮窗权限
@@ -109,15 +107,24 @@ class MainActivity : AppCompatActivity() {
                 // 忽略电池优化权限已授予，执行相关操作
             }
         )
+    }
 
-        // 检查并请求无障碍服务权限
-        requestSpecialPermission(
-            Settings.ACTION_ACCESSIBILITY_SETTINGS,
-            { isAccessibilityServiceEnabled() },
-            {
-                // 无障碍服务已启用，执行相关操作
+    private fun startAccessibilityService() {
+        if (!isAccessibilityServiceEnabled()) {
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            runOnUiThread {
+                Toast.makeText(this, "请开启无障碍服务", Toast.LENGTH_LONG).show()
             }
+        }
+    }
+
+    private fun isAccessibilityServiceEnabled(): Boolean {
+        val serviceName = packageName + "/" + AccessibilityApi.BASE_SERVICE_CLS
+        val enabledServices = Settings.Secure.getString(
+            contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
         )
+        return enabledServices?.contains(serviceName) == true
     }
 
     @SuppressLint("SetTextI18n")
@@ -171,14 +178,6 @@ class MainActivity : AppCompatActivity() {
     }
 
 
-    private fun isAccessibilityServiceEnabled(): Boolean {
-        val serviceName = packageName + "/" + AccessibilityApi.BASE_SERVICE_CLS
-        val enabledServices = Settings.Secure.getString(
-            contentResolver,
-            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-        )
-        return enabledServices?.contains(serviceName) == true
-    }
 
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -253,37 +252,6 @@ class MainActivity : AppCompatActivity() {
     }
 
 
-//    private fun Start() {
-//        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-//        var deviceName = prefs.getString(DEVICE_NAME_KEY, "") ?: ""
-//
-//        // 显示对话框以获取用户输入
-//        val dialogView = layoutInflater.inflate(R.layout.dialog_device_info, null)
-//        val serverIPInput = dialogView.findViewById<EditText>(R.id.serverNameInput)
-//        val deviceNameInput = dialogView.findViewById<EditText>(R.id.deviceNameInput)
-//
-//        // 设置初始值
-//        serverIPInput.setText(serverIP)
-//        deviceNameInput.setText(deviceName)
-//
-//        AlertDialog.Builder(this)
-//            .setTitle("设置设备信息")
-//            .setView(dialogView)
-//            .setPositiveButton("保存") { _, _ ->
-//                serverIP = serverIPInput.text.toString()
-//                val deviceName = deviceNameInput.text.toString()
-//
-//                // 保存到SharedPreferences
-//                prefs.edit().apply {
-//                    putString(DEVICE_NAME_KEY, deviceName)
-//                    apply()
-//                }
-//                enter(deviceName, serverIP)
-//            }
-//            .setNegativeButton("取消", null)
-//            .show()
-//    }
-
     private fun requestSpecialPermission(action: String, checkGranted: () -> Boolean, onGranted: () -> Unit) {
         if (checkGranted()) {
             onGranted()
@@ -300,5 +268,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+
+
 }
 

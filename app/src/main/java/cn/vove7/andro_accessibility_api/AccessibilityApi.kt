@@ -176,31 +176,31 @@ abstract class AccessibilityApi : AccessibilityService(), AutoApi {
 
         val isGestureServiceEnable: Boolean get() = gestureService != null
 
-        /**
-         * 等待无障碍开启，最长等待30s
-         * @param waitMillis Long
-         * @return Boolean true 开启成功 ; false 超时
-         * @throws NeedAccessibilityException
-         */
-        @JvmOverloads
-        @JvmStatic
-        @Throws(NeedAccessibilityException::class)
-        suspend fun waitAccessibility(waitMillis: Long = 30000, cls: Class<*>): Boolean {
-
-            val se = if (cls == BASE_SERVICE_CLS) isBaseServiceEnable
-            else isGestureServiceEnable
-
-            if (se) return true
-            else jumpAccessibilityServiceSettings(cls)
-
-            return whileWaitTime(min(30000, waitMillis), 500) {
-                if (isBaseServiceEnable) true
-                else null
-            } ?: throw NeedAccessibilityException(cls.name)
-        }
+//        /**
+//         * 等待无障碍开启，最长等待30s
+//         * @param waitMillis Long
+//         * @return Boolean true 开启成功 ; false 超时
+//         * @throws NeedAccessibilityException
+//         */
+//        @JvmOverloads
+//        @JvmStatic
+//        @Throws(NeedAccessibilityException::class)
+//        suspend fun waitAccessibility(waitMillis: Long = 30000, cls: Class<*>): Boolean {
+//
+//            val se = if (cls == BASE_SERVICE_CLS) isBaseServiceEnable
+//            else isGestureServiceEnable
+//
+//            if (se) return true
+//            else jumpAccessibilityServiceSettings(cls)
+//
+//            return whileWaitTime(min(30000, waitMillis), 500) {
+//                if (isBaseServiceEnable) true
+//                else null
+//            } ?: throw NeedAccessibilityException(cls.name)
+//        }
 
         // 声明 需要基础无障碍权限
-        fun requireBaseAccessibility(autoJump: Boolean = false) {
+        fun requireBaseAccessibility(autoJump: Boolean = true) {
             if (!isBaseServiceEnable) {
                 if (autoJump) jumpAccessibilityServiceSettings(BASE_SERVICE_CLS)
                 throw NeedAccessibilityException(BASE_SERVICE_CLS.name)
@@ -208,7 +208,7 @@ abstract class AccessibilityApi : AccessibilityService(), AutoApi {
         }
 
         // 声明 需要手势无障碍权限
-        fun requireGestureAccessibility(autoJump: Boolean = false) {
+        fun requireGestureAccessibility(autoJump: Boolean = true) {
             if (!isGestureServiceEnable) {
                 if (autoJump) jumpAccessibilityServiceSettings(GESTURE_SERVICE_CLS)
                 throw NeedAccessibilityException(GESTURE_SERVICE_CLS.name)
@@ -240,28 +240,6 @@ abstract class AccessibilityApi : AccessibilityService(), AutoApi {
         return requireBase.windowsOnAllDisplays
     }
 }
-
-
-fun requireBaseAccessibility(autoJump: Boolean = false) {
-    AccessibilityApi.requireBaseAccessibility(autoJump)
-}
-
-suspend fun waitBaseAccessibility(waitMillis: Long = 30000) {
-    AccessibilityApi.waitAccessibility(waitMillis, AccessibilityApi.BASE_SERVICE_CLS)
-}
-
-fun requireGestureAccessibility(autoJump: Boolean = false) {
-    AccessibilityApi.requireGestureAccessibility(autoJump)
-}
-
-suspend fun waitGestureAccessibility(waitMillis: Long = 30000) {
-    AccessibilityApi.waitAccessibility(waitMillis, AccessibilityApi.GESTURE_SERVICE_CLS)
-}
-
-suspend fun waitAccessibility(waitMillis: Long = 30000, cls: Class<*>): Boolean {
-    return AccessibilityApi.waitAccessibility(waitMillis, cls)
-}
-
 
 /**
  * 无障碍服务未运行异常

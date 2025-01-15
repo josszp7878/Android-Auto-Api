@@ -88,48 +88,35 @@ def isConnect():
         return f"已连接到服务器，设备ID: {device.deviceID}"
     return "未连接到服务器"
 
-
-@regCmd(r'点击', r'(?P<x>\d+)\D+(?P<y>\d+)')
+@regCmd(r'存在', r'(?P<pattern>.+)')
 @requireAndroid
-def click(x, y):
-    x, y = int(x), int(y)
-    result = androidServices.clickPosition(x, y)
-    return f"点击位置 ({x}, {y}) 结果: {result}"
+def hasUI(pattern):
+    return _findUI(pattern) is not None
+
+@regCmd(r'点击', r'(?P<param>.+)')
+@requireAndroid
+def click(param):
+    # 尝试解析参数为坐标
+    try:
+        # 假设坐标格式为 "x, y" 或 "x y"
+        Log.i(f"@@@@点击指令: {param}")
+        x, y = map(int, re.split(r'[,\s]+', param.strip()))
+        result = androidServices.clickPosition(x, y)
+        return f"点击位置 ({x}, {y}) 结果: {result}"
+    except Exception as e:
+        position = _findUI(param)
+        if position:
+            Log.i(f"@@@@点击指令: {param} 找到位置: {position}")
+            result = androidServices.clickPosition(position[0], position[1])
+            return f"点击 UI '{param}' 的位置 ({position[0]}, {position[1]}) 结果: {result}"
+        else:
+            return f"未找到 UI 名称为 '{param}' 的元素"
 
 
 @regCmd(r'返回')
 @requireAndroid
 def goBack():
     return androidServices.goBack()
-
-
-@regCmd(r'获取屏幕文本')
-@requireAndroid
-def screenText():
-    try:
-        # 调用 Kotlin 方法获取屏幕文本和位置信息
-        textInfos = PythonServices.getScreenTextWithInfo()
-        
-        # 将结果转换为 Python 格式，使用单字符键名
-        result = []
-        for info in textInfos:
-            text = info['text']
-            bounds = info['bounds']
-            result.append({
-                't': text,  # text -> t
-                'b': {      # bounds -> b
-                    'l': bounds['left'],   # left -> l
-                    't': bounds['top'],    # top -> t
-                    'r': bounds['right'],  # right -> r
-                    'b': bounds['bottom']  # bottom -> b
-                }
-            })
-        
-        return result
-    except Exception as e:
-        Log.ex(e, "获取屏幕文本失败")
-        return []
-
 
 @regCmd(r'主屏幕')
 @requireAndroid
@@ -264,7 +251,7 @@ def switchApp():
 @requireAndroid
 def getScreenText():
     try:
-        text = PythonServices.getScreenText()
+        text = androidServices.getScreenText()
         if text:
             Log.i("识别到的文本: " + text)
             return text
@@ -278,7 +265,7 @@ def getScreenText():
 
 def _getScreenInfos():
     """获取并解析屏幕信息"""
-    info = PythonServices.getScreenInfo()
+    info = androidServices.getScreenInfo()
     size = info.size()
     result = []
     
@@ -310,13 +297,11 @@ def getScreenInfo():
         return "获取信息失败"
 
 
-@regCmd(r'查找', r'(?P<pattern>.+)')
-@requireAndroid
-def findUI(pattern):
+
+def _findUI(pattern):
     try:
         # 编译正则表达式
-        regex = re.compile(pattern)
-        
+        regex = re.compile(pattern)        
         # 使用封装的方法获取屏幕信息
         screenInfo = _getScreenInfos()
         
@@ -327,15 +312,13 @@ def findUI(pattern):
                 bounds = item['b'].split(',')
                 centerX = (int(bounds[0]) + int(bounds[2])) // 2
                 centerY = (int(bounds[1]) + int(bounds[3])) // 2
-                position = {'centerX': centerX, 'centerY': centerY}
+                position = (centerX, centerY)
                 break
         
-        Log.i(f"找到匹配的位置: {pattern}")
-        
-        # 将结果转换为 JSON 字符串
-        return json.dumps(position) if position else None
+        Log.i(f"找到匹配的位置: {pattern}=》 {position}")
+        return position
     except Exception as e:
         Log.ex(e, "FindUI 指令执行失败")
-        return "执行失败"
+        return None
 
 

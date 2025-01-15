@@ -49,7 +49,7 @@ class ToolBarService : LifecycleService() {
     var serverIP: String
         get() {
             if (_serverIP == null) {
-                _serverIP = getPrefs().getString(SERVER_NAME_KEY, "") ?: ""
+                _serverIP = getPrefs().getString(SERVER_NAME_KEY, "192.168.31.217")
             }
             return _serverIP!!
         }
@@ -94,7 +94,6 @@ class ToolBarService : LifecycleService() {
     fun showWindow() {
         if (floatRootView != null) return
 
-        Log.d("ToolBarService", "Attempting to show window")
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         val outMetrics = DisplayMetrics()
         windowManager.defaultDisplay.getMetrics(outMetrics)
@@ -104,7 +103,6 @@ class ToolBarService : LifecycleService() {
         setupButtons(layoutParam)
 
         windowManager.addView(floatRootView, layoutParam)
-        Log.d("ToolBarService", "Window shown")
     }
 
     private fun createLayoutParams(outMetrics: DisplayMetrics): WindowManager.LayoutParams {
@@ -119,8 +117,8 @@ class ToolBarService : LifecycleService() {
             width = WRAP_CONTENT
             height = WRAP_CONTENT
             gravity = Gravity.TOP or Gravity.END
-            x = 0 // 初始停靠在屏幕右边
-            y = outMetrics.heightPixels / 2 - height / 2 // 屏幕中间
+            x = 0
+            y = outMetrics.heightPixels / 2 - height / 2
         }
     }
 
@@ -172,6 +170,7 @@ class ToolBarService : LifecycleService() {
                     MotionEvent.ACTION_MOVE -> {
                         layoutParam.x = initialX + (event.rawX - initialTouchX).toInt()
                         layoutParam.y = initialY + (event.rawY - initialTouchY).toInt()
+                        Log.d("ToolBarService", "layoutParam.x: ${layoutParam.x}, layoutParam.y: ${layoutParam.y}")
                         windowManager.updateViewLayout(floatRootView, layoutParam)
                         return true
                     }
@@ -199,13 +198,43 @@ class ToolBarService : LifecycleService() {
         }
     }
 
-    private fun onStartStopButtonClick(){
-        if(isRunning){
-            end()
-        }else{
-            begin()
+    private var _isRunning = false
+    var isRunning: Boolean
+        get() = _isRunning
+        set(value) {
+            _isRunning = value
+            updateButtonIcon() // 在设置 isRunning 时更新按钮图标
         }
-        floatRootView?.findViewById<Button>(R.id.startStopButton)?.text = if(isRunning) "停止" else "开始"
+
+    private var _scriptEngine: ScriptEngine? = null
+    var scriptEngine: ScriptEngine
+        get() {
+            if (_scriptEngine == null) {
+                _scriptEngine = ScriptEngine.getInstance(this)
+            }
+            return _scriptEngine!!
+        }
+        set(value) {
+            _scriptEngine = value
+        }
+
+    private fun onStartStopButtonClick() {
+        isRunning = if (isRunning) {
+            end()
+            false
+        } else {
+            begin()
+            true
+        }
+    }
+
+    private fun updateButtonIcon() {
+        val startStopButton = floatRootView?.findViewById<Button>(R.id.startStopButton)
+        if (isRunning) {
+            startStopButton?.setBackgroundResource(android.R.drawable.ic_media_pause) // 停止图标
+        } else {
+            startStopButton?.setBackgroundResource(android.R.drawable.ic_media_play) // 开始图标
+        }
     }
 
     private fun showSetting() {
@@ -270,20 +299,6 @@ class ToolBarService : LifecycleService() {
         windowManager.addView(dialogView, layoutParams)
     }
 
-
-    private var isRunning = false
-    private var _scriptEngine: ScriptEngine? = null
-    var scriptEngine: ScriptEngine
-        get() {
-            if (_scriptEngine == null) {
-                _scriptEngine = ScriptEngine.getInstance(this)
-            }
-            return _scriptEngine!!
-        }
-        set(value) {
-            _scriptEngine = value
-        }
-
     private fun begin(): Boolean {
         if (isRunning) {
             Toast.makeText(this, "脚本引擎已启动", Toast.LENGTH_SHORT).show()
@@ -299,8 +314,7 @@ class ToolBarService : LifecycleService() {
                 withContext(Dispatchers.Main) {
                     Toast.makeText(this@ToolBarService, "脚本引擎已启动", Toast.LENGTH_SHORT).show()
                     isRunning = true
-                    updateButtonText() // 更新按钮文本
-//                    MainActivity.getInstance()?.moveTaskToBack(true)
+                    MainActivity.getInstance()?.moveTaskToBack(true)
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
@@ -317,12 +331,6 @@ class ToolBarService : LifecycleService() {
         }
         scriptEngine.uninit()
         isRunning = false
-        updateButtonText() // 更新按钮文本
-    }
-
-    // 更新按钮文本的方法
-    private fun updateButtonText() {
-        floatRootView?.findViewById<Button>(R.id.startStopButton)?.text = if (isRunning) "停止" else "开始"
     }
 
     override fun onDestroy() {
