@@ -65,6 +65,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import java.util.Collections;
+import java.lang.ref.WeakReference;
+
 
 /** @noinspection ALL*/
 public class ScreenCapture extends Service {
@@ -298,36 +300,52 @@ public class ScreenCapture extends Service {
             return null;
         }
 
-        // 获取屏幕尺寸
-        DisplayMetrics metrics = getResources().getDisplayMetrics();
-        int screenWidth = metrics.widthPixels;
-        int screenHeight = metrics.heightPixels;
+        WeakReference<ToolBarService> toolBarServiceRef = ToolBarService.getInstance();
+        ToolBarService toolBarService = toolBarServiceRef != null ? toolBarServiceRef.get() : null;
 
-        ensureVirtualDisplay(screenWidth, screenHeight);
+        try {
+            Image image = null;
+            if (toolBarService != null) {
+                toolBarService.hideCursor(); // 隐藏光标
+            }
 
-        // 添加重试机制
-        int maxAttempts = 3;
-        int attempt = 0;
-        while (attempt < maxAttempts) {
-            try {
-                // 等待一小段时间让 VirtualDisplay 准备就绪
-                Thread.sleep(100);
-                
-                Image image = imageReader.acquireLatestImage();
-                if (image != null) {
-                    Log.d("ScreenCapture", "Successfully acquired image on attempt " + (attempt + 1));
-                    return image;
+            // 获取屏幕尺寸
+            DisplayMetrics metrics = getResources().getDisplayMetrics();
+            int screenWidth = metrics.widthPixels;
+            int screenHeight = metrics.heightPixels;
+
+            ensureVirtualDisplay(screenWidth, screenHeight);
+
+            // 添加重试机制
+            int maxAttempts = 3;
+            int attempt = 0;
+            while (attempt < maxAttempts) {
+                try {
+                    // 等待一小段时间让 VirtualDisplay 准备就绪
+                    Thread.sleep(100);
+                    image = imageReader.acquireLatestImage();
+                    if (image != null) {
+                        break;
+                    }
+                    attempt++;
+                } catch (Exception e) {
+                    attempt++;
                 }
-                Log.w("ScreenCapture", "Failed to acquire image on attempt " + (attempt + 1));
-                attempt++;
-            } catch (Exception e) {
-                Log.e("ScreenCapture", "Error taking screenshot on attempt " + (attempt + 1), e);
-                attempt++;
+            }
+
+            if (image == null) {
+                Log.e("ScreenCapture", "Failed to acquire image after " + maxAttempts + " attempts");
+            }
+
+            return image;
+        } catch (Exception e) {
+            Log.e("ScreenCapture", "Error taking screenshot", e);
+            return null;
+        } finally {
+            if (toolBarService != null) {
+                toolBarService.showCursor(); // 恢复显示光标
             }
         }
-        
-        Log.e("ScreenCapture", "Failed to acquire image after " + maxAttempts + " attempts");
-        return null;
     }
 
     private void releaseLastCapture() {

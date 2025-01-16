@@ -28,6 +28,9 @@ import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 import kotlin.math.min
 import cn.vove7.auto.utils.GestureResultCallback as GestureCallback
+import android.view.MotionEvent
+import android.view.View
+import cn.vove7.andro_accessibility_api.demo.service.ToolBarService
 
 /**
  *
@@ -252,4 +255,15 @@ class NeedBaseAccessibilityException :
 
 class NeedGestureAccessibilityException :
     NeedAccessibilityException(AccessibilityApi.GESTURE_SERVICE_CLS.name)
+
+fun handleGesture(event: MotionEvent, toolBarService: ToolBarService) {
+    when (event.action) {
+        MotionEvent.ACTION_MOVE -> {
+            toolBarService.setCursor(event.x, event.y)
+        }
+        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+            toolBarService.flashCursor()
+        }
+    }
+}
 
