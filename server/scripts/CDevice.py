@@ -6,6 +6,7 @@ from logger import Log
 import time
 
 class CDevice:
+    currentAppName = ""
     _instance = None  # 单例实例
     _cmdMgr = None   # 命令管理器实例
     @property

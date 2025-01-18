@@ -145,7 +145,7 @@ class CmdMgr:
                 return False
             
             bounds = targetNode.getBounds()
-            if not PythonServices.clickPosition(bounds.centerX(), bounds.centerY()):
+            if not PythonServices.click(bounds.centerX(), bounds.centerY()):
                 Log.e(Tools.TAG, "Failed to click app icon")
                 return False
             return True

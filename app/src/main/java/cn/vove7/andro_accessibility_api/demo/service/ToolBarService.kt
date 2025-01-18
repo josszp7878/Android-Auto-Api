@@ -27,6 +27,9 @@ import cn.vove7.andro_accessibility_api.demo.MainActivity
 import android.view.inputmethod.EditorInfo
 import cn.vove7.andro_accessibility_api.demo.view.CursorView
 import java.lang.ref.WeakReference
+import android.os.Handler
+import android.os.Looper
+import timber.log.Timber
 
 /**
  * @功能:应用外打开Service 有局限性 特殊界面无法显示
@@ -164,7 +167,7 @@ class ToolBarService : LifecycleService() {
                         initialY = layoutParam.y
                         initialTouchX = event.rawX
                         initialTouchY = event.rawY
-                        setCursor(event.rawX, event.rawY)
+                        moveCursor(event.rawX.toInt(), event.rawY.toInt(),true)
                         return true
                     }
                     MotionEvent.ACTION_MOVE -> {
@@ -178,7 +181,7 @@ class ToolBarService : LifecycleService() {
                         Log.d("ToolBarService", "deltaX: ${-deltaX}, deltaY: $deltaY")
                         try {
                             windowManager.updateViewLayout(floatRootView, layoutParam)
-                            setCursor(event.rawX, event.rawY)
+                            moveCursor(event.rawX.toInt(), event.rawY.toInt(), true)
                         } catch (e: Exception) {
                             Log.e("ToolBarService", "Failed to update toolbar position", e)
                         }
@@ -366,49 +369,6 @@ class ToolBarService : LifecycleService() {
         isRunning = false
     }
 
-    fun setCursor(x: Float, y: Float) {
-        cursorView?.let {
-            val metrics = DisplayMetrics()
-            windowManager.defaultDisplay.getMetrics(metrics)
-            
-            // 获取状态栏高度
-            val resourceId = resources.getIdentifier("status_bar_height", "dimen", "android")
-            val statusBarHeight = if (resourceId > 0) {
-                resources.getDimensionPixelSize(resourceId)
-            } else 0
-            
-            // 计算中心对齐的偏移量
-            val offsetX = it.width / 2
-            val offsetY = it.height / 2
-            
-            // 计算考虑了中心对齐的新坐标，减去状态栏高度
-            val newX = (x - offsetX).coerceIn(0f, metrics.widthPixels.toFloat() - it.width)
-            val newY = (y - offsetY - statusBarHeight).coerceIn(0f, metrics.heightPixels.toFloat() - it.height)
-            
-            val params = it.layoutParams as WindowManager.LayoutParams
-            params.x = newX.toInt()
-            params.y = newY.toInt()
-            
-            try {
-                windowManager.updateViewLayout(it, params)
-                // Log.d("ToolBarService", """
-                //     Cursor Update Details:
-                //     Input coordinates: x=$x, y=$y
-                //     Screen size: ${metrics.widthPixels}x${metrics.heightPixels}
-                //     Status bar height: $statusBarHeight
-                //     Cursor size: ${it.width}x${it.height}
-                //     Offsets: x=$offsetX, y=$offsetY
-                //     Final position: x=${params.x}, y=${params.y}
-                // """.trimIndent())
-            } catch (e: Exception) {
-                Log.e("ToolBarService", "Failed to update cursor position", e)
-            }
-        }
-    }
-
-    fun flashCursor() {
-        cursorView?.flash()
-    }
 
     private fun addCursorView() {
         cursorView = CursorView(this)
@@ -441,11 +401,73 @@ class ToolBarService : LifecycleService() {
 
     // 新增方法：隐藏光标
     fun hideCursor() {
-        cursorView?.visibility = View.GONE
+        // 确保在主线程执行
+        Handler(Looper.getMainLooper()).post {
+            cursorView?.visibility = View.GONE
+        }
     }
 
     // 新增方法：显示光标
     fun showCursor() {
-        cursorView?.visibility = View.VISIBLE
+        // 确保在主线程执行
+        Handler(Looper.getMainLooper()).post {
+            cursorView?.visibility = View.VISIBLE
+        }
     }
+
+    /**
+     * 设置光标位置
+     * @param x Int 窗口坐标系中的X坐标（已减去状态栏高度）
+     * @param y Int 窗口坐标系中的Y坐标（已减去状态栏高度）
+     */
+    @SuppressLint("InternalInsetResource")
+    fun moveCursor(rawX: Int, rawY: Int, isScreen: Boolean = false) {
+        Timber.tag("ToolBarService").d("setCursor: $rawX, $rawY (window coordinates)")
+        Handler(Looper.getMainLooper()).post {
+            cursorView?.let {
+                val metrics = DisplayMetrics()
+                windowManager.defaultDisplay.getMetrics(metrics)
+                
+                // 计算实际坐标
+                var x = rawX
+                var y = rawY
+                if(isScreen) {
+                    val pair = MainActivity.screenToWindowCoordinates(rawX, rawY)
+                    x = pair.first
+                    y = pair.second
+                }
+
+                // 计算中心对齐的偏移量
+                val offsetX = it.width / 2
+                val offsetY = it.height / 2
+
+                // 计算考虑了中心对齐的新坐标
+                x = (x - offsetX).coerceIn(
+                    0,
+                    (metrics.widthPixels - it.width)
+                )
+                y = (y - offsetY).coerceIn(
+                    0,
+                    (metrics.heightPixels - it.height)
+                )
+
+                val params = it.layoutParams as WindowManager.LayoutParams
+                params.x = x
+                params.y = y
+
+                try {
+                    windowManager.updateViewLayout(it, params)
+                } catch (e: Exception) {
+                    Timber.tag("ToolBarService").e(e, "Failed to update cursor position")
+                }
+            }
+        }
+    }
+
+    fun flashCursor() {
+        Handler(Looper.getMainLooper()).post {
+            cursorView?.flash()
+        }
+    }
+
 }

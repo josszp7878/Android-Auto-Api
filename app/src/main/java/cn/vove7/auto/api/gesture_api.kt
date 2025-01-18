@@ -6,6 +6,7 @@ import android.os.HandlerThread
 import android.os.Looper
 import android.util.Pair
 import android.view.ViewConfiguration
+import cn.vove7.andro_accessibility_api.demo.service.ToolBarService
 import cn.vove7.auto.AutoApi
 import cn.vove7.auto.utils.GestureCanceledException
 import cn.vove7.auto.utils.AutoGestureDescription
@@ -39,6 +40,16 @@ suspend fun gesture(
     duration: Long,
     points: Array<Pair<Int, Int>>
 ): Boolean {
+    if (points.isEmpty()) return false
+
+    // 直接在原数组上转换坐标
+    // points.forEachIndexed { index, point ->
+    //     points[index] = MainActivity.screenToWindowCoordinates(point.first, point.second)
+    // }
+
+    // 设置光标位置时使用转换后的坐标
+    ToolBarService.getInstance()?.get()?.moveCursor(points[0].first, points[0].second)
+
     val path = pointsToPath(points)
     return playGestures(listOf(AutoGestureDescription.StrokeDescription(path, 0, duration)))
 }

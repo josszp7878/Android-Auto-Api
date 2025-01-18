@@ -88,29 +88,37 @@ def isConnect():
         return f"已连接到服务器，设备ID: {device.deviceID}"
     return "未连接到服务器"
 
-@regCmd(r'存在', r'(?P<pattern>.+)')
+@regCmd(r'坐标', r'(?P<pattern>.+)')
 @requireAndroid
-def hasUI(pattern):
-    return _findUI(pattern) is not None
+def getPos(pattern):
+    position = None
+    # 尝试解析参数为坐标
+    try:
+        # 假设坐标格式为 "x, y" 或 "x y"
+        Log.i(f"@@@@点击指令: {pattern}")
+        x, y = map(int, re.split(r'[,\s]+', pattern.strip()))
+        position = (x, y)
+    except Exception as e:
+        position = _getPos(pattern)
+    Log.i(f"坐标:{position}")
+    return position
+
+@regCmd(r'移到', r'(?P<param>.+)')
+@requireAndroid
+def move(param):
+    position = getPos(param)
+    if position:
+        return androidServices.move(position[0], position[1])
+    return "未找到"
+
 
 @regCmd(r'点击', r'(?P<param>.+)')
 @requireAndroid
 def click(param):
-    # 尝试解析参数为坐标
-    try:
-        # 假设坐标格式为 "x, y" 或 "x y"
-        Log.i(f"@@@@点击指令: {param}")
-        x, y = map(int, re.split(r'[,\s]+', param.strip()))
-        result = androidServices.clickPosition(x, y)
-        return f"点击位置 ({x}, {y}) 结果: {result}"
-    except Exception as e:
-        position = _findUI(param)
-        if position:
-            Log.i(f"@@@@点击指令: {param} 找到位置: {position}")
-            result = androidServices.clickPosition(position[0], position[1])
-            return f"点击 UI '{param}' 的位置 ({position[0]}, {position[1]}) 结果: {result}"
-        else:
-            return f"未找到 UI 名称为 '{param}' 的元素"
+    position = getPos(param)
+    if position:
+        return androidServices.click(position[0], position[1])
+    return "未找到"
 
 
 @regCmd(r'返回')
@@ -298,7 +306,7 @@ def getScreenInfo():
 
 
 
-def _findUI(pattern):
+def _getPos(pattern):
     try:
         # 编译正则表达式
         regex = re.compile(pattern)        
@@ -310,15 +318,60 @@ def _findUI(pattern):
         for item in screenInfo:
             if regex.search(item['t']):
                 bounds = item['b'].split(',')
+                Log.i(f"找到坐标: {bounds}")
                 centerX = (int(bounds[0]) + int(bounds[2])) // 2
                 centerY = (int(bounds[1]) + int(bounds[3])) // 2
                 position = (centerX, centerY)
                 break
-        
-        Log.i(f"找到匹配的位置: {pattern}=》 {position}")
+        if position is None:
+            Log.w(f"未找到匹配的位置: {pattern}")
         return position
     except Exception as e:
         Log.ex(e, "FindUI 指令执行失败")
         return None
 
 
+@regCmd(r'查找应用', r'(?P<appName>[\w\s]+)')
+@requireAndroid
+def _toApp(appName: str) -> bool:
+    """查找应用
+    用法: findApp <应用名>
+    示例: findApp 微信
+    """
+    try:
+        # 获取屏幕文本
+        texts = androidServices.getScreenText()
+        if not texts:
+            return False
+            
+        # 检查应用名是否在屏幕文本中
+        for text in texts:
+            if appName in text:
+                return True
+                
+        return False
+    except Exception as e:
+        Log.ex(e, "查找应用失败")
+        return False
+
+@regCmd(r'打开应用', r'(?P<appName>[\w\s]+)')
+@requireAndroid
+def openApp(appName: str) -> bool:
+    """打开指定应用
+    用法: openApp <应用名>
+    示例: openApp 微信
+    """
+    try:
+        CDevice.currentAppName = appName
+        if CDevice.currentAppName == appName:
+            return True
+        result = click(appName)
+        if result is None:
+            if _toApp(appName):
+                click(appName)
+            else:
+                return False
+        return True
+    except Exception as e:
+        Log.ex(e, "打开应用失败")
+        return False

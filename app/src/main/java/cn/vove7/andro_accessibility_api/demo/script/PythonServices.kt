@@ -12,7 +12,7 @@ import cn.vove7.andro_accessibility_api.demo.MainActivity
 import cn.vove7.andro_accessibility_api.demo.service.ScreenCapture
 import cn.vove7.auto.AutoApi
 import cn.vove7.auto.api.back
-import cn.vove7.auto.api.click
+import cn.vove7.auto.api.click as clickAt
 import cn.vove7.auto.api.home
 import cn.vove7.auto.viewfinder.ScreenTextFinder
 import cn.vove7.auto.viewnode.ViewNode
@@ -24,6 +24,7 @@ import java.util.concurrent.CompletableFuture
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.PackageManagerCompat
+import cn.vove7.andro_accessibility_api.demo.service.ToolBarService
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -85,11 +86,11 @@ class PythonServices {
          * 使用gesture_api中的click实现
          */
         @JvmStatic
-        fun clickPosition(x: Float, y: Float): Boolean {
+        fun click(x: Int, y: Int): Boolean {
             Timber.tag(TAG).i("Click position: $x, $y")
             return try {
                 runBlocking {
-                    click(x.toInt(), y.toInt())
+                    clickAt(x, y)
                 }
                 true
             } catch (e: Exception) {
@@ -98,7 +99,16 @@ class PythonServices {
             }
         }
 
-       
+        @JvmStatic
+        fun move(x: Int, y: Int): Boolean {
+            return try {
+                ToolBarService.getInstance()?.get()?.moveCursor(x, y)
+                true
+            } catch (e: Exception) {
+                Timber.tag(TAG).e(e, "Click position failed")
+                false
+            }
+        }
         /**
          * 返回上一个界面
          */

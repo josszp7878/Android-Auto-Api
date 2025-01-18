@@ -169,28 +169,3 @@ def handle_B2S_GetLogs(data=None):
     page = data.get('page', 1)
     Log.show(page=page)
 
-
-# @socketio.on('command_result')
-# def handle_command_result(data):
-#     """处理命令执行结果"""
-#     try:
-#         command_id = data.get('command_id')
-#         result = data.get('result', '')
-#         device_id = data.get('device_id')
-        
-#         # 使用 CommandHistory 类处理结果
-#         CommandHistory.add(command_id, result, device_id)
-#         deviceMgr.emit2Console('command_result', {
-#                 'result': result,
-#                 'device_id': device_id
-#             })
-            
-#     except Exception as e:
-#         Log.ex(e, '处理命令结果出错')
-
-
-# @socketio.on('command')
-# def handle_command(data):
-#     # ... 其他代码 ...
-#     result = doCmd(cmd)
-#     emit('response', {'result': result})

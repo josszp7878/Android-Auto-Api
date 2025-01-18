@@ -1,28 +1,20 @@
 package cn.vove7.andro_accessibility_api.demo
 
+import MutablePoint
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.PixelFormat
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.os.StrictMode
 import android.provider.Settings
-import android.view.Gravity
-import android.view.LayoutInflater
-import android.view.MotionEvent
-import android.view.View
-import android.view.WindowManager
-import android.widget.Button
-import android.widget.EditText
 import android.widget.Toast
 import androidx.annotation.RequiresApi
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat.checkSelfPermission
@@ -30,16 +22,11 @@ import cn.vove7.andro_accessibility_api.AccessibilityApi
 import cn.vove7.andro_accessibility_api.demo.actions.Action
 import cn.vove7.andro_accessibility_api.demo.databinding.ActivityMainBinding
 import cn.vove7.andro_accessibility_api.demo.script.PythonServices
-import cn.vove7.andro_accessibility_api.demo.script.ScriptEngine
 import cn.vove7.andro_accessibility_api.demo.service.ScreenCapture
-import cn.vove7.auto.AutoApi
 import cn.vove7.andro_accessibility_api.demo.service.ToolBarService
+import cn.vove7.auto.AutoApi
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.lang.ref.WeakReference
 
@@ -50,8 +37,39 @@ class MainActivity : AppCompatActivity() {
         const val REQUEST_CODE_OVERLAY_PERMISSION = 1002
         private var instance: WeakReference<MainActivity>? = null
 
+        @JvmStatic
         fun getInstance(): MainActivity? {
             return instance?.get()
+        }
+
+        // 缓存状态栏高度
+        @JvmStatic
+        private var _statusBarHeight: Int = 0
+        @JvmStatic
+        var statusBarHeight: Int
+            get() {
+                if (_statusBarHeight == 0) {
+                    instance?.get()?.let { activity ->
+                        val resourceId = activity.resources.getIdentifier("status_bar_height", "dimen", "android")
+                        if (resourceId > 0) {
+                            _statusBarHeight = activity.resources.getDimensionPixelSize(resourceId)
+                        }
+                    }
+                }
+                return _statusBarHeight
+            }
+            set(value) {
+                _statusBarHeight = value
+            }
+
+        @JvmStatic
+        fun screenToWindowCoordinates(x: Int, y: Int): Pair<Int, Int> {
+            return Pair(x, y - statusBarHeight)
+        }
+
+        @JvmStatic
+        fun windowToScreenCoordinates(x: Int, y: Int): android.util.Pair<Int, Int> {
+            return android.util.Pair(x, y + statusBarHeight)
         }
     }
 
@@ -70,6 +88,12 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         instance = WeakReference(this)
+        
+        // 初始化状态栏高度
+        val resourceId = resources.getIdentifier("status_bar_height", "dimen", "android")
+        if (resourceId > 0) {
+            statusBarHeight = resources.getDimensionPixelSize(resourceId)
+        }
         
         // 设置ANR监控
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {

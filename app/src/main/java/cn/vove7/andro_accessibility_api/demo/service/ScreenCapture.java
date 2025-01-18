@@ -2,8 +2,14 @@ package cn.vove7.andro_accessibility_api.demo.service;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.ComponentName;
+import android.content.ContentResolver;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
@@ -11,61 +17,47 @@ import android.content.pm.ServiceInfo;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
+import android.graphics.Rect;
 import android.hardware.display.DisplayManager;
+import android.hardware.display.VirtualDisplay;
+import android.media.Image;
 import android.media.ImageReader;
 import android.media.projection.MediaProjection;
-import android.media.Image;
-import android.os.Binder;
-import android.os.IBinder;
-import android.hardware.display.VirtualDisplay;
 import android.media.projection.MediaProjectionManager;
+import android.net.Uri;
+import android.os.Binder;
+import android.os.Build;
+import android.os.Environment;
+import android.os.IBinder;
+import android.os.PowerManager;
+import android.provider.MediaStore;
+import android.util.Base64;
 import android.util.DisplayMetrics;
 import android.util.Log;
 
-import java.nio.ByteBuffer;
-import java.io.IOException;
-import java.io.OutputStream;
-import android.content.ContentValues;
-import android.net.Uri;
-import android.provider.MediaStore;
-import android.os.Environment;
-import android.content.ContentResolver;
-
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-
-import java.util.ArrayList;
-import java.util.List;
-
-import android.graphics.Rect;
-
-import android.os.PowerManager;
-import android.os.Build;
-
-import android.util.Base64;
-
-import android.app.Notification;
-import android.app.NotificationChannel;
-import android.app.NotificationManager;
-import android.app.PendingIntent;
-
 import androidx.core.app.NotificationCompat;
 
-import cn.vove7.andro_accessibility_api.demo.MainActivity;
-import cn.vove7.andro_accessibility_api.demo.R;
 import com.google.mlkit.vision.common.InputImage;
 import com.google.mlkit.vision.text.Text;
 import com.google.mlkit.vision.text.TextRecognition;
 import com.google.mlkit.vision.text.TextRecognizer;
 import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.lang.ref.WeakReference;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
-import java.util.Collections;
-import java.lang.ref.WeakReference;
+
+import cn.vove7.andro_accessibility_api.demo.MainActivity;
+import cn.vove7.andro_accessibility_api.demo.R;
 
 
 /** @noinspection ALL*/
@@ -296,7 +288,8 @@ public class ScreenCapture extends Service {
     public Image takeScreenshot() {
         Log.d("ScreenCapture", "takeScreenshot called");
         if (mediaProjection == null) {
-            Log.e("ScreenCapture", "MediaProjection not initialized");
+            Begin(MainActivity.getInstance());
+            //Log.e("ScreenCapture", "MediaProjection not initialized");
             return null;
         }
 
@@ -306,7 +299,9 @@ public class ScreenCapture extends Service {
         try {
             Image image = null;
             if (toolBarService != null) {
-                toolBarService.hideCursor(); // 隐藏光标
+                toolBarService.hideCursor();
+                // 等待UI更新完成
+                Thread.sleep(100);
             }
 
             // 获取屏幕尺寸
@@ -337,14 +332,19 @@ public class ScreenCapture extends Service {
                 Log.e("ScreenCapture", "Failed to acquire image after " + maxAttempts + " attempts");
             }
 
+            if (toolBarService != null) {
+                // 在主线程中恢复光标显示
+                toolBarService.showCursor();
+            }
+
             return image;
         } catch (Exception e) {
-            Log.e("ScreenCapture", "Error taking screenshot", e);
-            return null;
-        } finally {
+            Log.e("ScreenCapture", "Screenshot failed", e);
             if (toolBarService != null) {
-                toolBarService.showCursor(); // 恢复显示光标
+                // 确保在发生异常时也能恢复光标显示
+                toolBarService.showCursor();
             }
+            return null;
         }
     }
 

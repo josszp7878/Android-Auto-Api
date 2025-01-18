@@ -264,6 +264,7 @@ class SCommand:
         """处理命令响应"""
         try:
             result = data.get('result')
+            result = str(result)
             device_id = data.get('device_id')
             command = data.get('command')
             cmdName = data.get('cmdName')  # 获取命令方法名
