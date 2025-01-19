@@ -32,6 +32,10 @@ class TaskMgr:
         Example:
             @taskManager.regTask("广告")
             def adTask():
+                def init():
+                    # 初始化检查器
+                    return init_func
+                    
                 def start():
                     Log.i("开始广告任务")
                     return openApp("${appName}")
@@ -43,17 +47,24 @@ class TaskMgr:
                 def end():
                     return click("${closeBtn}")
                     
-                return start, do, end
+                return start, do, end, init  # 可选返回init函数
         """
-        def decorator(func: Callable[[], Tuple[Callable, Callable, Callable]]):
+        def decorator(func: Callable[[], Tuple[Callable, ...]]):
             @wraps(func)
             def wrapper(*args, **kwargs):
                 return func(*args, **kwargs)
                 
             # 获取函数名作为模板ID
             templateId = func.__name__
-            # 获取三个函数
-            startFunc, doFunc, endFunc = func()
+            # 获取返回的函数元组
+            funcs = func()
+            # 解析函数
+            if len(funcs) >= 4:
+                startFunc, doFunc, endFunc, initFunc = funcs[:4]
+            else:
+                startFunc, doFunc, endFunc = funcs[:3]
+                initFunc = None
+                
             # 查找模板名为templateId的模板
             template = next((t for t in self.templates if t.taskName == templateId), None)
             if not template:
@@ -61,12 +72,16 @@ class TaskMgr:
                 template = TaskTemplate(
                     taskName=templateId,
                     alias=alias
-                    )            
+                )            
                 # 添加到模板列表
-                self.templates.append(template)                
+                self.templates.append(template)
+                
+            # 设置模板函数
             template.start = startFunc
             template.do = doFunc
             template.end = endFunc
+            template.init = initFunc  # 设置init函数
+            
             return wrapper
         return decorator
     

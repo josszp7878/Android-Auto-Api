@@ -209,7 +209,7 @@ git push origin main
 ### 新增功能
 
 1. **截屏指令**：
-   - 新增了“截屏”指令，允许通过Python脚本触发截屏操作。
+   - 新增了"截屏"指令，允许通过Python脚本触发截屏操作。
    - 在`commands.py`中实现了指令解析。
    - 在`PythonServices.kt`中实现了截屏功能。
 
@@ -381,4 +381,29 @@ git push origin main
 ### 功能更新
 1. 使用 Google ML Kit 实现 OCR，成功获取文字位置信息。
 2. 更新了 `PythonServices.kt` 和 `Cmds.py` 以支持新的 OCR 功能。
+
+## 2024-01-02 新增屏幕文本检查器
+
+### 1. Checker类
+- 支持正则表达式匹配屏幕文本
+- 回调函数可访问完整匹配信息
+- 支持链式调用创建检查器
+- 集成错误处理和日志记录
+
+### 2. 使用示例
+```python
+def handleMatch(checker: Checker) -> bool:
+    amount = checker.matchParams.get('amount')
+    print(f"匹配文本: {checker.matchText}")
+    print(f"参数: {amount}")
+    return True
+
+checker = Checker.create(r"领取(?P<amount>\d+)金币").action(handleMatch)
+checker.check()
+```
+
+### 3. 主要特性
+- 支持命名捕获组提取参数
+- 回调函数可访问完整匹配信息
+- 自动处理异常并记录日志
 

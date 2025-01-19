@@ -4,10 +4,12 @@ from CDevice import CDevice
 from tools import Tools
 from CmdMgr import regCmd
 import re
-import json
-
+from typing import Pattern
 # 缓存 Android 实例
 androidServices = Log().Android
+
+# 添加缓存相关的变量
+_screenInfoCache = None
 
 
 @regCmd(r'信息')
@@ -99,7 +101,9 @@ def getPos(pattern):
         x, y = map(int, re.split(r'[,\s]+', pattern.strip()))
         position = (x, y)
     except Exception as e:
-        position = _getPos(pattern)
+        refreshScreenInfos()
+        regex = re.compile(pattern)        
+        position = findPos(regex)
     Log.i(f"坐标:{position}")
     return position
 
@@ -254,44 +258,45 @@ def switchApp():
     """
     return androidServices.showRecentApps()
 
+def screenInfos():
+    return _screenInfoCache
 
-@regCmd(r'屏幕文本')
-@requireAndroid
-def getScreenText():
-    try:
-        text = androidServices.getScreenText()
-        if text:
-            Log.i("识别到的文本: " + text)
-            return text
-        else:
-            Log.i("未识别到文本")
-            return "未识别到文本"
-    except Exception as e:
-        Log.ex(e, "获取屏幕文本失败")
-        return "获取文本失败"
-
-
-def _getScreenInfos():
-    """获取并解析屏幕信息"""
-    info = androidServices.getScreenInfo()
-    size = info.size()
-    result = []
+def refreshScreenInfos() -> list:
+    """获取并解析屏幕信息,支持缓存
+    Args:
+        forceUpdate: 是否强制更新缓存
+    Returns:
+        list: 屏幕文本信息列表
+    """
+    global _screenInfoCache
     
-    for i in range(size):
-        item = info.get(i)
-        result.append({
-            't': item.get('t'),
-            'b': item.get('b')
-        })
-    return result
+    try:
+        info = androidServices.getScreenInfo()
+        size = info.size()
+        result = []
+        
+        for i in range(size):
+            item = info.get(i)
+            result.append({
+                't': item.get('t'),
+                'b': item.get('b')
+            })
+            
+        # 更新缓存
+        _screenInfoCache = result
+        return result
+        
+    except Exception as e:
+        Log.ex(e, "获取屏幕信息失败")
+        return []
 
 
 @regCmd(r'屏幕文本信息')
 @requireAndroid
-def getScreenInfo():
+def getScreen():
     try:
         # 使用封装的方法获取屏幕信息
-        result = _getScreenInfos()
+        result = refreshScreenInfos()
         
         # 直接使用返回的列表
         for item in result:
@@ -303,28 +308,52 @@ def getScreenInfo():
     except Exception as e:
         Log.ex(e, "获取屏幕文本信息失败")
         return "获取信息失败"
-
-
-
-def _getPos(pattern):
+def matchScreenText(regex: Pattern, region: list[int] = None):
+    """查找匹配文本的位置
+    Args:
+        pattern: 匹配模式(正则表达式)
+        region: 搜索区域[left, top, right, bottom], None表示全屏搜索
+        forceUpdate: 是否强制更新缓存
+    Returns:
+        tuple: (x, y) 匹配文本的中心坐标,未找到返回None
+    """
     try:
-        # 编译正则表达式
-        regex = re.compile(pattern)        
-        # 使用封装的方法获取屏幕信息
-        screenInfo = _getScreenInfos()
-        
-        position = None
+        # 使用缓存的屏幕信息
+        screenInfo = screenInfos()        
         # 遍历屏幕信息，查找匹配的文本
         for item in screenInfo:
-            if regex.search(item['t']):
-                bounds = item['b'].split(',')
-                Log.i(f"找到坐标: {bounds}")
-                centerX = (int(bounds[0]) + int(bounds[2])) // 2
-                centerY = (int(bounds[1]) + int(bounds[3])) // 2
-                position = (centerX, centerY)
-                break
-        if position is None:
-            Log.w(f"未找到匹配的位置: {pattern}")
+            # 解析当前文本的边界
+            bounds = [int(x) for x in item['b'].split(',')]
+            
+            # 如果指定了区域,检查文本是否在区域内
+            if region is not None:
+                # 检查是否有重叠
+                if (bounds[2] < region[0] or  # 文本在区域左边
+                    bounds[0] > region[2] or  # 文本在区域右边
+                    bounds[3] < region[1] or  # 文本在区域上边
+                    bounds[1] > region[3]):   # 文本在区域下边
+                    continue
+
+            match = regex.search(item['t'])
+            if match:
+                return match, item
+        return None, None
+        
+    except Exception as e:
+        Log.ex(e, "FindUI 指令执行失败")
+        return None, None    
+           
+def findPos(regex: Pattern, region: list[int] = None):
+    try:
+        position = None
+        # 使用缓存的屏幕信息
+        match, item = matchScreenText(regex, region)
+        if match:
+            Log.i(f"找到坐标: {item['b']}")
+            bounds = [int(x) for x in item['b'].split(',')]
+            centerX = (bounds[0] + bounds[2]) // 2
+            centerY = (bounds[1] + bounds[3]) // 2
+            position = (centerX, centerY)
         return position
     except Exception as e:
         Log.ex(e, "FindUI 指令执行失败")
@@ -375,3 +404,28 @@ def openApp(appName: str) -> bool:
     except Exception as e:
         Log.ex(e, "打开应用失败")
         return False
+
+def clearScreenCache():
+    """清除屏幕信息缓存"""
+    global _screenInfoCache
+    _screenInfoCache = None
+
+def getScreenText(forceUpdate: bool = False) -> str:
+    """获取屏幕文本
+    Args:
+        forceUpdate: 是否强制更新缓存
+    Returns:
+        str: 所有文本内容
+    """
+    try:
+        # 使用缓存的屏幕信息
+        screenInfo = refreshScreenInfos(forceUpdate)
+        if not screenInfo:
+            return ""
+            
+        # 提取所有文本
+        return "\n".join(item['t'] for item in screenInfo if item['t'])
+        
+    except Exception as e:
+        Log.ex(e, "获取屏幕文本失败")
+        return ""
