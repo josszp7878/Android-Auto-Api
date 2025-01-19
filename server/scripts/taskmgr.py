@@ -1,18 +1,88 @@
 from typing import Dict, List, Optional
-from datetime import datetime
-import json
-import os
 from task import Task
+from tasktemplate import TaskTemplate
+from logger import Log
+from CmdMgr import regCmd
 
 
 class TaskMgr:
     """任务管理器,负责任务的调度和管理"""
     
+    _instance = None
+    
+    @classmethod
+    def instance(cls) -> 'TaskMgr':
+        """获取单例实例"""
+        if not cls._instance:
+            cls._instance = TaskMgr()
+        return cls._instance
+    
     def __init__(self):
-        self.tasks: Dict[str, Task] = {}  # taskName -> Task
+        if TaskMgr._instance:
+            raise Exception("TaskMgr is a singleton!")
+        self.tasks: Dict[str, Task] = {}
+        self.templates: Dict[str, TaskTemplate] = {}
         self.runningTask: Optional[Task] = None
-        self.taskHistory: List[Dict] = []  # 任务执行历史
-        self.configPath = "tasks.json"  # 任务配置文件路径
+        
+    def addTemplate(self, templateId: str, template: TaskTemplate) -> bool:
+        """添加任务模板"""
+        if templateId in self.templates:
+            return False
+        self.templates[templateId] = template
+        return True
+        
+    def getTemplate(self, templateId: str) -> Optional[TaskTemplate]:
+        """获取任务模板"""
+        return self.templates.get(templateId)
+        
+    def createTask(self, appName: str, taskName: str, templateId: str, params: Dict[str, str] = None) -> Optional[Task]:
+        """使用模板创建任务"""
+        template = self.getTemplate(templateId)
+        if not template:
+            return None
+            
+        # 创建新的模板实例并更新参数
+        if params:
+            template = TaskTemplate(
+                taskName=template.taskName,
+                startScript=template.startScript,
+                doScript=template.doScript,
+                endScript=template.endScript,
+                params=params
+            )
+            
+        return Task.create(appName, taskName, template)
+        
+    @regCmd(r'执行任务', r'(?P<taskName>[\w\s]+)')
+    def runTask(self, taskName: str) -> bool:
+        """执行指定任务"""
+        try:
+            task = self.get(taskName)
+            if not task:
+                Log.e(f"未找到任务: {taskName}")
+                return False
+                
+            if self.runningTask:
+                Log.e("有其他任务正在运行")
+                return False
+                
+            Log.i(f"开始执行任务: {taskName}")
+            self.runningTask = task
+            
+            try:
+                success = task.run()
+                if success:
+                    Log.i(f"任务 {taskName} 执行成功")
+                else:
+                    Log.e(f"任务 {taskName} 执行失败")
+                return success
+            finally:
+                self.runningTask = None
+                
+        except Exception as e:
+            Log.ex(e, f"执行任务失败: {taskName}")
+            self.runningTask = None
+            return False
         
     def add(self, task: Task) -> bool:
         """添加任务"""
@@ -36,106 +106,6 @@ class TaskMgr:
         """获取所有任务名称"""
         return list(self.tasks.keys())
         
-    def run(self, taskName: str) -> bool:
-        """运行指定任务"""
-        task = self.get(taskName)
-        if not task or self.runningTask:
-            return False
-            
-        self.runningTask = task
-        success = False
-        try:
-            if task.enter() and task.do() and task.end():
-                success = True
-                self._addHistory(task, success)
-        except Exception as e:
-            print(f"Task execution failed: {str(e)}")
-        finally:
-            self.runningTask = None
-        return success
-        
-    def runTasks(self, taskNames: List[str]) -> Dict[str, bool]:
-        """批量运行任务
-        Returns:
-            Dict[str, bool]: 任务名称 -> 执行结果
-        """
-        results = {}
-        for taskName in taskNames:
-            results[taskName] = self.run(taskName)
-        return results
-        
-        def getRunning(self) -> Optional[Task]:
+    def getRunning(self) -> Optional[Task]:
         """获取当前运行的任务"""
-        return self.runningTask
-        
-    def _addHistory(self, task: Task, success: bool):
-        """添加任务执行历史"""
-        history = {
-            "taskName": task.taskName,
-            "appName": task.appName,
-            "startTime": task.startTime.isoformat() if task.startTime else None,
-            "endTime": task.endTime.isoformat() if task.endTime else None,
-            "reward": task.reward,
-            "success": success
-        }
-        self.taskHistory.append(history)
-        
-    def getHistory(self, taskName: Optional[str] = None) -> List[Dict]:
-        """获取任务执行历史
-        Args:
-            taskName: 可选,指定任务名称
-        """
-        if not taskName:
-            return self.taskHistory
-        return [h for h in self.taskHistory if h["taskName"] == taskName]
-        
-    def save(self) -> bool:
-        """保存任务配置到文件"""
-        try:
-            data = {
-                "tasks": [
-                    {
-                        "appName": task.appName,
-                        "taskName": task.taskName,
-                        "reward": task.reward
-                    }
-                    for task in self.tasks.values()
-                ],
-                "history": self.taskHistory
-            }
-            with open(self.configPath, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-            return True
-        except Exception as e:
-            print(f"Save tasks failed: {str(e)}")
-            return False
-            
-    def load(self) -> bool:
-        """从文件加载任务配置"""
-        if not os.path.exists(self.configPath):
-            return False
-            
-        try:
-            with open(self.configPath, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                
-            # 加载任务
-            self.tasks.clear()
-            for taskData in data.get("tasks", []):
-                task = Task.create(
-                    taskData["appName"],
-                    taskData["taskName"]
-                )
-                task.reward = taskData["reward"]
-                self.tasks[task.taskName] = task
-                
-            # 加载历史记录
-            self.taskHistory = data.get("history", [])
-            return True
-        except Exception as e:
-            print(f"Load tasks failed: {str(e)}")
-            return False
-
-    def clearHistory(self):
-        """清空任务执行历史"""
-        self.taskHistory.clear() 
+        return self.runningTask 
