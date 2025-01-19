@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Dict, Optional, Callable
 from dataclasses import dataclass
 
 
@@ -7,9 +7,10 @@ class TaskTemplate:
     """任务模板类,用于定义任务的基本参数和脚本"""
     
     taskName: str  # 任务名称
-    startScript: Optional[str] = None  # 开始任务的脚本
-    doScript: Optional[str] = None  # 执行任务的脚本
-    endScript: Optional[str] = None  # 结束任务的脚本
+    alias: str  # 任务别名
+    start: Optional[Callable] = None  # 开始任务的函数
+    do: Optional[Callable] = None  # 执行任务的函数
+    end: Optional[Callable] = None  # 结束任务的函数
     params: Dict[str, str] = None  # 脚本参数集合
     
     def __post_init__(self):

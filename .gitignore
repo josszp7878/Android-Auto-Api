@@ -16,3 +16,6 @@
 .classpath
 .settings/
 server/logs
+*.log
+*.pyc
+/server/__pycache__

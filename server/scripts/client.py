@@ -28,8 +28,8 @@ class Client:
         try:
              # 导入需要的模块（这些模块可能已经被重新加载）
             from CDevice import CDevice
-            from CmdMgr import CmdMgr
             import Cmds
+            import tasks
             self.deviceID = deviceID or 'TEST1'
             self.server = server or "localhost"
             self.device = CDevice(self.deviceID)

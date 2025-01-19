@@ -1,7 +1,17 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict, Callable
+from enum import Enum
 from logger import Log
 from tasktemplate import TaskTemplate
+
+
+class TaskState(Enum):
+    """任务状态"""
+    INIT = "初始化"
+    RUNNING = "运行中"
+    SUCCESS = "已完成"
+    FAILED = "失败"
+    CANCELED = "已取消"
 
 
 class Task:
@@ -14,6 +24,9 @@ class Task:
         self.startTime: Optional[datetime] = None
         self.endTime: Optional[datetime] = None
         self.reward: float = 0.0
+        self.state = TaskState.INIT
+        self.progress: float = 0.0  # 0-100
+        self.onResult: Optional[Callable[[bool], None]] = None
 
     @classmethod
     def create(cls, appName: str, taskName: str, template: Optional[TaskTemplate] = None) -> 'Task':
@@ -33,13 +46,10 @@ class Task:
         try:
             self.startTime = datetime.now()
             Log.i(f"开始任务: {self.taskName}")
-            
-            # 如果有模板和开始脚本,则执行
-            if self.template and self.template.startScript:
-                script = self.template.replaceParams(self.template.startScript)
-                return exec(script)
+            fun = self.template.start
+            if fun:
+                return fun(self)
             return True
-            
         except Exception as e:
             Log.ex(e, f"开始任务失败: {self.taskName}")
             return False
@@ -48,11 +58,9 @@ class Task:
         """执行任务"""
         try:
             Log.i(f"执行任务: {self.taskName}")
-            
-            # 如果有模板和执行脚本,则执行
-            if self.template and self.template.doScript:
-                script = self.template.replaceParams(self.template.doScript)
-                return exec(script)
+            fun = self.template.do
+            if fun:
+                return fun(self)
             return True
             
         except Exception as e:
@@ -65,37 +73,44 @@ class Task:
             self.endTime = datetime.now()
             Log.i(f"结束任务: {self.taskName}")
             
-            # 如果有模板和结束脚本,则执行
-            if self.template and self.template.endScript:
-                script = self.template.replaceParams(self.template.endScript)
-                return exec(script)
+            fun = self.template.end
+            if fun:
+                return fun(self)
             return True
             
         except Exception as e:
             Log.ex(e, f"结束任务失败: {self.taskName}")
-            return False 
+            return False
 
-    def run(self) -> bool:
+    def updateProgress(self, progress: float):
+        """更新任务进度"""
+        self.progress = min(max(progress, 0), 100)
+        
+    def run(self, params: Optional[Dict[str, str]] = None) -> bool:
         """运行任务的完整流程"""
         try:
             Log.i(f"运行任务: {self.taskName}")
+            self.state = TaskState.RUNNING
             
-            # 按顺序执行任务流程
+            if params:
+                for key, value in params.items():
+                    setattr(self, key, value)
             if not self.start():
-                Log.e("任务开始失败")
+                self.state = TaskState.FAILED
                 return False
-                
             if not self.do():
-                Log.e("任务执行失败")
+                self.state = TaskState.FAILED
                 return False
-                
             if not self.end():
-                Log.e("任务结束失败")
+                self.state = TaskState.FAILED
                 return False
                 
+            self.updateProgress(100)
+            self.state = TaskState.SUCCESS
             Log.i(f"任务 {self.taskName} 执行完成")
             return True
             
         except Exception as e:
             Log.ex(e, f"任务执行异常: {self.taskName}")
+            self.state = TaskState.FAILED
             return False 

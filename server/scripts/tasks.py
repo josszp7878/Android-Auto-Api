@@ -1,70 +1,61 @@
-from tasktemplate import TaskTemplate
+from taskmgr import regTask
+from logger import Log
+from task import Task
+# 使用新的装饰器定义任务
+@regTask("打印")
+def printTask():
+    def start(task: Task):
+        # Log.i("开始打印任务")
+        return True
+        
+    def do(task: Task):
+        # Log.i("正在执行打印任务...")
+        msg = getattr(task, 'Msg', '')
+        if msg:
+            Log.i(f"打印内容: {msg}")
+        return True
+        
+    def end(task: Task):
+        Log.i("打印任务结束")
+        return True
+        
+    return start, do, end
 
-# 简单打印任务
-PRINT_TEMPLATE = TaskTemplate(
-    taskName="打印任务",
-    startScript="""
-Log.i("开始打印任务")
-Log.i(f"任务参数: {${message}}")
-return True
-""",
-    doScript="""
-Log.i("正在执行打印任务...")
-Log.i("打印内容: ${message}")
-return True
-""",
-    endScript="""
-Log.i("打印任务结束")
-return True
-""",
-    params={
-        "message": "Hello World"  # 默认打印内容
-    }
-)
+@regTask("延时")
+def delayTask():
+    def start(task: Task):
+        # Log.i("开始延时任务")
+        count = getattr(task, 'count', 0)
+        Log.i(f"延时时间: {count}秒")
+        return True
+        
+    def do(task: Task):
+        Log.i("开始延时...")
+        import time
+        
+        # 安全地获取并转换参数
+        try:
+            total = int(getattr(task, 'time', '0'))
+            if total <= 0:
+                return True
+            interval = int(getattr(task, 'interval', '1'))
+            if interval <= 0:
+                interval = 1
+        except ValueError:
+            Log.e("无效的时间参数")
+            return False
+            
+        count = int(total / interval)
+        for i in range(count):
+            time.sleep(interval)
+            Log.i(f"beat {i+1}")
+            progress = ((i+1) / count) * 100
+            task.updateProgress(progress)
+        return True
+        
+    def end(task: Task):
+        Log.i("延时任务结束")
+        return True
+        
+    return start, do, end
 
-# 延时任务
-DELAY_TEMPLATE = TaskTemplate(
-    taskName="延时任务",
-    startScript="""
-import time
-Log.i("开始延时任务")
-Log.i(f"延时时间: ${seconds}秒")
-return True
-""",
-    doScript="""
-import time
-Log.i("开始延时...")
-time.sleep(${seconds})
-Log.i("延时结束")
-return True
-""",
-    endScript="""
-Log.i("延时任务结束")
-return True
-""",
-    params={
-        "seconds": "3"  # 默认延时3秒
-    }
-)
-
-# 点击任务
-CLICK_TEMPLATE = TaskTemplate(
-    taskName="点击任务",
-    startScript="""
-Log.i(f"准备点击: ${text}")
-return True
-""",
-    doScript="""
-Log.i(f"尝试点击文本: ${text}")
-result = click("${text}")
-Log.i("点击" + ("成功" if result else "失败"))
-return result
-""",
-    endScript="""
-Log.i("点击任务结束")
-return True
-""",
-    params={
-        "text": ""  # 要点击的文本
-    }
-) 

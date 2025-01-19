@@ -1,8 +1,11 @@
-from typing import Dict, List, Optional
-from task import Task
+from typing import Dict, List, Optional, Tuple, Callable
+from task import Task, TaskState
 from tasktemplate import TaskTemplate
 from logger import Log
 from CmdMgr import regCmd
+from functools import wraps
+import asyncio
+import threading
 
 
 class TaskMgr:
@@ -12,7 +15,6 @@ class TaskMgr:
     
     @classmethod
     def instance(cls) -> 'TaskMgr':
-        """获取单例实例"""
         if not cls._instance:
             cls._instance = TaskMgr()
         return cls._instance
@@ -20,92 +22,213 @@ class TaskMgr:
     def __init__(self):
         if TaskMgr._instance:
             raise Exception("TaskMgr is a singleton!")
-        self.tasks: Dict[str, Task] = {}
-        self.templates: Dict[str, TaskTemplate] = {}
-        self.runningTask: Optional[Task] = None
+        self.tasks: Dict[str, Task] = {}  # taskId -> Task
+        self.templates: List[TaskTemplate] = []  # 任务模板列表
         
-    def addTemplate(self, templateId: str, template: TaskTemplate) -> bool:
+    def regTask(self, alias: str):
+        """任务注册装饰器
+        Args:
+            alias: 任务别名
+        Example:
+            @taskManager.regTask("广告")
+            def adTask():
+                def start():
+                    Log.i("开始广告任务")
+                    return openApp("${appName}")
+                    
+                def do():
+                    time.sleep(${adDuration})
+                    return True
+                    
+                def end():
+                    return click("${closeBtn}")
+                    
+                return start, do, end
+        """
+        def decorator(func: Callable[[], Tuple[Callable, Callable, Callable]]):
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                return func(*args, **kwargs)
+                
+            # 获取函数名作为模板ID
+            templateId = func.__name__
+            # 获取三个函数
+            startFunc, doFunc, endFunc = func()
+            # 查找模板名为templateId的模板
+            template = next((t for t in self.templates if t.taskName == templateId), None)
+            if not template:
+                # 创建模板
+                template = TaskTemplate(
+                    taskName=templateId,
+                    alias=alias
+                    )            
+                # 添加到模板列表
+                self.templates.append(template)                
+            template.start = startFunc
+            template.do = doFunc
+            template.end = endFunc
+            return wrapper
+        return decorator
+    
+    def getTemplate(self, templateId: str) -> Optional[TaskTemplate]:
+        """获取任务模板,支持模板ID或别名"""
+        for template in self.templates:
+            if templateId in (template.taskName, template.alias):
+                return template
+        return None
+        
+    def addTemplate(self, template: TaskTemplate) -> bool:
         """添加任务模板"""
-        if templateId in self.templates:
-            return False
-        self.templates[templateId] = template
+        # 检查是否已存在相同名称或别名的模板
+        for t in self.templates:
+            if template.taskName == t.taskName or template.alias == t.alias:
+                return False
+        self.templates.append(template)
         return True
         
-    def getTemplate(self, templateId: str) -> Optional[TaskTemplate]:
-        """获取任务模板"""
-        return self.templates.get(templateId)
-        
-    def createTask(self, appName: str, taskName: str, templateId: str, params: Dict[str, str] = None) -> Optional[Task]:
+    def createTask(self, appName: str, templateId: str, params: Dict[str, str] = None) -> Optional[Task]:
         """使用模板创建任务"""
         template = self.getTemplate(templateId)
         if not template:
             return None
             
-        # 创建新的模板实例并更新参数
         if params:
             template = TaskTemplate(
                 taskName=template.taskName,
-                startScript=template.startScript,
-                doScript=template.doScript,
-                endScript=template.endScript,
+                alias=template.alias,
+                start=template.start,
+                do=template.do,
+                end=template.end,
                 params=params
             )
             
-        return Task.create(appName, taskName, template)
+        return Task.create(appName, templateId, template)
         
-    @regCmd(r'执行任务', r'(?P<taskName>[\w\s]+)')
-    def runTask(self, taskName: str) -> bool:
-        """执行指定任务"""
+    def _getTaskId(self, appName: str, templateId: str) -> str:
+        """生成任务唯一标识"""
+        return f"{appName}_{templateId}"
+        
+    def _findSameTypeTask(self, appName: str, templateId: str) -> Optional[Task]:
+        """查找相同类型的任务(相同应用名和模板)"""
+        taskId = self._getTaskId(appName, templateId)
+        return self.tasks.get(taskId)
+        
+    def _runTask(self, appName: str, templateId: str, params: Optional[Dict[str, str]] = None, 
+                 onResult: Optional[Callable[[bool], None]] = None) -> bool:
+        """执行任务"""
         try:
-            task = self.get(taskName)
+            existingTask = self._findSameTypeTask(appName, templateId)
+            if existingTask and existingTask.state == TaskState.RUNNING:
+                Log.e(f"相同类型的任务正在执行: {appName}/{templateId}")
+                return False
+                
+            task = self.createTask(appName, templateId)
             if not task:
-                Log.e(f"未找到任务: {taskName}")
+                Log.e(f"创建任务失败: {appName}/{templateId}")
                 return False
                 
-            if self.runningTask:
-                Log.e("有其他任务正在运行")
-                return False
-                
-            Log.i(f"开始执行任务: {taskName}")
-            self.runningTask = task
+            task.lastAppName = appName
+            task.onResult = onResult
+            taskId = self._getTaskId(appName, templateId)
+            self.tasks[taskId] = task
             
-            try:
-                success = task.run()
-                if success:
-                    Log.i(f"任务 {taskName} 执行成功")
-                else:
-                    Log.e(f"任务 {taskName} 执行失败")
-                return success
-            finally:
-                self.runningTask = None
-                
+            # 在新线程中执行任务
+            thread = threading.Thread(
+                target=self._runTaskInThread,
+                args=(task, params, taskId)
+            )
+            thread.daemon = True
+            thread.start()
+            return True
+            
         except Exception as e:
-            Log.ex(e, f"执行任务失败: {taskName}")
-            self.runningTask = None
+            Log.ex(e, f"执行任务异常: {appName}/{templateId}")
             return False
+            
+    def _runTaskInThread(self, task: Task, params: Optional[Dict[str, str]], taskId: str):
+        """在线程中执行任务"""
+        try:
+            success = task.run(params)
+            if task.onResult:
+                task.onResult(success)
+        except Exception as e:
+            Log.ex(e, f"任务执行异常: {task.taskName}")
+        finally:
+            if taskId in self.tasks:
+                del self.tasks[taskId]
         
-    def add(self, task: Task) -> bool:
-        """添加任务"""
-        if task.taskName in self.tasks:
+    def getTaskProgress(self, appName: str, templateId: str) -> Tuple[Optional[TaskState], float]:
+        """获取任务进度"""
+        task = self._findSameTypeTask(appName, templateId)
+        if not task:
+            return None, 0.0
+        return task.state, task.progress
+        
+    def listRunningTasks(self) -> List[Tuple[str, str, TaskState, float]]:
+        """获取所有运行中的任务及进度"""
+        return [(task.appName, task.taskName, task.state, task.progress) 
+                for task in self.tasks.values()]
+
+# 全局任务管理器实例
+taskManager = TaskMgr.instance()
+regTask = taskManager.regTask
+
+@regCmd(r'执行任务', r'(?P<appName>[\w\s]+)\s+(?P<templateId>[\w\s]+)(\s+(?P<params>.+))?')
+def runTask(appName: str, templateId: str, params: str = None) -> bool:
+    """执行指定任务
+    用法: 执行任务 <应用名> <模板ID> [参数]
+    示例: 
+        执行任务 快手极速版 ad
+        执行任务 快手极速版 ad duration=30,closeBtn=关闭
+    """
+    # 解析参数字符串
+    params_dict = None
+    if params:
+        try:
+            params_dict = dict(item.split('=') for item in params.split())
+        except Exception as e:
+            Log.ex(e, f"参数格式错误: {params}")
             return False
-        self.tasks[task.taskName] = task
+    try:
+        if appName == "_":
+            appName = getattr(taskManager, 'lastAppName', '')
+        if not appName:
+            Log.e("未设置应用名")
+            return False    
+        taskManager._runTask(appName, templateId, params_dict)
+        return True
+    except Exception as e:
+        Log.ex(e, f"执行任务异常: {appName}/{templateId}")
+        return False
+
+@regCmd(r'查询任务', r'(?P<appName>[\w\s]+)\s+(?P<templateId>[\w\s]+)')
+def queryTask(appName: str, templateId: str) -> bool:
+    """查询任务进度
+    用法: 查询任务 <应用名> <模板ID>
+    示例: 查询任务 快手极速版 ad
+    """
+    state, progress = taskManager.getTaskProgress(appName, templateId)
+    if not state:
+        Log.i(f"未找到任务: {appName}/{templateId}")
+        return False
+        
+    Log.i(f"任务状态: {state.value}")
+    Log.i(f"执行进度: {progress:.1f}%")
+    return True
+
+@regCmd(r'任务列表', r'')
+def listTasks() -> bool:
+    """查看所有运行中的任务
+    用法: 任务列表
+    """
+    tasks = taskManager.listRunningTasks()
+    if not tasks:
+        Log.i("当前没有运行中的任务")
         return True
         
-    def remove(self, taskName: str) -> bool:
-        """移除任务"""
-        if taskName not in self.tasks:
-            return False
-        del self.tasks[taskName]
-        return True
-        
-    def get(self, taskName: str) -> Optional[Task]:
-        """获取任务"""
-        return self.tasks.get(taskName)
-        
-    def listTasks(self) -> List[str]:
-        """获取所有任务名称"""
-        return list(self.tasks.keys())
-        
-    def getRunning(self) -> Optional[Task]:
-        """获取当前运行的任务"""
-        return self.runningTask 
+    for appName, taskName, state, progress in tasks:
+        Log.i(f"任务: {appName}/{taskName}")
+        Log.i(f"状态: {state.value}")
+        Log.i(f"进度: {progress:.1f}%")
+        Log.i("---")
+    return True 
