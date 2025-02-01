@@ -1,10 +1,7 @@
 from typing import Dict, List, Optional, Tuple, Callable
-from task import Task, TaskState
-from tasktemplate import TaskTemplate
+from task import Task, TaskState, TaskTemplate
 from logger import Log
 from CmdMgr import regCmd
-from functools import wraps
-import asyncio
 import threading
 
 
@@ -49,22 +46,18 @@ class TaskMgr:
                     
                 return start, do, end, init  # 可选返回init函数
         """
-        def decorator(func: Callable[[], Tuple[Callable, ...]]):
-            @wraps(func)
-            def wrapper(*args, **kwargs):
-                return func(*args, **kwargs)
-                
+        def decorator(func: Callable[[dict], Tuple[Callable[[Task], bool], ...]]):
             # 获取函数名作为模板ID
             templateId = func.__name__
-            # 获取返回的函数元组
-            funcs = func()
-            # 解析函数
+            
+            # 预先调用 func 以获取返回的函数元组
+            funcs = func({})
             if len(funcs) >= 4:
                 startFunc, doFunc, endFunc, initFunc = funcs[:4]
             else:
                 startFunc, doFunc, endFunc = funcs[:3]
                 initFunc = None
-                
+            
             # 查找模板名为templateId的模板
             template = next((t for t in self.templates if t.taskName == templateId), None)
             if not template:
@@ -75,14 +68,19 @@ class TaskMgr:
                 )            
                 # 添加到模板列表
                 self.templates.append(template)
-                
+            
             # 设置模板函数
             template.start = startFunc
             template.do = doFunc
             template.end = endFunc
             template.init = initFunc  # 设置init函数
+            return func
+            # @wraps(func)
+            # def wrapper(params: dict):
+            #     # 这里不再需要注册模板，只需执行任务逻辑
+            #     return func(params)
             
-            return wrapper
+            # return wrapper
         return decorator
     
     def getTemplate(self, templateId: str) -> Optional[TaskTemplate]:

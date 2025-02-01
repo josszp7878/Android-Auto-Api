@@ -30,17 +30,13 @@ public class ScriptEngine {
     private Python py;
     private PyObject mainModule;
     private final Map<String, Long> scriptLastModified;
-    private static final long CHECK_INTERVAL = 5000;
     private long lastCheckTime;
     private final Context context;
-    private final FileServer fileServer;
-    private boolean versionChecked = false;
     private static final long ANR_TIMEOUT = 10000; // 10秒
 
     private ScriptEngine(ToolBarService context) {
         this.context = context.getApplicationContext();
         applicationContext = this.context;
-        this.fileServer = FileServer.getInstance(context);
         this.scriptLastModified = new HashMap<>();
     }
 
@@ -55,14 +51,8 @@ public class ScriptEngine {
         return INSTANCE;
     }
 
-    public void init(String deviceName, String serverName) {
-        Timber.tag(TAG).d("初始化ScriptEngine with server: %s, device: %s", serverName, deviceName);
-        // 使用 FileServer 单例检查和更新脚本
-        fileServer.checkAndUpdateScripts(success -> initPython(deviceName, serverName));
-        Log.d("ScriptEngine", "init started on thread: " + Thread.currentThread().getName());
-    }
 
-    private void initPython(String deviceName, String serverName) {
+    public void init(String deviceName, String serverName) {
         try {
             if (!Python.isStarted()) {
                 Python.start(new AndroidPlatform(applicationContext));
@@ -72,10 +62,12 @@ public class ScriptEngine {
                 py = Python.getInstance();
             }
 
+
+
             // 设置Python脚本路径
-            File scriptDir = fileServer.getScriptDir();
+            File scriptDir = new File(context.getFilesDir(), "scripts");
             Timber.d("Python脚本目录: %s", scriptDir.getAbsolutePath());
-            
+
             PyObject sysModule = py.getModule("sys");
             PyObject pathList = sysModule.get("path");
             pathList.callAttr("insert", 0, scriptDir.getAbsolutePath());

@@ -1,6 +1,7 @@
 from flask_socketio import SocketIO
 from app import app, socketio
 from scripts.logger import Log
+from scripts.tools import Tools
 import signal
 import sys
 
@@ -21,7 +22,7 @@ if __name__ == '__main__':
     try:
         # 启动服务器
         Log.i('服务器启动')
-        socketio.run(app, host='0.0.0.0', port=5000)
+        socketio.run(app, host='0.0.0.0', port=Tools.port)
     except Exception as e:
         Log.e(f'服务器启动失败: {e}')
         Log().uninit()

@@ -1,10 +1,35 @@
 from datetime import datetime
-from typing import Optional, Dict, Callable, List
+from typing import Optional, Dict, Callable, Any
+from dataclasses import dataclass
 from enum import Enum
 from logger import Log
-from tasktemplate import TaskTemplate
-from checker import Checker
 
+
+@dataclass
+class TaskTemplate:
+    """任务模板类,用于定义任务的基本参数和脚本"""
+    
+    taskName: str  # 任务名称
+    alias: str  # 任务别名
+    init: Optional[Callable[[Any], None]] = None  # 初始化任务的函数
+    start: Optional[Callable[[Any], bool]] = None  # 开始任务的函数
+    do: Optional[Callable[[Any], bool]] = None  # 执行任务的函数
+    end: Optional[Callable[[Any], bool]] = None  # 结束任务的函数
+    params: Dict[str, str] = None  # 脚本参数集合
+    
+    def __post_init__(self):
+        """初始化后处理"""
+        if self.params is None:
+            self.params = {}
+            
+    def replaceParams(self, script: str) -> str:
+        """替换脚本中的参数"""
+        if not script:
+            return script
+        result = script
+        for key, value in self.params.items():
+            result = result.replace(f"${key}", str(value))
+        return result 
 
 class TaskState(Enum):
     """任务状态"""
@@ -27,18 +52,12 @@ class Task:
         self.reward: float = 0.0
         self.state = TaskState.INIT
         self.progress: float = 0.0  # 0-100
-        self.onResult: Optional[Callable[[bool], None]] = None
-        
-        # 添加检查列表
-        self.startCheckList: List[Checker] = []
-        self.doCheckList: List[Checker] = []
-        self.endCheckList: List[Checker] = []
-        
+        self.onResult: Optional[Callable[[bool], None]] = None        
         # 如果有模板,初始化检查器
         if self.template:
             if self.template.init:
                 self.template.init(self)
-
+    
     @classmethod
     def create(cls, appName: str, taskName: str, template: Optional[TaskTemplate] = None) -> 'Task':
         """
@@ -52,47 +71,14 @@ class Task:
         """
         return cls(appName, taskName, template)
         
-    def addStartCheck(self, checker: Checker) -> 'Task':
-        """添加启动阶段检查器"""
-        self.startCheckList.append(checker)
-        return self
-        
-    def addDoCheck(self, checker: Checker) -> 'Task':
-        """添加执行阶段检查器"""
-        self.doCheckList.append(checker)
-        return self
-        
-    def addEndCheck(self, checker: Checker) -> 'Task':
-        """添加结束阶段检查器"""
-        self.endCheckList.append(checker)
-        return self
-        
-    def _runChecks(self, checkers: List[Checker]) -> bool:
-        """执行检查列表
-        Returns:
-            bool: 所有检查都通过返回True,否则返回False
-        """
-        if not checkers:
-            return True
-            
-        ret = True
-        for checker in checkers:
-            if not checker.check():
-                ret = False
-        return ret
+    
         
     def start(self) -> bool:
         """开始任务"""
         try:
             self.startTime = datetime.now()
             Log.i(f"开始任务: {self.taskName}")
-            self.state = TaskState.RUNNING
-            
-            # 执行启动阶段检查
-            if not self._runChecks(self.startCheckList):
-                Log.w(f"任务{self.taskName}启动检查未通过")
-                return False
-                
+            self.state = TaskState.RUNNING           
             fun = self.template.start
             if fun:
                 return fun(self)
@@ -112,9 +98,6 @@ class Task:
                 fun = self.template.do
                 if fun:
                     fun(self)
-                if self._runChecks(self.doCheckList):
-                    Log.w(f"任务{self.taskName}执行检查通过")
-                    break              
             return True
             
         except Exception as e:
@@ -127,12 +110,6 @@ class Task:
         try:
             self.endTime = datetime.now()
             Log.i(f"结束任务: {self.taskName}")
-            
-            # 执行结束阶段检查
-            if not self._runChecks(self.endCheckList):
-                Log.w(f"任务{self.taskName}结束检查未通过")
-                return False
-                
             fun = self.template.end
             if fun:
                 return fun(self)
@@ -175,3 +152,8 @@ class Task:
             Log.ex(e, f"任务执行异常: {self.taskName}")
             self.state = TaskState.FAILED
             return False 
+        
+    def setScore(self, score: int):
+        """设置任务得分"""
+        self.score = score
+        Log.i(f"任务 {self.taskName} 得分: {self.score}")

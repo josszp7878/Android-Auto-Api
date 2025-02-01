@@ -52,7 +52,8 @@ def get_timestamps():
     if os.path.exists(script_dir):
         for file in os.listdir(script_dir):
             file_path = os.path.join(script_dir, file)
-            timestamps[file] = str(int(os.path.getmtime(file_path)))
+            if os.path.isfile(file_path):
+                timestamps[file] = str(int(os.path.getmtime(file_path)))
     return json.dumps(timestamps)
 
 

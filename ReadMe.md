@@ -62,6 +62,9 @@
 
 这些更新提高了应用的功能性和稳定性，确保在不同场景下的正确操作。
 
+### 2023-10-XX
+- 将 `tools.py` 中的 `_onPreload`、`_onReload` 和 `reloadModule` 方法移至 `CFileServer.py`，以避免循环引用。
+
 ## 使用说明
 
 ### Python 脚本示例

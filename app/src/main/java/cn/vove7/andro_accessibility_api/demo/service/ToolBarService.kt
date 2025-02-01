@@ -59,7 +59,7 @@ class ToolBarService : LifecycleService() {
     var serverIP: String
         get() {
             if (_serverIP == null) {
-                _serverIP = getPrefs().getString(SERVER_NAME_KEY, "192.168.31.217")
+                _serverIP = getPrefs().getString(SERVER_NAME_KEY, "192.168.0.103")
             }
             return _serverIP!!
         }

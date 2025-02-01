@@ -1,7 +1,5 @@
-import sys
 import time
-import importlib
-from logger import Log
+from logger import log
 from tools import Tools
 
 class Client:
@@ -16,26 +14,27 @@ class Client:
     def __init__(self):
         if not hasattr(self, 'initialized'):
             self.deviceID = None
-            self.server = None
             self.device = None
             self.initialized = False
-            
+
+
     
-    def Begin(self, deviceID=None, server=None):
+    def Begin(self, deviceID=None):
+        # 测试
+        deviceID = 'TEST2'
+        ############################################################
         """客户端启动入口"""
-        log = Log()
-        log.init(is_server=False)
         try:
              # 导入需要的模块（这些模块可能已经被重新加载）
             from CDevice import CDevice
             import Cmds
             import tasks
+            from CmdMgr import cmdMgr
+            from CFileServer import fileServer
             self.deviceID = deviceID or 'TEST1'
-            self.server = server or "localhost"
             self.device = CDevice(self.deviceID)
-            
-            log.i(f"设备 {self.deviceID} 正在连接到服务器 {self.server}")
-            if not self.device.connect(f"http://{self.server}:5000"):
+
+            if not self.device.connect(fileServer.serverUrl()):
                 log.e("连接服务器失败")
                 return  # 这里直接返回会触发 finally
             
@@ -43,20 +42,21 @@ class Client:
             
             runFromApp = log.isAndroid()
             if not runFromApp: # 如果不是从App运行，则进入命令行模式
-                    while True:
-                        try:
-                            cmd_input = input(f"{self.deviceID}> ").strip()
-                            if cmd_input:
-                                try:
-                                    result = CmdMgr().do(cmd_input)
-                                    if result:
-                                        print(result)
-                                except Exception as e:
-                                    log.ex(e, '执行命令出错')    
-                        except KeyboardInterrupt: # 捕获Ctrl+C
-                            log.i('\n正在退出...') 
-                            break       
-                        time.sleep(0.1)                
+                while True:
+                    try:
+                        time.sleep(0.1)
+                        cmd_input = input(f"{self.deviceID}> ").strip()
+                        if cmd_input:
+                            try:
+                                result = cmdMgr.do(cmd_input)
+                                if result:
+                                    print(result)
+                            except Exception as e:
+                                log.ex(e, '执行命令出错')    
+                    except KeyboardInterrupt:
+                        # 捕获Ctrl+C
+                        log.i('\n正在退出...') 
+                        break       
         except Exception as e:
             log.ex(e, '初始化失败')
         finally:
