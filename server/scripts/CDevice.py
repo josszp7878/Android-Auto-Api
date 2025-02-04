@@ -26,21 +26,18 @@ class CDevice:
             cls._instance._device_id = device_id
         return cls._instance
 
-    def __init__(self, deviceID=None):  # 同样的参数
-        # 只在第一次初始化时设置属性
+    def __init__(self, deviceID=None):
         if not hasattr(self, 'initialized'):
             self._deviceID = deviceID
             self.connected = False            
-            # 初始化 socketio 客户端，添加更多配置
+            # 配置 socketio 客户端
             self.sio = socketio.Client(
                 reconnection=True,
                 reconnection_attempts=3,
                 reconnection_delay=1,
                 reconnection_delay_max=5,
                 logger=False,
-                engineio_logger=False,
-                ssl_verify=False,  # Android环境可能需要禁用SSL验证
-                request_timeout=30
+                engineio_logger=False
             )
             
             # 注册事件处理器
@@ -63,50 +60,62 @@ class CDevice:
             Log.i(f'设备 {self.deviceID} 已断开连接')
             self.connected = False
             
-    _serverURL = None
-    def connect(self, server_url=None):
+    def connect(self, server_url=None, callback=None):
         """连接到服务器（异步方式）"""
         try:
-            if not server_url:
-                server_url = self._serverURL
-            else:
-                self._serverURL = server_url
-            
             connect_url = f"{server_url}?device_id={self.deviceID}"
             Log.i(f"开始连接: {connect_url}")
             
-            # 使用线程进行异步连接
             def connect_async():
                 try:
-                    self.sio.connect(
-                        connect_url,
-                        transports=['websocket', 'polling'],
-                        wait=True,
-                        wait_timeout=10,
-                        headers={
-                            'Device-ID': self.deviceID,
-                            'Client-Type': 'Android'
-                        },
-                        auth={
-                            'device_id': self.deviceID
-                        },
-                        namespaces='/'
-                    )
-                except socketio.exceptions.ConnectionError as e:
-                    if "One or more namespaces failed to connect" in str(e):
-                        error_msg = f"设备ID '{self.deviceID}' 已被使用，请使用其他设备ID"
-                        Log.e(error_msg)
-                    else:
-                        Log.ex(e, '连接错误')
+                    Log.i("正在创建连接...")
+                    
+                    # 测试网络连接
+                    import socket
+                    try:
+                        # 解析主机名
+                        host = server_url.split('://')[1].split(':')[0]
+                        port = int(server_url.split(':')[-1].split('?')[0])
+                        Log.i(f"正在测试连接到主机: {host}:{port}")
+                        
+                        # 创建socket连接测试
+                        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                            sock.settimeout(5)
+                            sock.connect((host, port))
+                            Log.i(f"网络连接测试成功: {host}:{port}")
+                    except Exception as e:
+                        Log.e(f"网络连接测试失败: {str(e)}")
+                        if callback:
+                            callback(False)
+                        return
+                    
+                    try:
+                        # 最简单的连接配置
+                        Log.i("开始 socketio 连接...")
+                        self.sio.connect(
+                            connect_url,
+                            transports=['websocket', 'polling'],
+                            auth={'device_id': self.deviceID}  # 新版本使用 auth 参数
+                        )
+                        Log.i("socketio 连接成功")
+                        if callback:
+                            callback(True)
+                    except Exception as e:
+                        Log.e(f"socketio 连接失败: {str(e)}")
+                        if callback:
+                            callback(False)
                 except Exception as e:
-                    Log.ex(e, '连接过程出错')
+                    Log.e(f"连接过程发生异常: {str(e)}")
+                    if callback:
+                        callback(False)
             
-            # 启动连接线程
             threading.Thread(target=connect_async, daemon=True).start()
-            return True  # 返回启动连接的状态
+            return True
             
         except Exception as e:
             Log.ex(e, '启动连接失败')
+            if callback:
+                callback(False)
             return False
 
     def login(self):

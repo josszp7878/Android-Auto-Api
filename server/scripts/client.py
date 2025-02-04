@@ -1,5 +1,6 @@
 import time
 from logger import log
+from CFileServer import fileServer
 from tools import Tools
 
 class Client:
@@ -18,30 +19,71 @@ class Client:
             self.initialized = False
 
 
-    
-    def Begin(self, deviceID=None):
-        # 测试
-        deviceID = 'TEST2'
-        ############################################################
-        """客户端启动入口"""
+
+    def Begin(self, deviceID=None, server=None):  
+        log.i(f"开始初始化客户端: deviceID={deviceID}, server={server}")      
         try:
-             # 导入需要的模块（这些模块可能已经被重新加载）
+            server = server or '192.168.8.101'
+            server_url = f"http://{server}:{Tools.port}"
+            # 初始化设备连接
+            log.i(f"开始初始化设备: {deviceID}")
             from CDevice import CDevice
+            self.deviceID = deviceID or 'TEST1'
+            self.device = CDevice(self.deviceID)            
+            # 等待连接
+            self.waitting = True
+            def onConnected(ok):
+                self.waitting = False
+                if not ok:
+                    log.e("设备连接服务器失败")
+                else:
+                    log.i("设备连接服务器成功")
+            
+            log.i(f"开始连接设备到服务器: {server_url}")
+            self.device.connect(server_url, onConnected)
+            
+            # 等待连接完成
+            timeout = 30  # 30秒超时
+            start_time = time.time()
+            while self.waitting:
+                try:
+                    if time.time() - start_time > timeout:
+                        log.e("连接超时")
+                        break
+                    time.sleep(1)
+                    print(".", end="", flush=True)
+                except Exception as e:
+                    log.e(f"等待连接时发生错误: {str(e)}")
+                    break
+            
+            if not self.device.connected:
+                log.e("设备连接失败")
+                return
+            
+            # 更新脚本
+            self.waitting = True
+            def onUpdated(ok):
+                self.waitting = False
+            print("更新脚本")   
+            fileServer.serverUrl = server_url
+            fileServer.updateScripts(onUpdated)
+            
+            # 等待脚本更新完成
+            while self.waitting:
+                try:
+                    time.sleep(1)
+                    print(".", end="", flush=True)
+                except Exception:
+                    break
+                
             import Cmds
             import tasks
             from CmdMgr import cmdMgr
-            from CFileServer import fileServer
-            self.deviceID = deviceID or 'TEST1'
-            self.device = CDevice(self.deviceID)
 
-            if not self.device.connect(fileServer.serverUrl()):
-                log.e("连接服务器失败")
-                return  # 这里直接返回会触发 finally
-            
             print("客户端运行中... 按Ctrl+C退出")    
             
             runFromApp = log.isAndroid()
-            if not runFromApp: # 如果不是从App运行，则进入命令行模式
+            if not runFromApp:  # 如果不是从App运行，则进入命令行模式
                 while True:
                     try:
                         time.sleep(0.1)
@@ -53,19 +95,16 @@ class Client:
                                     print(result)
                             except Exception as e:
                                 log.ex(e, '执行命令出错')    
+                                break
                     except KeyboardInterrupt:
-                        # 捕获Ctrl+C
                         log.i('\n正在退出...') 
-                        break       
+                        break  
+            self.End()
         except Exception as e:
             log.ex(e, '初始化失败')
-        finally:
-            self.End()
-    
     
     def End(self):
         """清理函数"""
-        # Tools().printCallStack()
         print("End")
         if self.device and self.device.connected:
             self.device.logout()

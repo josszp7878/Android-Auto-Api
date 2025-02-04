@@ -46,10 +46,11 @@ socketio = SocketIO(
     app,
     cors_allowed_origins="*",
     async_mode='eventlet',
-    logger=False,  # 关闭 Socket.IO 日志
-    engineio_logger=False,  # 关闭 Engine.IO 日志
+    logger=False,
+    engineio_logger=False,
     ping_interval=25,
-    ping_timeout=60
+    ping_timeout=60,
+    engineio_opts={'async_handlers': True}
 )
 
 # 注册蓝图

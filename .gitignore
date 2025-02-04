@@ -20,3 +20,4 @@ server/logs
 *.pyc
 /server/__pycache__
 /server/scripts/__pycache__
+/app/src/main/assets/scripts

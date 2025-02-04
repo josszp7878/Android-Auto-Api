@@ -5,7 +5,6 @@ from typing import Callable
 from threading import Thread
 from logger import Log
 from tools import Tools
-from client import Client
 
 # 定义应用根目录
 APP_SCRIPTS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -20,18 +19,10 @@ class CFileServer:
         return cls._instance
 
     def __init__(self):
-        if not hasattr(self, 'initialized'):  # 确保只初始化一次
+        if not hasattr(self, 'initialized'):
             self.thread = Thread
             self.initialized = True
-
-    def init(self, server=None):
-        self._server = server or '192.168.0.103'
-        Log.i(f"初始化文件服务器: {self._server}")
-
-
-    def serverUrl(self):
-        # 使用自身的 server 属性
-        return f"http://{self._server}:{Tools.port}"
+            self.serverUrl = None
 
     def updateScripts(self, callback: Callable[[bool], None]):
         # 定义一个内部函数run，用于执行更新脚本的操作
@@ -44,20 +35,20 @@ class CFileServer:
                 for filename, remoteVersion in remoteVersions.items():
                     currentVersion = curVersions.get(filename, "0")
                     if int(remoteVersion) > int(currentVersion):
-                        print(f"更新脚本: {filename}")
+                        # Log.d(f"更新脚本: {filename}")
                         self.download(filename)
                         success = True
                 if success:
                     self.saveVersions(remoteVersions)
-                    Log.i("脚本版本信息已更新")
+                    Log.d("脚本版本信息已更新")
             except Exception as e:
                 Log.ex(e, "更新脚本失败")                    
             callback(success)
         Thread(target=run).start()
 
     def download(self, filename):
-        Log.i(f"正在下载: {filename}")
-        url = f"{self.serverUrl()}/scripts/{filename}"
+        # Log.i(f"正在下载: {filename}")
+        url = f"{self.serverUrl}/scripts/{filename}"
         response = requests.get(url, timeout=8)
         response.raise_for_status()
 
@@ -67,7 +58,7 @@ class CFileServer:
         with open(scriptFile, 'w', encoding='utf-8') as f:
             f.write(response.text)
 
-        Log.i(f"下载完成: {filename} (大小: {os.path.getsize(scriptFile)} bytes)")
+        Log.d(f"下载完成: {filename} (大小: {os.path.getsize(scriptFile)} bytes)")
 
     
 
@@ -85,13 +76,13 @@ class CFileServer:
             json.dump(versions, f)
     def remoteVersions(self):
         # 测试阶段使用的方法
-        url = f"{self.serverUrl()}/timestamps"
-        Log.i(f"获取远程文件时间戳: {url}")
+        url = f"{self.serverUrl}/timestamps"
+        # Log.i(f"获取远程文件时间戳: {url}")
         try:
             response = requests.get(url, timeout=8)
             response.raise_for_status()
             remote_versions = response.json()
-            Log.i(f"远程版本信息: {remote_versions}")
+            # Log.i(f"远程版本信息: {remote_versions}")
 
             # 过滤掉以 "_" 开头的文件
             remote_versions = {k: v for k, v in remote_versions.items() if not k.startswith("_")}

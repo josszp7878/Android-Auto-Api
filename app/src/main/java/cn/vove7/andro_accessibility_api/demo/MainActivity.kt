@@ -22,6 +22,7 @@ import cn.vove7.andro_accessibility_api.AccessibilityApi
 import cn.vove7.andro_accessibility_api.demo.actions.Action
 import cn.vove7.andro_accessibility_api.demo.databinding.ActivityMainBinding
 import cn.vove7.andro_accessibility_api.demo.script.PythonServices
+import cn.vove7.andro_accessibility_api.demo.script.ScriptEngine
 import cn.vove7.andro_accessibility_api.demo.service.ScreenCapture
 import cn.vove7.andro_accessibility_api.demo.service.ToolBarService
 import cn.vove7.auto.AutoApi
@@ -95,15 +96,21 @@ class MainActivity : AppCompatActivity() {
             statusBarHeight = resources.getDimensionPixelSize(resourceId)
         }
         
-        // 设置ANR监控
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            Application.getProcessName()?.let { processName ->
-                StrictMode.setThreadPolicy(StrictMode.ThreadPolicy.Builder()
-                    .detectCustomSlowCalls()
-                    .penaltyLog()
-                    .build())
-            }
+        // 添加网络策略
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            val builder = StrictMode.VmPolicy.Builder()
+            StrictMode.setVmPolicy(builder.build())
         }
+        
+        // 允许主线程网络操作（不推荐，但可用于测试）
+        StrictMode.setThreadPolicy(
+            StrictMode.ThreadPolicy.Builder()
+                .permitAll()
+                .build()
+        )
+        
+        // 初始化脚本引擎
+        ScriptEngine.init(this)
         // 初始化 PythonServices 的 Context
         PythonServices.init(this)
         // 启动 ScreenCapture 服务

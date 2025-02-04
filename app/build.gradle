@@ -34,9 +34,10 @@ android {
 
         python {
             pip {
-                install "python-socketio"
-                install "websocket-client"
-                install "requests"
+                install "python-socketio==5.4.0"
+                install "python-engineio==4.2.1"
+                install "websocket-client==1.2.1"
+                install "requests==2.25.1"
             }
         }
     }
@@ -52,13 +53,11 @@ android {
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
-            debuggable true
         }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.debug
-            debuggable false
         }
     }
     

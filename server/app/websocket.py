@@ -26,6 +26,11 @@ deviceMgr = DeviceManager()
 def handle_connect():
     """处理客户端连接"""
     try:
+        Log.i(f"新的连接请求 - SID: {request.sid}")
+        Log.i(f"连接参数: {request.args}")
+        Log.i(f"连接头信息: {request.headers}")
+        Log.i(f"连接认证信息: {request.args.to_dict()}")
+        
         device_id = request.args.get('device_id')
         client_type = request.args.get('client_type')
         
