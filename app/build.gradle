@@ -100,7 +100,22 @@ android {
         noCompress 'xml'
         additionalParameters '--no-version-vectors'
     }
+
+    sourceSets {
+        main {
+            assets.srcDirs = ['src/main/assets', '../server/scripts']
+        }
+    }
 }
+
+// 添加复制脚本的任务
+task copyScripts(type: Copy) {
+    from '../server/scripts'
+    into 'src/main/assets/scripts'
+    include '**/*.py'
+}
+
+preBuild.dependsOn copyScripts
 
 dependencies {
     implementation fileTree(dir: "libs", include: ["*.jar"])

@@ -6,7 +6,14 @@ class Log:
     _instance = None
     _initialized = False
     MAX_CACHE_SIZE = 3000  # 最大缓存条数
-    _android = None  # Android 平台接口
+    android = None  # 改为类变量
+    
+    # 添加Toast常量
+    TOAST_LENGTH_SHORT = 0  # Toast.LENGTH_SHORT
+    TOAST_LENGTH_LONG = 1   # Toast.LENGTH_LONG
+    TOAST_GRAVITY_TOP = 48    # Gravity.TOP
+    TOAST_GRAVITY_CENTER = 17 # Gravity.CENTER
+    TOAST_GRAVITY_BOTTOM = 80 # Gravity.BOTTOM
     
     def __init__(self):
         if not hasattr(self, '_cache'):
@@ -16,12 +23,8 @@ class Log:
    
     def isAndroid(self):
         # print(f'self._android =={self._android}')
-        return self._android is not None
+        return Log.android is not None
     
-    @property
-    def Android(self):
-        """获取 Android 接口"""
-        return self._android
     
     def clear(self):
         """清空日志缓存"""
@@ -41,10 +44,10 @@ class Log:
         self.is_server = is_server
         try:
             from java import jclass            
-            self._android = jclass("cn.vove7.andro_accessibility_api.demo.script.PythonServices")
+            Log.android = jclass("cn.vove7.andro_accessibility_api.demo.script.PythonServices")
         except Exception as e:
-            self._android = None
-        print(f'self._android = {self._android}')
+            Log.android = None
+        print(f'@@@@@@@Log.android = {Log.android}')
         self._initialized = True        
         if is_server:
             self._load()
@@ -201,6 +204,28 @@ class Log:
         except Exception as e:
             Log.ex(e, '获取日志失败')
     
+    def toast(self, msg, duration=None, gravity=None, xOffset=0, yOffset=100):
+        """在手机上显示Toast消息
+        Args:
+            msg: 要显示的消息
+            duration: 显示时长，可选值：TOAST_LENGTH_SHORT(2秒)，TOAST_LENGTH_LONG(3.5秒)
+            gravity: 显示位置，可选值：TOAST_GRAVITY_TOP, TOAST_GRAVITY_CENTER, TOAST_GRAVITY_BOTTOM
+            xOffset: X轴偏移量
+            yOffset: Y轴偏移量
+        """
+        try:
+            android = Log.android
+            if android:
+                android.showToast(str(msg), 
+                                duration or self.TOAST_LENGTH_LONG,
+                                gravity or self.TOAST_GRAVITY_BOTTOM,
+                                xOffset, yOffset)
+            else:
+                print(f"Toast: {msg}")
+        except Exception as e:
+            print(f"显示Toast失败: {e}")
+            print(msg)
+
     @classmethod
     def show(cls, filter_str=None, page=1):
         """显示日志"""
@@ -274,6 +299,6 @@ def requireAndroid(func):
     wrapper.__doc__ = func.__doc__
     return wrapper
 
-
-android = Log().Android
 log = Log()
+
+

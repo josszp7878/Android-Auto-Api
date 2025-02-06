@@ -7,7 +7,7 @@ from logger import Log
 from tools import Tools
 
 # 定义应用根目录
-APP_SCRIPTS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+APP_SCRIPTS = os.path.dirname(os.path.abspath(__file__))
 
 class CFileServer:
     TAG = "CFileServer"
@@ -23,6 +23,7 @@ class CFileServer:
             self.thread = Thread
             self.initialized = True
             self.serverUrl = None
+            self.scriptDir = None
 
     def updateScripts(self, callback: Callable[[bool], None]):
         # 定义一个内部函数run，用于执行更新脚本的操作
@@ -46,21 +47,30 @@ class CFileServer:
             callback(success)
         Thread(target=run).start()
 
-    def download(self, filename):
-        # Log.i(f"正在下载: {filename}")
-        url = f"{self.serverUrl}/scripts/{filename}"
-        response = requests.get(url, timeout=8)
-        response.raise_for_status()
+    def download(self, filename, onComplete=None):
+        """下载文件
+        Args:
+            filename: 文件名
+            onComplete: 完成回调函数
+        """
+        try:
+            url = f"{self.serverUrl}/scripts/{filename}"
+            response = requests.get(url, timeout=8)
+            response.raise_for_status()
 
-        os.makedirs(APP_SCRIPTS, exist_ok=True)
+            scriptFile = os.path.join(APP_SCRIPTS, filename)
+            with open(scriptFile, 'w', encoding='utf-8') as f:
+                f.write(response.text)
 
-        scriptFile = os.path.join(APP_SCRIPTS, filename)
-        with open(scriptFile, 'w', encoding='utf-8') as f:
-            f.write(response.text)
-
-        Log.d(f"下载完成: {filename} (大小: {os.path.getsize(scriptFile)} bytes)")
-
-    
+            Log.d(f"下载完成: {filename} (大小: {os.path.getsize(scriptFile)} bytes)")
+            if onComplete:
+                onComplete(True)
+            return True
+        except Exception as e:
+            Log.e(f"下载失败: {filename} - {str(e)}")
+            if onComplete:
+                onComplete(False)
+            return False
 
     def currentVersions(self):
         version_file = os.path.join(APP_SCRIPTS, "version.txt")
@@ -167,19 +177,18 @@ class CFileServer:
                 return False
         return True
 
-    def reloadModule(self, module_name: str) -> bool:
-        """重新加载指定模块"""
-        log = Log()
+    def reloadModule(self, module_name, onComplete=None):
+        """重新加载模块
+        Args:
+            module_name: 模块名
+            onComplete: 完成回调函数
+        """
         try:
-            def onComplete(success: bool, error: str = None):
-                if not success:
-                    log.e(f"下载模块文件失败: {module_name} - {error}")
-                    return False
-                return self._reload(module_name, log)
-            # 启动下载
             return self.download(f"{module_name}.py", onComplete)
         except Exception as e:
-            log.ex(e, f"重载模块失败: {module_name}")
+            log.ex(e, '重载模块失败')
+            if onComplete:
+                onComplete(False)
             return False
     ##############################
 fileServer = CFileServer()

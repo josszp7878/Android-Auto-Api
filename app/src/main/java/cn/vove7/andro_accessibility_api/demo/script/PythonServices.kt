@@ -7,7 +7,11 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.widget.Toast
 import android.util.Base64
+import android.view.Gravity
 import cn.vove7.andro_accessibility_api.demo.MainActivity
 import cn.vove7.andro_accessibility_api.demo.service.ScreenCapture
 import cn.vove7.auto.AutoApi
@@ -380,5 +384,27 @@ class PythonServices {
             latch.await(10, TimeUnit.SECONDS)
             return result
         }
+
+        @JvmStatic
+        fun showToast(message: String, duration: Int = Toast.LENGTH_LONG, gravity: Int = Gravity.BOTTOM, 
+                      xOffset: Int = 0, yOffset: Int = 100) {
+            val handler = Handler(Looper.getMainLooper())
+            handler.post {
+                try {
+                    val toast = Toast.makeText(context, message, duration)
+                    toast.setGravity(gravity, xOffset, yOffset)
+                    toast.show()
+                } catch (e: Exception) {
+                    Timber.e(e, "Show toast failed")
+                }
+            }
+        }
+
+        // 添加Toast常量供Python使用
+        @JvmStatic val TOAST_LENGTH_SHORT = Toast.LENGTH_SHORT
+        @JvmStatic val TOAST_LENGTH_LONG = Toast.LENGTH_LONG
+        @JvmStatic val TOAST_GRAVITY_TOP = Gravity.TOP
+        @JvmStatic val TOAST_GRAVITY_CENTER = Gravity.CENTER
+        @JvmStatic val TOAST_GRAVITY_BOTTOM = Gravity.BOTTOM
     }
 } 

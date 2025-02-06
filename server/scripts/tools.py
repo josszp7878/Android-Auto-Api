@@ -1,7 +1,7 @@
 try:
-    from logger import Log, android
+    from logger import Log
 except:
-    from scripts.logger import Log, android
+    from scripts.logger import Log
 
 from typing import Pattern, List
 
@@ -40,14 +40,9 @@ class Tools:
         return self._screenInfoCache
 
     def refreshScreenInfos(self) -> list:
-        """获取并解析屏幕信息,支持缓存
-        Args:
-            forceUpdate: 是否强制更新缓存
-        Returns:
-            list: 屏幕文本信息列表
-        """
+        """获取并解析屏幕信息,支持缓存"""
         try:
-            info = android.getScreenInfo()
+            info = Log.android.getScreenInfo()
             size = info.size()
             result = []
             

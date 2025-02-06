@@ -1,5 +1,5 @@
 from taskmgr import regTask
-from logger import Log, android
+from logger import Log
 from task import Task, TaskTemplate
 from checkers import Check
 import time  # 确保导入 time 模块

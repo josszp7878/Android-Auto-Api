@@ -1,6 +1,6 @@
 from typing import List, Tuple, Any
 import re
-from logger import Log, android
+from logger import Log
 from checker import check, GetMatchVal, GetPos
 from task import Task
 
@@ -28,7 +28,8 @@ class Check:
                 Log.e(f"未找到{strs[0]}")
                 return False
             Log.Do(f"点击{strs[0]}")    
-            return android.click(pos[0], pos[1])
+            return Log.android.click(pos[0], pos[1])
+
 
         return check(strs, region, check_function)
     
@@ -69,7 +70,7 @@ class Check:
                 Log.e("未找到完成按钮")
                 return False
             Log.Do("点击完成")
-            return android.click(pos[0], pos[1])
+            return Log.android.click(pos[0], pos[1])
 
         return check(sts, region, check_function)
 

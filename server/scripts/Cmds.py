@@ -10,7 +10,7 @@ from checkers import Check
 from CFileServer import fileServer
 
 # 缓存 Android 实例
-androidServices = Log().Android
+androidServices = Log.android
 
 # 添加缓存相关的变量
 _screenInfoCache = None
@@ -158,7 +158,7 @@ def uninstall(pkgName):
     return androidServices.uninstallApp(pkgName)
 
 
-@regCmd(r'启动', r'(?P<pkgName>\S+)')
+@regCmd(r'启动|打开', r'(?P<pkgName>\S+)')
 @requireAndroid
 def startApp(pkgName):
     return androidServices.openApp(pkgName)
@@ -265,7 +265,7 @@ def switchApp():
 
 
 
-@regCmd(r'屏幕文本信息')
+@regCmd(r'截屏')
 @requireAndroid
 def getScreen():
     try:

@@ -23,7 +23,7 @@ class Client:
     def Begin(self, deviceID=None, server=None):  
         log.i(f"开始初始化客户端: deviceID={deviceID}, server={server}")      
         try:
-            server = server or '192.168.8.101'
+            server = server or '192.168.0.103'
             server_url = f"http://{server}:{Tools.port}"
             # 初始化设备连接
             log.i(f"开始初始化设备: {deviceID}")
@@ -36,9 +36,13 @@ class Client:
                 self.waitting = False
                 if not ok:
                     log.e("设备连接服务器失败")
+                    # 在APP中显示Toast提示
+                    if log.isAndroid():
+                        log.toast("服务器连接失败，请检查服务器IP地址和相关的网络设置是否正确")
                 else:
                     log.i("设备连接服务器成功")
             
+
             log.i(f"开始连接设备到服务器: {server_url}")
             self.device.connect(server_url, onConnected)
             
@@ -58,32 +62,33 @@ class Client:
             
             if not self.device.connected:
                 log.e("设备连接失败")
+                if log.isAndroid():
+                    log.toast("无法连接到服务器，请检查网络和服务器地址")
                 return
-            
-            # 更新脚本
-            self.waitting = True
-            def onUpdated(ok):
-                self.waitting = False
-            print("更新脚本")   
-            fileServer.serverUrl = server_url
-            fileServer.updateScripts(onUpdated)
-            
-            # 等待脚本更新完成
-            while self.waitting:
-                try:
-                    time.sleep(1)
-                    print(".", end="", flush=True)
-                except Exception:
-                    break
+            runFromApp = log.isAndroid()
+            if runFromApp:
+                # 更新脚本
+                self.waitting = True
+                def onUpdated(ok):
+                    self.waitting = False
+                print("更新脚本")   
+                fileServer.serverUrl = server_url
+                fileServer.updateScripts(onUpdated)
+                # 等待脚本更新完成
+                while self.waitting:
+                    try:
+                        time.sleep(1)
+                        print(".", end="", flush=True)
+                    except Exception:
+                        break
                 
             import Cmds
             import tasks
             from CmdMgr import cmdMgr
 
-            print("客户端运行中... 按Ctrl+C退出")    
-            
-            runFromApp = log.isAndroid()
+
             if not runFromApp:  # 如果不是从App运行，则进入命令行模式
+                print("客户端运行中... 按Ctrl+C退出")    
                 while True:
                     try:
                         time.sleep(0.1)
@@ -99,9 +104,14 @@ class Client:
                     except KeyboardInterrupt:
                         log.i('\n正在退出...') 
                         break  
-            self.End()
+                self.End()
+            else:
+                while True:
+                    time.sleep(100)
         except Exception as e:
             log.ex(e, '初始化失败')
+
+
     
     def End(self):
         """清理函数"""
