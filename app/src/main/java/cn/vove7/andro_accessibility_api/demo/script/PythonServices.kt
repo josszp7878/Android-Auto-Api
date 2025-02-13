@@ -12,6 +12,7 @@ import android.os.Looper
 import android.widget.Toast
 import android.util.Base64
 import android.view.Gravity
+import android.util.Log
 import cn.vove7.andro_accessibility_api.demo.MainActivity
 import cn.vove7.andro_accessibility_api.demo.service.ScreenCapture
 import cn.vove7.auto.AutoApi
@@ -31,6 +32,7 @@ import androidx.core.content.PackageManagerCompat
 import cn.vove7.andro_accessibility_api.demo.service.ToolBarService
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import cn.vove7.auto.api.swipe as gestureSwipe
 
 /**
  * Python服务接口的Kotlin实现
@@ -102,7 +104,21 @@ class PythonServices {
                 false
             }
         }
-
+        /**
+         * 滑动屏幕
+         */
+        @JvmStatic
+        fun swipe(x: Int, y: Int, toX: Int, toY: Int, duration: Long): Boolean {
+            return try {
+                runBlocking {
+                    swipe(x, y, toX, toY, duration)
+                }
+                true
+            } catch (e: Exception) {
+                Timber.tag(TAG).e(e, "swipe failed")
+                false
+            }
+        }
         @JvmStatic
         fun move(x: Int, y: Int): Boolean {
             return try {
@@ -406,5 +422,7 @@ class PythonServices {
         @JvmStatic val TOAST_GRAVITY_TOP = Gravity.TOP
         @JvmStatic val TOAST_GRAVITY_CENTER = Gravity.CENTER
         @JvmStatic val TOAST_GRAVITY_BOTTOM = Gravity.BOTTOM
+
+
     }
 } 

@@ -5,12 +5,11 @@ from tools import Tools, tools
 from CmdMgr import regCmd
 import re
 from typing import Pattern, List
-from task import Task
-from checkers import Check
 from CFileServer import fileServer
 import threading
-import time
+import time as time_module
 from client import client
+import os
 
 # 缓存 Android 实例
 androidServices = Log.android
@@ -31,7 +30,7 @@ def info():
     }
 
 @regCmd(r"时间")
-def time():
+def getCurrentTime():
     """获取当前时间"""
     return str(datetime.now())
 
@@ -91,7 +90,7 @@ def isConnect():
         return f"已连接到服务器，设备ID: {device.deviceID}"
     return "未连接到服务器"
 
-@regCmd(r"坐标", r"(?P<pattern>.+)")
+@regCmd(r"坐标|位置", r"(?P<pattern>.+)")
 @requireAndroid
 def getPos(pattern):
     position = None
@@ -99,12 +98,25 @@ def getPos(pattern):
         Log.i(f"@@@@点击指令: {pattern}")
         x, y = map(int, re.split(r"[,\s]+", pattern.strip()))
         position = (x, y)
-    except Exception as e:
+    except Exception:
         tools.refreshScreenInfos()
         regex = re.compile(pattern)
-        position = tools.findPos(regex)
+        position = findPos(regex)
     Log.i(f"坐标:{position}")
     return position
+
+def inRect(pattern, region):
+    position = getPos(pattern)
+    if position:
+        x, y = position
+        left, top, right, bottom = region
+        if left > 0 and not (left <= x <= right):
+            return False
+        if top > 0 and not (top <= y <= bottom):
+            return False
+        return True
+        
+    return False
 
 @regCmd(r"移到", r"(?P<param>.+)")
 @requireAndroid
@@ -114,13 +126,22 @@ def move(param):
         return androidServices.move(position[0], position[1])
     return "未找到"
 
-@regCmd(r"点击", r"(?P<param>.+)")
-@requireAndroid
-def click(param):
-    position = getPos(param)
+@regCmd(r"点击", r"(?P<param>\S+)(?:\s+(?P<offset>\d+,\d+))?")
+def click(param, offset=None):
+    """点击指定位置，支持偏移"""
+    Log.i(f"点击指令: {param} {offset}")
+    if not param:
+        return False
+    position = getPos(param)   
     if position:
-        return androidServices.click(position[0], position[1])
-    return "未找到"
+        # 应用偏移量
+        x, y = 0, 0
+        if offset:
+            offset = offset.split(',')
+            x, y = int(offset[0]), int(offset[1])
+        x, y = position[0] + x, position[1] + y
+        return androidServices.click(x, y)
+    return False
 
 @regCmd(r"返回")
 @requireAndroid
@@ -183,6 +204,7 @@ def findPos(regex: Pattern, region: List[int] = None):
         match, item = Tools().matchScreenText(regex, region)
         if match:
             position = Tools().toPos(item)
+            position = (position[0], position[1])
             Log.i(f"找到坐标: {position}")
         return position
     except Exception as e:
@@ -240,7 +262,7 @@ def getScreenText(forceUpdate: bool = False) -> str:
         Log.ex(e, "获取屏幕文本失败")
         return ""
 
-@regCmd(r"开始监控", r"(?P<interval>\d+)?")
+@regCmd(r"监控", r"(?P<interval>\d+)?")
 @requireAndroid
 def startScreenMonitor(interval=None):
     """开始屏幕监控"""
@@ -256,10 +278,10 @@ def startScreenMonitor(interval=None):
             while _screenMonitorTask:
                 try:
                     image = androidServices.takeScreenshot()
-                    Log.i("获取截图:")
+                    # Log.i("获取截图:")
                     if image:
                         client.emit("C2S_UpdateScreenshot", {"device_id": client.deviceID, "screenshot": image})
-                    time.sleep(interval)
+                    time_module.sleep(interval)
                 except Exception as e:
                     Log.ex(e, "监控任务异常")
                     break
@@ -323,16 +345,30 @@ def captureScreen():
         Log.ex(e, "截图失败")
         return f"e##截图失败:{str(e)}"
 
-@regCmd(r"加载", r"(?P<module_name>\w+)")
+@regCmd(r"加载", r"(?P<module_name>\w+)?")
 def reload(module_name):
-    print(f"热加载模块: {module_name}")
-    try:
+    print(f"热加载模块1: {module_name}")
+    modules = []
+    scripts_dir = os.path.dirname(__file__)
+    files = [f for f in os.listdir(scripts_dir) if f.endswith('.py') and f != '__init__.py']
+    
+    if not module_name:
+        modules.extend(files)
+    else:
+        # 使用 next 和生成器表达式来查找模块
+        module = next((x for x in files if x.lower() == module_name.lower() + '.py'), None)
+        if module:
+            modules.append(module)
+    
+    if not modules:
+        return "e##未找到热加载模块"
+
+    for script in modules:
+        module_name = script[:-3]  # 去掉 .py 后缀
         if fileServer.reloadModule(module_name):
-            return f"模块 {module_name} 重新加载成功ee"
-        return f"模块 {module_name} 重新加载失败"
-    except Exception as e:
-        Log.ex(e, f"重新加载模块失败: {module_name}")
-        return f"重新加载失败: {str(e)}"
+            Log.i(f"模块 {module_name} 重新加载成功")
+        else:
+            Log.e(f"模块 {module_name} 重新加载失败")
 
 def OnReload():
     Log.w("Cmds模块热更新 OnReload")
@@ -341,7 +377,20 @@ def OnReload():
 def OnPreload():
     Log.w("Cmds模块热更新 onPreload")
 
-@regCmd(r"aa")
+@regCmd(r"滑动", r"(?P<start>\d+,\d+)\s+(?P<end>\d+,\d+)\s+(?P<duration>\d+)")
 @requireAndroid
-def aa():
-    Log.i("dddaa")
+def swipe(start, end, duration):
+    """滑动屏幕"""
+    try:
+        startX, startY = map(int, start.split(','))
+        endX, endY = map(int, end.split(','))
+        duration = int(duration)
+        Log.i(f"滑动指令: 开始位置({startX}, {startY}), 结束位置({endX}, {endY}), 持续时间: {duration} ms")
+        
+        if androidServices.swipe(startX, startY, endX, endY, duration):
+            return "滑动成功"
+        else:
+            return "e##滑动失败"
+    except Exception as e:
+        Log.ex(e, "滑动失败")
+        return f"e##滑动失败: {str(e)}"

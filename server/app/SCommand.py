@@ -272,7 +272,6 @@ class SCommand:
             level = result.split('#')[0] if '#' in result else 'i'
             
             deviceMgr = DeviceManager()
-            
             # 根据命令方法名处理响应
             if cmdName == 'captureScreen':  # 使用方法名而不是命令文本判断
                 if isinstance(result, str) and result.startswith('data:image'):
@@ -280,23 +279,34 @@ class SCommand:
                     if device is None:
                         Log.e(f'设备 {device_id} 不存在')
                         return
-                    if  device.saveScreenshot(result):
+                    if device.saveScreenshot(result):
                         result = '截图已更新'
                     else:
                         result = '截图更新失败'
-            # 创建命令历史记录
-            CommandHistory.create(
-                sender=sender,
-                target=device_id,
-                command=command,
-                level=level,
-                response=result
-            )
+            # # 创建命令历史记录
+            # CommandHistory.create(
+            #     sender=sender,
+            #     target=device_id,
+            #     command=command,
+            #     level=level,
+            #     response=result
+            # )
                 
         except Exception as e:
             result = Log.formatEx('处理命令响应出错', e)
-            
-        deviceMgr.emit2Console('S2B_CmdResult', {
-            'result': result,
-            'level': level,
-        })    
+        # 解析level
+        if isinstance(result, str) and '##' in result:
+            level = result.split('##')[0]
+            if level in ['w', 'e', 'i', 'd']:
+                result = result.split('##')[1:]
+            else:
+                level = 'i'
+        else:
+            level = 'i'
+        Log().log(f"{device_id}:{command}  => {result}", level, 'CMD')
+        
+        # 发送结果到控制台
+        # deviceMgr.emit2Console('S2B_CmdResult', {
+        #     'result': result,
+        #     'level': level,
+        # })    

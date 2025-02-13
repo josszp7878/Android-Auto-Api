@@ -85,7 +85,7 @@ class CFileServer:
             # 确保目录存在
             os.makedirs(os.path.dirname(scriptFile), exist_ok=True)
             
-            with open(scriptFile, 'w', encoding='utf-8') as f:
+            with open(scriptFile, 'w', newline = '', encoding='utf-8') as f:
                 f.write(response.text)
 
             Log.i(f"下载完成: {scriptFile} (大小: {os.path.getsize(scriptFile)} bytes)")
