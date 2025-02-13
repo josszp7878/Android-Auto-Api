@@ -18,12 +18,27 @@ class Client:
             self.device = None
             self.initialized = False
 
-
+    def emit(self, event, data=None):
+        """发送事件到服务器
+        Args:
+            event: 事件名称
+            data: 事件数据
+        """
+        try:
+            if self.device and self.device.connected:
+                self.device.emit(event, data)
+            else:
+                from logger import Log
+                Log.e("设备未连接，无法发送事件")
+        except Exception as e:
+            from logger import Log
+            Log.ex(e, "发送事件失败")
 
     def Begin(self, deviceID=None, server=None):  
         log.i(f"开始初始化客户端: deviceID={deviceID}, server={server}")      
         try:
-            server = server or '192.168.0.103'
+            server = server or Tools.getLocalIP()
+            log.i(f"获取本机IP: {server}")
             server_url = f"http://{server}:{Tools.port}"
             # 初始化设备连接
             log.i(f"开始初始化设备: {deviceID}")
@@ -65,14 +80,14 @@ class Client:
                 if log.isAndroid():
                     log.toast("无法连接到服务器，请检查网络和服务器地址")
                 return
+            fileServer.serverUrl = server_url                
             runFromApp = log.isAndroid()
             if runFromApp:
                 # 更新脚本
                 self.waitting = True
                 def onUpdated(ok):
                     self.waitting = False
-                print("更新脚本")   
-                fileServer.serverUrl = server_url
+                print("更新脚本...")   
                 fileServer.updateScripts(onUpdated)
                 # 等待脚本更新完成
                 while self.waitting:

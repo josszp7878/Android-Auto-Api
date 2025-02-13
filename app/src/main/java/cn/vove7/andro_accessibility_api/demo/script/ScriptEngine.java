@@ -50,6 +50,7 @@ public class ScriptEngine {
             synchronized (ScriptEngine.class) {
                 if (INSTANCE == null) {
                     INSTANCE = new ScriptEngine(context);
+                    INSTANCE.initScripts();
                 }
             }
         }
@@ -58,18 +59,18 @@ public class ScriptEngine {
 
     public void init(String deviceName, String serverName) {
         try {
+            uninit();
+            // 启动新的Python实例
             if (!Python.isStarted()) {
                 Python.start(new AndroidPlatform(applicationContext));
             }
+            py = Python.getInstance();
             
-            if (py == null) {
-                py = Python.getInstance();
-            }
-
             // 设置Python脚本路径
             File scriptDir = new File(context.getFilesDir(), SCRIPTS_DIR);
             Timber.d("Python脚本目录: %s", scriptDir.getAbsolutePath());
 
+            // 确保脚本目录在Python路径最前面
             PyObject sysModule = py.getModule("sys");
             PyObject pathList = sysModule.get("path");
             pathList.callAttr("insert", 0, scriptDir.getAbsolutePath());
@@ -91,28 +92,32 @@ public class ScriptEngine {
     }
 
     public void uninit() {
-        try {
-            if (mainModule != null) {
-                mainModule.callAttr("End");
-                Timber.d("Python End()函数执行成功");
+        if (py != null) {
+            try {
+                if (mainModule != null) {
+                    mainModule.callAttr("End");
+                    mainModule = null;
+                }
+                // Python实例不需要显式关闭
+                py = null;
+            } catch (Exception e) {
+                Timber.e(e, "关闭旧Python实例失败");
             }
-        } catch (Exception e) {
-            Timber.e(e, "执行Python End()函数失败");
         }
     }
 
-    public static void init(Context context) {
+    private void initScripts() {
         try {
             File scriptsDir = new File(context.getFilesDir(), SCRIPTS_DIR);
-            
             // 如果scripts目录不存在，创建并复制初始脚本
             if (!scriptsDir.exists()) {
                 Log.i(TAG, "First run, initializing scripts directory");
                 if (!scriptsDir.mkdirs()) {
                     Log.e(TAG, "Failed to create scripts directory");
                 }
+                Log.i(TAG, "安装后第一次运行，初始化脚本目录");
+                copyScriptsFromAssets(context, scriptsDir);
             }
-            copyScriptsFromAssets(context, scriptsDir);
         } catch (Exception e) {
             Log.e(TAG, "Failed to initialize script engine", e);
         }

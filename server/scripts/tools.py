@@ -17,6 +17,11 @@ class Tools:
             cls._instance = _instance
         return cls._instance
    
+    @staticmethod
+    def getLocalIP():
+        """获取本机IP地址"""
+        import socket
+        return socket.gethostbyname(socket.gethostname())
 
     def printCallStack(self):
         """打印调用栈"""

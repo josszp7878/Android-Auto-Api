@@ -207,4 +207,27 @@ class CDevice:
     
     def onS2C_CmdResult(self, data):
         print(f'结果: {data["result"]}')
+
+    def emit(self, event, data=None):
+        """发送事件到服务器
+        Args:
+            event: 事件名称
+            data: 事件数据
+        Returns:
+            bool: 是否发送成功
+        """
+        try:
+            if not self.connected:
+                Log.e("未连接到服务器")
+                return False
+            
+            if not self.sio:
+                Log.e("Socket未初始化")
+                return False
+                
+            self.sio.emit(event, data)
+            return True
+        except Exception as e:
+            Log.ex(e, "发送事件失败")
+            return False
  

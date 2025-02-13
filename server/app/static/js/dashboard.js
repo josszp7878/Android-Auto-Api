@@ -471,6 +471,11 @@ class Dashboard {
                         this.$set(device, 'status', data.status);
                         this.$set(device, 'screenshot', data.screenshot);
                         this.$set(device, 'screenshotTime', data.screenshotTime);
+                        
+                        // 如果是当前选中的设备，更新大图预览
+                        if (this.selectedDevice === data.deviceId && this.fullScreenshot) {
+                            this.fullScreenshot = data.screenshot;
+                        }
                     }
                 });
 

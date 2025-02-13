@@ -136,28 +136,33 @@ class SDevice:
         Args:
             base64_data: Base64编码的图片数据
         Returns:
-            str: 保存成功返回截图路径,失败返回None
+            bool: 保存成功返回True
         """
         try:
             # 解码base64数据
-            image_data = base64_data.split(',', 1)[1]
-            image_bytes = base64.b64decode(image_data)            
-            # 确保目录存在
-            self._ensure_screenshot_dir()
-            
-            # 生成文件名
-            filename = datetime.now().strftime('%Y%m%d_%H%M%S.jpg')
-            file_path = self.screenshot_dir / filename
-            # 保存文件
-            with open(file_path, 'wb') as f:
-                f.write(image_bytes)
-            Log.i(f'保存截图: {file_path}')
-            
-            # 更新截图路径，保存为字符串形式的相对路径
-            self._lastScreenshot = file_path
-            # 直接刷新设备信息到前端
-            self.refresh()
-            return True
+            if base64_data.startswith('data:image'):
+                image_data = base64_data.split(',', 1)[1]
+                image_bytes = base64.b64decode(image_data)
+                
+                # 确保目录存在
+                self._ensure_screenshot_dir()
+                
+                # 生成文件名
+                filename = datetime.now().strftime('%Y%m%d_%H%M%S.jpg')
+                file_path = self.screenshot_dir / filename
+                
+                # 保存文件
+                with open(file_path, 'wb') as f:
+                    f.write(image_bytes)
+                
+                # 更新截图路径
+                self._lastScreenshot = file_path
+                self._lastScreenshotTime = datetime.now()
+                
+                # 刷新设备信息到前端
+                self.refresh()
+                return True
+                
         except Exception as e:
             Log.ex(e, "保存截图失败")
             return False

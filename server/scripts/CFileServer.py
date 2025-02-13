@@ -1,13 +1,14 @@
 import os
 import json
 import requests
+import sys
+import importlib
 from typing import Callable
 from threading import Thread
 from logger import Log
 from tools import Tools
 
 # 定义应用根目录
-APP_SCRIPTS = os.path.dirname(os.path.abspath(__file__))
 
 class CFileServer:
     TAG = "CFileServer"
@@ -23,7 +24,26 @@ class CFileServer:
             self.thread = Thread
             self.initialized = True
             self.serverUrl = None
-            self.scriptDir = None
+            self._scriptDir = None  # 初始化私有变量
+
+    @property
+    def scriptDir(self):
+        """懒加载脚本目录
+        Returns:
+            str: 脚本目录路径
+        """
+        if self._scriptDir is None:
+            android = Log.android
+            if android:
+                # Android环境下使用应用私有目录
+                # getFilesDir 直接返回字符串路径
+                self._scriptDir = android.getFilesDir('scripts', True)
+                Log.i(f"Android脚本目录: {self._scriptDir}")
+            else:
+                # 开发环境使用当前目录
+                self._scriptDir = os.path.dirname(os.path.abspath(__file__))
+                Log.i(f"开发环境脚本目录: {self._scriptDir}")
+        return self._scriptDir
 
     def updateScripts(self, callback: Callable[[bool], None]):
         # 定义一个内部函数run，用于执行更新脚本的操作
@@ -41,7 +61,7 @@ class CFileServer:
                         success = True
                 if success:
                     self.saveVersions(remoteVersions)
-                    Log.d("脚本版本信息已更新")
+                    Log.d("脚本已更新!!")
             except Exception as e:
                 Log.ex(e, "更新脚本失败")                    
             callback(success)
@@ -55,25 +75,31 @@ class CFileServer:
         """
         try:
             url = f"{self.serverUrl}/scripts/{filename}"
+            Log.i(f"下载文件: {url}")
             response = requests.get(url, timeout=8)
             response.raise_for_status()
 
-            scriptFile = os.path.join(APP_SCRIPTS, filename)
+            scriptFile = os.path.join(self.scriptDir, filename)
+            Log.i(f"保存文件到: {scriptFile}")
+            
+            # 确保目录存在
+            os.makedirs(os.path.dirname(scriptFile), exist_ok=True)
+            
             with open(scriptFile, 'w', encoding='utf-8') as f:
                 f.write(response.text)
 
-            Log.d(f"下载完成: {filename} (大小: {os.path.getsize(scriptFile)} bytes)")
+            Log.i(f"下载完成: {scriptFile} (大小: {os.path.getsize(scriptFile)} bytes)")
             if onComplete:
                 onComplete(True)
             return True
         except Exception as e:
-            Log.e(f"下载失败: {filename} - {str(e)}")
+            Log.ex(e, f"下载失败: {filename}")
             if onComplete:
                 onComplete(False)
             return False
 
     def currentVersions(self):
-        version_file = os.path.join(APP_SCRIPTS, "version.txt")
+        version_file = os.path.join(self.scriptDir, "version.txt")
         if not os.path.exists(version_file):
             return {}
 
@@ -81,9 +107,10 @@ class CFileServer:
             return json.load(f)
 
     def saveVersions(self, versions):
-        version_file = os.path.join(APP_SCRIPTS, "version.txt")
+        version_file = os.path.join(self.scriptDir, "version.txt")
         with open(version_file, 'w', encoding='utf-8') as f:
             json.dump(versions, f)
+            
     def remoteVersions(self):
         # 测试阶段使用的方法
         url = f"{self.serverUrl}/timestamps"
@@ -177,18 +204,21 @@ class CFileServer:
                 return False
         return True
 
-    def reloadModule(self, module_name, onComplete=None):
+    def reloadModule(self, module_name):
         """重新加载模块
         Args:
             module_name: 模块名
             onComplete: 完成回调函数
         """
         try:
+            def onComplete(success):
+                if success:
+                    self._reload(module_name, Log)
+                else:
+                    Log.e(f"下载失败: {module_name}")
             return self.download(f"{module_name}.py", onComplete)
         except Exception as e:
-            log.ex(e, '重载模块失败')
-            if onComplete:
-                onComplete(False)
+            Log.ex(e, '重载模块失败')
             return False
     ##############################
 fileServer = CFileServer()

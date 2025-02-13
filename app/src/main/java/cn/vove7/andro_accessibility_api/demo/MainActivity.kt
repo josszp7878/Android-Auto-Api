@@ -109,8 +109,6 @@ class MainActivity : AppCompatActivity() {
                 .build()
         )
         
-        // 初始化脚本引擎
-        ScriptEngine.init(this)
         // 初始化 PythonServices 的 Context
         PythonServices.init(this)
         // 启动 ScreenCapture 服务
