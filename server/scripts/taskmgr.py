@@ -98,7 +98,9 @@ class TaskMgr:
                 return False
         self.templates.append(template)
         return True
-        
+
+
+      
     def createTask(self, appName: str, templateId: str, params: Dict[str, str] = None) -> Optional[Task]:
         """使用模板创建任务"""
         template = self.getTemplate(templateId)
@@ -125,20 +127,39 @@ class TaskMgr:
         """查找相同类型的任务(相同应用名和模板)"""
         taskId = self._getTaskId(appName, templateId)
         return self.tasks.get(taskId)
+
+    def _stopTask(self, appName: str, templateId: str) -> bool:
+        """停止指定的任务"""
+        try:
+            task = self.curTask
+            if appName is not None and templateId is not None:
+                task = self._findSameTypeTask(appName, templateId)
+            if task:
+                task.stop()
+                taskId = self._getTaskId(appName, templateId)
+                del self.tasks[taskId]   
+                return True
+            else:
+                # Log.w(f"未找到任务: 应用名={appName}, 模板ID={templateId}")
+                return False
+        except Exception as e:
+            Log.ex(e, "停止任务失败")
+            return False
         
-    def _runTask(self, appName: str, templateId: str, params: Optional[Dict[str, str]] = None, 
-                 onResult: Optional[Callable[[bool], None]] = None) -> bool:
+
+    def _startTask(self, appName: str, templateId: str, params: Optional[Dict[str, str]] = None, 
+                 onResult: Optional[Callable[[bool], None]] = None) -> Task:
         """执行任务"""
         try:
             existingTask = self._findSameTypeTask(appName, templateId)
             if existingTask and existingTask.state == TaskState.RUNNING:
                 Log.e(f"相同类型的任务正在执行: {appName}/{templateId}")
-                return False
+                return None
                 
             task = self.createTask(appName, templateId)
             if not task:
                 Log.e(f"创建任务失败: {appName}/{templateId}")
-                return False
+                return None
                 
             task.lastAppName = appName
             task.onResult = onResult
@@ -152,24 +173,23 @@ class TaskMgr:
             )
             thread.daemon = True
             thread.start()
-            return True
+            self.curTask = task
+            return task
             
         except Exception as e:
             Log.ex(e, f"执行任务异常: {appName}/{templateId}")
-            return False
+            return None
+        
             
     def _runTaskInThread(self, task: Task, params: Optional[Dict[str, str]], taskId: str):
         """在线程中执行任务"""
         try:
-            success = task.run(params)
-            if task.onResult:
-                task.onResult(success)
+            state = task.run(params)
         except Exception as e:
             Log.ex(e, f"任务执行异常: {task.taskName}")
         finally:
             if taskId in self.tasks:
-                del self.tasks[taskId]
-        
+                del self.tasks[taskId]        
     def getTaskProgress(self, appName: str, templateId: str) -> Tuple[Optional[TaskState], float]:
         """获取任务进度"""
         task = self._findSameTypeTask(appName, templateId)
@@ -181,13 +201,54 @@ class TaskMgr:
         """获取所有运行中的任务及进度"""
         return [(task.appName, task.taskName, task.state, task.progress) 
                 for task in self.tasks.values()]
+    
+    def uninit(self):
+        """停止所有正在运行的任务"""
+        try:
+            running_tasks = self.listRunningTasks()
+            for appName, templateId, _, _ in running_tasks:
+                self._stopTask(appName, templateId)
+                Log.i(f"任务已停止: {appName}/{templateId}")
+        except Exception as e:
+            Log.ex(e, "停止所有任务失败")
 
+####################################
 # 全局任务管理器实例
 taskManager = TaskMgr.instance()
 regTask = taskManager.regTask
 
+@regCmd(r'停止任务(?:\s+(?P<appName>[\w\s]+)\s+(?P<templateId>[\w\s]+))?')
+def stopTask(appName: str = None, templateId: str = None) -> bool:
+    """停止指定任务或所有任务
+    用法: 
+        停止任务 <应用名> <模板ID> - 停止指定任务
+        停止任务 - 停止所有任务
+    示例: 
+        停止任务 快手极速版 ad
+        停止任务
+    """
+    try:
+        if appName and templateId:
+            # 停止指定任务
+            task = taskManager._findSameTypeTask(appName, templateId)
+            if task:
+                task.stop()
+                Log.i(f"任务已停止: {appName}/{templateId}")
+                return True
+            else:
+                Log.w(f"未找到任务: {appName}/{templateId}")
+                return False
+        else:
+            if taskManager.curTask:
+                taskManager.curTask.stop()
+                Log.i("当前任务已停止")
+            return True
+    except Exception as e:
+        Log.ex(e, "停止任务异常")
+        return False
+
 @regCmd(r'执行任务', r'(?P<appName>[\w\s]+)\s+(?P<templateId>[\w\s]+)(\s+(?P<params>.+))?')
-def runTask(appName: str, templateId: str, params: str = None) -> bool:
+def startTask(appName: str, templateId: str, params: str = None) -> bool:
     """执行指定任务
     用法: 执行任务 <应用名> <模板ID> [参数]
     示例: 
@@ -208,7 +269,8 @@ def runTask(appName: str, templateId: str, params: str = None) -> bool:
         if not appName:
             Log.e("未设置应用名")
             return False    
-        taskManager._runTask(appName, templateId, params_dict)
+        
+        taskManager._startTask(appName, templateId, params_dict)
         return True
     except Exception as e:
         Log.ex(e, f"执行任务异常: {appName}/{templateId}")

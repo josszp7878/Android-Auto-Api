@@ -49,6 +49,13 @@ class CDevice:
             
             self.initialized = True
 
+    def uninit(self):
+        """释放资源"""
+        self.logout()
+        self.disconnect()
+        self.initialized = False
+        
+        
     def isConnected(self):
         """检查是否已连接"""
         print('isConnected:', self.connected)
@@ -141,11 +148,17 @@ class CDevice:
                 time.sleep(1)  # 重试前等待
 
     def logout(self):
-        self.sio.emit('device_logout', {
-            'device_id': self.deviceID,
-            'timestamp': str(datetime.now())
-        })
-        return True
+        """注销设备"""
+        try:
+            if self.sio and self.sio.connected:
+                self.sio.emit('device_logout', {
+                    'device_id': self.deviceID
+                })
+                Log.i("设备已注销")
+            else:
+                Log.w("设备未连接，无法注销")
+        except Exception as e:
+            Log.ex(e, "注销设备失败")
     
 
     

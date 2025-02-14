@@ -303,7 +303,7 @@ class SCommand:
                 level = 'i'
         else:
             level = 'i'
-        Log().log(f"{device_id}:{command}  => {result}", level, 'CMD')
+        Log()._log(f"{device_id}:{command}  => {result}", level, 'CMD')
         
         # 发送结果到控制台
         # deviceMgr.emit2Console('S2B_CmdResult', {

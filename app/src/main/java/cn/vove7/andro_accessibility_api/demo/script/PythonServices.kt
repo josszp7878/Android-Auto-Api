@@ -13,6 +13,7 @@ import android.widget.Toast
 import android.util.Base64
 import android.view.Gravity
 import android.util.Log
+import android.util.DisplayMetrics
 import cn.vove7.andro_accessibility_api.demo.MainActivity
 import cn.vove7.andro_accessibility_api.demo.service.ScreenCapture
 import cn.vove7.auto.AutoApi
@@ -108,10 +109,10 @@ class PythonServices {
          * 滑动屏幕
          */
         @JvmStatic
-        fun swipe(x: Int, y: Int, toX: Int, toY: Int, duration: Long): Boolean {
+        fun swipe(x: Int, y: Int, toX: Int, toY: Int, duration: Int): Boolean {
             return try {
                 runBlocking {
-                    swipe(x, y, toX, toY, duration)
+                    gestureSwipe(x, y, toX, toY, duration)
                 }
                 true
             } catch (e: Exception) {
@@ -423,6 +424,48 @@ class PythonServices {
         @JvmStatic val TOAST_GRAVITY_CENTER = Gravity.CENTER
         @JvmStatic val TOAST_GRAVITY_BOTTOM = Gravity.BOTTOM
 
+        enum class SwipeDirection {
+            CR, CL, CU, CD,  // Center Right, Center Left, Center Up, Center Down
+            ER, EL, EU, ED   // Edge Right, Edge Left, Edge Up, Edge Down
+        }
 
+        /**
+         * 执行经典滑动手势
+         */
+        @JvmStatic
+        fun sweep(direction: String, duration: Int): Boolean {
+            val swipeDirection = try {
+                SwipeDirection.valueOf(direction.toUpperCase())
+            } catch (e: IllegalArgumentException) {
+                Timber.tag("PythonServices").e(e, "Invalid direction: $direction")
+                return false
+            }
+
+            val metrics = context.resources.displayMetrics
+            val width = metrics.widthPixels
+            val height = metrics.heightPixels
+
+            val (startX, startY, endX, endY) = when (swipeDirection) {
+                SwipeDirection.CR -> listOf(width / 2, height / 2, width - 100, height / 2)
+                SwipeDirection.CL -> listOf(width / 2, height / 2, 100, height / 2)
+                SwipeDirection.CU -> listOf(width / 2, height / 2, width / 2, 100)
+                SwipeDirection.CD -> listOf(width / 2, height / 2, width / 2, height - 100)
+                SwipeDirection.ER -> listOf(100, height / 2, width - 100, height / 2)
+                SwipeDirection.EL -> listOf(width - 100, height / 2, 100, height / 2)
+                SwipeDirection.EU -> listOf(width / 2, height - 100, width / 2, 100)
+                SwipeDirection.ED -> listOf(width / 2, 100, width / 2, height - 100)
+            }
+
+            return try {
+                runBlocking {
+                    gestureSwipe(startX, startY, endX, endY, duration)
+                }
+                Timber.tag("PythonServices").i("Sweep $swipeDirection successful")
+                true
+            } catch (e: Exception) {
+                Timber.tag("PythonServices").e(e, "Sweep $swipeDirection failed")
+                false
+            }
+        }
     }
 } 

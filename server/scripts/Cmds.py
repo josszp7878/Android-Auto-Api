@@ -377,20 +377,57 @@ def OnReload():
 def OnPreload():
     Log.w("Cmds模块热更新 onPreload")
 
-@regCmd(r"滑动", r"(?P<start>\d+,\d+)\s+(?P<end>\d+,\d+)\s+(?P<duration>\d+)")
+@regCmd(r"滑动", r"(?P<param>.+)")
 @requireAndroid
-def swipe(start, end, duration):
+def swipe(param):
     """滑动屏幕"""
+    """
+    滑动指令支持两种格式:
+    1. 坐标格式: "x1,y1 > x2,y2 [duration]"
+       例如: "100,200 > 300,400 800"
+    
+    2. 方向枚举: "方向 [duration]"
+       支持的方向:
+       CR - 从中心向右滑动
+       CL - 从中心向左滑动  
+       CU - 从中心向上滑动
+       CD - 从中心向下滑动
+       ER - 从左边缘向右滑动
+       EL - 从右边缘向左滑动
+       EU - 从底部向上滑动
+       ED - 从顶部向下滑动
+    """
     try:
-        startX, startY = map(int, start.split(','))
-        endX, endY = map(int, end.split(','))
-        duration = int(duration)
-        Log.i(f"滑动指令: 开始位置({startX}, {startY}), 结束位置({endX}, {endY}), 持续时间: {duration} ms")
-        
-        if androidServices.swipe(startX, startY, endX, endY, duration):
-            return "滑动成功"
+        # 默认持续时间为0.5秒
+        default_duration = 500
+
+        # 使用正则表达式解析参数
+        match = re.match(r"(?P<start>\d+,\d+)\s*>\s*(?P<end>\d+,\d+)(?:\s+(?P<duration>\d+))?", param)
+        if match:
+            # 解析为坐标
+            start = match.group("start")
+            end = match.group("end")
+            duration_str = match.group("duration")
+            
+            # 检查 duration 是否为数字
+            duration = int(duration_str) if duration_str and duration_str.isdigit() else default_duration
+            startX, startY = map(int, start.split(','))
+            endX, endY = map(int, end.split(','))
+            Log.i(f"滑动指令: 开始位置({startX}, {startY}), 结束位置({endX}, {endY}), 持续时间: {duration} ms")
+            if androidServices.swipe(startX, startY, endX, endY, duration):
+                return "滑动成功"
+            else:
+                return "e##滑动失败"
         else:
-            return "e##滑动失败"
+            # 解析为枚举
+            parts = param.split()
+            direction = parts[0]
+            duration = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else default_duration
+            Log.i(f"滑动指令: 方向({direction}), 持续时间: {duration} ms")
+            if androidServices.sweep(direction, duration):
+                return "滑动成功"
+            else:
+                return "e##滑动失败"
     except Exception as e:
         Log.ex(e, "滑动失败")
         return f"e##滑动失败: {str(e)}"

@@ -52,7 +52,7 @@ class Task:
         self.reward: float = 0.0
         self.state = TaskState.INIT
         self.progress: float = 0.0  # 0-100
-        self.onResult: Optional[Callable[[bool], None]] = None        
+        self.onResult: Optional[Callable[[TaskState], None]] = None        
         # 如果有模板,初始化检查器
         if self.template:
             if self.template.init:
@@ -78,14 +78,12 @@ class Task:
         try:
             self.startTime = datetime.now()
             Log.i(f"开始任务: {self.taskName}")
-            self.state = TaskState.RUNNING           
             fun = self.template.start
             if fun:
                 return fun(self)
             return True
         except Exception as e:
             Log.ex(e, f"开始任务失败: {self.taskName}")
-            self.state = TaskState.FAILED
             return False
             
     def do(self) -> bool:
@@ -93,13 +91,9 @@ class Task:
         try:
             Log.i(f"执行任务: {self.taskName}")
             self.state = TaskState.RUNNING
-            while True:
-                # 执行任务阶段检查
-                fun = self.template.do
-                if fun:
-                    fun(self)
-            return True
-            
+            fun = self.template.do
+            if fun:
+                return fun(self)
         except Exception as e:
             Log.ex(e, f"执行任务失败: {self.taskName}")
             self.state = TaskState.FAILED
@@ -124,35 +118,39 @@ class Task:
         """更新任务进度"""
         self.progress = min(max(progress, 0), 100)
         
-    def run(self, params: Optional[Dict[str, str]] = None) -> bool:
+    def run(self, params: Optional[Dict[str, str]] = None) -> TaskState:
         """运行任务的完整流程"""
         try:
             Log.i(f"运行任务: {self.taskName}")
             self.state = TaskState.RUNNING
-            
             if params:
                 for key, value in params.items():
-                    setattr(self, key, value)
+                    setattr(self, key, value)                    
             if not self.start():
                 self.state = TaskState.FAILED
-                return False
-            if not self.do():
-                self.state = TaskState.FAILED
-                return False
+            while self.state == TaskState.RUNNING:
+                if self.state == TaskState.CANCELED:
+                    raise Exception("任务已取消")
+                self.do()
+
             if not self.end():
                 self.state = TaskState.FAILED
-                return False
-                
-            self.updateProgress(100)
             self.state = TaskState.SUCCESS
+            if self.onResult:
+                self.onResult(self.state)
             Log.i(f"任务 {self.taskName} 执行完成")
-            return True
-            
+            self.updateProgress(100)
+            return self.state
         except Exception as e:
             Log.ex(e, f"任务执行异常: {self.taskName}")
-            self.state = TaskState.FAILED
-            return False 
+        return self.state
+
+    def stop(self):
+        if self.state == TaskState.RUNNING:
+            self.state = TaskState.CANCELED
+            Log.i(f"任务 {self.taskName} 已停止")
         
+
     def setScore(self, score: int):
         """设置任务得分"""
         self.score = score

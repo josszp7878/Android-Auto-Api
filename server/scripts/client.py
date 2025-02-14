@@ -2,6 +2,7 @@ import time
 from logger import log
 from CFileServer import fileServer
 from tools import Tools
+from taskmgr import taskManager
 
 class Client:
     """客户端管理类"""
@@ -131,11 +132,19 @@ class Client:
     def End(self):
         """清理函数"""
         print("End")
-        if self.device and self.device.connected:
-            self.device.logout()
-            self.device.disconnect()
-            print("已断开服务器连接")
+        if self.device :
+            self.device.uninit()
         self.initialized = False
+
+        try:
+            # 停止所有任务
+            taskManager.uninit()
+            log.i("所有任务已停止")
+
+            # 其他结束逻辑...
+            # 例如，断开连接，清理资源等
+        except Exception as e:
+            log.ex(e, "客户端结束失败")
 
 # 创建全局单例实例
 client = Client()
