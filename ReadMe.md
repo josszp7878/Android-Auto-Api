@@ -63,7 +63,9 @@
 这些更新提高了应用的功能性和稳定性，确保在不同场景下的正确操作。
 
 ### 2023-10-XX
-- 将 `tools.py` 中的 `_onPreload`、`_onReload` 和 `reloadModule` 方法移至 `CFileServer.py`，以避免循环引用。
+- 新增 `STask` 类与数据库表的映射。
+  - 使用 SQLAlchemy 将 `STask` 类映射到数据库表 `tasks`。
+  - 支持任务的创建、更新进度、完成和取消操作。
 
 ## 使用说明
 

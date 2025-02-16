@@ -2,21 +2,23 @@ from flask import current_app
 from .models import db, DeviceModel
 from .SDevice import SDevice
 from scripts.logger import Log
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask_socketio import emit
 import re
+from sqlalchemy import func
+from .stask import STask, STaskState
 
 
 class DeviceManager:
     """设备管理器：管理所有设备"""
     
     _instance = None
+    _devices = None  # 提前定义类变量
 
     def __new__(cls):
         if not cls._instance:
             cls._instance = super().__new__(cls)
             cls._instance.device_id = None  # 初始化当前设备ID
-            cls._instance._devices = None   # 在这里初始化 _devices
         return cls._instance
    
     def __init__(self):
@@ -34,19 +36,19 @@ class DeviceManager:
 
     
     def _load_from_db(self):
-        with current_app.app_context():
-            try:
-                deviceList = {}
+        try:
+            deviceList = {}
+            with current_app.app_context():  # 添加应用上下文
                 for device_model in DeviceModel.query.all():
                     device = SDevice(device_model.device_id, device_model.info)
                     device._status = device_model.status
                     device.last_seen = device_model.last_seen
                     deviceList[device.device_id] = device
-                Log.i(f'从数据库加载了 {len(deviceList)} 个设备')
-                return deviceList
-            except Exception as e:
-                Log.ex(e, '加载数据库出错')
-                return None
+            Log.i(f'从数据库加载了 {len(deviceList)} 个设备')
+            return deviceList
+        except Exception as e:
+            Log.ex(e, '加载数据库出错')
+            return {}
     
     def _save_to_db(self, device):
         """保存设备到数据库"""
@@ -93,12 +95,45 @@ class DeviceManager:
         except Exception as e:
             Log.ex(e, '更新设备信息失败')
     
+    def get_device_scores(self, device_id):
+        """获取设备的得分统计"""
+        try:
+            today = datetime.now().date()
+            yesterday = today - timedelta(days=1)
+            
+            with current_app.app_context():
+                # 获取昨日得分
+                yesterday_score = STask.query.filter(
+                    STask.deviceId == device_id,
+                    STask.startTime >= yesterday,
+                    STask.startTime < today,
+                    STask.state == STaskState.SUCCESS
+                ).with_entities(func.sum(STask.score)).scalar() or 0
+                
+                # 获取今日得分
+                today_score = STask.query.filter(
+                    STask.deviceId == device_id,
+                    STask.startTime >= today,
+                    STask.state == STaskState.SUCCESS
+                ).with_entities(func.sum(STask.score)).scalar() or 0
+                
+                return {
+                    'yesterdayScore': yesterday_score,
+                    'todayScore': today_score
+                }
+        except Exception as e:
+            Log.ex(e, f'获取设备{device_id}得分统计失败')
+            return {'yesterdayScore': 0, 'todayScore': 0}
+
     def to_dict(self):
         """转换所有设备为字典格式"""
         return {
-            device_id: device.to_dict()
+            device_id: {
+                **device.to_dict(),
+                **self.get_device_scores(device_id)
+            }
             for device_id, device in self.devices.items()
-        } 
+        }
 
     _curDeviceID = None
     @property

@@ -238,6 +238,7 @@ class CDevice:
                 Log.e("Socket未初始化")
                 return False
                 
+            data['device_id'] = self.deviceID
             self.sio.emit(event, data)
             return True
         except Exception as e:

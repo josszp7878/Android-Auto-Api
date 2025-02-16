@@ -1,18 +1,21 @@
-from flask_socketio import SocketIO
-from app import app, socketio
+from app import create_app, socketio
+import signal
 from scripts.logger import Log
 from scripts.tools import Tools
-import signal
-import sys
+from app.Server import initServer
+
 
 def signal_handler(sig, frame):
-    print('\n正在关闭服务器...')
-    Log.i('服务器正在关闭')
-    # 执行清理操作
+    """处理 Ctrl+C 信号"""
+    Log.i('正在关闭服务器...')
     Log().uninit()
-    sys.exit(0)
+    exit(0)
+
 
 if __name__ == '__main__':
+    # 创建应用实例
+    app = create_app()
+    
     # 注册信号处理器
     signal.signal(signal.SIGINT, signal_handler)
     
@@ -20,6 +23,10 @@ if __name__ == '__main__':
     Log().init(is_server=True)
     
     try:
+        # 初始化服务器
+        with app.app_context():
+            initServer()
+        
         # 启动服务器
         Log.i('服务器启动')
         socketio.run(app, host='0.0.0.0', port=Tools.port)

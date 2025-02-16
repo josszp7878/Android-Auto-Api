@@ -117,7 +117,19 @@ class Task:
     def updateProgress(self, progress: float):
         """更新任务进度"""
         self.progress = min(max(progress, 0), 100)
+        # 发送进度更新事件
+        try:
+            from client import client
+            if client:
+                client.emit('C2S_UpdateTask', {
+                    'app_name': self.appName,
+                    'task_name': self.taskName,
+                    'progress': self.progress
+                })
+        except Exception as e:
+            Log.ex(e, '发送进度更新失败')
         
+
     def run(self, params: Optional[Dict[str, str]] = None) -> TaskState:
         """运行任务的完整流程"""
         try:
@@ -149,7 +161,16 @@ class Task:
         if self.state == TaskState.RUNNING:
             self.state = TaskState.CANCELED
             Log.i(f"任务 {self.taskName} 已停止")
-        
+            # 发送任务停止消息
+            try:
+                from client import client
+                if client:
+                    client.emit('C2S_StopTask', {
+                        'app_name': self.appName,
+                        'task_name': self.taskName
+                    })
+            except Exception as e:
+                Log.ex(e, '发送任务停止消息失败')
 
     def setScore(self, score: int):
         """设置任务得分"""

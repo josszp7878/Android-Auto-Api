@@ -24,9 +24,20 @@
                              }"
                              @click.stop="selectDevice(id)">
                             <div class="device-info">
-                                <h5>[[ id ]]</h5>
-                                <div class="device-status">[[ device.status ]]</div>
-                                <div class="screenshot-time">[[ device.screenshotTime || '' ]]</div>
+                                <div class="device-header">
+                                    <h5 class="device-name">[[ id ]]</h5>
+                                    <div class="device-scores">
+                                        <span title="昨日得分">昨日: [[ device.yesterdayScore ]]</span>
+                                        <span title="今日得分">今日: [[ device.todayScore ]]</span>
+                                    </div>
+                                </div>
+                                <div class="task-info" v-if="device.currentTask">
+                                    <div class="task-name">[[ device.currentTask.taskName ]]</div>
+                                    <div class="progress-circle">
+                                        <canvas :ref="'progress-' + id" width="40" height="40"></canvas>
+                                        <div class="expected-score">[[ device.currentTask.expectedScore ]]</div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

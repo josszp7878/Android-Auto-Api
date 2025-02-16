@@ -1,7 +1,5 @@
-from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
-
-db = SQLAlchemy()
+from .database import db  # 使用统一的 db 实例
 
 class DeviceModel(db.Model):
     """设备数据模型"""
@@ -9,8 +7,8 @@ class DeviceModel(db.Model):
     
     device_id = db.Column(db.String(50), primary_key=True)
     status = db.Column(db.String(20), default='offline')
-    last_seen = db.Column(db.DateTime, default=datetime.now)
     info = db.Column(db.JSON)
+    last_seen = db.Column(db.DateTime, default=datetime.now)
 
     def __repr__(self):
         return f'<Device {self.device_id}>'

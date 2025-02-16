@@ -1,26 +1,33 @@
-from app import socketio
+from app import socketio, app
 from flask_socketio import emit, join_room, rooms
 from flask import request, current_app
 from datetime import datetime
 import json
-from .device_manager import DeviceManager
 from .models import db
 from .command_history import CommandHistory
 from .SCommand import SCommand
 from scripts.logger import Log
 from pathlib import Path
 import re
+from .device_manager import DeviceManager
+from .staskmgr import STaskMgr
 
 class DateTimeEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, datetime):
             return obj.isoformat()
         return super().default(obj)
+    
 
+deviceMgr = None
+task_manager = None
 
-# 创建设备管理器实例
-deviceMgr = DeviceManager()
-
+def initServer():
+    """初始化服务器"""
+    global deviceMgr, task_manager
+    with current_app.app_context():  # 使用 current_app 替代 app
+        deviceMgr = DeviceManager()
+        task_manager = STaskMgr()
 
 @socketio.on('connect')
 def handle_connect():
@@ -40,20 +47,21 @@ def handle_connect():
             return True
             
         elif device_id:
-            # 设备连接
-            device = deviceMgr.get_device(device_id)
-            if not device:
-                device = deviceMgr.add_device(device_id)
-            
-            device.info['sid'] = request.sid
-            device.info['connected_at'] = str(datetime.now())
-            deviceMgr.update_device(device)
-            
-            # 处理设备连接
-            device.onConnect()            
-            # 自动登录设备
-            device.login()
-            return True
+            with current_app.app_context():  # 使用 current_app 替代 app
+                # 设备连接
+                device = deviceMgr.get_device(device_id)
+                if not device:
+                    device = deviceMgr.add_device(device_id)
+                
+                device.info['sid'] = request.sid
+                device.info['connected_at'] = str(datetime.now())
+                deviceMgr.update_device(device)
+                
+                # 处理设备连接
+                device.onConnect()            
+                # 自动登录设备
+                device.login()
+                return True
                 
     except Exception as e:
         Log.ex(e, '处理连接时出错')
@@ -173,4 +181,90 @@ def handle_B2S_GetLogs(data=None):
     data = data or {}
     page = data.get('page', 1)
     Log.show(page=page)
+
+
+@socketio.on('C2S_StartTask')
+def handle_start_task(data):
+    """处理开始任务请求(包含恢复未完成任务)"""
+    # 获取设备ID、应用名称、任务名称和序列号
+    device_id = data.get('device_id')
+    app_name = data.get('app_name')
+    task_name = data.get('task_name')
+    sequence = data.get('sequence', 0)
+    Log.i(f'收到开始任务请求: {device_id}/{app_name}/{task_name}/{sequence}')
+    if not all([device_id, app_name, task_name]):
+        return {'status': 'error', 'message': '缺少必要的任务信息'}
+
+    task = task_manager.startTask(device_id, app_name, task_name, sequence)
+    # 启动任务
+    if not task:
+    # 如果任务启动失败，返回错误信息
+        return {'status': 'error', 'message': '任务启动失败'}
+        
+    return {
+    # 返回任务信息
+        'status': 'success',
+        'task_id': task.id,
+        'progress': task.progress,
+        'resume_data': task.resumeData,
+        'message': (
+            f'继续执行任务: {task_name}' if task.progress > 0 
+            else f'开始新任务: {task_name}'
+        )
+    }
+
+
+
+@socketio.on('C2S_UpdateTask')
+def handle_C2S_UpdateTask(data):
+    """处理任务进度更新"""
+    try:
+        device_id = data.get('device_id')
+        app_name = data.get('app_name')
+        task_name = data.get('task_name')
+        progress = data.get('progress', 0)
+        Log.i(f'收到任务进度更新消息: {device_id}/{app_name}/{task_name}/{progress}')
+        if not all([device_id, app_name, task_name]):
+            return {'status': 'error', 'message': '缺少必要的任务信息'}
+
+        success = task_manager.updateTaskProgress(
+            device_id, app_name, task_name, progress
+        )
+        
+        return {
+            'status': 'success' if success else 'error',
+            'message': '进度更新成功' if success else '进度更新失败'
+        }
+    except Exception as e:
+        Log.ex(e, '处理任务进度更新失败')
+        return {'status': 'error', 'message': str(e)}
+
+
+@socketio.on('C2S_StopTask')
+def handle_stop_task(data):
+    """处理任务停止请求"""
+    try:
+        device_id = data.get('device_id')
+        app_name = data.get('app_name')
+        task_name = data.get('task_name')
+        
+        Log.i(f'收到任务停止消息: {device_id}/{app_name}/{task_name}')
+        
+        if not all([device_id, app_name, task_name]):
+            return {'status': 'error', 'message': '缺少必要的任务信息'}
+            
+        # 广播任务停止消息到所有控制台
+        deviceMgr.emit2Console('S2B_TaskStop', {
+            'deviceId': device_id,
+            'task': {
+                'appName': app_name,
+                'taskName': task_name
+            }
+        })
+        
+        return {'status': 'success', 'message': '任务停止成功'}
+    except Exception as e:
+        Log.ex(e, '处理任务停止失败')
+        return {'status': 'error', 'message': str(e)}
+
 

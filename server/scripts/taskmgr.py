@@ -174,6 +174,19 @@ class TaskMgr:
             thread.daemon = True
             thread.start()
             self.curTask = task
+            
+            # 发送任务启动事件
+            try:
+                from client import client
+                if client:  # 检查 client 是否存在
+                    client.emit('C2S_StartTask', {
+                        'app_name': appName,
+                        'task_name': templateId
+                    })
+                    Log.i(f'任务启动成功: {appName}/{templateId}')
+            except Exception as e:
+                Log.ex(e, '发送任务启动事件失败')
+            
             return task
             
         except Exception as e:
