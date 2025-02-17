@@ -4,14 +4,14 @@ from .database import init_db, db
 import logging
 import os
 import eventlet
-from pathlib import Path
+from config import config
+
 eventlet.monkey_patch()
 
 # 定义应用根目录
 APP_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 APP_DATA = os.path.join(APP_ROOT, 'data')
 APP_LOGS = os.path.join(APP_DATA, 'logs')
-DB_PATH = os.path.join(APP_DATA, 'devices.db')
 
 # 确保必要的目录存在
 for dir_path in [APP_DATA, APP_LOGS]:
@@ -30,24 +30,36 @@ socketio = SocketIO()
 app = None
 
 
-def create_app(debug=False):
+def create_app(config_name='development'):
     """创建 Flask 应用"""
     global app
     app = Flask(__name__,
                 static_folder='static',
                 static_url_path='/static')
     
-    # 使用绝对路径配置数据库
-    app.config['SECRET_KEY'] = 'dev'
-    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['SERVER_ID'] = '@'
-
-    # 初始化数据库
-    init_db(app)
+    # 加载配置
+    app.config.from_object(config[config_name])
+    
+    # 测试数据库连接
+    try:
+        # 初始化数据库
+        init_db(app)
+        with app.app_context():
+            # 测试数据库连接
+            db.engine.connect()
+            print("数据库连接成功！")
+    except Exception as e:
+        print(f"数据库连接错误: {e}")
+        raise
 
     # 初始化 SocketIO
-    socketio.init_app(app, cors_allowed_origins="*")
+    socketio.init_app(
+        app,
+        cors_allowed_origins="*",
+        async_mode='eventlet',  # 使用eventlet作为异步模式
+        logger=False,
+        engineio_logger=False
+    )
 
     # 注册蓝图
     from .routes import bp

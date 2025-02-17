@@ -1,5 +1,5 @@
 from datetime import datetime
-from . import db
+from .database import db  # 直接从 database.py 导入 db
 
 
 class CommandHistory(db.Model):

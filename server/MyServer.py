@@ -1,8 +1,8 @@
 from app import create_app, socketio
 import signal
 from scripts.logger import Log
-from scripts.tools import Tools
 from app.Server import initServer
+from config import config
 
 
 def signal_handler(sig, frame):
@@ -13,23 +13,33 @@ def signal_handler(sig, frame):
 
 
 if __name__ == '__main__':
-    # 创建应用实例
-    app = create_app()
-    
-    # 注册信号处理器
-    signal.signal(signal.SIGINT, signal_handler)
-    
-    # 初始化日志系统并打开服务器日志
-    Log().init(is_server=True)
-    
     try:
+        # 创建应用实例
+        app = create_app('development')
+        cfg = config['development']
+        
+        # 注册信号处理器
+        signal.signal(signal.SIGINT, signal_handler)
+        
+        # 初始化日志系统并打开服务器日志
+        Log().init(is_server=True)
+        
         # 初始化服务器
         with app.app_context():
             initServer()
         
         # 启动服务器
-        Log.i('服务器启动')
-        socketio.run(app, host='0.0.0.0', port=Tools.port)
+        Log.i(f'服务器启动在: http://{cfg.SERVER_HOST}:{cfg.SERVER_PORT}')
+        socketio.run(
+            app, 
+            host=cfg.SERVER_HOST,
+            port=cfg.SERVER_PORT,
+            debug=False,
+            use_reloader=False,  # 禁用重载器
+            log_output=True      # 启用日志输出
+        )
     except Exception as e:
         Log.e(f'服务器启动失败: {e}')
         Log().uninit()
+    finally:
+        Log.i('服务器关闭')

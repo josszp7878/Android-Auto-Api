@@ -3,7 +3,7 @@ from flask_socketio import emit, join_room, rooms
 from flask import request, current_app
 from datetime import datetime
 import json
-from .models import db
+from .database import db  # 直接从 database.py 导入 db
 from .command_history import CommandHistory
 from .SCommand import SCommand
 from scripts.logger import Log
@@ -25,7 +25,7 @@ task_manager = None
 def initServer():
     """初始化服务器"""
     global deviceMgr, task_manager
-    with current_app.app_context():  # 使用 current_app 替代 app
+    with current_app.app_context():
         deviceMgr = DeviceManager()
         task_manager = STaskMgr()
 

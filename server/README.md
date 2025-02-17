@@ -366,3 +366,26 @@
    - 优化任务状态同步机制
    - 完善任务恢复流程
    - 提供任务执行历史记录
+
+### 2024-03-21
+
+- **重大更新**: 数据库从SQLite迁移到MySQL
+  - 添加了MySQL数据库支持
+  - 新增数据库配置文件
+  - 支持开发和生产环境配置
+  - 使用环境变量管理数据库连接信息
+
+### 数据库配置说明
+1. 安装MySQL数据库
+2. 创建数据库: `CREATE DATABASE android_auto CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`
+3. 配置环境变量或修改config.py:
+   - MYSQL_HOST: 数据库主机地址
+   - MYSQL_PORT: 数据库端口
+   - MYSQL_USER: 数据库用户名
+   - MYSQL_PASSWORD: 数据库密码
+   - MYSQL_DATABASE: 数据库名称
+
+### 数据迁移步骤
+1. 初始化迁移: `flask db init`
+2. 创建迁移脚本: `flask db migrate -m "init mysql database"`
+3. 应用迁移: `flask db upgrade`
