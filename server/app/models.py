@@ -9,6 +9,7 @@ class DeviceModel(db.Model):
     status = db.Column(db.String(20), default='offline')
     info = db.Column(db.JSON)
     last_seen = db.Column(db.DateTime, default=datetime.now)
+    total_score = db.Column(db.Integer, default=0)  # 新增总分字段
 
     def __repr__(self):
         return f'<Device {self.device_id}>'

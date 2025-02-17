@@ -99,31 +99,35 @@ class DeviceManager:
         """获取设备的得分统计"""
         try:
             today = datetime.now().date()
-            yesterday = today - timedelta(days=1)
             
             with current_app.app_context():
-                # 获取昨日得分
-                yesterday_score = STask.query.filter(
-                    STask.deviceId == device_id,
-                    STask.startTime >= yesterday,
-                    STask.startTime < today,
-                    STask.state == STaskState.SUCCESS
-                ).with_entities(func.sum(STask.score)).scalar() or 0
+                # 获取今日该任务的总分
+                if self.curDeviceID and self.devices[self.curDeviceID].currentTask:
+                    current_task = self.devices[self.curDeviceID].currentTask
+                    today_task_score = STask.query.filter(
+                        STask.deviceId == device_id,
+                        STask.time >= today,
+                        STask.appName == current_task.appName,
+                        STask.taskName == current_task.taskName,
+                        STask.state == STaskState.SUCCESS
+                    ).with_entities(func.sum(STask.score)).scalar() or 0
+                else:
+                    today_task_score = 0
                 
-                # 获取今日得分
-                today_score = STask.query.filter(
-                    STask.deviceId == device_id,
-                    STask.startTime >= today,
-                    STask.state == STaskState.SUCCESS
-                ).with_entities(func.sum(STask.score)).scalar() or 0
+                # 获取设备总分
+                device = self.get_device(device_id)
+                if device:
+                    total_score = device.total_score
+                else:
+                    total_score = 0
                 
                 return {
-                    'yesterdayScore': yesterday_score,
-                    'todayScore': today_score
+                    'todayTaskScore': today_task_score,
+                    'totalScore': total_score
                 }
         except Exception as e:
             Log.ex(e, f'获取设备{device_id}得分统计失败')
-            return {'yesterdayScore': 0, 'todayScore': 0}
+            return {'todayTaskScore': 0, 'totalScore': 0}
 
     def to_dict(self):
         """转换所有设备为字典格式"""

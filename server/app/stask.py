@@ -17,29 +17,24 @@ class STask(db.Model):
     """服务端任务类"""
     __tablename__ = 'tasks'
 
-    id = db.Column(Integer, primary_key=True, autoincrement=True)
-    deviceId = db.Column(String(50), nullable=False)
-    appName = db.Column(String(50), nullable=False)
-    taskName = db.Column(String(50), nullable=False)
-    sequence = db.Column(Integer, nullable=False)
-    startTime = db.Column(DateTime, default=datetime.now)
-    score = db.Column(Integer, default=0)
-    progress = db.Column(Float, default=0.0)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    deviceId = db.Column(db.String(50), nullable=False)
+    appName = db.Column(db.String(50), nullable=False)
+    taskName = db.Column(db.String(50), nullable=False)
+    sequence = db.Column(db.Integer, nullable=False)
+    time = db.Column(db.DateTime, default=datetime.now)  # 创建时间
+    score = db.Column(db.Integer, default=0)
+    progress = db.Column(db.Float, default=0.0)
     state = db.Column(SqlEnum(STaskState), default=STaskState.INIT)
     expectedScore = db.Column(Integer, default=100)
-    lastUpdateTime = db.Column(DateTime)  # 添加最后更新时间
-    resumeData = db.Column(db.JSON)  # 存储任务的上下文数据
 
     def start(self):
         """开始任务"""
-        if self.state != STaskState.RUNNING:  # 只有非运行状态才重新初始化
-            self.startTime = datetime.now()
-            self.state = STaskState.RUNNING
-            self.expectedScore = self.calculateExpectedScore()
-            self.progress = 0.0
-            self.resumeData = None
+        self.time = datetime.now()
+        self.progress = 0.0
+        db.session.add(self)
         db.session.commit()
-        Log.i(f"任务 {self.taskName} 开始执行, 进度: {self.progress}%")
+        Log.i(f"任务 {self.taskName} 开始执行")
 
     def calculateExpectedScore(self):
         """计算预期得分"""
@@ -52,21 +47,21 @@ class STask(db.Model):
             return 0
 
     def updateProgress(self, progress: float):
-        """更新任务进度和上下文数据"""
-        self.progress = min(max(progress, 0), 100)
-        self.lastUpdateTime = datetime.now()
+        """更新任务进度"""
+        self.progress = min(max(progress, 0), 1)
+        Log.i(f'任务 %%%{self.taskName} 进度更新为 {self.progress}')
         db.session.commit()
-        Log.i(f"任务 {self.taskName} 进度更新: {self.progress}%")
 
     def complete(self, score: int):
         """完成任务"""
         self.score = score
+        self.progress = 1.0  # 设置进度为100%
         self.state = STaskState.SUCCESS
         db.session.commit()
         Log.i(f"任务 {self.taskName} 已完成，得分: {self.score}")
 
     def cancel(self):
         """取消任务"""
-        self.state = STaskState.CANCELED
+        db.session.delete(self)  # 直接删除任务记录
         db.session.commit()
         Log.i(f"任务 {self.taskName} 已取消") 

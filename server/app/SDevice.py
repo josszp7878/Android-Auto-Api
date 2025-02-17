@@ -11,9 +11,11 @@ class SDevice:
     
     def __init__(self, device_id, info=None):
         self.device_id = device_id
+        self.info = info or {}
         self._status = 'offline'
         self.last_seen = datetime.now()
-        self.info = info or {}
+        self.total_score = 0  # 设备总分
+        self.currentTask = None
         self._lastScreenshot = None
         self._ensure_screenshot_dir()
     
@@ -41,6 +43,7 @@ class SDevice:
                 if device_model:
                     device_model.status = self._status
                     device_model.last_seen = self.last_seen
+                    device_model.total_score = self.total_score
                     db.session.add(device_model)
                     db.session.commit()
                     # print(f'设备 {self.device_id} 状态已同步到数据库')
@@ -166,3 +169,18 @@ class SDevice:
         except Exception as e:
             Log.ex(e, "保存截图失败")
             return False
+
+    def add_score(self, score):
+        """增加设备总分"""
+        self.total_score += score
+        self._save_score()
+    
+    def _save_score(self):
+        """保存总分到数据库"""
+        try:
+            device_model = DeviceModel.query.get(self.device_id)
+            if device_model:
+                device_model.total_score = self.total_score
+                db.session.commit()
+        except Exception as e:
+            Log.ex(e, '保存设备总分失败')

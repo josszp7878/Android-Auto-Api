@@ -93,40 +93,45 @@
 
 .task-info {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-top: 5px;
+    flex-direction: column;
+    gap: 5px;
 }
 
 .task-name {
-    flex: 1;
-    font-size: 0.8rem;
-    margin-right: 10px;
+    font-size: 14px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.task-progress {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: space-between; /* 确保元素分布在两端 */
+}
+
+.expected-score {
+    color: #FFA500;  /* 橙色 */
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.flex-spacer {
+    flex: 1;  /* 占据中间所有空间 */
 }
 
 .progress-circle {
     position: relative;
     width: 40px;
     height: 40px;
+    flex-shrink: 0; /* 防止进度圆被压缩 */
 }
 
 .progress-circle canvas {
     position: absolute;
     top: 0;
     left: 0;
-}
-
-.expected-score {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 0.7rem;
-    font-weight: bold;
-    color: white;
 }
 
 .device-status {

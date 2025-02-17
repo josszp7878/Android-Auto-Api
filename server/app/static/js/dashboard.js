@@ -301,8 +301,8 @@ class Dashboard {
                     // 清除画布
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
                     
-                    // 将小数进度转换为整数百分比
-                    const progressPercent = Math.round(progress);
+                    // 将进度限制在0-100之间
+                    const progressPercent = Math.min(Math.max(Math.round(progress), 0), 100);
                     
                     // 绘制完整的灰色圆
                     ctx.beginPath();
@@ -318,7 +318,6 @@ class Dashboard {
                                -Math.PI / 2, 
                                (-Math.PI / 2) + (Math.PI * 2 * progressPercent / 100));
                         ctx.lineTo(centerX, centerY);
-                        // 根据任务状态选择颜色
                         ctx.fillStyle = isRunning ? '#4CAF50' : '#808080';
                         ctx.fill();
                     }
@@ -334,16 +333,21 @@ class Dashboard {
                 updateDeviceTask(data) {
                     const device = this.devices[data.deviceId];
                     if (device) {
-                        // 确保进度是整数百分比
-                        if (data.task) {
-                            data.task.progress = Math.round(data.task.progress);
+                        const task = data.task;
+                        if (task) {
+                            // 将进度从小数转换为百分比，但保持在0-1之间
+                            task.progress = Math.min(task.progress, 1);
+                            task.displayName = `${task.appName}:${task.taskName}`;
+                            
+                            // 根据进度判断任务是否完成
+                            const isRunning = task.progress < 1;
+                            
+                            this.$set(device, 'currentTask', task);
+                            this.$nextTick(() => {
+                                // 传入任务运行状态
+                                this.drawProgressCircle(data.deviceId, task.progress * 100, isRunning);
+                            });
                         }
-                        this.$set(device, 'currentTask', data.task);
-                        this.$nextTick(() => {
-                            if (data.task) {
-                                this.drawProgressCircle(data.deviceId, data.task.progress);
-                            }
-                        });
                     }
                 }
             },
@@ -567,22 +571,26 @@ class Dashboard {
                 });
 
                 // 处理任务相关的 Socket.IO 事件
-                this.socket.on('S2B_StartTask', function(data) {
+                this.socket.on('S2B_StartTask', (data) => {
                     console.log('收到任务启动消息:', data);
                     const deviceId = data.deviceId;
                     const task = data.task;
                     
-                    // 更新设备的任务状态
                     if (this.devices[deviceId]) {
+                        // 创建任务显示名称
+                        task.displayName = `${task.appName}:${task.taskName}`;
                         this.$set(this.devices[deviceId], 'currentTask', {
                             appName: task.appName,
                             taskName: task.taskName,
+                            displayName: task.displayName,
                             progress: 0,
                             expectedScore: task.expectedScore || 0
                         });
                         
                         // 更新UI显示
-                        this.updateDeviceCard(deviceId);
+                        this.$nextTick(() => {
+                            this.drawProgressCircle(deviceId, 0);
+                        });
                     }
                 });
 
@@ -634,17 +642,44 @@ class Dashboard {
                     }
                 });
 
-                // 添加任务停止处理
+                // 修改任务停止事件处理
                 this.socket.on('S2B_TaskStop', (data) => {
                     console.log('收到任务停止消息:', data);
                     const deviceId = data.deviceId;
                     const task = data.task;
                     
-                    // 更新设备的任务状态
                     if (this.devices[deviceId] && this.devices[deviceId].currentTask) {
-                        const currentTask = this.devices[deviceId].currentTask;
-                        // 保持当前进度，但将状态改为停止
-                        this.drawProgressCircle(deviceId, currentTask.progress, false);
+                        // 更新任务信息，保持当前进度
+                        this.$set(this.devices[deviceId], 'currentTask', {
+                            ...task,
+                            displayName: `${task.appName}:${task.taskName}`,
+                            progress: task.progress  // 使用服务器返回的进度
+                        });
+                        
+                        // 更新UI显示，isRunning设为false但保持当前进度
+                        this.$nextTick(() => {
+                            this.drawProgressCircle(deviceId, task.progress * 100, false);
+                        });
+                    }
+                });
+
+                // 添加任务完成事件监听
+                this.socket.on('S2B_TaskComplete', (data) => {
+                    console.log('收到任务完成消息:', data);
+                    const deviceId = data.deviceId;
+                    const task = data.task;
+                    
+                    if (this.devices[deviceId]) {
+                        task.displayName = `${task.appName}:${task.taskName}`;
+                        this.$set(this.devices[deviceId], 'currentTask', {
+                            ...task,
+                            progress: 1  // 设置进度为100%
+                        });
+                        
+                        // 更新UI显示，isRunning设为false
+                        this.$nextTick(() => {
+                            this.drawProgressCircle(deviceId, 100, false);
+                        });
                     }
                 });
             }

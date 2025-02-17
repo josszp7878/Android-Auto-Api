@@ -206,7 +206,6 @@ def handle_start_task(data):
         'status': 'success',
         'task_id': task.id,
         'progress': task.progress,
-        'resume_data': task.resumeData,
         'message': (
             f'继续执行任务: {task_name}' if task.progress > 0 
             else f'开始新任务: {task_name}'
