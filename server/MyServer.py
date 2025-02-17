@@ -36,7 +36,7 @@ if __name__ == '__main__':
             port=cfg.SERVER_PORT,
             debug=False,
             use_reloader=False,  # 禁用重载器
-            log_output=True      # 启用日志输出
+            log_output=False      # 启用日志输出
         )
     except Exception as e:
         Log.e(f'服务器启动失败: {e}')

@@ -682,6 +682,30 @@ class Dashboard {
                         });
                     }
                 });
+
+                // 处理任务结束事件
+                this.socket.on('S2B_TaskEnd', (data) => {
+                    console.log('收到任务结束消息:', data);
+                    const deviceId = data.deviceId;
+                    const task = data.task;
+                    
+                    if (this.devices[deviceId] && this.devices[deviceId].currentTask) {
+                        // 更新任务信息
+                        const currentTask = this.devices[deviceId].currentTask;
+                        this.$set(currentTask, 'progress', 1.0);  // 设置进度为100%
+                        this.$set(currentTask, 'isCompleted', true);  // 标记任务已完成
+                        this.$set(currentTask, 'score', task.score);  // 保存获得的分数
+                        this.$set(currentTask, 'state', task.state);  // 更新状态
+                        
+                        // 更新预期分数显示为实际获得的分数
+                        this.$set(currentTask, 'expectedScore', `获得${task.score}分`);
+                        
+                        // 使用灰色进度条重绘进度
+                        this.$nextTick(() => {
+                            this.drawProgressCircle(deviceId, 100, false);  // false 表示使用灰色
+                        });
+                    }
+                });
             }
         });
     }

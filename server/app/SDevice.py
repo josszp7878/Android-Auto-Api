@@ -129,8 +129,8 @@ class SDevice:
     
     def refresh(self): 
         try:
-            from .device_manager import DeviceManager
-            DeviceManager().emit2Console('refresh_device', self.to_dict())
+            from .SDeviceMgr import deviceMgr
+            deviceMgr.emit2Console('refresh_device', self.to_dict())
         except Exception as e:
             Log.ex(e, '刷新设备状态失败')    
         

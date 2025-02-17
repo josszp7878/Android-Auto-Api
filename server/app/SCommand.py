@@ -3,7 +3,7 @@ from flask import current_app, has_request_context
 from flask_socketio import emit
 from .models import db
 from .command_history import CommandHistory
-from .device_manager import DeviceManager
+from .SDeviceMgr import SDeviceMgr
 from scripts.logger import Log
 
 class SCommand:
@@ -76,7 +76,7 @@ class SCommand:
             response = f'执行服务器命令出错: {e}'
         # 如果在Web上下文中，通过WebSocket发送
         if has_request_context():
-            DeviceManager().emit2Console('S2B_CmdResult', {
+            SDeviceMgr().emit2Console('S2B_CmdResult', {
                 'result': response,
                 'device_id': '@'
             })
@@ -114,7 +114,7 @@ class SCommand:
     @staticmethod
     def _cmd_clearCmd(args):
         """清除当前设备的所有指令历史"""
-        device_manager = DeviceManager()
+        device_manager = SDeviceMgr()
         device_id = (args[0] if args and len(args) > 0 
                     else device_manager.curDeviceID)
         if device_id is None:
@@ -137,7 +137,7 @@ class SCommand:
     @staticmethod
     def _cmd_list(args):
         """列出所有设备"""
-        device_manager = DeviceManager()
+        device_manager = SDeviceMgr()
         devices = device_manager.to_dict()
         return '\n'.join([
             f"{id}: {dev['status']}" 
@@ -183,7 +183,7 @@ class SCommand:
         """执行设备命令"""
         try:
             with current_app.app_context():
-                device_manager = DeviceManager()
+                device_manager = SDeviceMgr()
                 device = device_manager.get_device(device_id)
                 if device is None:
                     Log.e('Server', f'设备 {device_id} 不存在')
@@ -248,13 +248,13 @@ class SCommand:
             - 日期(YYYY-MM-DD): 显示指定日期的日志
             - 其他: 按TAG过滤当前日志
         """
-        from .device_manager import DeviceManager
+        from .SDeviceMgr import SDeviceMgr
         
         logs = Log.show(filter_str.strip() if filter_str else None)
         if not logs:
             return "w##未找到匹配的日志"
         
-        DeviceManager().emit2Console('show_logs', {
+        SDeviceMgr().emit2Console('show_logs', {
             'logs': logs,
             'filter': filter_str
         })
@@ -271,7 +271,7 @@ class SCommand:
             sender = "@"
             level = result.split('#')[0] if '#' in result else 'i'
             
-            deviceMgr = DeviceManager()
+            deviceMgr = SDeviceMgr()
             # 根据命令方法名处理响应
             if cmdName == 'captureScreen':  # 使用方法名而不是命令文本判断
                 if isinstance(result, str) and result.startswith('data:image'):

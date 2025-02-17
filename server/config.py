@@ -16,6 +16,11 @@ class Config:
         f'@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DATABASE}'
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_recycle': 280,  # 连接在280秒后回收
+        'pool_timeout': 20,   # 等待连接的超时时间
+        'pool_pre_ping': True # 每次连接前ping一下
+    }
     SECRET_KEY = 'dev'
     SERVER_ID = '@'
 

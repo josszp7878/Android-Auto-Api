@@ -8,8 +8,7 @@ from .command_history import CommandHistory
 from .SCommand import SCommand
 from scripts.logger import Log
 from pathlib import Path
-import re
-from .device_manager import DeviceManager
+from .SDeviceMgr import deviceMgr
 from .staskmgr import STaskMgr
 
 class DateTimeEncoder(json.JSONEncoder):
@@ -19,15 +18,13 @@ class DateTimeEncoder(json.JSONEncoder):
         return super().default(obj)
     
 
-deviceMgr = None
-task_manager = None
+taskMgr = None
 
 def initServer():
     """初始化服务器"""
-    global deviceMgr, task_manager
+    global taskMgr
     with current_app.app_context():
-        deviceMgr = DeviceManager()
-        task_manager = STaskMgr()
+        taskMgr = STaskMgr()
 
 @socketio.on('connect')
 def handle_connect():
@@ -190,29 +187,14 @@ def handle_start_task(data):
     device_id = data.get('device_id')
     app_name = data.get('app_name')
     task_name = data.get('task_name')
-    sequence = data.get('sequence', 0)
-    Log.i(f'收到开始任务请求: {device_id}/{app_name}/{task_name}/{sequence}')
-    if not all([device_id, app_name, task_name]):
-        return {'status': 'error', 'message': '缺少必要的任务信息'}
-
-    task = task_manager.startTask(device_id, app_name, task_name, sequence)
-    # 启动任务
+    task = taskMgr.getTask(device_id, app_name, task_name, True)
+    Log.i(f'收到开始任务请求: {device_id}/{app_name}/{task_name}')
+    Log.i(f'任务: {task}')
     if not task:
-    # 如果任务启动失败，返回错误信息
-        return {'status': 'error', 'message': '任务启动失败'}
-        
-    return {
-    # 返回任务信息
-        'status': 'success',
-        'task_id': task.id,
-        'progress': task.progress,
-        'message': (
-            f'继续执行任务: {task_name}' if task.progress > 0 
-            else f'开始新任务: {task_name}'
-        )
-    }
-
-
+        Log.e(f'启动任务失败: {device_id}/{app_name}/{task_name}')
+        return
+    # 启动任务
+    task.start()
 
 @socketio.on('C2S_UpdateTask')
 def handle_C2S_UpdateTask(data):
@@ -223,20 +205,14 @@ def handle_C2S_UpdateTask(data):
         task_name = data.get('task_name')
         progress = data.get('progress', 0)
         Log.i(f'收到任务进度更新消息: {device_id}/{app_name}/{task_name}/{progress}')
-        if not all([device_id, app_name, task_name]):
-            return {'status': 'error', 'message': '缺少必要的任务信息'}
-
-        success = task_manager.updateTaskProgress(
-            device_id, app_name, task_name, progress
-        )
-        
-        return {
-            'status': 'success' if success else 'error',
-            'message': '进度更新成功' if success else '进度更新失败'
-        }
+        task = taskMgr.getTask(device_id, app_name, task_name)
+        Log.i(f'任务进度更新结果: {task}')
+        if not task:
+            Log.e(f'任务不存在: {device_id}/{app_name}/{task_name}')
+            return
+        task.update(progress)
     except Exception as e:
         Log.ex(e, '处理任务进度更新失败')
-        return {'status': 'error', 'message': str(e)}
 
 
 @socketio.on('C2S_StopTask')
@@ -248,22 +224,32 @@ def handle_stop_task(data):
         task_name = data.get('task_name')
         
         Log.i(f'收到任务停止消息: {device_id}/{app_name}/{task_name}')
-        
-        if not all([device_id, app_name, task_name]):
-            return {'status': 'error', 'message': '缺少必要的任务信息'}
-            
-        # 广播任务停止消息到所有控制台
-        deviceMgr.emit2Console('S2B_TaskStop', {
-            'deviceId': device_id,
-            'task': {
-                'appName': app_name,
-                'taskName': task_name
-            }
-        })
-        
-        return {'status': 'success', 'message': '任务停止成功'}
+        task = taskMgr.getTask(device_id, app_name, task_name)
+        if not task:
+            Log.e(f'任务不存在: {device_id}/{app_name}/{task_name}')
+            return
+        task.stop()
     except Exception as e:
         Log.ex(e, '处理任务停止失败')
-        return {'status': 'error', 'message': str(e)}
+
+
+@socketio.on('C2S_TaskEnd')
+def handle_task_end(data):
+    """处理任务结束消息"""
+    try:
+        device_id = data.get('device_id')
+        app_name = data.get('app_name')
+        task_name = data.get('task_name')
+        score = data.get('score', 0)
+        
+        Log.i(f'收到任务结束消息: {device_id}/{app_name}/{task_name}, 得分: {score}')
+        
+        task = taskMgr.getTask(device_id, app_name, task_name)
+        if not task:
+            Log.e(f'任务不存在: {device_id}/{app_name}/{task_name}')
+            return
+        task.end(score)              
+    except Exception as e:
+        Log.ex(e, '处理任务结束消息失败')
 
 

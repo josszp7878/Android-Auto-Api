@@ -118,17 +118,17 @@ class Task:
         """更新任务进度"""
         self.progress = min(max(progress, 0), 100)
         # 发送进度更新事件
-        try:
-            from client import client
-            if client:
-                client.emit('C2S_UpdateTask', {
-                    'app_name': self.appName,
-                    'task_name': self.taskName,
-                    'progress': self.progress
-                })
-        except Exception as e:
-            Log.ex(e, '发送进度更新失败')
-        
+        from client import client
+        if client:
+            client.emit('C2S_UpdateTask', {
+                'app_name': self.appName,
+                'task_name': self.taskName,
+                'progress': self.progress
+            })
+
+    def getScore(self) -> int:
+        """获取任务得分"""
+        return 100
 
     def run(self, params: Optional[Dict[str, str]] = None) -> TaskState:
         """运行任务的完整流程"""
@@ -148,10 +148,17 @@ class Task:
             if not self.end():
                 self.state = TaskState.FAILED
             self.state = TaskState.SUCCESS
-            if self.onResult:
-                self.onResult(self.state)
-            Log.i(f"任务 {self.taskName} 执行完成")
-            self.updateProgress(100)
+            # if self.onResult:
+            #     self.onResult(self.state)
+            from client import client
+            if client:
+                score = self.state == TaskState.SUCCESS and self.getScore() or 0
+                client.emit('C2S_TaskEnd', {
+                    'app_name': self.appName,
+                    'task_name': self.taskName,
+                    'score': score
+                })    
+            # Log.i(f"任务 {self.taskName} 执行完成")
             return self.state
         except Exception as e:
             Log.ex(e, f"任务执行异常: {self.taskName}")

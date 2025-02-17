@@ -4,12 +4,10 @@ from .SDevice import SDevice
 from scripts.logger import Log
 from datetime import datetime, timedelta
 from flask_socketio import emit
-import re
 from sqlalchemy import func
-from .stask import STask, STaskState
 
 
-class DeviceManager:
+class SDeviceMgr:
     """设备管理器：管理所有设备"""
     
     _instance = None
@@ -95,46 +93,13 @@ class DeviceManager:
         except Exception as e:
             Log.ex(e, '更新设备信息失败')
     
-    def get_device_scores(self, device_id):
-        """获取设备的得分统计"""
-        try:
-            today = datetime.now().date()
-            
-            with current_app.app_context():
-                # 获取今日该任务的总分
-                if self.curDeviceID and self.devices[self.curDeviceID].currentTask:
-                    current_task = self.devices[self.curDeviceID].currentTask
-                    today_task_score = STask.query.filter(
-                        STask.deviceId == device_id,
-                        STask.time >= today,
-                        STask.appName == current_task.appName,
-                        STask.taskName == current_task.taskName,
-                        STask.state == STaskState.SUCCESS
-                    ).with_entities(func.sum(STask.score)).scalar() or 0
-                else:
-                    today_task_score = 0
-                
-                # 获取设备总分
-                device = self.get_device(device_id)
-                if device:
-                    total_score = device.total_score
-                else:
-                    total_score = 0
-                
-                return {
-                    'todayTaskScore': today_task_score,
-                    'totalScore': total_score
-                }
-        except Exception as e:
-            Log.ex(e, f'获取设备{device_id}得分统计失败')
-            return {'todayTaskScore': 0, 'totalScore': 0}
+    
 
     def to_dict(self):
         """转换所有设备为字典格式"""
         return {
             device_id: {
-                **device.to_dict(),
-                **self.get_device_scores(device_id)
+                **device.to_dict()
             }
             for device_id, device in self.devices.items()
         }
@@ -208,3 +173,6 @@ class DeviceManager:
     def emit2Console(self, event, data):
         for sid in self.console_sids:
             emit(event, data, room=sid)
+
+
+deviceMgr = SDeviceMgr()
