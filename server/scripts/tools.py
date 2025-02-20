@@ -4,6 +4,20 @@ except:
     from scripts.logger import Log
 
 from typing import Pattern, List
+from enum import Enum
+
+class TaskState(Enum):
+    """任务状态"""
+    CANCELLED = "cancelled"
+    RUNNING = "running"
+    PAUSED = "paused"
+    SUCCESS = "success"
+    FAILED = "failed"
+
+    @staticmethod
+    def values():
+        """返回所有状态值"""
+        return [state.value for state in TaskState]
 
 class Tools:
     _instance = None
@@ -16,14 +30,20 @@ class Tools:
             _instance._screenInfoCache = ""
             cls._instance = _instance
         return cls._instance
-   
+    
+    @staticmethod
+    def _toTaskId(appName: str, templateId: str) -> str:
+        """生成任务唯一标识"""
+        return f"{appName}_{templateId}"
+
     @staticmethod
     def getLocalIP():
         """获取本机IP地址"""
         import socket
         return socket.gethostbyname(socket.gethostname())
 
-    def printCallStack(self):
+    @staticmethod
+    def printCallStack():
         """打印调用栈"""
         import traceback
         print('\n保存日志调用栈:')

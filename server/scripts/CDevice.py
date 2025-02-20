@@ -29,7 +29,8 @@ class CDevice:
     def __init__(self, deviceID=None):
         if not hasattr(self, 'initialized'):
             self._deviceID = deviceID
-            self.connected = False            
+            self.connected = False
+            self.server_url = None
             # 配置 socketio 客户端
             self.sio = socketio.Client(
                 reconnection=True,
@@ -70,9 +71,12 @@ class CDevice:
     def connect(self, server_url=None, callback=None):
         """连接到服务器（异步方式）"""
         try:
+            if not server_url:
+                server_url = self.server_url
+            else:
+                self.server_url = server_url
             connect_url = f"{server_url}?device_id={self.deviceID}"
             Log.i(f"开始连接: {connect_url}")
-            
             def connect_async():
                 try:
                     Log.i("正在创建连接...")
@@ -168,8 +172,8 @@ class CDevice:
             command = data.get('command')
             print(f'正在处理命令: {command}')
             # 使用 CmdMgr 执行命令
-            from CmdMgr import CmdMgr
-            result, cmdName = CmdMgr().do(command)
+            from CCmdMgr import CCmdMgr
+            result, cmdName = CCmdMgr().do(command)
             
             self.sio.emit('C2S_CmdResult', {
                 'result': result,

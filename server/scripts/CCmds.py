@@ -2,13 +2,13 @@ from datetime import datetime
 from logger import Log, requireAndroid
 from CDevice import CDevice
 from tools import Tools, tools
-from CmdMgr import regCmd
+from CCmdMgr import regCmd
 import re
 from typing import Pattern, List
 from CFileServer import fileServer
 import threading
 import time as time_module
-from client import client
+from CClient import client
 import os
 
 # 缓存 Android 实例
@@ -372,7 +372,7 @@ def reload(module_name):
 
 def OnReload():
     Log.w("Cmds模块热更新 OnReload")
-    from client import client
+    from CClient import client
 
 def OnPreload():
     Log.w("Cmds模块热更新 onPreload")

@@ -1,17 +1,8 @@
 from datetime import datetime
-from enum import Enum
-from sqlalchemy import Column, String, Integer, Float, DateTime, Enum as SqlEnum
+from scripts.tools import TaskState
 from .database import db, commit  # 使用统一的 db 实例和 safe_commit
 from scripts.logger import Log
 from flask import current_app
-from .SDeviceMgr import deviceMgr
-class STaskState(Enum):
-    """任务状态"""
-    INIT = "初始化"
-    RUNNING = "运行中"
-    SUCCESS = "已完成"
-    FAILED = "失败"
-    CANCELED = "已取消"
 
 class STask(db.Model):
     """服务端任务类"""
@@ -24,23 +15,27 @@ class STask(db.Model):
     time = db.Column(db.DateTime, default=datetime.now)  # 创建时间
     score = db.Column(db.Integer, default=0)
     progress = db.Column(db.Float, default=0.0)
-    state = db.Column(SqlEnum(STaskState), default=STaskState.INIT)
-    expectedScore = db.Column(Integer, default=100)
+    state = db.Column(db.String(20), default=TaskState.RUNNING.value)  # 使用字符串存储状态
+    expectedScore = db.Column(db.Integer, default=100)
+
+    @property
+    def deviceMgr(self):
+        from .SDeviceMgr import deviceMgr
+        return deviceMgr
+
+    def __init__(self, deviceId: str, appName: str, taskName: str):
+        self.deviceId = deviceId
+        self.appName = appName
+        self.taskName = taskName
+        self.progress = 0.0
+        self.state = TaskState.RUNNING.value
+        self.time = datetime.now()
 
     def start(self):
         """开始任务"""
-        self.state = STaskState.RUNNING
+        self.state = TaskState.RUNNING.value
         commit(self)  # 使用安全提交
-        # 发送任务启动事件
-        deviceMgr.emit2Console('S2B_StartTask', {
-            'deviceId': self.deviceId,
-            'task': {
-                'taskName': self.taskName,
-                'appName': self.appName,
-                'expectedScore': self.expectedScore
-            }
-        })
-        Log.i(f"任务 {self.taskName} 开始执行")
+        Log.i(f'任务启动: {self.id}-{self.taskName}')
 
     def calculateExpectedScore(self):
         """计算预期得分"""
@@ -55,69 +50,56 @@ class STask(db.Model):
     def update(self, progress: float):
         """更新任务进度"""
         try:
-            progress = min(max(progress, 0), 1)  # 确保进度在0-1之间
+            if self.state != TaskState.RUNNING.value:
+                Log.i(f"任务 {self.taskName} 不在运行状态，无法更新进度")
+                return False
             
-            # 更新状态和进度
-            self.state = STaskState.RUNNING     
-            Log.i(f'任务 {self.taskName} 进度更新为 {progress}')
+            self.progress = min(max(progress, 0), 1)
+            if not self.save():
+                return False
             
-            self.progress = progress
-            commit(self)  # 使用安全提交
-            
-            # 发送进度更新事件
-            deviceMgr.emit2Console('S2B_UpdateTask', {
-                'deviceId': self.deviceId,
-                'task': {
-                    'appName': self.appName,
-                    'taskName': self.taskName,
-                    'progress': self.progress,
-                    'state': self.state.value,
-                    'score': self.score
-                }
-            })
-            return True
+            return STask.refresh(self)
+        
         except Exception as e:
             Log.ex(e, '更新任务进度失败')
             return False
 
-    def end(self, score: int):
+    def cancel(self):
+        """取消任务，从数据库中删除"""
+        try:
+            Log.i(f"任务 {self.taskName} 已取消")
+            with current_app.app_context():
+                # 从数据库中删除
+                db.session.delete(self)
+                db.session.commit()
+            # 设置当前任务为null
+            device = self.deviceMgr.get_device(self.deviceId)
+            if device and device.taskMgr:
+                device.taskMgr.currentTask = None                
+        except Exception as e:
+            Log.ex(e, '取消任务失败')
+
+    def end(self, data: dict):
         """结束任务"""
-        # 更新任务状态和得分
-        if score > 0:
-            self.state = STaskState.SUCCESS
-            self.score = score
-        else:
-            self.state = STaskState.CANCELED
-            
-        self.progress = 1.0  # 设置进度为100%
-        commit(self)  # 提交更改
+        result = data.get('result', True)
+        score = data.get('score', 0)
+        Log.i(f'任务结束: {self.id}-{self.taskName}, 结果: {"成功" if result else "失败"}, 得分: {score}')
         
-        # 发送任务结束事件到控制台
-        deviceMgr.emit2Console('S2B_TaskEnd', {
-            'deviceId': self.deviceId,
-            'task': {
-                'appName': self.appName,
-                'taskName': self.taskName,
-                'progress': self.progress,
-                'state': self.state.value,
-                'score': score,
-            }
-        })
-        Log.i(f'任务得分: {score}')
- 
+        self.state = TaskState.SUCCESS.value if result else TaskState.FAILED.value
+        self.score = score
+        self.progress = 1.0 if result else self.progress
+        commit(self)
+        
+        STask.refresh(self)
+
     def stop(self):
         """停止任务"""
-        self.state = STaskState.CANCELED
-        commit(self)  # 使用安全提交
-        # 广播任务停止消息到所有控制台
-        deviceMgr.emit2Console('S2B_TaskStop', {
-            'deviceId': self.deviceId,
-            'task': {
-                'appName': self.appName,
-                'taskName': self.taskName
-            }
-        })
-        Log.i(f"任务 {self.taskName} 已取消") 
+        if self.state == TaskState.RUNNING.value:
+            self.state = TaskState.PAUSED.value
+            commit(self)
+            
+            STask.refresh(self)
+            Log.i(f"任务 {self.id}-{self.taskName} 已暂停，进度: {self.progress*100:.1f}%")
 
     def get_scores(self, device_id):
         """获取设备的得分统计"""
@@ -130,11 +112,11 @@ class STask(db.Model):
                     STask.time >= today,
                     STask.appName == self.appName,
                     STask.taskName == self.taskName,
-                    STask.state == STaskState.SUCCESS
+                    STask.state == TaskState.SUCCESS.value
                     ).with_entities(func.sum(STask.score)).scalar() or 0
                 
                 # 获取设备总分
-                device = self.get_device(device_id)
+                device = self.deviceMgr.get_device(device_id)
                 if device:
                     total_score = device.total_score
                 else:
@@ -147,3 +129,41 @@ class STask(db.Model):
         except Exception as e:
             Log.ex(e, f'获取设备{device_id}得分统计失败')
             return {'todayTaskScore': 0, 'totalScore': 0}
+
+    
+
+    def save(self):
+        """保存任务到数据库"""
+        try:
+            session = db.session
+            if self in session:
+                session.commit()
+            else:
+                session.merge(self)
+                session.commit()
+            return True
+        except Exception as e:
+            Log.ex(e, f'保存任务 {self.taskName} 失败')
+            session.rollback()
+            return False
+
+    @classmethod
+    def refresh(cls, task: 'STask'):
+        """刷新任务状态到界面"""
+        try:
+            from .SDeviceMgr import deviceMgr
+            # 发送任务更新事件
+            deviceMgr.emit2Console('S2B_TaskUpdate', {
+                'deviceId': task.deviceId,
+                'task': {
+                    'id': task.id,
+                    'appName': task.appName,
+                    'taskName': task.taskName,
+                    'progress': task.progress,
+                    'state': task.state,
+                    'score': task.score,
+                    'expectedScore': task.expectedScore
+                } if task else None
+            })
+        except Exception as e:
+            Log.ex(e, f'刷新任务 {task.taskName} 状态失败')

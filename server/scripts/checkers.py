@@ -2,13 +2,13 @@ from typing import List, Tuple, Any
 import re
 from logger import Log
 from checker import check, GetMatchVal, GetPos
-from task import Task
+from CTask import CTask
 
 
 # ["观看广告", "广告剩余(?P<seconds>\d+)秒"]
 class Check:    
     @staticmethod
-    def Ad_Start(task: Task, params: dict) -> bool:
+    def Ad_Start(task: CTask, params: dict) -> bool:
         strs = params['startMatch']
         region = params['startRegion']
         minScore = params['minScore']
@@ -34,7 +34,7 @@ class Check:
         return check(strs, region, check_function)
     
     @staticmethod
-    def Ad_Process(task: Task, params: dict) -> bool:
+    def Ad_Process(task: CTask, params: dict) -> bool:
         sts = params['doMatch']
         region = params['doRegion']
         if sts is None:
@@ -52,7 +52,7 @@ class Check:
         return check(sts, region, check_function)
 
     @staticmethod
-    def Ad_End(task: Task, params: dict) -> bool:
+    def Ad_End(task: CTask, params: dict) -> bool:
         sts = params['endMatch']
         region = params['endRegion']
         if sts is None:

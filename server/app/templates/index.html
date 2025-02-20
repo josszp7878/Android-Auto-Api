@@ -15,13 +15,9 @@
                 <div class="devices-container">
                     <div class="device-wrapper" v-for="(device, id) in devices" :key="id">
                         <div class="device-card" 
-                             :class="{
-                                 'selected': selectedDevice === id,
-                                 'offline': device.status === 'offline'
-                             }"
-                             :style="{
-                                 'background-image': `url(${device.screenshot || '/static/screenshots/default.jpg'})`
-                             }"
+                             :class="{ offline: !device.online, selected: device.id === selectedDevice }" 
+                             :id="'device-' + device.id"
+                             :style="{ 'background-image': `url(${device.screenshot || '/static/screenshots/default.jpg'})` }"
                              @click.stop="selectDevice(id)">
                             <div class="device-info">
                                 <div class="device-header">
@@ -30,14 +26,13 @@
                                         <span title="任务得分/总分">[[ device.todayTaskScore ]]/[[ device.totalScore ]]</span>
                                     </div>
                                 </div>
-                                <div class="task-info" v-if="device.currentTask">
-                                    <div class="task-name">[[ device.currentTask.displayName ]]</div>
-                                    <div class="task-progress">
-                                        <div class="expected-score">+[[ device.currentTask.expectedScore ]]</div>
-                                        <div class="flex-spacer"></div>
-                                        <div class="progress-circle">
-                                            <canvas :ref="'progress-' + id" width="40" height="40"></canvas>
-                                        </div>
+                                <div class="task-info" :class="{ active: device.currentTask }">
+                                    <div class="task-name" v-if="device.currentTask">
+                                        [[ device.currentTask.displayName ]]
+                                    </div>
+                                    <div class="task-progress" v-if="device.currentTask">
+                                        <canvas :ref="'progress-' + device.id" width="40" height="40"></canvas>
+                                        <span class="score" v-if="device.currentTask.score">[[ device.currentTask.score ]]</span>
                                     </div>
                                 </div>
                             </div>

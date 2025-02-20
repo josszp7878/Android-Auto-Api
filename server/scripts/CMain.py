@@ -1,4 +1,4 @@
-from client import client
+from CClient import client
 from CFileServer import fileServer
 from logger import log
 import time

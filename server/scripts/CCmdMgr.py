@@ -2,16 +2,17 @@ import re
 from logger import Log
 from tools import Tools
 import sys
+from tools import TaskState  # 使用统一的 TaskState
 
 
-class CmdMgr:
+class CCmdMgr:
     """命令管理器"""
     
     _instance = None  # 单例实例
     
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
-            cls._instance = super(CmdMgr, cls).__new__(cls)
+            cls._instance = super(CCmdMgr, cls).__new__(cls)
             cls._instance.cmdRegistry = {}
             cls._instance.nameRegistry = {}
         return cls._instance
@@ -156,7 +157,7 @@ class CmdMgr:
 
 
 # 创建全局单例实例
-cmdMgr = CmdMgr()
+cmdMgr = CCmdMgr()
 regCmd = cmdMgr.reg
 
 # 模块级别的热更新回调函数
@@ -196,4 +197,4 @@ def OnReload():
         Log.ex(e, "恢复命令注册状态失败")
         return False
 
-cmdMgr = CmdMgr()
+cmdMgr = CCmdMgr()

@@ -38,7 +38,7 @@ class SDeviceMgr:
             deviceList = {}
             with current_app.app_context():  # 添加应用上下文
                 for device_model in DeviceModel.query.all():
-                    device = SDevice(device_model.device_id, device_model.info)
+                    device = SDevice(device_model.device_id)
                     device._status = device_model.status
                     device.last_seen = device_model.last_seen
                     deviceList[device.device_id] = device

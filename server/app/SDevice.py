@@ -5,7 +5,7 @@ from .models import db, DeviceModel
 from scripts.logger import Log
 import json
 import base64
-
+from .STaskMgr import STaskMgr
 class SDevice:
     """设备类：管理设备状态和信息"""
     
@@ -18,6 +18,16 @@ class SDevice:
         self.currentTask = None
         self._lastScreenshot = None
         self._ensure_screenshot_dir()
+        self._taskMgr = None  # 初始化为 None
+
+    @property
+    def taskMgr(self)->STaskMgr:  # 改为小写，符合 Python 命名规范
+        """懒加载任务管理器"""
+        if self._taskMgr is None:  # 使用 _taskMgr 私有属性存储实例
+            from .STaskMgr import STaskMgr
+            self._taskMgr = STaskMgr()  
+            self._taskMgr.init(self.device_id)
+        return self._taskMgr
     
     def _ensure_screenshot_dir(self):
         """确保设备的截图目录存在"""
@@ -184,3 +194,33 @@ class SDevice:
                 db.session.commit()
         except Exception as e:
             Log.ex(e, '保存设备总分失败')
+
+    def resumeTask(self, task):
+        """继续执行暂停的任务"""
+        try:
+            if task.state != TaskState.PAUSED.value:
+                Log.w(f"任务 {task.taskName} 不是暂停状态")
+                return False
+                
+            # 更新任务状态
+            task.state = TaskState.RUNNING.value
+            commit(task)
+            
+            # 发送任务更新事件
+            deviceMgr.emit2Console('S2B_TaskUpdate', {
+                'deviceId': self.device_id,
+                'task': {
+                    'appName': task.appName,
+                    'taskName': task.taskName,
+                    'progress': task.progress,
+                    'state': task.state,
+                    'score': task.score
+                }
+            })
+            
+            Log.i(f"继续执行任务: {task.taskName}")
+            return True
+            
+        except Exception as e:
+            Log.ex(e, f"继续执行任务 {task.taskName} 失败")
+            return False

@@ -301,9 +301,6 @@ class Dashboard {
                     // 清除画布
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
                     
-                    // 将进度限制在0-100之间
-                    const progressPercent = Math.min(Math.max(Math.round(progress), 0), 100);
-                    
                     // 绘制完整的灰色圆
                     ctx.beginPath();
                     ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
@@ -311,23 +308,23 @@ class Dashboard {
                     ctx.fill();
                     
                     // 绘制进度扇形
-                    if (progressPercent > 0) {
+                    if (progress > 0) {
                         ctx.beginPath();
                         ctx.moveTo(centerX, centerY);
                         ctx.arc(centerX, centerY, radius, 
                                -Math.PI / 2, 
-                               (-Math.PI / 2) + (Math.PI * 2 * progressPercent / 100));
+                               (-Math.PI / 2) + (Math.PI * 2 * progress));
                         ctx.lineTo(centerX, centerY);
                         ctx.fillStyle = isRunning ? '#4CAF50' : '#808080';
                         ctx.fill();
                     }
                     
-                    // 绘制进度文本
+                    // 绘制进度文本，转换为整数百分比
                     ctx.fillStyle = '#FFFFFF';
                     ctx.font = 'bold 14px Arial';
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
-                    ctx.fillText(`${progressPercent}%`, centerX, centerY);
+                    ctx.fillText(`${Math.round(progress * 100)}%`, centerX, centerY);
                 },
                 
                 updateDeviceTask(data) {
@@ -345,7 +342,7 @@ class Dashboard {
                             this.$set(device, 'currentTask', task);
                             this.$nextTick(() => {
                                 // 传入任务运行状态
-                                this.drawProgressCircle(data.deviceId, task.progress * 100, isRunning);
+                                this.drawProgressCircle(data.deviceId, task.progress, isRunning);
                             });
                         }
                     }
@@ -564,36 +561,6 @@ class Dashboard {
                     };
                 });
 
-                // 添加任务更新监听
-                this.socket.on('S2B_UpdateTask', (data) => {
-                    console.log('收到任务更新:', data);
-                    this.updateDeviceTask(data);
-                });
-
-                // 处理任务相关的 Socket.IO 事件
-                this.socket.on('S2B_StartTask', (data) => {
-                    console.log('收到任务启动消息:', data);
-                    const deviceId = data.deviceId;
-                    const task = data.task;
-                    
-                    if (this.devices[deviceId]) {
-                        // 创建任务显示名称
-                        task.displayName = `${task.appName}:${task.taskName}`;
-                        this.$set(this.devices[deviceId], 'currentTask', {
-                            appName: task.appName,
-                            taskName: task.taskName,
-                            displayName: task.displayName,
-                            progress: 0,
-                            expectedScore: task.expectedScore || 0
-                        });
-                        
-                        // 更新UI显示
-                        this.$nextTick(() => {
-                            this.drawProgressCircle(deviceId, 0);
-                        });
-                    }
-                });
-
                 // 更新设备卡片显示
                 this.updateDeviceCard = function(deviceId) {
                     const device = this.devices[deviceId];
@@ -626,83 +593,60 @@ class Dashboard {
                         }
                     }
                 };
-
-                // 处理任务进度更新
-                this.socket.on('S2B_TaskUpdate', function(data) {
-                    console.log('收到任务进度更新:', data);
-                    const deviceId = data.deviceId;
-                    const task = data.task;
-                    
-                    // 更新设备的任务进度
-                    if (this.devices[deviceId] && this.devices[deviceId].currentTask) {
-                        this.$set(this.devices[deviceId].currentTask, 'progress', task.progress);
-                        
-                        // 更新UI显示
-                        this.updateDeviceCard(deviceId);
-                    }
-                });
-
-                // 修改任务停止事件处理
-                this.socket.on('S2B_TaskStop', (data) => {
-                    console.log('收到任务停止消息:', data);
-                    const deviceId = data.deviceId;
-                    const task = data.task;
-                    
-                    if (this.devices[deviceId] && this.devices[deviceId].currentTask) {
-                        // 更新任务信息，保持当前进度
-                        this.$set(this.devices[deviceId], 'currentTask', {
-                            ...task,
-                            displayName: `${task.appName}:${task.taskName}`,
-                            progress: task.progress  // 使用服务器返回的进度
-                        });
-                        
-                        // 更新UI显示，isRunning设为false但保持当前进度
-                        this.$nextTick(() => {
-                            this.drawProgressCircle(deviceId, task.progress * 100, false);
-                        });
-                    }
-                });
-
-                // 添加任务完成事件监听
-                this.socket.on('S2B_TaskComplete', (data) => {
-                    console.log('收到任务完成消息:', data);
+                // 统一处理任务更新事件
+                this.socket.on('S2B_TaskUpdate', (data) => {
+                    console.log('收到任务更新:', data);
                     const deviceId = data.deviceId;
                     const task = data.task;
                     
                     if (this.devices[deviceId]) {
-                        task.displayName = `${task.appName}:${task.taskName}`;
-                        this.$set(this.devices[deviceId], 'currentTask', {
-                            ...task,
-                            progress: 1  // 设置进度为100%
-                        });
+                        if (!task) {
+                            // 如果task为null，清除当前任务显示
+                            this.$set(this.devices[deviceId], 'currentTask', null);
+                            // 隐藏任务面板
+                            const taskPanel = document.querySelector(`#device-${deviceId} .task-info`);
+                            if (taskPanel) {
+                                taskPanel.classList.remove('active');
+                            }
+                            return;
+                        }
                         
-                        // 更新UI显示，isRunning设为false
-                        this.$nextTick(() => {
-                            this.drawProgressCircle(deviceId, 100, false);
-                        });
-                    }
-                });
-
-                // 处理任务结束事件
-                this.socket.on('S2B_TaskEnd', (data) => {
-                    console.log('收到任务结束消息:', data);
-                    const deviceId = data.deviceId;
-                    const task = data.task;
-                    
-                    if (this.devices[deviceId] && this.devices[deviceId].currentTask) {
-                        // 更新任务信息
+                        // 设置任务显示名称，包含任务ID
+                        task.displayName = `#${task.id} ${task.appName}:${task.taskName}`;
+                        task.progress = task.progress || 0;
+                        task.state = task.state || 'running';
+                        
+                        // 更新设备的当前任务
                         const currentTask = this.devices[deviceId].currentTask;
-                        this.$set(currentTask, 'progress', 1.0);  // 设置进度为100%
-                        this.$set(currentTask, 'isCompleted', true);  // 标记任务已完成
-                        this.$set(currentTask, 'score', task.score);  // 保存获得的分数
-                        this.$set(currentTask, 'state', task.state);  // 更新状态
+                        if (!currentTask) {
+                            // 新任务，完整设置
+                            this.$set(this.devices[deviceId], 'currentTask', {
+                                id: task.id,
+                                displayName: task.displayName,
+                                progress: task.progress,
+                                state: task.state,
+                                score: task.score ? `+${task.score}` : (task.expectedScore ? `=>${task.expectedScore}` : '')
+                            });
+                            
+                            // 显示任务面板
+                            const taskPanel = document.querySelector(`#device-${deviceId} .task-info`);
+                            if (taskPanel) {
+                                taskPanel.classList.add('active');
+                            }
+                        } else {
+                            // 更新现有任务
+                            this.$set(currentTask, 'id', task.id);
+                            this.$set(currentTask, 'displayName', task.displayName);
+                            this.$set(currentTask, 'progress', task.progress);
+                            this.$set(currentTask, 'state', task.state);
+                            if (task.score !== undefined) {
+                                this.$set(currentTask, 'score', `+${task.score}`);
+                            }
+                        }
                         
-                        // 更新预期分数显示为实际获得的分数
-                        this.$set(currentTask, 'expectedScore', `获得${task.score}分`);
-                        
-                        // 使用灰色进度条重绘进度
+                        // 更新UI显示
                         this.$nextTick(() => {
-                            this.drawProgressCircle(deviceId, 100, false);  // false 表示使用灰色
+                            this.drawProgressCircle(deviceId, task.progress, task.state === 'running');
                         });
                     }
                 });

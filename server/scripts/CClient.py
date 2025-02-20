@@ -2,15 +2,14 @@ import time
 from logger import log
 from CFileServer import fileServer
 from tools import Tools
-from taskmgr import taskManager
 
-class Client:
+class CClient:
     """客户端管理类"""
     _instance = None
     
     def __new__(cls):
         if not cls._instance:
-            cls._instance = super(Client, cls).__new__(cls)
+            cls._instance = super(CClient, cls).__new__(cls)
         return cls._instance
     
     def __init__(self):
@@ -98,9 +97,9 @@ class Client:
                     except Exception:
                         break
                 
-            import Cmds
-            import tasks
-            from CmdMgr import cmdMgr
+            import CCmds as CCmds
+            from CCmdMgr import cmdMgr
+            from CTaskMgr import taskMgr
 
 
             if not runFromApp:  # 如果不是从App运行，则进入命令行模式
@@ -137,8 +136,9 @@ class Client:
         self.initialized = False
 
         try:
+            from CTaskMgr import taskMgr
             # 停止所有任务
-            taskManager.uninit()
+            taskMgr.uninit()
             log.i("所有任务已停止")
 
             # 其他结束逻辑...
@@ -147,4 +147,4 @@ class Client:
             log.ex(e, "客户端结束失败")
 
 # 创建全局单例实例
-client = Client()
+client = CClient()

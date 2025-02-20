@@ -1,6 +1,6 @@
 from flask import Flask
 from flask_socketio import SocketIO
-from .database import init_db, db
+from .database import init_db
 import logging
 import os
 import eventlet
@@ -21,10 +21,14 @@ for dir_path in [APP_DATA, APP_LOGS]:
 SCREENSHOTS_DIR = os.path.join(APP_ROOT, 'app', 'static', 'screenshots')
 os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
 
-# 配置日志级别
-logging.getLogger('engineio').setLevel(logging.ERROR)
-logging.getLogger('socketio').setLevel(logging.ERROR)
-logging.getLogger('werkzeug').setLevel(logging.ERROR)
+# 配置更详细的日志
+logging.basicConfig(level=logging.DEBUG)  # 设置根日志级别为 DEBUG
+engineio_logger = logging.getLogger('engineio')
+engineio_logger.setLevel(logging.DEBUG)
+socketio_logger = logging.getLogger('socketio')
+socketio_logger.setLevel(logging.DEBUG)
+werkzeug_logger = logging.getLogger('werkzeug')
+werkzeug_logger.setLevel(logging.DEBUG)
 
 socketio = SocketIO()
 app = None
@@ -40,27 +44,21 @@ def create_app(config_name='development'):
     # 加载配置
     app.config.from_object(config[config_name])
     
-    # 测试数据库连接
-    try:
-        # 初始化数据库
-        init_db(app)
-        with app.app_context():
-            # 测试数据库连接
-            db.engine.connect()
-            print("数据库连接成功！")
-    except Exception as e:
-        print(f"数据库连接错误: {e}")
-        raise
-
+    # 初始化数据库
+    init_db(app)
+    
     # 初始化 SocketIO
     socketio.init_app(
         app,
         cors_allowed_origins="*",
-        async_mode='eventlet',  # 使用eventlet作为异步模式
+        async_mode='eventlet',
         logger=False,
         engineio_logger=False
     )
-
+    
+    # 导入并注册事件处理器
+    from . import Server  # 移到这里，确保在 socketio 初始化后导入
+    
     # 注册蓝图
     from .routes import bp
     app.register_blueprint(bp)

@@ -5,6 +5,8 @@ from .models import db
 from .command_history import CommandHistory
 from .SDeviceMgr import SDeviceMgr
 from scripts.logger import Log
+from scripts.tools import TaskState  # 使用统一的 TaskState
+from .STask import STask  # 只导入 STask
 
 class SCommand:
     """服务器命令处理类"""
@@ -17,8 +19,10 @@ class SCommand:
         '@list': ('列出所有设备', '_cmd_list'),
         '@echo': ('测试日志输出', '_cmd_echo'),
         '@log': ('手动打印日志，用法: @log <level> <content>', '_cmd_log'),
-        '@show': ('显示日志，用法: @show [filter]', 'filterLogs')
-
+        '@show': ('显示日志，用法: @show [filter]', 'filterLogs'),
+        '@progress': ('查询任务进度，用法: @progress <deviceId> <appName> <taskName>', '_cmd_progress'),
+        '@resume': ('继续当前设备的暂停任务', '_cmd_resume'),
+        '@debug': ('显示调试信息', '_cmd_debug'),
     }
     
     @staticmethod
@@ -184,15 +188,24 @@ class SCommand:
         try:
             with current_app.app_context():
                 device_manager = SDeviceMgr()
+                # 添加日志
+                Log.i('Server', f'执行设备命令: {device_id} -> {command}')
+                
                 device = device_manager.get_device(device_id)
                 if device is None:
                     Log.e('Server', f'设备 {device_id} 不存在')
                     return '设备不存在'
+                # 添加日志
+                Log.i('Server', f'设备状态: {device.status}')
+                
                 if device.status != 'login':
                     Log.w('Server', f'设备 {device_id} 未登录')
                     return '设备未登录'
                 
                 sid = device.info.get('sid')
+                # 添加日志
+                Log.i('Server', f'设备 SID: {sid}')
+                
                 if sid:
                     try:
                         # 直接通过 sid 发送命令
@@ -202,6 +215,7 @@ class SCommand:
                             'sender': current_app.config['SERVER_ID']
                         }, to=sid)
                         
+                        Log.i('Server', f'命令已发送到设备 {device_id}')
                         return f'命令已发送到设备 {device_id}'
                     except Exception as e:
                         Log.ex(e, '发送命令时出错')
@@ -272,6 +286,9 @@ class SCommand:
             level = result.split('#')[0] if '#' in result else 'i'
             
             deviceMgr = SDeviceMgr()
+            # 添加调试日志
+            Log.i('Server', f'收到命令响应: {device_id} -> {command} = {result}')
+            
             # 根据命令方法名处理响应
             if cmdName == 'captureScreen':  # 使用方法名而不是命令文本判断
                 if isinstance(result, str) and result.startswith('data:image'):
@@ -292,8 +309,15 @@ class SCommand:
             #     response=result
             # )
                 
+            # 确保结果发送到控制台
+            deviceMgr.emit2Console('S2B_CmdResult', {
+                'result': result,
+                'level': level,
+                'device_id': device_id
+            })    
+            
         except Exception as e:
-            result = Log.formatEx('处理命令响应出错', e)
+            Log.ex(e, '处理命令响应出错')
         # 解析level
         if isinstance(result, str) and '##' in result:
             level = result.split('##')[0]
@@ -310,3 +334,104 @@ class SCommand:
         #     'result': result,
         #     'level': level,
         # })    
+
+    @staticmethod
+    def _cmd_progress(args):
+        """查询任务进度
+        用法: @progress <deviceId> <appName> <taskName>
+        """
+        try:
+            # 检查参数个数
+            if len(args) != 3:
+                return "e##用法: @progress <deviceId> <appName> <taskName>"
+            
+            deviceId, appName, taskName = args
+            
+            # 处理当前设备ID
+            if deviceId == '_':
+                deviceMgr = SDeviceMgr()
+                deviceId = deviceMgr.curDeviceID
+                if not deviceId:
+                    return "e##未选择设备"
+            
+            # 处理最近任务
+            if appName == '_' or taskName == '_':
+                # 从数据库获取最近任务
+                last_task = STask.query.filter_by(
+                    deviceId=deviceId
+                ).order_by(STask.time.desc()).first()
+                
+                if not last_task:
+                    return "i##未找到最近任务记录"
+                
+                if appName == '_':
+                    appName = last_task.appName
+                if taskName == '_':
+                    taskName = last_task.taskName
+            
+            # 从数据库查询任务
+            task = STask.query.filter_by(
+                deviceId=deviceId,
+                appName=appName,
+                taskName=taskName,
+            ).order_by(STask.time.desc()).first()
+            
+            if not task:
+                return "i##未找到正在运行的任务"
+                
+            # 格式化输出任务信息（转换为百分比）
+            progress_percent = task.progress * 100
+            return f"i##任务进度: {progress_percent:.1f}%"
+            
+        except Exception as e:
+            Log.ex(e, "查询任务进度失败")
+            return f"e##查询任务进度失败: {str(e)}"    
+
+    @staticmethod
+    def _cmd_resume(args):
+        """继续当前设备的暂停任务"""
+        try:
+            deviceMgr = SDeviceMgr()
+            device_id = deviceMgr.curDeviceID
+            if not device_id:
+                return "e##未选择设备"
+            
+            device = deviceMgr.get_device(device_id)
+            if not device:
+                return "e##设备不存在"
+                
+            # 获取当前任务
+            current_task = device.taskMgr.current_task
+            if not current_task:
+                return "i##当前设备没有任务"
+                
+            # 检查任务状态
+            if current_task.state != TaskState.PAUSED.value:
+                return f"i##当前任务状态为 {current_task.state}，不是暂停状态"
+                
+            # 向客户端发送启动任务消息
+            emit('S2C_StartTask', {
+                'app_name': current_task.appName,
+                'task_name': current_task.taskName
+            }, room=device.info.get('sid'))
+            
+            return f"i##已发送继续任务命令: {current_task.appName}/{current_task.taskName}"
+            
+        except Exception as e:
+            Log.ex(e, "继续任务失败")
+            return f"e##继续任务失败: {str(e)}"    
+
+    @staticmethod
+    def _cmd_debug(args):
+        """显示调试信息"""
+        try:
+            device_manager = SDeviceMgr()
+            info = {
+                '当前设备': device_manager.curDeviceID,
+                '设备列表': list(device_manager.to_dict().keys()),
+                '日志状态': Log().isEnabled(),
+                '日志缓存数': len(Log().cache) if hasattr(Log(), 'cache') else 'Unknown'
+            }
+            return '\n'.join([f"{k}: {v}" for k, v in info.items()])
+        except Exception as e:
+            return f"调试信息获取失败: {str(e)}"    

@@ -1,7 +1,6 @@
 from app import create_app, socketio
 import signal
 from scripts.logger import Log
-from app.Server import initServer
 from config import config
 
 
@@ -23,10 +22,6 @@ if __name__ == '__main__':
         
         # 初始化日志系统并打开服务器日志
         Log().init(is_server=True)
-        
-        # 初始化服务器
-        with app.app_context():
-            initServer()
         
         # 启动服务器
         Log.i(f'服务器启动在: http://{cfg.SERVER_HOST}:{cfg.SERVER_PORT}')

@@ -1,6 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import exc, event, text
 from scripts.logger import Log
+from flask import current_app
 
 # 创建全局 db 实例
 db = SQLAlchemy()
@@ -10,7 +11,7 @@ def init_db(app):
     db.init_app(app)
     
     # 导入所有模型以确保它们被注册
-    from . import models, stask
+    from . import models, STask
     
     # 在应用上下文中创建所有表
     with app.app_context():
@@ -29,26 +30,23 @@ def init_db(app):
             print(f"数据库初始化错误: {e}")
             raise
 
-def commit(data, add=False):
-    """安全的提交数据库更改"""
-    session = db.session
+def commit(model):
+    """安全提交数据库更改
+    Args:
+        model: 数据库模型实例
+    """
     try:
-        if add:
-            session.add(data)
-        else:
-            session.merge(data)           
-        session.commit()
-    except exc.OperationalError as e:
-        Log.e(f"数据库操作错误: {e}")
-        session.rollback()
-        # 尝试重新连接
-        try:
-            db.engine.connect()
+        session = db.session
+        # 检查对象是否已经在其他session中
+        if model in session:
+            # 如果已经在当前session中，直接提交
             session.commit()
-        except Exception as e2:
-            Log.ex(e2, "数据库重连失败")
-            raise
-    except Exception as e1:
-        Log.ex(e1, "数据库提交失败")
+        else:
+            # 如果不在当前session中，先合并再提交
+            session.merge(model)
+            session.commit()
+        return True
+    except Exception as e:
+        Log.ex(e, '数据库提交失败')
         session.rollback()
-        raise
+        return False

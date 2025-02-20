@@ -1,6 +1,5 @@
-from app import socketio, app
-from flask_socketio import emit, join_room, rooms
 from flask import request, current_app
+from flask_socketio import emit, join_room, rooms
 from datetime import datetime
 import json
 from .database import db  # 直接从 database.py 导入 db
@@ -9,7 +8,12 @@ from .SCommand import SCommand
 from scripts.logger import Log
 from pathlib import Path
 from .SDeviceMgr import deviceMgr
-from .staskmgr import STaskMgr
+import sys
+import os
+
+# 从 run.py 中导入 socketio 实例
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from run import socketio
 
 class DateTimeEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -18,34 +22,23 @@ class DateTimeEncoder(json.JSONEncoder):
         return super().default(obj)
     
 
-taskMgr = None
-
-def initServer():
-    """初始化服务器"""
-    global taskMgr
-    with current_app.app_context():
-        taskMgr = STaskMgr()
 
 @socketio.on('connect')
 def handle_connect():
     """处理客户端连接"""
     try:
+        print(f"新的连接请求 - SID: {request.sid}")
         Log.i(f"新的连接请求 - SID: {request.sid}")
-        Log.i(f"连接参数: {request.args}")
-        Log.i(f"连接头信息: {request.headers}")
-        Log.i(f"连接认证信息: {request.args.to_dict()}")
         
         device_id = request.args.get('device_id')
         client_type = request.args.get('client_type')
         
         if client_type == 'console':
-            # 控制台连接，记录 SID
             deviceMgr.add_console(request.sid)
             return True
             
         elif device_id:
-            with current_app.app_context():  # 使用 current_app 替代 app
-                # 设备连接
+            with current_app.app_context():
                 device = deviceMgr.get_device(device_id)
                 if not device:
                     device = deviceMgr.add_device(device_id)
@@ -54,16 +47,13 @@ def handle_connect():
                 device.info['connected_at'] = str(datetime.now())
                 deviceMgr.update_device(device)
                 
-                # 处理设备连接
                 device.onConnect()            
-                # 自动登录设备
                 device.login()
                 return True
                 
     except Exception as e:
         Log.ex(e, '处理连接时出错')
     
-    Log.e('未知的客户端连接')
     return False
 
 @socketio.on('disconnect')
@@ -181,20 +171,28 @@ def handle_B2S_GetLogs(data=None):
 
 
 @socketio.on('C2S_StartTask')
-def handle_start_task(data):
-    """处理开始任务请求(包含恢复未完成任务)"""
-    # 获取设备ID、应用名称、任务名称和序列号
-    device_id = data.get('device_id')
-    app_name = data.get('app_name')
-    task_name = data.get('task_name')
-    task = taskMgr.getTask(device_id, app_name, task_name, True)
-    Log.i(f'收到开始任务请求: {device_id}/{app_name}/{task_name}')
-    Log.i(f'任务: {task}')
-    if not task:
-        Log.e(f'启动任务失败: {device_id}/{app_name}/{task_name}')
-        return
-    # 启动任务
-    task.start()
+def handle_C2S_StartTask(data):
+    """处理任务启动请求"""
+    try:
+        device_id = data.get('device_id')
+        app_name = data.get('app_name')
+        task_name = data.get('task_name')
+        
+        device = deviceMgr.get_device(device_id)
+        if not device:
+            Log.e(f'设备不存在: {device_id}')
+            return
+            
+        taskMgr = device.taskMgr
+        task = taskMgr.getRunningTask(app_name, task_name, True)
+        if task:
+            task.start()
+            taskMgr.currentTask = task
+        else:
+            Log.e(f'任务启动失败: {device_id}/{app_name}/{task_name}')
+            
+    except Exception as e:
+        Log.ex(e, '处理任务启动请求失败')
 
 @socketio.on('C2S_UpdateTask')
 def handle_C2S_UpdateTask(data):
@@ -204,9 +202,13 @@ def handle_C2S_UpdateTask(data):
         app_name = data.get('app_name')
         task_name = data.get('task_name')
         progress = data.get('progress', 0)
-        Log.i(f'收到任务进度更新消息: {device_id}/{app_name}/{task_name}/{progress}')
-        task = taskMgr.getTask(device_id, app_name, task_name)
-        Log.i(f'任务进度更新结果: {task}')
+        
+        device = deviceMgr.get_device(device_id)
+        if not device:
+            Log.e(f'设备不存在: {device_id}')
+            return
+            
+        task = device.taskMgr.getRunningTask(app_name, task_name)
         if not task:
             Log.e(f'任务不存在: {device_id}/{app_name}/{task_name}')
             return
@@ -222,9 +224,12 @@ def handle_stop_task(data):
         device_id = data.get('device_id')
         app_name = data.get('app_name')
         task_name = data.get('task_name')
-        
         Log.i(f'收到任务停止消息: {device_id}/{app_name}/{task_name}')
-        task = taskMgr.getTask(device_id, app_name, task_name)
+        device = deviceMgr.get_device(device_id)
+        if not device:
+            Log.e(f'设备不存在: {device_id}')
+            return
+        task = device.taskMgr.getRunningTask(app_name, task_name)
         if not task:
             Log.e(f'任务不存在: {device_id}/{app_name}/{task_name}')
             return
@@ -241,15 +246,47 @@ def handle_task_end(data):
         app_name = data.get('app_name')
         task_name = data.get('task_name')
         score = data.get('score', 0)
+        result = data.get('result', True)  # 获取执行结果
         
-        Log.i(f'收到任务结束消息: {device_id}/{app_name}/{task_name}, 得分: {score}')
-        
-        task = taskMgr.getTask(device_id, app_name, task_name)
+        device = deviceMgr.get_device(device_id)
+        if not device:
+            Log.e(f'设备不存在: {device_id}')
+            return
+            
+        task = device.taskMgr.getRunningTask(app_name, task_name)
         if not task:
             Log.e(f'任务不存在: {device_id}/{app_name}/{task_name}')
             return
-        task.end(score)              
+            
+        # 传入包含 score 和 result 的字典
+        task.end({
+            'score': score,
+            'result': result
+        })              
     except Exception as e:
         Log.ex(e, '处理任务结束消息失败')
+
+
+@socketio.on('C2S_CancelTask')
+def handle_cancel_task(data):
+    """处理任务取消请求"""
+    try:
+        device_id = data.get('device_id')
+        app_name = data.get('app_name')
+        task_name = data.get('task_name')
+        Log.i(f'收到任务取消消息: {device_id}/{app_name}/{task_name}')
+        device = deviceMgr.get_device(device_id)
+        if not device:
+            Log.e(f'设备不存在: {device_id}')
+            return
+
+        taskMgr = device.taskMgr    
+        task = taskMgr.getRunningTask(app_name, task_name)
+        if not task:
+            Log.e(f'任务不存在: {device_id}/{app_name}/{task_name}')
+            return
+        taskMgr.removeTask(task)            
+    except Exception as e:
+        Log.ex(e, '处理任务取消失败')
 
 

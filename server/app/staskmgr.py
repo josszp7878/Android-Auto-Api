@@ -1,71 +1,126 @@
 from typing import Dict, Optional
-from .stask import STask, STaskState
-from .database import commit  # 使用统一的 db 实例
+from .STask import STask
+from scripts.tools import TaskState
+from .database import commit
 from scripts.logger import Log
 from datetime import datetime
+from flask import current_app
+from scripts.tools import Tools
 
 class STaskMgr:
-    """服务端任务管理器"""
+    """设备任务管理器"""
     
     def __init__(self):
-        self.tasks: Dict[str, STask] = {}  # 只存储运行中的任务
-        self._loadTasksFromDB()
+        self.tasks = {}  # taskId -> STask
+        self._current_task = None  # 私有变量存储当前任务
 
-    def _loadTasksFromDB(self):
-        """从数据库加载任务"""
-        try:
-            running_tasks = STask.query.filter_by(state=STaskState.RUNNING).all()
-            for task in running_tasks:
-                task_id = self.getTaskId(task.deviceId, task.appName, task.taskName)
-                self.tasks[task_id] = task
-            Log.i(f"从数据库加载了 {len(running_tasks)} 个运行中的任务")
-        except Exception as e:
-            Log.ex(e, "加载任务数据失败")
+    @property
+    def currentTask(self) -> Optional[STask]:
+        """获取当前任务"""
+        return self._current_task
 
-    def getTaskId(self, deviceId: str, appName: str, taskName: str) -> str:
-        """生成任务唯一标识"""
-        return f"{deviceId}_{appName}_{taskName}"
-
-    def getTask(self, deviceId: str, appName: str, taskName: str, create: bool = False) -> Optional[STask]:
-        """获取任务,如果缓存中没有则从数据库加载"""
-        task_id = self.getTaskId(deviceId, appName, taskName)
-        task = self.tasks.get(task_id)
-        # Log.i(f'1任务: {task}')
+    @currentTask.setter
+    def currentTask(self, task: Optional[STask]):
+        """设置当前任务，并通知界面更新
+        Args:
+            task: 要设置的任务，None表示清除当前任务
+        """
         if not task:
-            # 从数据库加载运行中的任务
-            task = STask.query.filter_by(
-                deviceId=deviceId,
-                appName=appName,
-                taskName=taskName,
-                state=STaskState.RUNNING
-            ).first()
-            # Log.i(f'2任务: {task} create:{create}')
+            # 如果任务为空，则获取最近的未结束任务
+            task = self.getRunningTask(self.currentTask.appName, self.currentTask.taskName)
+        self._current_task = task
+        Log.i(f"设置当前任务: {task}")
+        STask.refresh(task)
+        
+    def init(self,device_id:str):
+        self.device_id = device_id
+        self._load()
+
+    def _load(self):
+        """从数据库加载该设备的未完成任务"""
+        try:
+            # 加载所有未完成的任务（运行中或暂停的）
+            unfinished_tasks = STask.query.filter(
+                STask.deviceId == self.device_id,
+                STask.state.in_([TaskState.RUNNING.value, TaskState.PAUSED.value])
+            ).order_by(STask.time.desc()).all()
+            
+            for task in unfinished_tasks:
+                task_id = Tools._toTaskId(task.appName, task.taskName)
+                self.tasks[task_id] = task
+                
+            # 设置最近的任务为当前任务
+            if unfinished_tasks:
+                self.currentTask = unfinished_tasks[0]
+                # 设置为暂停状态
+                self.currentTask.state = TaskState.PAUSED.value
+                commit(self.currentTask)
+                
+            Log.i(f"设备 {self.device_id} 加载了 {len(unfinished_tasks)} 个未完成任务")
+        except Exception as e:
+            Log.ex(e, f'加载设备 {self.device_id} 的任务失败')
+
+
+    def _getRunningTask(self, task_id: str) -> Optional[STask]:
+        """根据任务ID查找未结束的任务"""
+        task = self.tasks.get(task_id)
+        Log.i(f"当前任务数量: {len(self.tasks)}")
+        if task and task.state in [TaskState.RUNNING.value, TaskState.PAUSED.value]:
+            return task
+        return None
+
+    def getRunningTask(self, appName: str, taskName: str, create: bool = False) -> Optional[STask]:
+        """获取正在运行的任务,如果没有且create=True则创建新任务
+        
+        Args:
+            appName: 应用名称
+            taskName: 任务名称
+            create: 是否在任务不存在时创建新任务
+            
+        Returns:
+            STask: 任务实例，如果没有找到且不创建则返回 None
+        """
+        task_id = Tools._toTaskId(appName, taskName)
+        task = self._getRunningTask(task_id)
+        Log.i(f"获取未结束的任务: {task_id}, 结果: {task}")
+        if task:
+            return task
+        with current_app.app_context():
+            # 只查询运行中或暂停的任务
+            task = STask.query.filter(
+                STask.deviceId == self.device_id,
+                STask.appName == appName,
+                STask.taskName == taskName,
+                STask.state.in_([TaskState.RUNNING.value, TaskState.PAUSED.value])
+            ).order_by(STask.time.desc()).first()  # 取最新的未结束任务
+            
             if task is None and create:
-                task = STask(
-                    deviceId=deviceId,
-                    appName=appName,
-                    taskName=taskName,
-                    progress=0.0,
-                    time=datetime.now()
-                )
-                commit(task, True)
-                Log.i(f"新建任务 {task.taskName} 已添加到数据库")
+                # 创建新任务
+                task = STask(self.device_id, appName, taskName)
+                if task:
+                    self.tasks[task_id] = task
+                    commit(task)
+                    Log.i(f"设备 {self.device_id} 创建新任务: {appName}/{taskName}")
             if task:
+                # 缓存已存在的任务
                 self.tasks[task_id] = task
         return task
 
-    def getDeviceCurrentTask(self, device_id: str) -> Optional[dict]:
-        """获取设备当前任务"""
-        try:
-            # 查找该设备的运行中任务
-            for task in self.tasks.values():
-                if task.deviceId == device_id:
-                    return {
-                        'taskName': task.taskName,
-                        'progress': task.progress,
-                        'expectedScore': task.expectedScore
-                    }
-            return None
-        except Exception as e:
-            Log.ex(e, f'获取设备{device_id}当前任务失败')
-            return None
+    def getCurrentTask(self) -> Optional[dict]:
+        """获取当前任务信息"""
+        if self.currentTask:
+            return {
+                'taskName': self.currentTask.taskName,
+                'appName': self.currentTask.appName,
+                'progress': self.currentTask.progress,
+                'state': self.currentTask.state,
+                'expectedScore': self.currentTask.expectedScore
+            }
+        return None
+    
+    def removeTask(self, task:STask):
+        """删除任务"""
+        if task:
+            task_id = Tools._toTaskId(task.appName, task.taskName)
+            self.tasks.pop(task_id, None)
+            task.cancel()

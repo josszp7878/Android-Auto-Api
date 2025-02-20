@@ -1,6 +1,6 @@
 from logger import Log
-from CmdMgr import cmdMgr, regCmd
-from Cmds import *
+from CCmdMgr import cmdMgr, regCmd
+from CCmds import *
 
 # 注册复合命令
 @regCmd(r"打开快手极速版")
