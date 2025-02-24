@@ -1,10 +1,11 @@
 class Dashboard {
     constructor(initialDevices) {
+        console.log('初始化Dashboard，设备数据:', initialDevices);
         this.app = new Vue({
             el: '#app',
             delimiters: ['[[', ']]'],
             data: {
-                devices: initialDevices,
+                devices: initialDevices || {},  // 确保有默认值
                 selectedDevice: null,
                 commandInput: '',
                 commandLogs: [],
@@ -358,8 +359,14 @@ class Dashboard {
                     }
                 });
                 
+                // 添加调试日志
+                this.socket.onAny((event, ...args) => {
+                    console.log('收到Socket事件:', event, args);
+                });
+                
                 this.socket.on('connect', () => {
                     console.log('控制台已连接到服务器');
+                    this.addLog('i', 'Console', '控制台已连接到服务器');
                     // 初始获取日志数据
                     this.socket.emit('B2S_GetLogs');
                     // 初始化时滚动到底部
@@ -490,6 +497,7 @@ class Dashboard {
 
                 // 修改日志消息监听
                 this.socket.on('S2B_AddLog', (data) => {
+                    console.log('收到日志数据:', data);
                     const content = data.message;
                     const parsed = this.parseLogLine(content);
                     if (parsed) {
@@ -514,27 +522,47 @@ class Dashboard {
                     }
                 });
 
-                // 添加设备状态更新处理
-                this.socket.on('refresh_device', (data) => {
-                    if (!this.devices[data.deviceId]) {  // 注意这里使用 deviceId
-                        // 创建新设备，只包含后端提供的字段
+                // 修改设备状态更新处理
+                this.socket.on('S2B_DeviceUpdate', (data) => {
+                    console.log('收到设备状态更新:', data);
+                    if (!this.devices[data.deviceId]) {
+                        // 创建新设备
                         this.$set(this.devices, data.deviceId, {
-                            status: data.status,
-                            screenshot: data.screenshot,
-                            screenshotTime: data.screenshotTime
+                            status: data.status || 'offline',
+                            screenshot: data.screenshot || '/static/screenshots/default.jpg',  // 使用默认截图
+                            screenshotTime: data.screenshotTime || '',
+                            todayTaskScore: data.todayTaskScore || 0,
+                            totalScore: data.totalScore || 0
                         });
                     } else {
                         // 更新现有设备
                         const device = this.devices[data.deviceId];
-                        this.$set(device, 'status', data.status);
-                        this.$set(device, 'screenshot', data.screenshot);
-                        this.$set(device, 'screenshotTime', data.screenshotTime);
-                        
-                        // 如果是当前选中的设备，更新大图预览
-                        if (this.selectedDevice === data.deviceId && this.fullScreenshot) {
-                            this.fullScreenshot = data.screenshot;
-                        }
+                        Object.keys(data).forEach(key => {
+                            if (data[key] !== undefined) {
+                                // 确保截图不为null
+                                if (key === 'screenshot' && !data[key]) {
+                                    data[key] = '/static/screenshots/default.jpg';
+                                }
+                                this.$set(device, key, data[key]);
+                            }
+                        });
                     }
+                    
+                    // 强制更新设备卡片的样式
+                    this.$nextTick(() => {
+                        const deviceCard = document.querySelector(`#device-${data.deviceId}`);
+                        if (deviceCard) {
+                            // 移除所有状态相关的类
+                            deviceCard.classList.remove('offline', 'online', 'login');
+                            // 添加当前状态的类
+                            deviceCard.classList.add(data.status);
+                            
+                            // 更新背景图
+                            const screenshot = data.screenshot || '/static/screenshots/default.jpg';
+                            deviceCard.style.backgroundImage = `url(${screenshot})`;
+                            deviceCard.style.backgroundColor = 'transparent';
+                        }
+                    });
                 });
 
                 this.socket.on('response', function(data) {
@@ -611,44 +639,31 @@ class Dashboard {
                             return;
                         }
                         
-                        // 设置任务显示名称，包含任务ID
-                        task.displayName = `#${task.id} ${task.appName}:${task.taskName}`;
-                        task.progress = task.progress || 0;
-                        task.state = task.state || 'running';
-                        
-                        // 更新设备的当前任务
-                        const currentTask = this.devices[deviceId].currentTask;
-                        if (!currentTask) {
-                            // 新任务，完整设置
-                            this.$set(this.devices[deviceId], 'currentTask', {
-                                id: task.id,
-                                displayName: task.displayName,
-                                progress: task.progress,
-                                state: task.state,
-                                score: task.score ? `+${task.score}` : (task.expectedScore ? `=>${task.expectedScore}` : '')
-                            });
-                            
-                            // 显示任务面板
-                            const taskPanel = document.querySelector(`#device-${deviceId} .task-info`);
-                            if (taskPanel) {
-                                taskPanel.classList.add('active');
-                            }
-                        } else {
-                            // 更新现有任务
-                            this.$set(currentTask, 'id', task.id);
-                            this.$set(currentTask, 'displayName', task.displayName);
-                            this.$set(currentTask, 'progress', task.progress);
-                            this.$set(currentTask, 'state', task.state);
-                            if (task.score !== undefined) {
-                                this.$set(currentTask, 'score', `+${task.score}`);
-                            }
-                        }
+                        // 更新任务信息
+                        this.$set(this.devices[deviceId], 'currentTask', {
+                            ...task,
+                            displayName: task.displayName,  // 使用新的显示格式
+                            progress: task.progress || 0,
+                            state: task.state || 'running',
+                            unfinishedCount: task.unfinishedCount || 0  // 添加未完成任务数量
+                        });
                         
                         // 更新UI显示
                         this.$nextTick(() => {
                             this.drawProgressCircle(deviceId, task.progress, task.state === 'running');
                         });
                     }
+                });
+
+                // 添加连接状态日志
+                this.socket.on('disconnect', () => {
+                    console.log('控制台已断开连接');
+                    this.addLog('w', 'Console', '控制台已断开连接');
+                });
+
+                this.socket.on('connect_error', (error) => {
+                    console.error('连接错误:', error);
+                    this.addLog('e', 'Console', `连接错误: ${error.message}`);
                 });
             }
         });

@@ -1,10 +1,10 @@
 from typing import Dict, List, Optional, Tuple, Callable
-from CTask import CTask, TaskState
+from CTask import CTask
 from logger import Log
 from CCmdMgr import regCmd
 import threading
 from datetime import datetime
-from tools import Tools
+from tools import Tools,TaskState
 
 class CTaskMgr:
     """客户端任务管理器(单例模式)"""
@@ -26,7 +26,7 @@ class CTaskMgr:
         self.tasks = {}  # {taskId: CTask}
         self.lastAppName = None  # 记录最后执行的应用名
         self.lastTemplateId = None  # 记录最后执行的模板ID
-        Log.i("TaskMgr初始化完成")
+        # Log.i("TaskMgr初始化完成")
     
     @classmethod
     def getInstance(cls) -> 'CTaskMgr':
@@ -333,37 +333,15 @@ def cancelTask(appName: str = None, templateId: str = None) -> bool:
         取消任务
     """
     try:
+        task = taskMgr.curTask
         if appName and templateId:
             # 取消指定任务
             task = taskMgr._getTask(appName, templateId)
-            if task:
-                # 先设置任务状态为失败
-                task.cancel()
-                # 发送取消事件到服务器
-                from CClient import client
-                if client:
-                    client.emit('C2S_CancelTask', {
-                        'app_name': appName,
-                        'task_name': templateId
-                    })
-                    Log.i(f"已发送取消任务请求: {appName}/{templateId}")
-                return True
-            else:
-                Log.w(f"未找到任务: {appName}/{templateId}")
-                return False
+        if task:
+            # 先设置任务状态为失败
+            return task.cancel()
         else:
-            if taskMgr.curTask:
-                # 先设置任务状态为失败
-                taskMgr.curTask.cancel()
-                # 发送取消当前任务事件
-                from CClient import client
-                if client:
-                    client.emit('C2S_CancelTask', {
-                        'app_name': taskMgr.curTask.appName,
-                        'task_name': taskMgr.curTask.taskName
-                    })
-                    # Log.i("已发送取消当前任务请求")
-                return True
+            Log.w(f"未找到任务: {appName}/{templateId}")
             return False
     except Exception as e:
         Log.ex(e, "取消任务异常")

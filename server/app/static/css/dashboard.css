@@ -15,11 +15,11 @@
     padding: 10px;
     border: 1px solid #ddd;
     border-radius: 8px;
-    background-color: #2d2d2d;
+    background-color: #2d2d2d;  /* 默认背景色 */
     transition: all 0.3s ease;
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
+    background-size: cover !important;  /* 确保背景图片覆盖 */
+    background-position: center !important;
+    background-repeat: no-repeat !important;
     cursor: pointer;
 }
 
@@ -53,6 +53,15 @@
     opacity: 0.7;
 }
 
+/* 在线和登录状态的设备 */
+.device-card.online,
+.device-card.login {
+    filter: none;
+    opacity: 1;
+    background-color: transparent;  /* 移除背景色以显示背景图 */
+}
+
+/* 选中状态的设备卡片 */
 .device-card.selected {
     border: 3px solid #28a745;
     box-shadow: 0 0 15px rgba(40, 167, 69, 0.5);
@@ -110,24 +119,44 @@
     display: block;  /* 有任务时显示 */
 }
 
+.task-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+}
+
 .task-name {
     font-size: 14px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    margin-bottom: 5px;
+    flex: 1;
+}
+
+.task-efficiency {
+    font-size: 12px;
+    color: #00BCD4;
+    margin-left: 8px;
+    white-space: nowrap;
+}
+
+.task-score {
+    font-weight: bold;
+}
+
+.expected-score {
+    color: #FFA500;  /* 橙色 */
+}
+
+.actual-score {
+    color: #4CAF50;  /* 绿色 */
 }
 
 .task-progress {
     display: flex;
     align-items: center;
     gap: 10px;
-}
-
-.expected-score {
-    color: #FFA500;  /* 橙色 */
-    font-weight: bold;
-    font-size: 14px;
 }
 
 .flex-spacer {
@@ -537,4 +566,35 @@
 .score {
     color: #4CAF50;
     font-weight: bold;
+}
+
+.task-stats {
+    margin-top: 5px;
+    font-size: 12px;
+    color: #888;
+    text-align: right;
+}
+
+.unfinished-count {
+    background: rgba(255, 165, 0, 0.2);
+    padding: 2px 6px;
+    border-radius: 10px;
+    color: #FFA500;
+}
+
+.task-date {
+    font-size: 12px;
+    color: #888;
+    text-align: center;
+    margin-bottom: 5px;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 2px;
+    border-radius: 4px;
+}
+
+.task-count {
+    background: rgba(0, 150, 136, 0.2);
+    padding: 2px 6px;
+    border-radius: 10px;
+    color: #009688;
 }

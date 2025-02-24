@@ -2,7 +2,6 @@ from flask import request, current_app
 from flask_socketio import emit, join_room, rooms
 from datetime import datetime
 import json
-from .database import db  # 直接从 database.py 导入 db
 from .command_history import CommandHistory
 from .SCommand import SCommand
 from scripts.logger import Log
@@ -22,19 +21,19 @@ class DateTimeEncoder(json.JSONEncoder):
         return super().default(obj)
     
 
-
 @socketio.on('connect')
 def handle_connect():
     """处理客户端连接"""
     try:
-        print(f"新的连接请求 - SID: {request.sid}")
-        Log.i(f"新的连接请求 - SID: {request.sid}")
-        
         device_id = request.args.get('device_id')
         client_type = request.args.get('client_type')
+        Log.i(f'收到连接请求: {device_id} {client_type}')
         
         if client_type == 'console':
             deviceMgr.add_console(request.sid)
+            # 刷新所有设备状态
+            for device in deviceMgr.devices.values():
+                device.refresh()
             return True
             
         elif device_id:
@@ -45,15 +44,11 @@ def handle_connect():
                 
                 device.info['sid'] = request.sid
                 device.info['connected_at'] = str(datetime.now())
-                deviceMgr.update_device(device)
-                
-                device.onConnect()            
-                device.login()
+                device.onConnect()  # onConnect 内部会调用 refresh
                 return True
                 
     except Exception as e:
         Log.ex(e, '处理连接时出错')
-    
     return False
 
 @socketio.on('disconnect')
@@ -73,15 +68,16 @@ def handle_disconnect():
 
 @socketio.on('device_login')
 def handle_login(data):
+    """处理设备登录"""
     device_id = data.get('device_id')
-    print(f'收到登录请求: {device_id}')
     if not device_id:
-        return    
+        return
+        
     device = deviceMgr.get_device(device_id)
     if not device:
         return
-    ok = device.login()
-    # 向设备发送结果
+        
+    ok = device.login()  # login 内部会调用 refresh
     emit('S2B_CmdResult', {'result': ok}, room=device.info['sid'])
 
 

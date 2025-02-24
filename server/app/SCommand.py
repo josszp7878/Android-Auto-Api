@@ -1,12 +1,14 @@
-from datetime import datetime
+from datetime import datetime,date
 from flask import current_app, has_request_context
 from flask_socketio import emit
+from sqlalchemy import func  # 添加这行导入
 from .models import db
 from .command_history import CommandHistory
 from .SDeviceMgr import SDeviceMgr
 from scripts.logger import Log
 from scripts.tools import TaskState  # 使用统一的 TaskState
-from .STask import STask  # 只导入 STask
+from .STask import STask 
+
 
 class SCommand:
     """服务器命令处理类"""
@@ -23,6 +25,8 @@ class SCommand:
         '@progress': ('查询任务进度，用法: @progress <deviceId> <appName> <taskName>', '_cmd_progress'),
         '@resume': ('继续当前设备的暂停任务', '_cmd_resume'),
         '@debug': ('显示调试信息', '_cmd_debug'),
+        '@tasks': ('显示任务', '_cmd_show_tasks'),
+        '@date': ('设置任务管理器日期，格式: YY-M-D', '_cmd_set_date'),
     }
     
     @staticmethod
@@ -78,15 +82,8 @@ class SCommand:
                 response = handler(args)
         except Exception as e:
             response = f'执行服务器命令出错: {e}'
-        # 如果在Web上下文中，通过WebSocket发送
-        if has_request_context():
-            SDeviceMgr().emit2Console('S2B_CmdResult', {
-                'result': response,
-                'device_id': '@'
-            })
-        else:
-            print(response)
-    
+        Log.log(response)
+       
     @staticmethod
     def _cmd_help(args=None):
         """显示帮助信息"""
@@ -435,3 +432,104 @@ class SCommand:
             return '\n'.join([f"{k}: {v}" for k, v in info.items()])
         except Exception as e:
             return f"调试信息获取失败: {str(e)}"    
+
+    @staticmethod
+    def _cmd_show_tasks(args):
+        """显示当前设备的任务列表
+        用法: @tasks [参数]
+        参数:
+          - 空: 显示未完成的任务
+          - 所有: 显示今天所有任务
+        """
+        try:
+            deviceMgr = SDeviceMgr()
+            device_id = deviceMgr.curDeviceID
+            if not device_id:
+                return "e##未选择设备"
+            
+            device = deviceMgr.get_device(device_id)
+            if not device:
+                return "e##设备不存在"
+            
+            # 获取任务管理器的当前日期
+            target_date = device.taskMgr.date  # 使用属性而不是直接访问 _date
+            if not target_date:
+                return "e##任务管理器日期未设置"
+            
+            # 基础查询条件
+            query = STask.query.filter(
+                STask.deviceId == device_id,
+                func.date(STask.time) == target_date
+            )
+            # 根据参数决定是否只查询未完成任务
+            show_all = len(args) > 0 and args[0] == "所有"
+            if not show_all:
+                query = query.filter(STask.state.in_([
+                    TaskState.RUNNING.value,
+                    TaskState.PAUSED.value
+                ]))
+            
+            # 按时间倒序获取任务
+            tasks = query.order_by(STask.time.desc()).all()
+            
+            if not tasks:
+                date_str = target_date.strftime('%Y-%m-%d')
+                return f"i##{date_str}没有{'' if show_all else '未完成的'}任务"
+            
+            # 构建JSON格式的任务列表
+            task_list = []
+            for task in tasks:
+                progress = f"{task.progress * 100:.1f}" if task.progress else "0"
+                task_list.append({
+                    "应用": task.appName,
+                    "任务": task.taskName,
+                    "状态": task.state,
+                    "进度": progress,
+                    "时间": task.time.strftime("%H:%M:%S")
+                })
+            
+            import json
+            return "i##" + json.dumps(task_list, ensure_ascii=False, indent=2)
+            
+        except Exception as e:
+            Log.ex(e, "获取任务列表失败")
+            return f"e##获取任务列表失败: {str(e)}"    
+
+    @staticmethod
+    def _cmd_set_date(args):
+        """设置任务管理器日期
+        用法: @date YY-M-D
+        示例: @date 25-1-23 表示2025年1月23日
+        """
+        try:
+            # 如果没有参数，使用今天的日期
+            target_date = date.today()
+            
+            if args:  # 有参数才尝试解析
+                try:
+                    # 解析日期字符串
+                    yy, m, d = map(int, args[0].split('-'))
+                    # 转换为完整年份
+                    year = 2000 + yy if yy < 100 else yy
+                    # 创建日期对象
+                    target_date = datetime(year, m, d).date()
+                except ValueError:
+                    return "e##日期格式错误，请使用 YY-M-D 格式"
+            
+            # 获取当前设备
+            deviceMgr = SDeviceMgr()
+            device_id = deviceMgr.curDeviceID
+            if not device_id:
+                return "e##未选择设备"
+            
+            device = deviceMgr.get_device(device_id)
+            if not device:
+                return "e##设备不存在"
+            
+            # 使用属性设置日期,会自动触发刷新
+            device.taskMgr.date = target_date
+            return f"i##已设置任务管理器日期为: {target_date.strftime('%Y-%m-%d')}"
+                
+        except Exception as e:
+            Log.ex(e, "设置日期失败")
+            return f"e##设置日期失败: {str(e)}"    

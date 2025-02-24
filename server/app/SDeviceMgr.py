@@ -11,8 +11,6 @@ class SDeviceMgr:
     """设备管理器：管理所有设备"""
     
     _instance = None
-    _devices = None  # 提前定义类变量
-
     def __new__(cls):
         if not cls._instance:
             cls._instance = super().__new__(cls)
@@ -24,25 +22,25 @@ class SDeviceMgr:
         if not hasattr(self, 'initialized'):
             self.console_sids = set()  # 存储控制台的 SID
             self.initialized = True
+            self._devices = None
 
     @property
     def devices(self):
-        # print(f'@@@@@####devices: {len(self._devices)}')
         if self._devices is None:
-            self._devices = self._load_from_db()
+            self._devices = self._load()
         return self._devices
-
     
-    def _load_from_db(self):
+    def _load(self):
         try:
             deviceList = {}
+            Log.i(f'加载数据库设备列表 &&&&')
             with current_app.app_context():  # 添加应用上下文
                 for device_model in DeviceModel.query.all():
                     device = SDevice(device_model.device_id)
-                    device._status = device_model.status
-                    device.last_seen = device_model.last_seen
+                    device.init(device_model)
                     deviceList[device.device_id] = device
             Log.i(f'从数据库加载了 {len(deviceList)} 个设备')
+
             return deviceList
         except Exception as e:
             Log.ex(e, '加载数据库出错')
@@ -69,6 +67,7 @@ class SDeviceMgr:
     def add_device(self, device_id):
         """添加新设备"""
         device = SDevice(device_id)
+        device.init()
         self.devices[device_id] = device
         self._save_to_db(device)
         Log.i(f'添加设备: {device_id}')
@@ -171,8 +170,17 @@ class SDeviceMgr:
         return list(self.console_sids)
 
     def emit2Console(self, event, data):
-        for sid in self.console_sids:
-            emit(event, data, room=sid)
+        """向所有控制台发送事件"""
+        try:
+            if not self.console_sids:
+                Log.w('没有连接的控制台')
+                return
+            
+            # Log.i(f'向控制台发送事件 {event}: {data}')
+            for sid in self.console_sids:
+                emit(event, data, room=sid)
+        except Exception as e:
+            Log.ex(e, f'向控制台发送事件 {event} 失败')
 
 
 deviceMgr = SDeviceMgr()

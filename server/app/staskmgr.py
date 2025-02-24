@@ -1,126 +1,143 @@
-from typing import Dict, Optional
+from typing import Optional, List
 from .STask import STask
-from scripts.tools import TaskState
-from .database import commit
 from scripts.logger import Log
-from datetime import datetime
-from flask import current_app
+from datetime import datetime, date
 from scripts.tools import Tools
+from sqlalchemy import func
+from .Database import db  # 导入单例的db实例
+from scripts.tools import TaskState
 
 class STaskMgr:
     """设备任务管理器"""
     
-    def __init__(self):
-        self.tasks = {}  # taskId -> STask
-        self._current_task = None  # 私有变量存储当前任务
+    def __init__(self, device):
+        self._device = device
+        self._date = date.today()
+        self._current_task = None
+        self.tasks = []  # 改为列表存储，按创建时间排序
 
     @property
     def currentTask(self) -> Optional[STask]:
         """获取当前任务"""
         return self._current_task
-
     @currentTask.setter
     def currentTask(self, task: Optional[STask]):
-        """设置当前任务，并通知界面更新
-        Args:
-            task: 要设置的任务，None表示清除当前任务
-        """
-        if not task:
-            # 如果任务为空，则获取最近的未结束任务
-            task = self.getRunningTask(self.currentTask.appName, self.currentTask.taskName)
-        self._current_task = task
-        Log.i(f"设置当前任务: {task}")
-        STask.refresh(task)
-        
-    def init(self,device_id:str):
-        self.device_id = device_id
-        self._load()
-
-    def _load(self):
-        """从数据库加载该设备的未完成任务"""
+        """设置当前任务"""
         try:
-            # 加载所有未完成的任务（运行中或暂停的）
-            unfinished_tasks = STask.query.filter(
-                STask.deviceId == self.device_id,
-                STask.state.in_([TaskState.RUNNING.value, TaskState.PAUSED.value])
-            ).order_by(STask.time.desc()).all()
+            if task is None:
+                # 如果当前有任务，尝试获取同类型的下一个未完成任务
+                if self._current_task:
+                    next_task = self.getRunningTask(
+                        self._current_task.appName, 
+                        self._current_task.taskName, 
+                        create=False
+                    )
+                    self._current_task = next_task            
+            else:
+                if task.completed:
+                    Log.e(f"任务 {task.taskName} 已完成，无法设置为当前任务")
+                    return
+                # 如果任务未完成，直接设置
+                self._current_task = task            
+            # 刷新任务状态
+            if self._current_task:
+                STask.refresh(self._current_task)
             
-            for task in unfinished_tasks:
-                task_id = Tools._toTaskId(task.appName, task.taskName)
-                self.tasks[task_id] = task
-                
-            # 设置最近的任务为当前任务
-            if unfinished_tasks:
-                self.currentTask = unfinished_tasks[0]
-                # 设置为暂停状态
-                self.currentTask.state = TaskState.PAUSED.value
-                commit(self.currentTask)
-                
-            Log.i(f"设备 {self.device_id} 加载了 {len(unfinished_tasks)} 个未完成任务")
         except Exception as e:
-            Log.ex(e, f'加载设备 {self.device_id} 的任务失败')
+            Log.ex(e, "设置当前任务失败")
+    
+    @property
+    def date(self):
+        return self._date
+        
+    @date.setter
+    def date(self, value):
+        """设置任务管理器日期,并刷新设备信息"""
+        self._date = value
+        # 日期变更后刷新设备信息
+        if self._device:
+            self._device.refresh()
 
+    def getTodayScore(self) -> int:
+        """获取今日任务得分"""
+        try:
+            today = datetime.now().date()
+            today_tasks = STask.query.filter(
+                STask.deviceId == self._device.id,
+                STask.time >= today
+            ).all()
+            return sum(task.score for task in today_tasks if task.score is not None)
+        except Exception as e:
+            Log.ex(e, "获取今日任务得分失败")
+            return 0
 
-    def _getRunningTask(self, task_id: str) -> Optional[STask]:
-        """根据任务ID查找未结束的任务"""
-        task = self.tasks.get(task_id)
-        Log.i(f"当前任务数量: {len(self.tasks)}")
-        if task and task.state in [TaskState.RUNNING.value, TaskState.PAUSED.value]:
-            return task
-        return None
+    def init(self,device_id:str):
+        Log.i(f"初始化任务管理器########: {device_id}")
+        self._device.id = device_id
+
+    def _getTasks(self, appName: str, taskName: str, notCompleted: bool = False) -> List[STask]:
+        try:
+            taskId = Tools._toTaskId(appName, taskName)
+            tasks = [t for t in self.tasks if t.taskId == taskId]
+            if notCompleted:
+                tasks = [t for t in tasks if not t.completed]
+            return tasks
+        except Exception as e:
+            Log.ex(e, f'获取任务失败: {taskId}')
+            return []
 
     def getRunningTask(self, appName: str, taskName: str, create: bool = False) -> Optional[STask]:
-        """获取正在运行的任务,如果没有且create=True则创建新任务
-        
-        Args:
-            appName: 应用名称
-            taskName: 任务名称
-            create: 是否在任务不存在时创建新任务
-            
-        Returns:
-            STask: 任务实例，如果没有找到且不创建则返回 None
-        """
-        task_id = Tools._toTaskId(appName, taskName)
-        task = self._getRunningTask(task_id)
-        Log.i(f"获取未结束的任务: {task_id}, 结果: {task}")
-        if task:
-            return task
-        with current_app.app_context():
-            # 只查询运行中或暂停的任务
+        """获取运行中的任务,如果没有且create=True则创建新任务"""
+        try:
+            # 先从缓存中查找未完成的同类任务
+            tasks = self._getTasks(appName, taskName, True)
+            if tasks:
+                # 不需要重新add，直接返回
+                return tasks[0]
+                
+            # 从数据库查询未完成的同类任务
             task = STask.query.filter(
-                STask.deviceId == self.device_id,
+                STask.deviceId == self._device.id,
                 STask.appName == appName,
                 STask.taskName == taskName,
-                STask.state.in_([TaskState.RUNNING.value, TaskState.PAUSED.value])
-            ).order_by(STask.time.desc()).first()  # 取最新的未结束任务
+                STask.state.in_([
+                    TaskState.RUNNING.value,
+                    TaskState.PAUSED.value
+                ])
+            ).order_by(STask.time.desc()).first()
             
-            if task is None and create:
-                # 创建新任务
-                task = STask(self.device_id, appName, taskName)
-                if task:
-                    self.tasks[task_id] = task
-                    commit(task)
-                    Log.i(f"设备 {self.device_id} 创建新任务: {appName}/{taskName}")
             if task:
-                # 缓存已存在的任务
-                self.tasks[task_id] = task
-        return task
-
-    def getCurrentTask(self) -> Optional[dict]:
-        """获取当前任务信息"""
-        if self.currentTask:
+                Log.d("找到了任务，添加到缓存并返回")
+                # 查询出的对象已经被session跟踪，不需要重新add
+                self.tasks.append(task)
+                return task
+                
+            # 没找到任务且需要创建
+            if create:
+                task = STask(self._device.id, appName, taskName)
+                # 只有新创建的任务需要add
+                db.session.add(task)
+                db.session.commit()
+                self.tasks.append(task)
+                Log.i(f"设备 {self._device.id} 创建新任务: {appName}/{taskName}")
+                return task
+            
+            return None
+            
+        except Exception as e:
+            Log.ex(e, f'获取任务失败: {appName}/{taskName}')
+            return None
+        
+    def getTaskStats(self) -> dict:
+        """获取任务统计信息"""
+        try:
+            total = len(self.tasks)
+            unfinished = len([t for t in self.tasks if not t.completed])
             return {
-                'taskName': self.currentTask.taskName,
-                'appName': self.currentTask.appName,
-                'progress': self.currentTask.progress,
-                'state': self.currentTask.state,
-                'expectedScore': self.currentTask.expectedScore
+                'date': self._date.strftime('%Y-%m-%d'),
+                'total': total,
+                'unfinished': unfinished
             }
-        return None
-    
-    def removeTask(self, task:STask):
-        """删除任务"""
-        if task:
-            task_id = Tools._toTaskId(task.appName, task.taskName)
-            self.tasks.pop(task_id, None)
-            task.cancel()
+        except Exception as e:
+            Log.ex(e, '获取任务统计失败')
+            return {'date': self._date.strftime('%Y-%m-%d'), 'total': 0, 'unfinished': 0}

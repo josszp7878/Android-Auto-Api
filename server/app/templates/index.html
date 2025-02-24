@@ -15,10 +15,13 @@
                 <div class="devices-container">
                     <div class="device-wrapper" v-for="(device, id) in devices" :key="id">
                         <div class="device-card" 
-                             :class="{ offline: !device.online, selected: device.id === selectedDevice }" 
-                             :id="'device-' + device.id"
-                             :style="{ 'background-image': `url(${device.screenshot || '/static/screenshots/default.jpg'})` }"
-                             @click.stop="selectDevice(id)">
+                             :id="'device-' + id"
+                             :class="[device.status, { selected: selectedDevice === id }]"
+                             :style="{
+                                 backgroundImage: `url(${device.screenshot || '/static/screenshots/default.jpg'})`,
+                                 backgroundColor: 'transparent'
+                             }"
+                             @click="selectDevice(id)">
                             <div class="device-info">
                                 <div class="device-header">
                                     <h5 class="device-name">[[ id ]]</h5>
@@ -27,12 +30,29 @@
                                     </div>
                                 </div>
                                 <div class="task-info" :class="{ active: device.currentTask }">
-                                    <div class="task-name" v-if="device.currentTask">
-                                        [[ device.currentTask.displayName ]]
+                                    <div class="task-date" v-if="device.currentTask">
+                                        [[ device.currentTask.taskStats.date ]]
+                                    </div>
+                                    <div class="task-header" v-if="device.currentTask">
+                                        <span class="task-name">[[ device.currentTask.displayName ]]</span>
+                                        <span class="task-efficiency" v-if="device.currentTask.efficiency">
+                                            [[ device.currentTask.efficiency ]]分/时
+                                        </span>
                                     </div>
                                     <div class="task-progress" v-if="device.currentTask">
-                                        <canvas :ref="'progress-' + device.id" width="40" height="40"></canvas>
-                                        <span class="score" v-if="device.currentTask.score">[[ device.currentTask.score ]]</span>
+                                        <canvas :ref="'progress-' + id" width="40" height="40"></canvas>
+                                        <span class="task-score" 
+                                              :class="{ 
+                                                  'expected-score': device.currentTask.state === 'running',
+                                                  'actual-score': device.currentTask.state === 'success'
+                                              }">
+                                            [[ device.currentTask.state === 'running' 
+                                                ? '=>' + device.currentTask.expectedScore 
+                                                : '+' + device.currentTask.score ]]
+                                        </span>
+                                    </div>
+                                    <div class="task-stats" v-if="device.currentTask">
+                                        <span class="task-count">待完成: [[ device.currentTask.taskStats.unfinished ]]/[[ device.currentTask.taskStats.total ]]</span>
                                     </div>
                                 </div>
                             </div>

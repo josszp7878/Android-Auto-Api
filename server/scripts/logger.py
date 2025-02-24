@@ -260,6 +260,16 @@ class Log:
     def e(cls, message, tag=None):
         """输出错误级别日志"""
         Log()._log(message, 'e', tag)
+    
+    @classmethod
+    def log(cls, message):
+        """根据消息格式解析日志级别并输出日志"""
+        # 解析日志级别
+        level = 'i'  # 默认为info级别
+        if message.startswith(('e##', 'w##', 'i##', 'd##')):
+            level = message[0]
+            message = message[3:]  # 去掉前缀
+        Log()._log(message, level)
 
     @classmethod
     def formatEx(cls, message, e=None, tag=None):

@@ -9,24 +9,31 @@ from .STaskMgr import STaskMgr
 class SDevice:
     """设备类：管理设备状态和信息"""
     
-    def __init__(self, device_id, info=None):
+    def __init__(self, device_id):
         self.device_id = device_id
-        self.info = info or {}
+        self.info = {}
         self._status = 'offline'
         self.last_seen = datetime.now()
         self.total_score = 0  # 设备总分
-        self.currentTask = None
         self._lastScreenshot = None
         self._ensure_screenshot_dir()
-        self._taskMgr = None  # 初始化为 None
+        
+    def init(self, model: DeviceModel = None):
+        Log.i(f'初始化设备&&&: {self.device_id}')
+        if model:
+            self.device_id = model.device_id
+            self._status = model.status
+            self.last_seen = model.last_seen
+            self.total_score = model.total_score
+        self.taskMgr.init(self.device_id)
+
+        
 
     @property
     def taskMgr(self)->STaskMgr:  # 改为小写，符合 Python 命名规范
         """懒加载任务管理器"""
-        if self._taskMgr is None:  # 使用 _taskMgr 私有属性存储实例
-            from .STaskMgr import STaskMgr
-            self._taskMgr = STaskMgr()  
-            self._taskMgr.init(self.device_id)
+        if not hasattr(self, '_taskMgr'):
+            self._taskMgr = STaskMgr(self)  
         return self._taskMgr
     
     def _ensure_screenshot_dir(self):
@@ -49,12 +56,12 @@ class SDevice:
         """同步设备状态到数据库"""
         try:
             with current_app.app_context():
-                device_model = DeviceModel.query.filter_by(device_id=self.device_id).first()
-                if device_model:
-                    device_model.status = self._status
-                    device_model.last_seen = self.last_seen
-                    device_model.total_score = self.total_score
-                    db.session.add(device_model)
+                model = DeviceModel.query.filter_by(device_id=self.device_id).first()
+                if model:
+                    model.status = self._status
+                    model.last_seen = self.last_seen
+                    model.total_score = self.total_score
+                    db.session.add(model)
                     db.session.commit()
                     # print(f'设备 {self.device_id} 状态已同步到数据库')
         except Exception as e:
@@ -62,88 +69,95 @@ class SDevice:
 
     
     def onConnect(self):
+        """设备连接回调"""
         try:
             self.status = 'online'
             Log.i(f'设备 {self.device_id} 已连接')
             self._commit()
-            self.refresh()
+            self.refresh()  # 统一刷新状态
             return True
         except Exception as e:
-            Log.ex(e, '设备 {self.device_id} 连接处理失败')
+            Log.ex(e, '设备连接处理失败')
             return False
     
     def onDisconnect(self):
+        """设备断开连接回调"""
         try:
             self.status = 'offline'
             Log.i(f'设备 {self.device_id} 已断开连接')
             self._commit()
-            self.refresh()
+            self.refresh()  # 统一刷新状态
             return True
         except Exception as e:
-            Log.ex(e, '设备 {self.device_id} 断开连接处理失败')
+            Log.ex(e, '设备断开连接处理失败')
             return False
+
     def login(self):
-        Log.i(f'设备 {self.device_id} 登录')
+        """设备登录"""
         try:
             self.status = 'login'
             self.info['login_time'] = str(datetime.now())
             self._commit()
-            self.refresh()
+            self.refresh()  # 统一刷新状态
             return True
         except Exception as e:
-            Log.ex(e, '设备 {self.device_id} 登录失败')
+            Log.ex(e, '设备登录失败')
             return False
     
     def logout(self):
-        Log.w(f'设备 {self.device_id} 登出')
+        """设备登出"""
         try:
             self.status = 'logout'
             self.info['logout_time'] = str(datetime.now())
             self._commit()
-            self.refresh()
+            self.refresh()  # 统一刷新状态
             return True
         except Exception as e:
-            Log.ex(e, '设备 {self.device_id} 登出失败')
+            Log.ex(e, '设备登出失败')
             return False    
         
+    def refresh(self):
+        """刷新设备状态到前端"""
+        try:
+            from .SDeviceMgr import deviceMgr
+            # 统一使用 to_dict() 获取设备信息
+            deviceMgr.emit2Console('S2B_DeviceUpdate', self.to_dict())
+            self.taskMgr.currentTask = None
+            Log.i(f'设备 {self.device_id} 状态已刷新')
+
+        except Exception as e:
+            Log.ex(e, '刷新设备状态失败')
+
     def to_dict(self):
-        """返回设备信息字典
-        Returns:
-            dict: {
-                deviceId: 设备ID,
-                status: 设备状态,
-                screenshot: 截图路径,
-                screenshotTime: 截图时间(HH:MM:SS)
-            }
-        """
-        # 获取截图文件的最后修改时间
+        """返回设备信息字典"""
+        # 获取截图信息
         screenshotTime = None
         screenshotFile = None
         
         if self._lastScreenshot:
             try:
-                # 获取文件时间
                 mtime = datetime.fromtimestamp(Path(self._lastScreenshot).stat().st_mtime)
                 screenshotTime = mtime.strftime('%H:%M:%S')
-                # 从绝对路径中提取相对路径(从static开始)
-                screenshotFile = '/static' + str(self._lastScreenshot).replace('\\', '/').split('static')[1]
+                # 确保路径格式正确
+                screenshotFile = str(self._lastScreenshot).replace('\\', '/')
+                if 'static' in screenshotFile:
+                    screenshotFile = '/static' + screenshotFile.split('static')[1]
             except Exception as e:
                 Log.ex(e, '获取截图时间失败')
+        
+        # 如果没有截图，使用默认截图
+        if not screenshotFile:
+            screenshotFile = '/static/screenshots/default.jpg'
         
         return {
             'deviceId': self.device_id,
             'status': self.status,
             'screenshot': screenshotFile,
-            'screenshotTime': screenshotTime
+            'screenshotTime': screenshotTime,
+            'todayTaskScore': self.taskMgr.getTodayScore() if hasattr(self, 'taskMgr') else 0,
+            'totalScore': self.total_score
         }
     
-    def refresh(self): 
-        try:
-            from .SDeviceMgr import deviceMgr
-            deviceMgr.emit2Console('refresh_device', self.to_dict())
-        except Exception as e:
-            Log.ex(e, '刷新设备状态失败')    
-        
     def saveScreenshot(self, base64_data):
         """保存截图并刷新设备信息
         Args:

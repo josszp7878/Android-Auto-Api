@@ -1,8 +1,9 @@
 from datetime import datetime
 from typing import Optional, Dict, Callable, Any
-from tools import TaskState
+from tools import TaskState, Tools
 from logger import Log
 import time
+
 
 
 class CTask:
@@ -12,7 +13,6 @@ class CTask:
         self.appName = appName
         self.taskName = taskName
         self.startTime: Optional[datetime] = None
-        self.endTime: Optional[datetime] = None
         self.reward: float = 0.0
         self.state = TaskState.RUNNING
         self.progress: float = 0.0  # 0-100
@@ -43,7 +43,7 @@ class CTask:
         """开始任务"""
         try:
             self.startTime = datetime.now()
-            Log.i(f"开始任务: {self.taskName}")
+            # Log.i(f"开始任务: {self.taskName}")
             fun = self.template.start
             if fun:
                 return fun(self)
@@ -52,34 +52,7 @@ class CTask:
             Log.ex(e, f"开始任务失败: {self.taskName}")
             return False
             
-    def do(self) -> bool:
-        """执行任务"""
-        try:
-            Log.i(f"执行任务: {self.taskName}")
-            self.state = TaskState.RUNNING
-            fun = self.template.do
-            if fun:
-                return fun(self)
-        except Exception as e:
-            Log.ex(e, f"执行任务失败: {self.taskName}")
-            self.state = TaskState.FAILED
-            return False
             
-    def end(self) -> bool:
-        """结束任务"""
-        try:
-            self.endTime = datetime.now()
-            Log.i(f"结束任务: {self.taskName}")
-            fun = self.template.end
-            if fun:
-                return fun(self)
-            return True
-            
-        except Exception as e:
-            Log.ex(e, f"结束任务失败: {self.taskName}")
-            self.state = TaskState.FAILED
-            return False
-
     def update(self, progress: float):
         """更新任务进度"""
         # 确保进度在0-1之间
@@ -105,35 +78,41 @@ class CTask:
             if params:
                 for key, value in params.items():
                     setattr(self, key, value)                    
-            self.start()
+            if not self.start():
+                self.cancel()
+                return self.state
             curTime = datetime.now()
             pastTime = 0
             while pastTime < self.duration:
-                if self.state != TaskState.RUNNING:
-                    break
-                self.do()
+                if not self.template.do(self):
+                    self.state = TaskState.FAILED
+                    return self.state
                 time.sleep(self.interval)
                 pastTime = (datetime.now() - curTime).total_seconds()
-                self.update(pastTime/self.duration)
+                self.update(pastTime/self.duration)                
             # 只有正常完成的任务才执行end
-            if self.state != TaskState.CANCELLED:
-                self.end()
-                result = self.state == TaskState.SUCCESS
-                # 发送任务结束消息,带上执行结果
-                from CClient import client
-                if client:
-                    client.emit('C2S_TaskEnd', {
-                        'app_name': self.appName,
-                        'task_name': self.taskName,
-                        'result': result,  # 添加执行结果
-                        'score': result and self.getScore() or 0
-                    })
+            if self.state != TaskState.PAUSED:
+               result = self.end()
+               return result if result else TaskState.FAILED
             return self.state
         except Exception as e:
             Log.ex(e, f"任务执行异常: {self.taskName}")
             self.state = TaskState.FAILED
             return self.state
 
+    def end(self) -> bool:
+        result = self.template.end(self)
+        # 发送任务结束消息,带上执行结果
+        from CClient import client
+        if client:
+            client.emit('C2S_TaskEnd', {
+                'app_name': self.appName,
+                'task_name': self.taskName,
+                'result': result,  # 添加执行结果
+                'score': result and self.getScore() or 0
+            })
+        return result
+    
     def stop(self):
         """停止任务"""
         if self.state == TaskState.RUNNING:
@@ -155,12 +134,22 @@ class CTask:
         self.score = score
         Log.i(f"任务 {self.taskName} 得分: {self.score}")
 
-    def cancel(self):
+    def cancel(self) -> bool:
         """取消任务"""
         try:
             if self.state == TaskState.RUNNING:
                 self.state = TaskState.CANCELLED
                 Log.i(f"任务 {self.taskName} 已取消")
+            # 发送取消事件到服务器
+            from CClient import client
+            if client:
+                client.emit('C2S_CancelTask', {
+                    'app_name': self.appName,
+                    'task_name': self.taskName
+                })
+                Log.i(f"已发送取消任务请求: {self.appName}/{self.taskName}")
+            from CTaskMgr import taskMgr
+            taskMgr.tasks.pop(Tools._toTaskId(self.appName, self.taskName))
             return True
         except Exception as e:
             Log.ex(e, "取消任务失败")

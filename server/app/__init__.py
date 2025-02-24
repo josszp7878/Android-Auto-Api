@@ -1,6 +1,5 @@
 from flask import Flask
 from flask_socketio import SocketIO
-from .database import init_db
 import logging
 import os
 import eventlet
@@ -43,9 +42,6 @@ def create_app(config_name='development'):
     
     # 加载配置
     app.config.from_object(config[config_name])
-    
-    # 初始化数据库
-    init_db(app)
     
     # 初始化 SocketIO
     socketio.init_app(

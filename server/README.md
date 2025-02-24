@@ -387,5 +387,5 @@
 
 ### 数据迁移步骤
 1. 初始化迁移: `flask db init`
-2. 创建迁移脚本: `flask db migrate -m "init mysql database"`
+2. 创建迁移脚本: `flask db migrate -m "init mysql Database"`
 3. 应用迁移: `flask db upgrade`
