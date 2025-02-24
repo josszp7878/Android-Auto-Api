@@ -135,8 +135,7 @@ class CTaskMgr:
             return False
         
 
-    def _startTask(self, appName: str, templateId: str, 
-                  params: Optional[Dict[str, str]] = None, 
+    def _startTask(self, appName: str, templateId: str, data: dict = None, 
                   onResult: Optional[Callable[[bool], None]] = None) -> CTask:
         """执行任务"""
         try:
@@ -158,7 +157,7 @@ class CTaskMgr:
             # 在新线程中执行任务
             thread = threading.Thread(
                 target=self._runTaskInThread,
-                args=(task, params, taskId)
+                args=(task, taskId, data)
             )
             thread.daemon = True
             thread.start()
@@ -187,10 +186,11 @@ class CTaskMgr:
             return None
         
             
-    def _runTaskInThread(self, task: CTask, params: Optional[Dict[str, str]], taskId: str):
+    def _runTaskInThread(self, task: CTask, taskId: str, data: dict = None):
         """在线程中执行任务"""
         try:
-            state = task.run(params)
+            Log.i(f"执行任务: {task.taskName}, 进度: {data.get('progress', 0)}")
+            state = task.run(data)
         except Exception as e:
             Log.ex(e, f"任务执行异常: {task.taskName}")
         finally:
@@ -220,7 +220,7 @@ class CTaskMgr:
 
 
 
-@regCmd(r'停止任务(?:\s+(?P<appName>[\w\s]+)\s+(?P<templateId>[\w\s]+))?')
+@regCmd(r'停止任务', r'(?:(?P<appName>[\w\s]+)\s+(?P<templateId>[\w\s]+))?')
 def stopTask(appName: str = None, templateId: str = None) -> bool:
     """停止指定任务或所有任务
     用法: 
@@ -244,22 +244,18 @@ def stopTask(appName: str = None, templateId: str = None) -> bool:
         else:
             if taskMgr.curTask:
                 taskMgr.curTask.stop()
-                # Log.i("当前任务已停止")
+                Log.i("当前任务已停止")
             return True
     except Exception as e:
         Log.ex(e, "停止任务异常")
         return False
 
-@regCmd(r'执行任务', r'(?:(?P<appName>[\w\s]+)\s+(?P<templateId>[\w\s]+)(?:\s+(?P<params>.+))?)?')
-def startTask(appName: str = None, templateId: str = None, params: str = None) -> bool:
+@regCmd(r'执行任务', r'(?:(?P<appName>[\w\s]+)\s+(?P<templateId>[\w\s]+))?')
+def startTask(appName: str = None, templateId: str = None, data: dict = None) -> bool:
     """执行指定任务或最近任务
     用法: 
-        执行任务 <应用名> <模板ID> [参数] - 执行指定任务
+        执行任务 <应用名> <模板ID> - 执行指定任务
         执行任务 - 执行最近任务
-    示例: 
-        执行任务 快手极速版 ad
-        执行任务 快手极速版 ad duration=30,closeBtn=关闭
-        执行任务  # 执行最近任务
     """
     try:
         # 如果没有参数,尝试执行最近任务
@@ -271,20 +267,15 @@ def startTask(appName: str = None, templateId: str = None, params: str = None) -
             templateId = taskMgr.lastTemplateId
             Log.i(f"执行最近任务: {appName}/{templateId}")
 
-        # 解析参数字符串
-        params_dict = None
-        if params:
-            try:
-                params_dict = dict(item.split('=') for item in params.split())
-            except Exception as e:
-                Log.ex(e, f"参数格式错误: {params}")
-                return False
+        # 获取初始进度
+        progress = data.get('progress', 0) if data else 0
+        Log.i(f"开始任务: {appName}/{templateId}, 从进度 {progress} 开始")
 
         # 记录本次任务信息
         taskMgr.lastAppName = appName
         taskMgr.lastTemplateId = templateId
         
-        taskMgr._startTask(appName, templateId, params_dict)
+        taskMgr._startTask(appName, templateId, data)
         return True
     except Exception as e:
         Log.ex(e, f"执行任务异常: {appName}/{templateId}")

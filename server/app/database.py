@@ -8,7 +8,7 @@ class Database:
     def getDB(cls) -> SQLAlchemy:
         if hasattr(cls, '_db'):
             return cls._db
-        print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+        # print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
         cls._db = SQLAlchemy()
         return cls._db
     

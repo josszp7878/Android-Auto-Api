@@ -121,7 +121,7 @@ class SDevice:
         try:
             from .SDeviceMgr import deviceMgr
             # 统一使用 to_dict() 获取设备信息
-            deviceMgr.emit2Console('S2B_DeviceUpdate', self.to_dict())
+            deviceMgr.emit2B('S2B_DeviceUpdate', self.to_dict())
             self.taskMgr.currentTask = None
             Log.i(f'设备 {self.device_id} 状态已刷新')
 

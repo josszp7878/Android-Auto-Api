@@ -290,7 +290,7 @@ class Dashboard {
                         });
                     }
                 },
-                drawProgressCircle(deviceId, progress, isRunning = true) {
+                drawProgress(deviceId, progress, isRunning = true) {
                     const canvas = this.$refs[`progress-${deviceId}`][0];
                     if (!canvas) return;
                     
@@ -333,17 +333,84 @@ class Dashboard {
                     if (device) {
                         const task = data.task;
                         if (task) {
-                            // 将进度从小数转换为百分比，但保持在0-1之间
                             task.progress = Math.min(task.progress, 1);
-                            task.displayName = `${task.appName}:${task.taskName}`;
                             
-                            // 根据进度判断任务是否完成
-                            const isRunning = task.progress < 1;
-                            
+                            this.$nextTick(() => {
+                                const taskInfo = document.querySelector(`#device-${data.deviceId} .task-info`);
+                                if (taskInfo) {
+                                    // 任务名区域点击处理
+                                    const progressArea = taskInfo.querySelector('.task-header');
+                                    if (progressArea && !task.completed) {
+                                        progressArea.style.cursor = 'pointer';
+                                        progressArea.onclick = (e) => {
+                                            e.stopPropagation();
+
+                                        };
+                                    }
+
+                                    // 日期区域点击处理
+                                    const statsArea = taskInfo.querySelector('.task-date');
+                                    if (statsArea) {
+                                        statsArea.style.cursor = 'pointer';
+                                        statsArea.onclick = (e) => {
+                                            e.stopPropagation();
+                                            const datePicker = document.createElement('input');
+                                            datePicker.type = 'date';
+                                            datePicker.onchange = (e) => {
+                                                const selectedDate = e.target.value;
+                                                this.socket.emit('2S_Command', {
+                                                    device_id: data.deviceId,
+                                                    command: `date ${selectedDate}`
+                                                });
+                                                datePicker.remove();
+                                            };
+                                            // 添加到DOM并触发点击
+                                            document.body.appendChild(datePicker);
+                                            datePicker.click();
+                                        };
+                                    }
+                                    // 进度区域点击处理
+                                    const taskProgress = taskInfo.querySelector('.task-progress');
+                                    if (taskProgress) {
+                                        taskProgress.style.cursor = 'pointer';
+                                        taskProgress.onclick = (e) => {
+                                            e.stopPropagation();
+                                            if (task.state === 'running') {
+                                                console.log("stop task")
+                                                this.socket.emit('2S_Command', {
+                                                    device_id: data.deviceId,
+                                                    command: 'stop'
+                                                });
+                                            } else if (task.state === 'paused') {
+                                                console.log("resume task")
+                                                this.socket.emit('2S_Command', {
+                                                    device_id: data.deviceId,
+                                                    command: 'resume'  
+                                                });
+                                            }
+                                        };
+                                    }
+                                    // 任务统计区域点击处理
+                                    const taskStats = taskInfo.querySelector('.task-stats');
+                                    if (taskStats) {
+                                        taskStats.style.cursor = 'pointer';
+                                        taskStats.onclick = (e) => {
+                                            e.stopPropagation();
+                                            this.socket.emit('2S_Command', {
+                                                device_id: data.deviceId,
+                                                command: 'tasks'
+                                            });
+                                        };
+                                    }
+                                }
+                            });
+
                             this.$set(device, 'currentTask', task);
                             this.$nextTick(() => {
-                                // 传入任务运行状态
-                                this.drawProgressCircle(data.deviceId, task.progress, isRunning);
+                                const progressRefs = this.$refs[`progress-${data.deviceId}`];
+                                if (progressRefs && progressRefs[0]) {
+                                    this.drawProgress(data.deviceId, task.progress, task.state === 'running');
+                                }
                             });
                         }
                     }
@@ -373,19 +440,19 @@ class Dashboard {
                     this.$nextTick(this.scrollToBottom);
                 });
                 
-                this.socket.on('S2B_CmdResult', (data) => {
-                    const content = data.result || '';
-                    let level = data.level || 'i';
+                // this.socket.on('S2B_CmdResult', (data) => {
+                //     const content = data.result || '';
+                //     let level = data.level || 'i';
                     
-                    // 更新最后一条命令的响应
-                    if (this.commandLogs.length > 0) {
-                        const lastLog = this.commandLogs[this.commandLogs.length - 1];
-                        lastLog.response = content;
-                        lastLog.level = level;
-                    }
+                //     // 更新最后一条命令的响应
+                //     if (this.commandLogs.length > 0) {
+                //         const lastLog = this.commandLogs[this.commandLogs.length - 1];
+                //         lastLog.response = content;
+                //         lastLog.level = level;
+                //     }
                     
-                    this.updateLastActivity();
-                });
+                //     this.updateLastActivity();
+                // });
 
                 this.socket.on('error', (data) => {
                     this.updateLastActivity();
@@ -624,34 +691,10 @@ class Dashboard {
                 // 统一处理任务更新事件
                 this.socket.on('S2B_TaskUpdate', (data) => {
                     console.log('收到任务更新:', data);
-                    const deviceId = data.deviceId;
-                    const task = data.task;
-                    
+                    const deviceId = data.deviceId;                    
                     if (this.devices[deviceId]) {
-                        if (!task) {
-                            // 如果task为null，清除当前任务显示
-                            this.$set(this.devices[deviceId], 'currentTask', null);
-                            // 隐藏任务面板
-                            const taskPanel = document.querySelector(`#device-${deviceId} .task-info`);
-                            if (taskPanel) {
-                                taskPanel.classList.remove('active');
-                            }
-                            return;
-                        }
-                        
-                        // 更新任务信息
-                        this.$set(this.devices[deviceId], 'currentTask', {
-                            ...task,
-                            displayName: task.displayName,  // 使用新的显示格式
-                            progress: task.progress || 0,
-                            state: task.state || 'running',
-                            unfinishedCount: task.unfinishedCount || 0  // 添加未完成任务数量
-                        });
-                        
-                        // 更新UI显示
-                        this.$nextTick(() => {
-                            this.drawProgressCircle(deviceId, task.progress, task.state === 'running');
-                        });
+                        // 使用updateDeviceTask处理任务更新
+                        this.updateDeviceTask(data);
                     }
                 });
 
@@ -668,4 +711,5 @@ class Dashboard {
             }
         });
     }
-} 
+}
+

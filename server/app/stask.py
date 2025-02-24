@@ -84,7 +84,7 @@ class STask(db.Model):
                 db.session.commit()
             
             # 刷新界面（传入None表示清除任务显示）
-            deviceMgr.emit2Console('S2B_TaskUpdate', {
+            deviceMgr.emit2B('S2B_TaskUpdate', {
                 'deviceId': self.deviceId,
                 'task': None
             })
@@ -212,7 +212,7 @@ class STask(db.Model):
                 stats = {'date': '', 'total': 0, 'unfinished': 0}
             
             # 发送任务更新事件
-            deviceMgr.emit2Console('S2B_TaskUpdate', {
+            deviceMgr.emit2B('S2B_TaskUpdate', {
                 'deviceId': task.deviceId,
                 'task': {
                     **task.to_dict(),

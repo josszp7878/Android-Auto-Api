@@ -23,6 +23,8 @@ class SDeviceMgr:
             self.console_sids = set()  # 存储控制台的 SID
             self.initialized = True
             self._devices = None
+            self._curDevice = None
+            self._curDeviceID = None
 
     @property
     def devices(self):
@@ -111,7 +113,12 @@ class SDeviceMgr:
     @curDeviceID.setter
     def curDeviceID(self, value):
         self._curDeviceID = value
+        self._curDevice = self.devices.get(value)
         # Log.i(f'设置当前设备ID: {value}')
+    @property
+    def curDevice(self):
+        return self._curDevice
+
 
     def update_device(self, device):
         try:
@@ -169,7 +176,7 @@ class SDeviceMgr:
         """获取所有控制台的 SID"""
         return list(self.console_sids)
 
-    def emit2Console(self, event, data):
+    def emit2B(self, event, data):
         """向所有控制台发送事件"""
         try:
             if not self.console_sids:

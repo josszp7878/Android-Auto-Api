@@ -19,5 +19,5 @@ server/logs
 *.log
 *.pyc
 /server/__pycache__
-/server/scripts/__pycache__
 /app/src/main/assets/scripts
+server/scripts/__pycache__

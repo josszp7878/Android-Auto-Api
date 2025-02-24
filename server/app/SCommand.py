@@ -27,6 +27,7 @@ class SCommand:
         '@debug': ('显示调试信息', '_cmd_debug'),
         '@tasks': ('显示任务', '_cmd_show_tasks'),
         '@date': ('设置任务管理器日期，格式: YY-M-D', '_cmd_set_date'),
+        '@stop': ('停止当前设备的当前任务', '_cmd_stop'),
     }
     
     @staticmethod
@@ -36,7 +37,7 @@ class SCommand:
             if command.startswith('@'):
                 return SCommand._doSeverCmd(command)
             else:
-                return SCommand._doClientCmd(device_id, command)
+                return SCommand._sendClientCmd(device_id, command)
         except Exception as e:
             Log.e('Server', f'执行命令出错: {e}')
             emit('error', {'message': '命令执行失败'})
@@ -180,36 +181,33 @@ class SCommand:
     
     
     @staticmethod
-    def _doClientCmd(device_id, command):
+    def _sendClientCmd(device_id, command, data=None):
         """执行设备命令"""
         try:
             with current_app.app_context():
                 device_manager = SDeviceMgr()
-                # 添加日志
-                Log.i('Server', f'执行设备命令: {device_id} -> {command}')
+                Log.i(f'发送客户端命令: {device_id} -> {command}, DATA: {data}')
                 
                 device = device_manager.get_device(device_id)
                 if device is None:
-                    Log.e('Server', f'设备 {device_id} 不存在')
+                    Log.e(f'设备 {device_id} 不存在')
                     return '设备不存在'
-                # 添加日志
-                Log.i('Server', f'设备状态: {device.status}')
                 
                 if device.status != 'login':
                     Log.w('Server', f'设备 {device_id} 未登录')
                     return '设备未登录'
                 
                 sid = device.info.get('sid')
-                # 添加日志
-                Log.i('Server', f'设备 SID: {sid}')
+                # Log.i('Server', f'设备 SID: {sid}')
                 
                 if sid:
                     try:
-                        # 直接通过 sid 发送命令
+                        # 通过 sid 发送命令，包含 data 参数
                         emit('S2C_DoCmd', {
                             'command': command,
                             'device_id': device_id,
-                            'sender': current_app.config['SERVER_ID']
+                            'sender': current_app.config['SERVER_ID'],
+                            'data': data  # 添加 data 参数
                         }, to=sid)
                         
                         Log.i('Server', f'命令已发送到设备 {device_id}')
@@ -265,7 +263,7 @@ class SCommand:
         if not logs:
             return "w##未找到匹配的日志"
         
-        SDeviceMgr().emit2Console('show_logs', {
+        SDeviceMgr().emit2B('show_logs', {
             'logs': logs,
             'filter': filter_str
         })
@@ -279,7 +277,7 @@ class SCommand:
             device_id = data.get('device_id')
             command = data.get('command')
             cmdName = data.get('cmdName')  # 获取命令方法名
-            sender = "@"
+            # sender = "@"
             level = result.split('#')[0] if '#' in result else 'i'
             
             deviceMgr = SDeviceMgr()
@@ -297,22 +295,7 @@ class SCommand:
                         result = '截图已更新'
                     else:
                         result = '截图更新失败'
-            # # 创建命令历史记录
-            # CommandHistory.create(
-            #     sender=sender,
-            #     target=device_id,
-            #     command=command,
-            #     level=level,
-            #     response=result
-            # )
-                
-            # 确保结果发送到控制台
-            deviceMgr.emit2Console('S2B_CmdResult', {
-                'result': result,
-                'level': level,
-                'device_id': device_id
-            })    
-            
+            Log.i(f'命令响应: {device_id} -> {command} = {result}', 'CMD')
         except Exception as e:
             Log.ex(e, '处理命令响应出错')
         # 解析level
@@ -325,12 +308,6 @@ class SCommand:
         else:
             level = 'i'
         Log()._log(f"{device_id}:{command}  => {result}", level, 'CMD')
-        
-        # 发送结果到控制台
-        # deviceMgr.emit2Console('S2B_CmdResult', {
-        #     'result': result,
-        #     'level': level,
-        # })    
 
     @staticmethod
     def _cmd_progress(args):
@@ -398,25 +375,50 @@ class SCommand:
                 return "e##设备不存在"
                 
             # 获取当前任务
-            current_task = device.taskMgr.current_task
-            if not current_task:
+            task = device.taskMgr.currentTask
+            if not task:
                 return "i##当前设备没有任务"
                 
             # 检查任务状态
-            if current_task.state != TaskState.PAUSED.value:
-                return f"i##当前任务状态为 {current_task.state}，不是暂停状态"
-                
-            # 向客户端发送启动任务消息
-            emit('S2C_StartTask', {
-                'app_name': current_task.appName,
-                'task_name': current_task.taskName
-            }, room=device.info.get('sid'))
-            
-            return f"i##已发送继续任务命令: {current_task.appName}/{current_task.taskName}"
+            if task.state != TaskState.PAUSED.value:
+                return f"i##当前任务状态为 {task.state}，不是暂停状态"
+            Log.i(f'继续任务: {task.appName} {task.taskName}, progress: {task.progress}')
+            # 向客户端发送启动任务消息，包含 progress 参数
+            SCommand._sendClientCmd(device_id, f"startTask {task.appName} {task.taskName}", data={'progress': task.progress})
             
         except Exception as e:
             Log.ex(e, "继续任务失败")
-            return f"e##继续任务失败: {str(e)}"    
+            return f"e##继续任务失败: {str(e)}"
+        
+    @staticmethod
+    def _cmd_stop(args) -> str:
+        """停止当前设备的当前任务
+        Args:
+            device_id: 设备ID
+            args: 参数列表(不需要)
+        Returns:
+            str: 执行结果
+        """
+        try:
+            deviceMgr = SDeviceMgr()
+            device_id = deviceMgr.curDeviceID
+            if not device_id:
+                return "e##未选择设备"
+            device = deviceMgr.get_device(device_id)
+            if not device:
+                return 'e##设备不存在'
+                
+            task = device.taskMgr.currentTask
+            if not task:
+                return 'w##当前没有运行中的任务'
+            Log.i(f'停止任务@@@ 状态: {task.state}', 'Server')
+            if task.state != TaskState.RUNNING.value:
+                return 'w##当前任务不在运行状态'
+            SCommand._sendClientCmd(device_id, f"stopTask {task.appName} {task.taskName}")
+            
+        except Exception as e:
+            Log.ex(e, "停止任务失败")
+            return f"e##停止任务失败: {str(e)}"           
 
     @staticmethod
     def _cmd_debug(args):
@@ -533,3 +535,5 @@ class SCommand:
         except Exception as e:
             Log.ex(e, "设置日期失败")
             return f"e##设置日期失败: {str(e)}"    
+
+   

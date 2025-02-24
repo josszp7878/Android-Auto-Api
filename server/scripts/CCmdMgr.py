@@ -37,56 +37,46 @@ class CCmdMgr:
             return func
         return decorator
     
-    def do(self, cmd):
+    def do(self, command, data=None):
         """执行命令"""
-        cmd = cmd.strip()
+        cmd = command.strip()
         if not cmd:
             return "w##空命令", None
             
-        # 分割命令名和参数
         cmdParts = cmd.split(None, 1)
         cmdName = cmdParts[0].lower()
         cmdArgs = cmdParts[1] if len(cmdParts) > 1 else ""
-        # Log.d(f"cmdName===> {cmdName}, cmdArgs===> {cmdArgs}")
-
+        
         try:
-            # print("\n当前命令注册表:")
-            # for k, v in self.cmdRegistry.items():
-            #     print(f"  {k}: ({v[0].__name__}, {v[1]})")
-            # print("\n当前方法名注册表:")
-            # for k, v in self.nameRegistry.items():
-            #     print(f"  {k}: ({v[0].__name__}, {v[1]})")
-
-            # 1. 查找匹配的命令
             func = param_pattern = None
             
-            # 先尝试正则命令名匹配
             for pattern, (f, p) in self.cmdRegistry.items():
                 if re.match(f"^{pattern}$", cmdName):
                     func, param_pattern = f, p
-                    #print(f"模式匹配到命令名: {cmdName} -> {f.__name__} param_pattern: {p}")
                     break
                     
-            # 再尝试方法名模糊匹配
             if not func:
                 for name, (f, p) in self.nameRegistry.items():
                     if name.startswith(cmdName):
                         func, param_pattern = f, p
-                        # print(f"模糊匹配到命令名: {cmdName} -> {f.__name__} param_pattern: {p}")
                         break
             
             if not func:
                 return "w##未知命令", None
 
-            # 2. 验证参数
             if not param_pattern:
-                # Log.d(f"cmdArgs===> {cmdArgs}")
-                return (func() if not cmdArgs else "w##该命令不支持参数"), func.__name__
+                return (func(data) if not cmdArgs else "w##该命令不支持参数"), func.__name__
             
             match = re.match(f"^{param_pattern}$", cmdArgs)
             if not match:
                 return "w##参数格式错误", func.__name__
-            return func(**match.groupdict()), func.__name__
+            
+            # 将 data 参数添加到 match.groupdict() 中
+            params = match.groupdict()
+            if data is not None:
+                params['data'] = data
+            
+            return func(**params), func.__name__
             
         except Exception as e:
             Log.ex(e, f'{cmd}命令执行错误')

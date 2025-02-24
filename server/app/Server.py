@@ -76,9 +76,8 @@ def handle_login(data):
     device = deviceMgr.get_device(device_id)
     if not device:
         return
-        
-    ok = device.login()  # login 内部会调用 refresh
-    emit('S2B_CmdResult', {'result': ok}, room=device.info['sid'])
+    ok = device.login()
+    Log.i(f'设备 {device_id} 登录结果: {ok}')
 
 
 @socketio.on('device_logout')
@@ -135,10 +134,10 @@ def handle_load_history(data):
     try:
         Log.i(f'加载设备 {device_id} 的历史记录, 页码: {page}')
         response_data = CommandHistory.getHistory(device_id, page, per_page)
-        deviceMgr.emit2Console('command_history', response_data)
+        deviceMgr.emit2B('command_history', response_data)
     except Exception as e:
         Log.ex(e, '加载命令历史出错')
-        deviceMgr.emit2Console('error', {'message': '加载历史记录失败'})
+        deviceMgr.emit2B('error', {'message': '加载历史记录失败'})
 
 
 @socketio.on('set_current_device')
@@ -285,4 +284,26 @@ def handle_cancel_task(data):
     except Exception as e:
         Log.ex(e, '处理任务取消失败')
 
+
+@socketio.on('2S_Command')
+def handle_command(data):
+    """处理2S命令请求"""
+    try:
+        device_id = data.get('device_id')
+        command = data.get('command')
+        
+        if not device_id or not command:
+            return {'error': '缺少必要参数'}
+            
+        # 确保命令以@开头
+        if not command.startswith('@'):
+            command = '@' + command
+            
+        # 执行命令
+        result = SCommand.execute(device_id, command)
+        return {'result': result}
+        
+    except Exception as e:
+        Log.ex(e, '执行命令失败')
+        return {'error': str(e)}
 

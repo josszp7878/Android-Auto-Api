@@ -70,20 +70,23 @@ class CTask:
         """获取任务得分"""
         return 100
 
-    def run(self, params: Optional[Dict[str, str]] = None):
+    def run(self, data: dict = None):
         """运行任务的完整流程"""
         try:
-            Log.i(f"运行任务: {self.taskName}")
+            progress = data.get('progress', 0) if data else 0
+            if progress >= 1:
+                return TaskState.SUCCESS
+            Log.i(f"运行任务: {self.taskName}, from {progress*100}%")
             self.state = TaskState.RUNNING
-            if params:
-                for key, value in params.items():
-                    setattr(self, key, value)                    
             if not self.start():
                 self.cancel()
                 return self.state
             curTime = datetime.now()
             pastTime = 0
+            pastTime = progress * self.duration
             while pastTime < self.duration:
+                if self.state != TaskState.RUNNING:
+                    break
                 if not self.template.do(self):
                     self.state = TaskState.FAILED
                     return self.state
@@ -91,7 +94,7 @@ class CTask:
                 pastTime = (datetime.now() - curTime).total_seconds()
                 self.update(pastTime/self.duration)                
             # 只有正常完成的任务才执行end
-            if self.state != TaskState.PAUSED:
+            if self.state == TaskState.FAILED and self.state == TaskState.SUCCESS:
                result = self.end()
                return result if result else TaskState.FAILED
             return self.state

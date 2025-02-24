@@ -16,12 +16,15 @@
                     <div class="device-wrapper" v-for="(device, id) in devices" :key="id">
                         <div class="device-card" 
                              :id="'device-' + id"
-                             :class="[device.status, { selected: selectedDevice === id }]"
-                             :style="{
-                                 backgroundImage: `url(${device.screenshot || '/static/screenshots/default.jpg'})`,
-                                 backgroundColor: 'transparent'
-                             }"
-                             @click="selectDevice(id)">
+                             :class="[device.status, { selected: selectedDevice === id }]">
+                            <!-- 背景图片区域单独处理点击 -->
+                            <div class="device-background"
+                                 :style="{
+                                     backgroundImage: `url(${device.screenshot || '/static/screenshots/default.jpg'})`,
+                                     backgroundColor: 'transparent'
+                                 }"
+                                 @click="selectDevice(id)">
+                            </div>
                             <div class="device-info">
                                 <div class="device-header">
                                     <h5 class="device-name">[[ id ]]</h5>
@@ -52,7 +55,9 @@
                                         </span>
                                     </div>
                                     <div class="task-stats" v-if="device.currentTask">
-                                        <span class="task-count">待完成: [[ device.currentTask.taskStats.unfinished ]]/[[ device.currentTask.taskStats.total ]]</span>
+                                        <span class="task-count">
+                                            待完成: [[ device.currentTask.taskStats ? device.currentTask.taskStats.unfinished : 0 ]]/[[ device.currentTask.taskStats ? device.currentTask.taskStats.total : 0 ]]
+                                        </span>
                                     </div>
                                 </div>
                             </div>
