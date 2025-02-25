@@ -52,6 +52,10 @@ class Log:
         if is_server:
             self._load()
         return self
+    
+    @property
+    def IsServer(self):
+        return True if not hasattr(self, 'is_server') or self.is_server is None else self.is_server
         
     def uninit(self):
         """反初始化日志系统"""
@@ -113,7 +117,7 @@ class Log:
         timestamp = datetime.now()
         log_line = ''
         # 如果是服务器端，发送到控制台
-        if self.is_server:
+        if self.IsServer:
             log_line = self.format(timestamp, tag, level, content)
             self.add(log_line)
         else:

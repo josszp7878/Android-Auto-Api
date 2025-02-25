@@ -76,7 +76,7 @@ class CTask:
             progress = data.get('progress', 0) if data else 0
             if progress >= 1:
                 return TaskState.SUCCESS
-            Log.i(f"运行任务: {self.taskName}, from {progress*100}%")
+            # Log.i(f"运行任务: {self.taskName}, from {progress*100}%")
             self.state = TaskState.RUNNING
             if not self.start():
                 self.cancel()
@@ -84,17 +84,23 @@ class CTask:
             curTime = datetime.now()
             pastTime = 0
             pastTime = progress * self.duration
-            while pastTime < self.duration:
+            # Log.i(f"任务 {self.taskName} 运行中, pastTime : {pastTime}, duration: {self.duration}")
+            while True:
                 if self.state != TaskState.RUNNING:
                     break
                 if not self.template.do(self):
                     self.state = TaskState.FAILED
                     return self.state
+                if pastTime >= self.duration:
+                    self.state = TaskState.SUCCESS
+                    break
                 time.sleep(self.interval)
-                pastTime = (datetime.now() - curTime).total_seconds()
-                self.update(pastTime/self.duration)                
+                pastTime += self.interval
+                progress = pastTime/self.duration
+                # Log.i(f"任务 {self.taskName} 运行中@@@: progress: {progress}")
+                self.update(progress)
             # 只有正常完成的任务才执行end
-            if self.state == TaskState.FAILED and self.state == TaskState.SUCCESS:
+            if self.state == TaskState.FAILED or self.state == TaskState.SUCCESS:
                result = self.end()
                return result if result else TaskState.FAILED
             return self.state

@@ -66,7 +66,13 @@ class STaskMgr:
                 STask.deviceId == self._device.id,
                 STask.time >= today
             ).all()
-            return sum(task.score for task in today_tasks if task.score is not None)
+            # 添加调试日志
+            scores = [task.score for task in today_tasks]
+            # Log.i(f"任务得分列表: {scores}")
+            # 过滤掉 None 值并计算总和
+            valid_scores = [s for s in scores if s is not None]
+            score = sum(valid_scores)
+            return score
         except Exception as e:
             Log.ex(e, "获取今日任务得分失败")
             return 0

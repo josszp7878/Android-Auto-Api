@@ -331,88 +331,100 @@ class Dashboard {
                 updateDeviceTask(data) {
                     const device = this.devices[data.deviceId];
                     if (device) {
+                        // 更新任务信息
                         const task = data.task;
                         if (task) {
                             task.progress = Math.min(task.progress, 1);
-                            
-                            this.$nextTick(() => {
-                                const taskInfo = document.querySelector(`#device-${data.deviceId} .task-info`);
-                                if (taskInfo) {
-                                    // 任务名区域点击处理
-                                    const progressArea = taskInfo.querySelector('.task-header');
-                                    if (progressArea && !task.completed) {
-                                        progressArea.style.cursor = 'pointer';
-                                        progressArea.onclick = (e) => {
-                                            e.stopPropagation();
+                            device.currentTask = task;
+                        } else {
+                            device.currentTask = null;
+                        }
+                        
+                        // 更新分数信息
+                        if (data.todayTaskScore !== undefined) {
+                            device.todayTaskScore = data.todayTaskScore;
+                        }
+                        if (data.totalScore !== undefined) {
+                            device.totalScore = data.totalScore;
+                        }
+                        
+                        this.$nextTick(() => {
+                            const taskInfo = document.querySelector(`#device-${data.deviceId} .task-info`);
+                            if (taskInfo) {
+                                // 任务名区域点击处理
+                                const progressArea = taskInfo.querySelector('.task-header');
+                                if (progressArea && !task.completed) {
+                                    progressArea.style.cursor = 'pointer';
+                                    progressArea.onclick = (e) => {
+                                        e.stopPropagation();
 
-                                        };
-                                    }
+                                    };
+                                }
 
-                                    // 日期区域点击处理
-                                    const statsArea = taskInfo.querySelector('.task-date');
-                                    if (statsArea) {
-                                        statsArea.style.cursor = 'pointer';
-                                        statsArea.onclick = (e) => {
-                                            e.stopPropagation();
-                                            const datePicker = document.createElement('input');
-                                            datePicker.type = 'date';
-                                            datePicker.onchange = (e) => {
-                                                const selectedDate = e.target.value;
-                                                this.socket.emit('2S_Command', {
-                                                    device_id: data.deviceId,
-                                                    command: `date ${selectedDate}`
-                                                });
-                                                datePicker.remove();
-                                            };
-                                            // 添加到DOM并触发点击
-                                            document.body.appendChild(datePicker);
-                                            datePicker.click();
-                                        };
-                                    }
-                                    // 进度区域点击处理
-                                    const taskProgress = taskInfo.querySelector('.task-progress');
-                                    if (taskProgress) {
-                                        taskProgress.style.cursor = 'pointer';
-                                        taskProgress.onclick = (e) => {
-                                            e.stopPropagation();
-                                            if (task.state === 'running') {
-                                                console.log("stop task")
-                                                this.socket.emit('2S_Command', {
-                                                    device_id: data.deviceId,
-                                                    command: 'stop'
-                                                });
-                                            } else if (task.state === 'paused') {
-                                                console.log("resume task")
-                                                this.socket.emit('2S_Command', {
-                                                    device_id: data.deviceId,
-                                                    command: 'resume'  
-                                                });
-                                            }
-                                        };
-                                    }
-                                    // 任务统计区域点击处理
-                                    const taskStats = taskInfo.querySelector('.task-stats');
-                                    if (taskStats) {
-                                        taskStats.style.cursor = 'pointer';
-                                        taskStats.onclick = (e) => {
-                                            e.stopPropagation();
+                                // 日期区域点击处理
+                                const statsArea = taskInfo.querySelector('.task-date');
+                                if (statsArea) {
+                                    statsArea.style.cursor = 'pointer';
+                                    statsArea.onclick = (e) => {
+                                        e.stopPropagation();
+                                        const datePicker = document.createElement('input');
+                                        datePicker.type = 'date';
+                                        datePicker.onchange = (e) => {
+                                            const selectedDate = e.target.value;
                                             this.socket.emit('2S_Command', {
                                                 device_id: data.deviceId,
-                                                command: 'tasks'
+                                                command: `date ${selectedDate}`
                                             });
+                                            datePicker.remove();
                                         };
-                                    }
+                                        // 添加到DOM并触发点击
+                                        document.body.appendChild(datePicker);
+                                        datePicker.click();
+                                    };
                                 }
-                            });
+                                // 进度区域点击处理
+                                const taskProgress = taskInfo.querySelector('.task-progress');
+                                if (taskProgress) {
+                                    taskProgress.style.cursor = 'pointer';
+                                    taskProgress.onclick = (e) => {
+                                        e.stopPropagation();
+                                        if (task.state === 'running') {
+                                            console.log("stop task")
+                                            this.socket.emit('2S_Command', {
+                                                device_id: data.deviceId,
+                                                command: 'stop'
+                                            });
+                                        } else if (task.state === 'paused') {
+                                            console.log("resume task")
+                                            this.socket.emit('2S_Command', {
+                                                device_id: data.deviceId,
+                                                command: 'resume'  
+                                            });
+                                        }
+                                    };
+                                }
+                                // 任务统计区域点击处理
+                                const taskStats = taskInfo.querySelector('.task-stats');
+                                if (taskStats) {
+                                    taskStats.style.cursor = 'pointer';
+                                    taskStats.onclick = (e) => {
+                                        e.stopPropagation();
+                                        this.socket.emit('2S_Command', {
+                                            device_id: data.deviceId,
+                                            command: 'tasks'
+                                        });
+                                    };
+                                }
+                            }
+                        });
 
-                            this.$set(device, 'currentTask', task);
-                            this.$nextTick(() => {
-                                const progressRefs = this.$refs[`progress-${data.deviceId}`];
-                                if (progressRefs && progressRefs[0]) {
-                                    this.drawProgress(data.deviceId, task.progress, task.state === 'running');
-                                }
-                            });
-                        }
+                        this.$set(device, 'currentTask', task);
+                        this.$nextTick(() => {
+                            const progressRefs = this.$refs[`progress-${data.deviceId}`];
+                            if (progressRefs && progressRefs[0]) {
+                                this.drawProgress(data.deviceId, task.progress, task.state === 'running');
+                            }
+                        });
                     }
                 }
             },

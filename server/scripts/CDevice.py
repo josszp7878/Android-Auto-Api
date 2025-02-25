@@ -170,10 +170,12 @@ class CDevice:
         """处理客户端收到的命令"""
         try:
             command = data.get('command')
-            print(f'正在处理命令: {command}')
+            sender = data.get('sender')
+            data = data.get('data', {})
+            Log.i(f'收到命令: {command} from {sender} data: {data}')
             # 使用 CmdMgr 执行命令
             from CCmdMgr import CCmdMgr
-            result, cmdName = CCmdMgr().do(command)
+            result, cmdName = CCmdMgr().do(command, sender, data)
             
             self.sio.emit('C2S_CmdResult', {
                 'result': result,
@@ -182,13 +184,7 @@ class CDevice:
                 'cmdName': cmdName
             })
         except Exception as e:
-            result = Log.formatEx(f'执行命令出错: {e}')
-            self.sio.emit('C2S_CmdResult', {
-                'result': result,
-                'device_id': self.deviceID,
-                'command': command,
-                'cmdName': None
-            })
+            Log.ex(e, f'执行命令出错: {command}')
     
     def on_connect(self):
         """连接成功回调"""

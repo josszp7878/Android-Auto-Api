@@ -205,7 +205,6 @@ class SCommand:
                         # 通过 sid 发送命令，包含 data 参数
                         emit('S2C_DoCmd', {
                             'command': command,
-                            'device_id': device_id,
                             'sender': current_app.config['SERVER_ID'],
                             'data': data  # 添加 data 参数
                         }, to=sid)

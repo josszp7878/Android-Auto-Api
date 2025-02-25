@@ -189,7 +189,7 @@ class CTaskMgr:
     def _runTaskInThread(self, task: CTask, taskId: str, data: dict = None):
         """在线程中执行任务"""
         try:
-            Log.i(f"执行任务: {task.taskName}, 进度: {data.get('progress', 0)}")
+            Log.i(f"执行任务: {task.taskName}, 进度: {data.get('progress', 0) if data else 0}")
             state = task.run(data)
         except Exception as e:
             Log.ex(e, f"任务执行异常: {task.taskName}")
@@ -266,6 +266,10 @@ def startTask(appName: str = None, templateId: str = None, data: dict = None) ->
             appName = taskMgr.lastAppName
             templateId = taskMgr.lastTemplateId
             Log.i(f"执行最近任务: {appName}/{templateId}")
+           
+        # 打印任务数据
+        if data:
+            Log.i(f"任务数据: {data}")
 
         # 获取初始进度
         progress = data.get('progress', 0) if data else 0

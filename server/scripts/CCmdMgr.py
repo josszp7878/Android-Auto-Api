@@ -37,7 +37,7 @@ class CCmdMgr:
             return func
         return decorator
     
-    def do(self, command, data=None):
+    def do(self, command, sender=None, data=None):
         """执行命令"""
         cmd = command.strip()
         if not cmd:

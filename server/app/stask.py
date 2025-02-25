@@ -34,6 +34,14 @@ class STask(db.Model):
     def completed(self):
         return self.state in [TaskState.SUCCESS.value, TaskState.FAILED.value]
 
+    @property
+    def device(self):
+        """获取任务对应的设备,使用缓存避免重复查询"""
+        if not hasattr(self, '_device'):
+            from .SDeviceMgr import deviceMgr
+            self._device = deviceMgr.get_device(self.deviceId)
+        return self._device
+
     def __init__(self, deviceId: str, appName: str, taskName: str):
         """初始化任务"""
         self.deviceId = deviceId
@@ -56,8 +64,8 @@ class STask(db.Model):
             if self.state != TaskState.RUNNING.value:
                 Log.i(f"任务 {self.taskName} 不在运行状态，无法更新进度")
                 return False
-            
-            self.progress = min(max(progress, 0), 1)
+            # 确保 progress 是 float 类型
+            self.progress = float(min(max(progress, 0), 1))
             if Database.commit(self):
                 return STask.refresh(self)
             return False
@@ -70,9 +78,7 @@ class STask(db.Model):
         """取消任务，从数据库中删除"""
         try:
             Log.i(f"任务 {self.taskName} 已取消")
-            deviceMgr = self.deviceMgr 
-            # 先获取设备引用
-            device = deviceMgr.get_device(self.deviceId)
+            device = self.device
             if device and device.taskMgr:
                 # 如果是当前任务，先清除
                 if device.taskMgr.currentTask == self:
@@ -84,6 +90,7 @@ class STask(db.Model):
                 db.session.commit()
             
             # 刷新界面（传入None表示清除任务显示）
+            from .SDeviceMgr import deviceMgr
             deviceMgr.emit2B('S2B_TaskUpdate', {
                 'deviceId': self.deviceId,
                 'task': None
@@ -103,8 +110,8 @@ class STask(db.Model):
             self.score = score
             self.progress = 1.0 if result else self.progress
             self.endTime = datetime.now()
-            
             if Database.commit(self):
+                Log.i(f"任务结束: 成功")
                 return STask.refresh(self)
             return False
             
@@ -119,35 +126,6 @@ class STask(db.Model):
             db.session.commit()
             STask.refresh(self)
             Log.i(f"任务 {self.id}-{self.taskName} 已暂停，进度: {self.progress*100:.1f}%")
-
-    def get_scores(self, device_id):
-        """获取设备的得分统计"""
-        try:
-            today = datetime.now().date()
-            with current_app.app_context():
-                # 获取今日该任务的总分
-                today_task_score = STask.query.filter(
-                    STask.deviceId == device_id,
-                    STask.time >= today,
-                    STask.appName == self.appName,
-                    STask.taskName == self.taskName,
-                    STask.state == TaskState.SUCCESS.value
-                    ).with_entities(func.sum(STask.score)).scalar() or 0
-                
-                # 获取设备总分
-                device = self.deviceMgr.get_device(device_id)
-                if device:
-                    total_score = device.total_score
-                else:
-                    total_score = 0
-
-                return {
-                    'todayTaskScore': today_task_score,
-                    'totalScore': total_score
-                }
-        except Exception as e:
-            Log.ex(e, f'获取设备{device_id}得分统计失败')
-            return {'todayTaskScore': 0, 'totalScore': 0}
 
   
     def to_dict(self):
@@ -199,25 +177,28 @@ class STask(db.Model):
         """刷新任务状态到界面"""
         try:
             from .SDeviceMgr import deviceMgr
-            
             # 如果task为None，直接返回
+            Log.i(f"刷新任务状态1111: 任务：{task}")
             if not task:
                 return
+            # 获取设备
+            device = task.device
+            # 获取任务管理器
+            taskMgr = device.taskMgr
+            today_task_score = taskMgr.getTodayScore()
+            # 获取任务管理器统计信息
+            stats = taskMgr.getTaskStats()
             
-            # 获取任务统计信息
-            device = deviceMgr.get_device(task.deviceId)
-            if device and device.taskMgr:
-                stats = device.taskMgr.getTaskStats()
-            else:
-                stats = {'date': '', 'total': 0, 'unfinished': 0}
-            
-            # 发送任务更新事件
+            # 发送任务更新事件，包含分数信息
             deviceMgr.emit2B('S2B_TaskUpdate', {
                 'deviceId': task.deviceId,
                 'task': {
                     **task.to_dict(),
-                    'taskStats': stats  # 添加任务统计信息
-                } if task else None
+                    'taskStats': stats,
+                } if task else None,
+                'todayTaskScore': today_task_score,
+                'totalScore': device.total_score
             })
+            
         except Exception as e:
             Log.ex(e, f'刷新任务状态失败')

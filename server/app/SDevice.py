@@ -3,9 +3,10 @@ from pathlib import Path
 from flask import current_app
 from .models import db, DeviceModel
 from scripts.logger import Log
-import json
 import base64
 from .STaskMgr import STaskMgr
+from .SEarningMgr import SEarningMgr
+
 class SDevice:
     """设备类：管理设备状态和信息"""
     
@@ -14,7 +15,6 @@ class SDevice:
         self.info = {}
         self._status = 'offline'
         self.last_seen = datetime.now()
-        self.total_score = 0  # 设备总分
         self._lastScreenshot = None
         self._ensure_screenshot_dir()
         
@@ -24,10 +24,29 @@ class SDevice:
             self.device_id = model.device_id
             self._status = model.status
             self.last_seen = model.last_seen
-            self.total_score = model.total_score
         self.taskMgr.init(self.device_id)
 
-        
+    @property
+    def total_score(self) -> float:
+        """获取设备总积分
+        Returns:
+            float: 设备的总积分
+        """
+        try:
+            # 获取从开始到现在的所有积分
+            start_date = datetime(2000, 1, 1)  # 一个足够早的日期
+            end_date = datetime.now()
+            
+            return SEarningMgr().GetEarnings(
+                deviceId=self.device_id,
+                appName='',  # 空字符串表示所有应用
+                earnType='score',
+                start_date=start_date,
+                end_date=end_date
+            )
+        except Exception as e:
+            Log.ex(e, '获取设备总分失败')
+            return 0.0
 
     @property
     def taskMgr(self)->STaskMgr:  # 改为小写，符合 Python 命名规范
@@ -60,7 +79,6 @@ class SDevice:
                 if model:
                     model.status = self._status
                     model.last_seen = self.last_seen
-                    model.total_score = self.total_score
                     db.session.add(model)
                     db.session.commit()
                     # print(f'设备 {self.device_id} 状态已同步到数据库')
@@ -130,7 +148,6 @@ class SDevice:
 
     def to_dict(self):
         """返回设备信息字典"""
-        # 获取截图信息
         screenshotTime = None
         screenshotFile = None
         
@@ -138,14 +155,12 @@ class SDevice:
             try:
                 mtime = datetime.fromtimestamp(Path(self._lastScreenshot).stat().st_mtime)
                 screenshotTime = mtime.strftime('%H:%M:%S')
-                # 确保路径格式正确
                 screenshotFile = str(self._lastScreenshot).replace('\\', '/')
                 if 'static' in screenshotFile:
                     screenshotFile = '/static' + screenshotFile.split('static')[1]
             except Exception as e:
                 Log.ex(e, '获取截图时间失败')
         
-        # 如果没有截图，使用默认截图
         if not screenshotFile:
             screenshotFile = '/static/screenshots/default.jpg'
         
@@ -194,47 +209,4 @@ class SDevice:
             Log.ex(e, "保存截图失败")
             return False
 
-    def add_score(self, score):
-        """增加设备总分"""
-        self.total_score += score
-        self._save_score()
-    
-    def _save_score(self):
-        """保存总分到数据库"""
-        try:
-            device_model = DeviceModel.query.get(self.device_id)
-            if device_model:
-                device_model.total_score = self.total_score
-                db.session.commit()
-        except Exception as e:
-            Log.ex(e, '保存设备总分失败')
-
-    def resumeTask(self, task):
-        """继续执行暂停的任务"""
-        try:
-            if task.state != TaskState.PAUSED.value:
-                Log.w(f"任务 {task.taskName} 不是暂停状态")
-                return False
-                
-            # 更新任务状态
-            task.state = TaskState.RUNNING.value
-            commit(task)
-            
-            # 发送任务更新事件
-            deviceMgr.emit2Console('S2B_TaskUpdate', {
-                'deviceId': self.device_id,
-                'task': {
-                    'appName': task.appName,
-                    'taskName': task.taskName,
-                    'progress': task.progress,
-                    'state': task.state,
-                    'score': task.score
-                }
-            })
-            
-            Log.i(f"继续执行任务: {task.taskName}")
-            return True
-            
-        except Exception as e:
-            Log.ex(e, f"继续执行任务 {task.taskName} 失败")
-            return False
+   
