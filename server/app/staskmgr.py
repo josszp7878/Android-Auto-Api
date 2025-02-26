@@ -14,7 +14,8 @@ class STaskMgr:
         self._device = device
         self._date = date.today()
         self._current_task = None
-        self.tasks = []  # 改为列表存储，按创建时间排序
+        self.tasks = []  # 任务列表，按创建时间排序
+        self._currentApp = None  # 当前应用名称
 
     @property
     def currentTask(self) -> Optional[STask]:
@@ -58,6 +59,18 @@ class STaskMgr:
         if self._device:
             self._device.refresh()
 
+    @property
+    def currentApp(self) -> str:
+        """获取当前应用名称"""
+        return self._currentApp
+        
+    @currentApp.setter
+    def currentApp(self, value: str):
+        """设置当前应用名称"""
+        if value != self._currentApp:
+            self._currentApp = value
+            Log.i(f"当前应用切换为: {value}")
+
     def getTodayScore(self) -> int:
         """获取今日任务得分"""
         try:
@@ -93,16 +106,27 @@ class STaskMgr:
             return []
 
     def getRunningTask(self, appName: str, taskName: str, create: bool = False) -> Optional[STask]:
-        """获取运行中的任务,如果没有且create=True则创建新任务"""
+        """获取运行中的任务,如果没有且create=True则创建新任务
+        同一个应用的同名任务可以有多个实例
+        """
         try:
-            # 先从缓存中查找未完成的同类任务
-            tasks = self._getTasks(appName, taskName, True)
-            if tasks:
-                # 不需要重新add，直接返回
-                return tasks[0]
+            # 更新当前应用
+            self._currentApp = appName
+            
+            # 从缓存中查找该应用下的所有运行中任务
+            running_tasks = [
+                t for t in self.tasks 
+                if (t.appName == appName and 
+                    t.taskName == taskName and 
+                    t.state in [TaskState.RUNNING.value, TaskState.PAUSED.value])
+            ]
+            
+            if running_tasks:
+                # 返回最新创建的任务
+                return running_tasks[-1]
                 
-            # 从数据库查询未完成的同类任务
-            task = STask.query.filter(
+            # 从数据库查询该应用下的运行中任务
+            tasks = STask.query.filter(
                 STask.deviceId == self._device.id,
                 STask.appName == appName,
                 STask.taskName == taskName,
@@ -110,18 +134,18 @@ class STaskMgr:
                     TaskState.RUNNING.value,
                     TaskState.PAUSED.value
                 ])
-            ).order_by(STask.time.desc()).first()
+            ).order_by(STask.time.desc()).all()
             
-            if task:
-                Log.d("找到了任务，添加到缓存并返回")
-                # 查询出的对象已经被session跟踪，不需要重新add
-                self.tasks.append(task)
-                return task
+            if tasks:
+                # 添加到缓存并返回最新的任务
+                for task in tasks:
+                    if task not in self.tasks:
+                        self.tasks.append(task)
+                return tasks[0]
                 
             # 没找到任务且需要创建
             if create:
                 task = STask(self._device.id, appName, taskName)
-                # 只有新创建的任务需要add
                 db.session.add(task)
                 db.session.commit()
                 self.tasks.append(task)
@@ -147,3 +171,95 @@ class STaskMgr:
         except Exception as e:
             Log.ex(e, '获取任务统计失败')
             return {'date': self._date.strftime('%Y-%m-%d'), 'total': 0, 'unfinished': 0}
+
+    def startTask(self, appName: str, taskName: str) -> bool:
+        """启动任务"""
+        try:
+            # 获取运行中的任务
+            running_task = self.getRunningTask(appName, taskName, create=True)
+            if running_task:
+                running_task.start()
+                self.currentTask = running_task
+                self.currentApp = appName
+                return True
+            return False
+        except Exception as e:
+            Log.ex(e, f'启动任务失败: {appName}/{taskName}')
+            return False
+
+    def pauseTask(self, appName: str, taskName: str) -> bool:
+        """暂停任务"""
+        try:
+            task = self.getRunningTask(appName, taskName)
+            if task:
+                task.pause()
+                return True
+            else:
+                Log.e(f'任务不存在: {appName}/{taskName}')
+                return False
+        except Exception as e:
+            Log.ex(e, f'暂停任务失败: {appName}/{taskName}')
+            return False
+        
+    def endTask(self, appName: str, taskName: str, score: int, result: str) -> bool:
+        """结束任务"""
+        try:
+            task = self.getRunningTask(appName, taskName)
+            if task:
+                task.end({
+                    'score': score,
+                    'result': result
+                })
+                if self.currentTask == task:
+                    self.currentTask = None
+                return True
+            else:
+                Log.e(f'任务不存在: {appName}/{taskName}')
+                return False
+        except Exception as e:
+            Log.ex(e, f'结束任务失败: {appName}/{taskName}')
+            return False
+    def stopTask(self, appName: str, taskName: str) -> bool:
+        """停止任务"""
+        try:
+            task = self.getRunningTask(appName, taskName)
+            if task:
+                task.stop()
+                return True
+            else:
+                Log.e(f'任务不存在: {appName}/{taskName}')
+                return False
+        except Exception as e:
+            Log.ex(e, f'停止任务失败: {appName}/{taskName}')
+            return False
+
+    def cancelTask(self, appName: str, taskName: str) -> bool:
+        """取消任务"""
+        try:
+            task = self.getRunningTask(appName, taskName)
+            if task:
+                task.cancel()                
+                self.tasks.remove(task)
+                if self.currentTask == task:
+                    self.currentTask = None
+                return True
+            else:
+                Log.e(f'任务不存在: {appName}/{taskName}')
+                return False
+        except Exception as e:
+            Log.ex(e, f'取消任务失败: {appName}/{taskName}')
+            return False
+        
+    def updateTask(self, appName: str, taskName: str, progress: int) -> bool:
+        """更新任务进度"""
+        try:
+            task = self.getRunningTask(appName, taskName)
+            if task:
+                task.update(progress)
+                return True
+            else:
+                Log.e(f'任务不存在: {appName}/{taskName}')
+                return False
+        except Exception as e:
+            Log.ex(e, f'更新任务进度失败: {appName}/{taskName}/{progress}')
+            return False

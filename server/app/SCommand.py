@@ -1,14 +1,17 @@
 from datetime import datetime,date
-from flask import current_app, has_request_context
+from flask import current_app
 from flask_socketio import emit
 from sqlalchemy import func  # 添加这行导入
 from .models import db
 from .command_history import CommandHistory
-from .SDeviceMgr import SDeviceMgr
+from .SDeviceMgr import SDeviceMgr, deviceMgr
 from scripts.logger import Log
 from scripts.tools import TaskState  # 使用统一的 TaskState
 from .STask import STask 
-
+from pathlib import Path
+from .SEarningMgr import SEarningMgr
+from typing import Callable
+import json
 
 class SCommand:
     """服务器命令处理类"""
@@ -28,6 +31,10 @@ class SCommand:
         '@tasks': ('显示任务', '_cmd_show_tasks'),
         '@date': ('设置任务管理器日期，格式: YY-M-D', '_cmd_set_date'),
         '@stop': ('停止当前设备的当前任务', '_cmd_stop'),
+        '@saveResult': ('保存最近一次命令执行结果到result.json', 'saveResult'),
+        '@analyzeEarnings': ('分析收益', 'analyzeEarnings'),
+        '@openapp': ('打开应用', '_cmd_openapp'),
+        '@apps': ('列出所有应用', '_cmd_apps'),
     }
     
     @staticmethod
@@ -179,11 +186,12 @@ class SCommand:
             
         return f"日志已打印: [{level}] {content}"
     
-    
+    onCmdResult: Callable[[str], None] = None
     @staticmethod
-    def _sendClientCmd(device_id, command, data=None):
+    def _sendClientCmd(device_id, command, data=None, callback: Callable[[str], None]=None):
         """执行设备命令"""
         try:
+            SCommand.onCmdResult = callback
             with current_app.app_context():
                 device_manager = SDeviceMgr()
                 Log.i(f'发送客户端命令: {device_id} -> {command}, DATA: {data}')
@@ -222,31 +230,7 @@ class SCommand:
             Log.ex(e, '执行设备命令出错')
             return '执行命令失败'
     
-    # @staticmethod
-    # def Add(device_id, result, level='info'):
-    #     """处理命令响应"""
-    #     try:
-    #         history = CommandHistory(
-    #             sender=current_app.config['SERVER_ID'],
-    #             target=device_id,
-    #             response=result,
-    #             level=level
-    #         )
-    #         db.session.add(history)
-    #         db.session.commit()
-    #         print(f'命令响应已保存: {result}')
-            
-    #         return {
-    #             'success': True,
-    #             'result': result,
-    #             'command_id': history.id if history else None,
-    #             'level': level,
-    #             'device_id': device_id
-    #         }
-    #     except Exception as e:
-    #         Log.ex(e, '处理命令响应出错')
-    #         return {'success': False, 'error': '处理响应失败'} 
-    
+   
     @staticmethod
     def filterLogs(filter_str=''):
         """显示日志
@@ -266,6 +250,8 @@ class SCommand:
             'logs': logs,
             'filter': filter_str
         })
+
+    result: str = ''
     
     @staticmethod
     def handCmdResult(data):
@@ -278,10 +264,12 @@ class SCommand:
             cmdName = data.get('cmdName')  # 获取命令方法名
             # sender = "@"
             level = result.split('#')[0] if '#' in result else 'i'
-            
+            # 替换单引号为双引号
+            SCommand.result = result.replace("'", '"')
+            # Log.i(f'收到命令响应@@@: {SCommand.result}')
             deviceMgr = SDeviceMgr()
             # 添加调试日志
-            Log.i('Server', f'收到命令响应: {device_id} -> {command} = {result}')
+            # Log.i('Server', f'收到命令响应: {device_id} -> {command} = {result}')
             
             # 根据命令方法名处理响应
             if cmdName == 'captureScreen':  # 使用方法名而不是命令文本判断
@@ -306,6 +294,8 @@ class SCommand:
                 level = 'i'
         else:
             level = 'i'
+        if SCommand.onCmdResult:
+            SCommand.onCmdResult(result)
         Log()._log(f"{device_id}:{command}  => {result}", level, 'CMD')
 
     @staticmethod
@@ -364,15 +354,12 @@ class SCommand:
     def _cmd_resume(args):
         """继续当前设备的暂停任务"""
         try:
-            deviceMgr = SDeviceMgr()
             device_id = deviceMgr.curDeviceID
             if not device_id:
-                return "e##未选择设备"
-            
+                return "e##未选择设备"            
             device = deviceMgr.get_device(device_id)
             if not device:
-                return "e##设备不存在"
-                
+                return "e##设备不存在"                
             # 获取当前任务
             task = device.taskMgr.currentTask
             if not task:
@@ -399,7 +386,6 @@ class SCommand:
             str: 执行结果
         """
         try:
-            deviceMgr = SDeviceMgr()
             device_id = deviceMgr.curDeviceID
             if not device_id:
                 return "e##未选择设备"
@@ -535,4 +521,99 @@ class SCommand:
             Log.ex(e, "设置日期失败")
             return f"e##设置日期失败: {str(e)}"    
 
+    @staticmethod
+    def saveResult(args) -> str:
+        try:
+            result = SCommand.result
+            if result is None or SCommand.result == '':
+                return "i##没有可保存的命令结果"
+            from . import APP_DATA
+            result_path = Path(APP_DATA) / 'result.json'                       
+            # 保存到文件
+            with open(result_path, 'w', encoding='utf-8') as f:
+                f.write(result)
+            
+            return f"i##命令结果已保存到: {result_path}"
+            
+        except Exception as e:
+            Log.ex(e, "保存命令结果失败")
+            return "e##保存命令结果失败"
+
+    @staticmethod
+    def analyzeEarnings(args) -> str:
+        try:
+            # 等待截屏完成后的回调
+            def parseResult(data):
+                try:
+                    # 获取当前应用名称
+                    appName = deviceMgr.currentApp
+                    if not appName:
+                        Log.e("当前没有运行的应用")
+                        return
+                    if SEarningMgr.Load(appName, data):
+                        Log.i("收益记录导入成功")
+                    else:
+                        Log.e("部分收益记录导入失败")
+                    
+                except Exception as e:
+                    Log.ex(e, "处理截屏结果失败")
+            SCommand._sendClientCmd(deviceMgr.curDeviceID, 'getScreen', None, parseResult)
+        except Exception as e:
+            Log.ex(e, "分析收益失败")
+
+    @staticmethod
+    def _cmd_openapp(args):
+        """打开指定应用
+        用法: @openapp <应用名>
+        """
+        try:
+            if not args or len(args) < 1:
+                return "e##用法: @openapp <应用名>"
+            
+            input_app_name = args[0]
+            
+            # 使用模糊匹配查找应用
+            from .SAppMgr import appMgr
+            app_name = appMgr.getApp(input_app_name)
+            
+            if not app_name:
+                return f"e##找不到匹配的应用[{input_app_name}]"
+            
+            # 获取当前设备
+            device_id = deviceMgr.curDeviceID
+            if not device_id:
+                return "e##未选择设备"
+            
+            device = deviceMgr.get_device(device_id)
+            if not device:
+                return "e##设备不存在"
+            
+            # 发送打开应用命令
+            SCommand._sendClientCmd(device_id, f"打开 {app_name}")
+            
+            # 设置当前应用名
+            if device.taskMgr:
+                device.taskMgr._currentApp = app_name
+                
+            return f"i##正在打开应用[{app_name}]"
+            
+        except Exception as e:
+            Log.ex(e, "打开应用失败")
+            return f"e##打开应用失败: {str(e)}"
+
+    @staticmethod
+    def _cmd_apps(args):
+        """列出所有应用"""
+        from .SAppMgr import appMgr
+        return "i##" + json.dumps(appMgr.get_app_names(), ensure_ascii=False, indent=2)
+
+    # 注册所有命令
+    @classmethod
+    def register_commands(cls):
+        """注册所有命令"""
+        from .Server import cmdMgr
+        # ... 其他命令注册 ...
+        cmdMgr.register('@openapp', cls._cmd_openapp)
+        cmdMgr.register('@saveResult', cls.saveResult)
+        cmdMgr.register('@分析收益', cls.analyzeEarnings)
    

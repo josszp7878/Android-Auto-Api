@@ -5,6 +5,7 @@ from scripts.logger import Log
 from datetime import datetime, timedelta
 from flask_socketio import emit
 from sqlalchemy import func
+from typing import Dict, Optional
 
 
 class SDeviceMgr:
@@ -12,19 +13,17 @@ class SDeviceMgr:
     
     _instance = None
     def __new__(cls):
-        if not cls._instance:
+        if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._instance.device_id = None  # 初始化当前设备ID
         return cls._instance
    
     def __init__(self):
         # 只在第一次初始化时执行
         if not hasattr(self, 'initialized'):
+            self._devices = None  # 初始化为None，通过property懒加载
             self.console_sids = set()  # 存储控制台的 SID
-            self.initialized = True
-            self._devices = None
-            self._curDevice = None
             self._curDeviceID = None
+            self.initialized = True
 
     @property
     def devices(self):
@@ -35,7 +34,7 @@ class SDeviceMgr:
     def _load(self):
         try:
             deviceList = {}
-            Log.i(f'加载数据库设备列表 &&&&')
+            # Log.i('加载数据库设备列表')
             with current_app.app_context():  # 添加应用上下文
                 for device_model in DeviceModel.query.all():
                     device = SDevice(device_model.device_id)
@@ -105,19 +104,35 @@ class SDeviceMgr:
             for device_id, device in self.devices.items()
         }
 
-    _curDeviceID = None
     @property
-    def curDeviceID(self):
+    def curDeviceID(self) -> str:
+        """获取当前设备ID"""
         return self._curDeviceID
-    
+        
     @curDeviceID.setter
-    def curDeviceID(self, value):
-        self._curDeviceID = value
-        self._curDevice = self.devices.get(value)
-        # Log.i(f'设置当前设备ID: {value}')
+    def curDeviceID(self, value: str):
+        """设置当前设备ID"""
+        if value != self._curDeviceID:
+            self._curDeviceID = value
+            Log.i(f"当前设备切换为: {value}")
+            
+    @property
+    def currentApp(self) -> Optional[str]:
+        """获取当前设备的当前应用名称"""
+        try:
+            if not self._curDeviceID:
+                return None
+            device = self.get_device(self._curDeviceID)
+            if not device:
+                return None
+            return device.taskMgr.currentApp
+        except Exception as e:
+            Log.ex(e, "获取当前应用失败")
+            return None
+    
     @property
     def curDevice(self):
-        return self._curDevice
+        return self.devices.get(self._curDeviceID)
 
 
     def update_device(self, device):

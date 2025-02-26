@@ -36,7 +36,7 @@ if __name__ == '__main__':
             log_output=False      # 启用日志输出
         )
     except Exception as e:
-        Log.e(f'服务器启动失败: {e}')
+        print(f'服务器启动失败: {Log.formatEx(e)}')
         Log().uninit()
     finally:
         Log.i('服务器关闭')

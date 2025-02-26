@@ -1,18 +1,17 @@
 from flask import request, current_app
-from flask_socketio import emit, join_room, rooms
+from flask_socketio import emit
+from app import socketio
 from datetime import datetime
 import json
 from .command_history import CommandHistory
 from .SCommand import SCommand
 from scripts.logger import Log
-from pathlib import Path
 from .SDeviceMgr import deviceMgr
 import sys
 import os
 
 # 从 run.py 中导入 socketio 实例
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from run import socketio
 
 class DateTimeEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -177,15 +176,7 @@ def handle_C2S_StartTask(data):
         if not device:
             Log.e(f'设备不存在: {device_id}')
             return
-            
-        taskMgr = device.taskMgr
-        task = taskMgr.getRunningTask(app_name, task_name, True)
-        if task:
-            task.start()
-            taskMgr.currentTask = task
-        else:
-            Log.e(f'任务启动失败: {device_id}/{app_name}/{task_name}')
-            
+        device.taskMgr.startTask(app_name, task_name)
     except Exception as e:
         Log.ex(e, '处理任务启动请求失败')
 
@@ -202,12 +193,7 @@ def handle_C2S_UpdateTask(data):
         if not device:
             Log.e(f'设备不存在: {device_id}')
             return
-            
-        task = device.taskMgr.getRunningTask(app_name, task_name)
-        if not task:
-            Log.e(f'任务不存在: {device_id}/{app_name}/{task_name}')
-            return
-        task.update(progress)
+        device.taskMgr.updateTask(app_name, task_name, progress)
     except Exception as e:
         Log.ex(e, '处理任务进度更新失败')
 
@@ -224,11 +210,7 @@ def handle_stop_task(data):
         if not device:
             Log.e(f'设备不存在: {device_id}')
             return
-        task = device.taskMgr.getRunningTask(app_name, task_name)
-        if not task:
-            Log.e(f'任务不存在: {device_id}/{app_name}/{task_name}')
-            return
-        task.stop()
+        device.taskMgr.stopTask(app_name, task_name)
     except Exception as e:
         Log.ex(e, '处理任务停止失败')
 
@@ -247,17 +229,7 @@ def handle_task_end(data):
         if not device:
             Log.e(f'设备不存在: {device_id}')
             return
-            
-        task = device.taskMgr.getRunningTask(app_name, task_name)
-        if not task:
-            Log.e(f'任务不存在: {device_id}/{app_name}/{task_name}')
-            return
-            
-        # 传入包含 score 和 result 的字典
-        task.end({
-            'score': score,
-            'result': result
-        })              
+        device.taskMgr.endTask(app_name, task_name, score, result)
     except Exception as e:
         Log.ex(e, '处理任务结束消息失败')
 
@@ -274,13 +246,7 @@ def handle_cancel_task(data):
         if not device:
             Log.e(f'设备不存在: {device_id}')
             return
-
-        taskMgr = device.taskMgr    
-        task = taskMgr.getRunningTask(app_name, task_name)
-        if not task:
-            Log.e(f'任务不存在: {device_id}/{app_name}/{task_name}')
-            return
-        taskMgr.removeTask(task)            
+        device.taskMgr.cancelTask(app_name, task_name)
     except Exception as e:
         Log.ex(e, '处理任务取消失败')
 
