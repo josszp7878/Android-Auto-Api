@@ -1,7 +1,7 @@
 from typing import Dict, List, Optional, Tuple, Callable
 from CTask import CTask
 from logger import Log
-from CCmdMgr import regCmd
+from CmdMgr import regCmd
 import threading
 from datetime import datetime
 from tools import Tools,TaskState

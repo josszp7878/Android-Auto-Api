@@ -4,6 +4,7 @@ from .command_history import CommandHistory
 from scripts.logger import Log
 import os
 import json
+from scripts.CmdMgr import cmdMgr
 
 # 创建蓝图
 bp = Blueprint('main', __name__)

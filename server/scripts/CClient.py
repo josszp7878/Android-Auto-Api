@@ -35,13 +35,13 @@ class CClient:
             Log.ex(e, "发送事件失败")
 
     def Begin(self, deviceID=None, server=None):  
-        log.i(f"开始初始化客户端: deviceID={deviceID}, server={server}")      
+        print(f"开始初始化客户端: deviceID={deviceID}, server={server}")      
         try:
             server = server or Tools.getLocalIP()
-            log.i(f"获取本机IP: {server}")
+            print(f"获取本机IP: {server}")
             server_url = f"http://{server}:{Tools.port}"
             # 初始化设备连接
-            log.i(f"开始初始化设备: {deviceID}")
+            print(f"开始初始化设备: {deviceID}")
             from CDevice import CDevice
             self.deviceID = deviceID or 'TEST1'
             self.device = CDevice(self.deviceID)            
@@ -50,15 +50,15 @@ class CClient:
             def onConnected(ok):
                 self.waitting = False
                 if not ok:
-                    log.e("设备连接服务器失败")
+                    print("设备连接服务器失败")
                     # 在APP中显示Toast提示
                     if log.isAndroid():
                         log.toast("服务器连接失败，请检查服务器IP地址和相关的网络设置是否正确")
                 else:
-                    log.i("设备连接服务器成功")
+                    print("设备连接服务器成功")
             
 
-            log.i(f"开始连接设备到服务器: {server_url}")
+            print(f"开始连接设备到服务器: {server_url}")
             self.device.connect(server_url, onConnected)
             
             # 等待连接完成
@@ -67,16 +67,16 @@ class CClient:
             while self.waitting:
                 try:
                     if time.time() - start_time > timeout:
-                        log.e("连接超时")
+                        print("连接超时")
                         break
                     time.sleep(1)
                     print(".", end="", flush=True)
                 except Exception as e:
-                    log.e(f"等待连接时发生错误: {str(e)}")
+                    print(f"等待连接时发生错误: {str(e)}")
                     break
             
             if not self.device.connected:
-                log.e("设备连接失败")
+                print("设备连接失败")
                 if log.isAndroid():
                     log.toast("无法连接到服务器，请检查网络和服务器地址")
                 return
@@ -98,7 +98,7 @@ class CClient:
                         break
                 
             import CCmds as CCmds
-            from CCmdMgr import cmdMgr
+            from CmdMgr import cmdMgr
             from CTaskMgr import taskMgr
 
 

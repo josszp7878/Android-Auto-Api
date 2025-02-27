@@ -2,14 +2,13 @@ from datetime import datetime
 from logger import Log, requireAndroid
 from CDevice import CDevice
 from tools import Tools, tools
-from CCmdMgr import regCmd
+from CmdMgr import regCmd, CmdMgr
 import re
 from typing import Pattern, List
 from CFileServer import fileServer
 import threading
 import time as time_module
 from CClient import client
-import os
 
 # 缓存 Android 实例
 androidServices = Log.android
@@ -19,6 +18,10 @@ _screenInfoCache = None
 
 # 添加一个全局变量来控制监控状态
 _screenMonitorTask = None
+
+def OnReload():
+    Log.w("Cmds模块热更新 清理命令列表")
+    CmdMgr.clear()
 
 @regCmd(r"信息")
 def info():
@@ -170,8 +173,14 @@ def uninstall(pkgName):
 
 @regCmd(r"启动|打开", r"(?P<pkgName>\S+)")
 @requireAndroid
-def startApp(pkgName):
-    return androidServices.openApp(pkgName)
+def openApp(pkgName):
+    """打开应用"""
+    try:
+        # 使用 Tools 类的 openApp 方法
+        return Tools.openApp(pkgName)
+    except Exception as e:
+        Log.ex(e, "打开应用失败")
+        return False
 
 @regCmd(r"停止", r"(?P<pkgName>\S+)")
 @requireAndroid
@@ -232,16 +241,15 @@ def _toApp(appName: str) -> bool:
 def openApp(appName: str) -> bool:
     """打开指定应用"""
     try:
+        from scripts.tools import Tools
+        from CDevice import CDevice
+        
         CDevice.currentAppName = appName
         if CDevice.currentAppName == appName:
             return True
-        result = click(appName)
-        if result is None:
-            if _toApp(appName):
-                click(appName)
-            else:
-                return False
-        return True
+        
+        # 使用 Tools 类的 openApp 方法
+        return Tools.openApp(appName)
     except Exception as e:
         Log.ex(e, "打开应用失败")
         return False
@@ -345,37 +353,6 @@ def captureScreen():
         Log.ex(e, "截图失败")
         return f"e##截图失败:{str(e)}"
 
-@regCmd(r"加载", r"(?P<module_name>\w+)?")
-def reload(module_name):
-    print(f"热加载模块1: {module_name}")
-    modules = []
-    scripts_dir = os.path.dirname(__file__)
-    files = [f for f in os.listdir(scripts_dir) if f.endswith('.py') and f != '__init__.py']
-    
-    if not module_name:
-        modules.extend(files)
-    else:
-        # 使用 next 和生成器表达式来查找模块
-        module = next((x for x in files if x.lower() == module_name.lower() + '.py'), None)
-        if module:
-            modules.append(module)
-    
-    if not modules:
-        return "e##未找到热加载模块"
-
-    for script in modules:
-        module_name = script[:-3]  # 去掉 .py 后缀
-        if fileServer.reloadModule(module_name):
-            Log.i(f"模块 {module_name} 重新加载成功")
-        else:
-            Log.e(f"模块 {module_name} 重新加载失败")
-
-def OnReload():
-    Log.w("Cmds模块热更新 OnReload")
-    from CClient import client
-
-def OnPreload():
-    Log.w("Cmds模块热更新 onPreload")
 
 @regCmd(r"滑动", r"(?P<param>.+)")
 @requireAndroid

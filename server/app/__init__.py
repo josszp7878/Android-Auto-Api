@@ -20,14 +20,14 @@ for dir_path in [APP_DATA, APP_LOGS]:
 SCREENSHOTS_DIR = os.path.join(APP_ROOT, 'app', 'static', 'screenshots')
 os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
 
-# 配置更详细的日志
-logging.basicConfig(level=logging.DEBUG)  # 设置根日志级别为 DEBUG
+# 配置日志级别为INFO（关闭详细日志）
+logging.basicConfig(level=logging.INFO)  # 将根日志级别改为 INFO
 engineio_logger = logging.getLogger('engineio')
-engineio_logger.setLevel(logging.DEBUG)
+engineio_logger.setLevel(logging.WARNING)  # 将 Engine.IO 日志级别改为 WARNING
 socketio_logger = logging.getLogger('socketio')
-socketio_logger.setLevel(logging.DEBUG)
+socketio_logger.setLevel(logging.WARNING)  # 将 Socket.IO 日志级别改为 WARNING
 werkzeug_logger = logging.getLogger('werkzeug')
-werkzeug_logger.setLevel(logging.DEBUG)
+werkzeug_logger.setLevel(logging.INFO)  # 将 Werkzeug 日志级别改为 INFO
 
 socketio = SocketIO()
 app = None
@@ -48,8 +48,10 @@ def create_app(config_name='development'):
         app,
         cors_allowed_origins="*",
         async_mode='eventlet',
-        logger=False,
-        engineio_logger=False
+        logger=False,  # 关闭详细日志
+        engineio_logger=False,  # 关闭 Engine.IO 日志
+        ping_timeout=60,  # 增加 ping 超时时间
+        ping_interval=25  # 保持默认 ping 间隔
     )
     
     # 导入并注册事件处理器

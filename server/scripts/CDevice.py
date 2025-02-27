@@ -1,9 +1,10 @@
 import socketio
 import threading
 from datetime import datetime
-from pathlib import Path
 from logger import Log
 import time
+from CmdMgr import CmdMgr
+
 
 class CDevice:
     currentAppName = ""
@@ -34,11 +35,11 @@ class CDevice:
             # 配置 socketio 客户端
             self.sio = socketio.Client(
                 reconnection=True,
-                reconnection_attempts=3,
+                reconnection_attempts=5,
                 reconnection_delay=1,
                 reconnection_delay_max=5,
-                logger=False,
-                engineio_logger=False
+                logger=False,  # 关闭详细日志
+                engineio_logger=False  # 关闭 Engine.IO 日志
             )
             
             # 注册事件处理器
@@ -48,10 +49,14 @@ class CDevice:
             self.sio.on('disconnect')(self.on_disconnect)
             self.sio.on('connect_error')(self.on_connect_error)
             
+            # 添加通用事件监听器，捕获所有事件
+            self.sio.on('*')(self.on_any_event)
+            
             self.initialized = True
 
     def uninit(self):
         """释放资源"""
+        print('客户端 设备 uninit')
         self.logout()
         self.disconnect()
         self.initialized = False
@@ -63,20 +68,32 @@ class CDevice:
         return self.connected
     def disconnect(self):
         """断开连接"""
-        if self.connected:
-            self.sio.disconnect()
-            Log.i(f'设备 {self.deviceID} 已断开连接')
-            self.connected = False
-            
+        try:
+            if self.connected:
+                Log.i(f'正在断开设备 {self.deviceID} 的连接...')
+                self.sio.disconnect()
+                Log.i(f'设备 {self.deviceID} 已断开连接')
+                self.connected = False
+            else:
+                Log.i(f'设备 {self.deviceID} 未连接，无需断开')
+        except Exception as e:
+            Log.ex(e, '断开连接时发生错误')
+
     def connect(self, server_url=None, callback=None):
         """连接到服务器（异步方式）"""
         try:
+            # 如果已连接，先断开
+            if self.connected:
+                print('客户端已经连接')
+                return
+            
             if not server_url:
                 server_url = self.server_url
             else:
                 self.server_url = server_url
             connect_url = f"{server_url}?device_id={self.deviceID}"
             Log.i(f"开始连接: {connect_url}")
+            
             def connect_async():
                 try:
                     Log.i("正在创建连接...")
@@ -101,12 +118,12 @@ class CDevice:
                         return
                     
                     try:
-                        # 最简单的连接配置
+                        # 使用已有的socketio客户端进行连接
                         Log.i("开始 socketio 连接...")
                         self.sio.connect(
                             connect_url,
                             transports=['websocket', 'polling'],
-                            auth={'device_id': self.deviceID}  # 新版本使用 auth 参数
+                            auth={'device_id': self.deviceID}
                         )
                         Log.i("socketio 连接成功")
                         if callback:
@@ -132,11 +149,13 @@ class CDevice:
     def login(self):
         """登录设备（带重试）"""
         if not self.connected:
+            Log.w(f"设备 {self.deviceID} 未连接，无法登录")
             return False
-            
+        
         retry_count = 3
         while retry_count > 0:
             try:
+                Log.i(f"尝试登录设备 {self.deviceID}，剩余尝试次数: {retry_count}")
                 self.sio.emit('device_login', {
                     'device_id': self.deviceID,
                     'timestamp': str(datetime.now()),
@@ -171,11 +190,10 @@ class CDevice:
         try:
             command = data.get('command')
             sender = data.get('sender')
-            data = data.get('data', {})
-            Log.i(f'收到命令: {command} from {sender} data: {data}')
+            cmdData = data.get('data', {})
+            Log.i(f'收到命令: {command} from {sender} data: {cmdData}')
             # 使用 CmdMgr 执行命令
-            from CCmdMgr import CCmdMgr
-            result, cmdName = CCmdMgr().do(command, sender, data)
+            result, cmdName = CmdMgr().do(command, sender, cmdData)
             
             self.sio.emit('C2S_CmdResult', {
                 'result': result,
@@ -185,6 +203,13 @@ class CDevice:
             })
         except Exception as e:
             Log.ex(e, f'执行命令出错: {command}')
+            # 发送错误结果
+            self.sio.emit('C2S_CmdResult', {
+                'result': f'e##{str(e)}',
+                'device_id': self.deviceID,
+                'command': command,
+                'cmdName': 'error'
+            })
     
     def on_connect(self):
         """连接成功回调"""
@@ -207,10 +232,18 @@ class CDevice:
     def on_connect_error(self, data):
         """连接错误回调"""
         Log.e(f'连接错误: {data}')
+        # 尝试记录更详细的错误信息
+        if hasattr(data, 'args') and len(data.args) > 0:
+            Log.e(f'连接错误详情: {data.args[0]}')
+        
+        # 如果是认证错误，可能是设备ID冲突
+        error_msg = str(data)
+        if 'authentication' in error_msg.lower() or 'auth' in error_msg.lower():
+            Log.e(f'可能是设备ID {self.deviceID} 已被使用，请尝试使用其他设备ID')
 
     def on_disconnect(self):
         """断开连接回调"""
-        Log.w('断开连接')
+        Log.w(f'设备 {self.deviceID} 断开连接，SID: {self.sio.sid if hasattr(self.sio, "sid") else "未知"}')
         self.connected = False
 
     def send_command(self, cmd):
@@ -244,4 +277,12 @@ class CDevice:
         except Exception as e:
             Log.ex(e, "发送事件失败")
             return False
+
+    def on_any_event(self, event, data):
+        """捕获所有事件"""
+        try:
+            if event not in ['connect', 'S2C_DoCmd', 'S2C_CmdResult', 'disconnect', 'connect_error']:
+                Log.i(f'收到未处理的事件: {event}, 数据: {data}')
+        except Exception as e:
+            Log.ex(e, f'处理事件 {event} 出错')
  

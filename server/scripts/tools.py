@@ -5,6 +5,7 @@ except:
 
 from typing import Pattern, List
 from enum import Enum
+import time
 
 class TaskState(Enum):
     """任务状态"""
@@ -18,6 +19,12 @@ class TaskState(Enum):
     def values():
         """返回所有状态值"""
         return [state.value for state in TaskState]
+    
+class TAG(Enum):
+    """标签"""
+    CMD = "CMD"
+    Server = "@"
+
 
 class Tools:
     _instance = None
@@ -120,4 +127,70 @@ class Tools:
             Log.ex(e, "FindUI 指令执行失败")
             return None, None    
         
+    @staticmethod
+    def isHarmonyOS() -> bool:
+        """检查是否是鸿蒙系统"""
+        try:
+            # 检查系统属性中是否包含鸿蒙特征
+            from android.os import Build
+            manufacturer = Build.MANUFACTURER.lower()
+            return "huawei" in manufacturer or "honor" in manufacturer
+        except Exception as e:
+            Log.ex(e, '检查系统类型失败')
+            return False
+
+    @staticmethod
+    def openApp(app_name: str) -> bool:
+        """智能打开应用，根据系统类型选择不同的打开方式
+        
+        Args:
+            app_name: 应用名称
+            
+        Returns:
+            bool: 是否成功打开
+        """
+        Log.i(Tools.TAG, f"Opening app: {app_name}")
+        
+        try:
+            # 检查系统类型
+            if Tools.isHarmonyOS():
+                Log.i(Tools.TAG, "Using HarmonyOS method (click)")
+                return Tools._openAppByClick(app_name)
+            else:
+                Log.i(Tools.TAG, "Using Android method (service)")
+                from PythonServices import PythonServices
+                return PythonServices.openApp(app_name)
+        except Exception as e:
+            Log.ex(e, '打开应用失败')
+            return False
+
+    @staticmethod
+    def _openAppByClick(app_name: str) -> bool:
+        """通过点击方式打开应用（适用于鸿蒙系统）"""
+        try:
+            from PythonServices import PythonServices
+            
+            if not PythonServices.goHome():
+                Log.e(Tools.TAG, "Failed to go home")
+                return False
+                
+            time.sleep(0.5)
+            
+            nodes = PythonServices.findTextNodes()
+            targetNode = next((node for node in nodes if app_name in node.getText()), None)
+            
+            if not targetNode:
+                Log.e(Tools.TAG, f"App icon not found: {app_name}")
+                return False
+            
+            bounds = targetNode.getBounds()
+            if not PythonServices.click(bounds.centerX(), bounds.centerY()):
+                Log.e(Tools.TAG, "Failed to click app icon")
+                return False
+            return True
+            
+        except Exception as e:
+            Log.ex(e, f"Failed to open app by click: {str(e)}")
+            return False
+
 tools = Tools()

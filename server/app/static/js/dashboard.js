@@ -41,7 +41,7 @@ class Dashboard {
                         this.showHistory = true;
                         
                         // 通知后端设置当前设备ID
-                        this.socket.emit('set_current_device', {
+                        this.socket.emit('B2S_SetCurDev', {
                             device_id: deviceId
                         });
                     } else if (oldDevice) {  // 取消选中设备
@@ -117,7 +117,7 @@ class Dashboard {
                     });
 
                     this.updateLastActivity();
-                    this.socket.emit('B2S_DoCmd', {
+                    this.socket.emit('2S_Cmd', {
                         device_id: deviceId,
                         command: this.commandInput
                     });
@@ -371,7 +371,7 @@ class Dashboard {
                                         datePicker.type = 'date';
                                         datePicker.onchange = (e) => {
                                             const selectedDate = e.target.value;
-                                            this.socket.emit('2S_Command', {
+                                            this.socket.emit('2S_Cmd', {
                                                 device_id: data.deviceId,
                                                 command: `date ${selectedDate}`
                                             });
@@ -390,13 +390,13 @@ class Dashboard {
                                         e.stopPropagation();
                                         if (task.state === 'running') {
                                             console.log("stop task")
-                                            this.socket.emit('2S_Command', {
+                                            this.socket.emit('2S_Cmd', {
                                                 device_id: data.deviceId,
                                                 command: 'stop'
                                             });
                                         } else if (task.state === 'paused') {
                                             console.log("resume task")
-                                            this.socket.emit('2S_Command', {
+                                            this.socket.emit('2S_Cmd', {
                                                 device_id: data.deviceId,
                                                 command: 'resume'  
                                             });
@@ -409,7 +409,7 @@ class Dashboard {
                                     taskStats.style.cursor = 'pointer';
                                     taskStats.onclick = (e) => {
                                         e.stopPropagation();
-                                        this.socket.emit('2S_Command', {
+                                        this.socket.emit('2S_Cmd', {
                                             device_id: data.deviceId,
                                             command: 'tasks'
                                         });

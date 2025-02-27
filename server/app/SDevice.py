@@ -92,7 +92,14 @@ class SDevice:
             self.status = 'online'
             Log.i(f'设备 {self.device_id} 已连接')
             self._commit()
-            self.refresh()  # 统一刷新状态
+            
+            # 将刷新操作放在单独的 try-except 块中
+            try:
+                self.refresh()  # 统一刷新状态
+            except Exception as e:
+                Log.ex(e, f'设备 {self.device_id} 刷新状态失败，但连接已建立')
+                # 连接失败不影响设备连接状态
+            
             return True
         except Exception as e:
             Log.ex(e, '设备连接处理失败')
@@ -138,40 +145,87 @@ class SDevice:
         """刷新设备状态到前端"""
         try:
             from .SDeviceMgr import deviceMgr
-            # 统一使用 to_dict() 获取设备信息
-            deviceMgr.emit2B('S2B_DeviceUpdate', self.to_dict())
-            self.taskMgr.currentTask = None
-            Log.i(f'设备 {self.device_id} 状态已刷新')
+            # 先获取设备信息，如果出错则记录日志
+            try:
+                device_info = self.to_dict()
+                Log.i(f'设备 {self.device_id} 状态已获取，准备发送')
+            except Exception as e:
+                Log.ex(e, f'获取设备 {self.device_id} 信息失败')
+                # 使用最小化的设备信息
+                device_info = {
+                    'deviceId': self.device_id,
+                    'status': self.status,
+                    'error': '获取设备信息失败'
+                }
+            
+            # 尝试发送设备信息
+            try:
+                deviceMgr.emit2B('S2B_DeviceUpdate', device_info)
+                Log.i(f'设备 {self.device_id} 状态已刷新')
+            except Exception as e:
+                Log.ex(e, f'发送设备 {self.device_id} 状态失败')
+            
+            # 重置当前任务，如果出错则忽略
+            try:
+                if hasattr(self, '_taskMgr'):
+                    self._taskMgr.currentTask = None
+            except Exception as e:
+                Log.ex(e, f'重置设备 {self.device_id} 当前任务失败')
 
         except Exception as e:
             Log.ex(e, '刷新设备状态失败')
 
     def to_dict(self):
         """返回设备信息字典"""
-        screenshotTime = None
-        screenshotFile = None
-        
-        if self._lastScreenshot:
+        try:
+            screenshotTime = None
+            screenshotFile = None
+            
+            # 获取截图信息
+            if self._lastScreenshot:
+                try:
+                    mtime = datetime.fromtimestamp(Path(self._lastScreenshot).stat().st_mtime)
+                    screenshotTime = mtime.strftime('%H:%M:%S')
+                    screenshotFile = str(self._lastScreenshot).replace('\\', '/')
+                    if 'static' in screenshotFile:
+                        screenshotFile = '/static' + screenshotFile.split('static')[1]
+                except Exception as e:
+                    Log.ex(e, '获取截图时间失败')
+                    # 使用默认值
+                    screenshotTime = datetime.now().strftime('%H:%M:%S')
+            
+            if not screenshotFile:
+                screenshotFile = '/static/screenshots/default.jpg'
+            
+            # 获取任务分数
             try:
-                mtime = datetime.fromtimestamp(Path(self._lastScreenshot).stat().st_mtime)
-                screenshotTime = mtime.strftime('%H:%M:%S')
-                screenshotFile = str(self._lastScreenshot).replace('\\', '/')
-                if 'static' in screenshotFile:
-                    screenshotFile = '/static' + screenshotFile.split('static')[1]
+                todayTaskScore = self.taskMgr.getTodayScore() if hasattr(self, '_taskMgr') else 0
             except Exception as e:
-                Log.ex(e, '获取截图时间失败')
-        
-        if not screenshotFile:
-            screenshotFile = '/static/screenshots/default.jpg'
-        
-        return {
-            'deviceId': self.device_id,
-            'status': self.status,
-            'screenshot': screenshotFile,
-            'screenshotTime': screenshotTime,
-            'todayTaskScore': self.taskMgr.getTodayScore() if hasattr(self, 'taskMgr') else 0,
-            'totalScore': self.total_score
-        }
+                Log.ex(e, '获取今日任务分数失败')
+                todayTaskScore = 0
+            
+            # 获取总分
+            try:
+                totalScore = self.total_score
+            except Exception as e:
+                Log.ex(e, '获取总分失败')
+                totalScore = 0
+            
+            return {
+                'deviceId': self.device_id,
+                'status': self.status,
+                'screenshot': screenshotFile,
+                'screenshotTime': screenshotTime,
+                'todayTaskScore': todayTaskScore,
+                'totalScore': totalScore
+            }
+        except Exception as e:
+            Log.ex(e, '生成设备信息字典失败')
+            # 返回最小化的设备信息
+            return {
+                'deviceId': self.device_id,
+                'status': self.status
+            }
     
     def saveScreenshot(self, base64_data):
         """保存截图并刷新设备信息

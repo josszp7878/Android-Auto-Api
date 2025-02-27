@@ -1,5 +1,5 @@
 from logger import Log
-from CCmdMgr import cmdMgr, regCmd
+from CmdMgr import cmdMgr, regCmd
 from CCmds import *
 
 # 注册复合命令

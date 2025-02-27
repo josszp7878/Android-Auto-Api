@@ -47,7 +47,7 @@ class Log:
             Log.android = jclass("cn.vove7.andro_accessibility_api.demo.script.PythonServices")
         except Exception as e:
             Log.android = None
-        print(f'@@@@@@@Log.android = {Log.android}')
+        # print(f'@@@@@@@Log.android = {Log.android}')
         self._initialized = True        
         if is_server:
             self._load()
@@ -137,7 +137,7 @@ class Log:
                         })
             except Exception as e:
                 log_line = f'发送日志到服务器失败: {e}'
-            print(log_line)
+        print(log_line)
     
     
     def Filter(self, filter_str=None):

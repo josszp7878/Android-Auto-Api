@@ -5,8 +5,8 @@ from scripts.logger import Log
 from datetime import datetime, timedelta
 from flask_socketio import emit
 from sqlalchemy import func
-from typing import Dict, Optional
-
+from typing import Dict, Optional, Callable
+from scripts.tools import TAG
 
 class SDeviceMgr:
     """设备管理器：管理所有设备"""
@@ -24,7 +24,8 @@ class SDeviceMgr:
             self.console_sids = set()  # 存储控制台的 SID
             self._curDeviceID = None
             self.initialized = True
-
+            self.result = None
+            self.onCmdResult: Callable[[str], None] = None
     @property
     def devices(self):
         if self._devices is None:
@@ -191,18 +192,112 @@ class SDeviceMgr:
         """获取所有控制台的 SID"""
         return list(self.console_sids)
 
-    def emit2B(self, event, data):
+    def emit2B(self, event, data=None):
         """向所有控制台发送事件"""
         try:
+            from app import socketio
             if not self.console_sids:
-                Log.w('没有连接的控制台')
+                # 没有控制台连接，不发送
                 return
             
-            # Log.i(f'向控制台发送事件 {event}: {data}')
+            # 确保数据可序列化
+            import json
+            try:
+                # 尝试序列化数据
+                json.dumps(data)
+            except TypeError:
+                # 如果序列化失败，转换为字符串
+                Log.w(f'事件 {event} 数据无法序列化，已转换为字符串')
+                data = str(data)
+            
+            # 发送事件 - 将集合转换为列表
             for sid in self.console_sids:
-                emit(event, data, room=sid)
+                try:
+                    socketio.emit(event, data, room=sid)
+                except Exception as e:
+                    Log.w(f'向控制台 {sid} 发送事件 {event} 失败: {e}')
         except Exception as e:
             Log.ex(e, f'向控制台发送事件 {event} 失败')
+
+
+    def handCmdResult(self, data):
+        """处理命令响应"""
+        try:
+            result = data.get('result')
+            result = str(result)
+            device_id = data.get('device_id')
+            command = data.get('command')
+            cmdName = data.get('cmdName')  # 获取命令方法名
+            # sender = "@"
+            level = result.split('#')[0] if '#' in result else 'i'
+            # 替换单引号为双引号
+            self.result = result.replace("'", '"')
+            # 添加调试日志
+            # Log.i('Server', f'收到命令响应: {device_id} -> {command} = {result}')
+            
+            # 根据命令方法名处理响应
+            if cmdName == 'captureScreen':  # 使用方法名而不是命令文本判断
+                if isinstance(result, str) and result.startswith('data:image'):
+                    device = self.get_device(device_id)
+                    if device is None:
+                        Log.e(f'设备 {device_id} 不存在')
+                        return
+                    if device.saveScreenshot(result):
+                        result = '截图已更新'
+                    else:
+                        result = '截图更新失败'
+            Log.i(f'命令响应: {device_id} -> {command} = {result}', TAG.CMD)
+        except Exception as e:
+            Log.ex(e, '处理命令响应出错')
+        # 解析level
+        if isinstance(result, str) and '##' in result:
+            level = result.split('##')[0]
+            if level in ['w', 'e', 'i', 'd']:
+                result = result.split('##')[1:]
+            else:
+                level = 'i'
+        else:
+            level = 'i'
+        if self.onCmdResult:
+            self.onCmdResult(result)
+        Log()._log(f"{device_id}:{command}  => {result}", level, TAG.CMD)
+
+    def sendClientCmd(self, device_id, command, data=None, callback: Callable[[str], None]=None):
+        """执行设备命令"""
+        try:
+            self.onCmdResult = callback
+            with current_app.app_context():
+                Log.i(f'发送客户端命令: {device_id} -> {command}, DATA: {data}')
+                device = self.get_device(device_id)
+                if device is None:
+                    Log.e(f'设备 {device_id} 不存在')
+                    return '设备不存在'
+                if device.status != 'login':
+                    Log.w('Server', f'设备 {device_id} 未登录')
+                    return '设备未登录'
+                sid = device.info.get('sid')
+                # Log.i('Server', f'设备 SID: {sid}')
+                if sid:
+                    try:
+                        # 通过 sid 发送命令，包含 data 参数
+                        emit('S2C_DoCmd', {
+                            'command': command,
+                            'sender': current_app.config['SERVER_ID'],
+                            'data': data  # 添加 data 参数
+                        }, to=sid)
+                        
+                        Log.i('Server', f'命令已发送到设备 {device_id}')
+                        return f'命令已发送到设备 {device_id}'
+                    except Exception as e:
+                        Log.ex(e, '发送命令时出错')
+                        return f'发送命令失败: {e}'
+                else:
+                    Log.e('Server', f'设备 {device_id} 会话无效')
+                    return '设备会话无效'
+                
+        except Exception as e:
+            Log.ex(e, '执行设备命令出错')
+            return '执行命令失败'        
 
 
 deviceMgr = SDeviceMgr()
