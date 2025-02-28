@@ -44,12 +44,14 @@ class CmdMgr:
             return func
         return decorator
     
-    def clear(self):
+    @classmethod
+    def clear(cls):
         """清除命令"""
         CmdMgr.cmdRegistry.clear()
         CmdMgr.nameRegistry.clear()
     
-    def do(self, command, sender=None, data=None):
+    @classmethod
+    def do(cls, command, sender=None, data=None):
         """执行命令"""
         cmd = command.strip()
         if not cmd:
@@ -57,8 +59,11 @@ class CmdMgr:
             
         cmdParts = cmd.split(None, 1)
         cmdName = cmdParts[0].lower()
-        cmdArgs = cmdParts[1] if len(cmdParts) > 1 else ""
-        
+        cmdArgs = cmdParts[1] if len(cmdParts) > 1 else None
+        if cmdArgs and cmdArgs.strip() == '':
+            cmdArgs = None
+    
+        Log.d(f'执行命令: {cmdName} {cmdArgs}')
         try:
             func = param_pattern = None
             # 按命令模式匹配
@@ -67,32 +72,88 @@ class CmdMgr:
                     func, param_pattern = f, p
                     break
             # 按命令名称匹配
-            Log.d(f'按命令名称匹配: {cmdName}=> {func} {param_pattern}')
+            # Log.d(f'按命令名称匹配: {cmdName}=> {func} {param_pattern}')
             if not func:
                 for name, (f, p, _) in CmdMgr.nameRegistry.items():
                     if name.startswith(cmdName):
                         func, param_pattern = f, p
                         break
-            Log.d(f'按命令名称匹配: {cmdName}=> {func} {param_pattern}')
+            # Log.d(f'按命令名称匹配: {cmdName}=> {func} {param_pattern}')
             if not func:
                 return "w##未知命令", None
             if not param_pattern:
-                return (func(data) if not cmdArgs else "w##该命令不支持参数"), func.__name__
+                return (func() if not cmdArgs else "w##该命令不支持参数"), func.__name__
             
+            if cmdArgs is None:
+                cmdArgs = ""    # 如果没有参数，则使用空字符串
             match = re.match(f"^{param_pattern}$", cmdArgs)
             if not match:
+                Log.e(f'参数格式错误: {cmdArgs} {param_pattern}')
                 return "w##参数格式错误", func.__name__
             
             # 将 data 参数添加到 match.groupdict() 中
             params = match.groupdict()
             if data is not None:
-                params['data'] = data
-            
+                # 检查函数是否接受data参数
+                import inspect
+                sig = inspect.signature(func)
+                if 'data' in sig.parameters:
+                    params['data'] = data
             return func(**params), func.__name__
-            
         except Exception as e:
             Log.ex(e, f'{cmd}命令执行错误')
             return "e##Error", None
+        
+    @classmethod
+    def loadModule(cls, module_name: str) -> bool:
+        """处理模块重新加载
+        Args:
+            module_name: 模块名称
+            log: 日志实例
+        Returns:
+            bool: 是否重载成功
+        """
+        try:
+            if module_name in sys.modules:
+                module = sys.modules[module_name]
+                # 执行预加载
+                if hasattr(module, 'OnPreload'):
+                    module.OnPreload()
+                
+                # 获取所有引用了该模块的模块
+                referrers = [m for m in sys.modules.values() 
+                            if m and hasattr(m, '__dict__') and module_name in m.__dict__]
+                
+                # 重新加载模块
+                del sys.modules[module_name]
+                # 强制重新从文件加载模块
+                spec = importlib.util.find_spec(module_name)
+                if not spec:
+                    Log.e(f"找不到模块: {module_name}")
+                    return False
+                    
+                module = importlib.util.module_from_spec(spec)
+                sys.modules[module_name] = module
+                spec.loader.exec_module(module)
+                
+                # 更新引用
+                for referrer in referrers:
+                    if hasattr(referrer, '__dict__'):
+                        referrer.__dict__[module_name] = module
+                
+                # 执行重载后回调
+                if hasattr(module, 'OnReload'):
+                    module.OnReload()
+                Log.i(f"重新加载模块成功: {module_name}")
+            else:
+                # 首次加载直接使用import_module
+                module = importlib.import_module(module_name)
+                Log.i(f"首次加载模块成功: {module_name}")
+            
+            return True
+        except Exception as e:
+            Log.ex(e, f"加载模块失败: {module_name}")
+            return False   
 
 
 # 创建全局单例实例
@@ -100,64 +161,13 @@ cmdMgr = CmdMgr()
 regCmd = cmdMgr.reg
 
 
-#热加载
-@classmethod
-def loadModule(cls, module_name: str) -> bool:
-    """处理模块重新加载
-    Args:
-        module_name: 模块名称
-        log: 日志实例
-    Returns:
-        bool: 是否重载成功
-    """
-    try:
-        if module_name in sys.modules:
-            module = sys.modules[module_name]
-            # 执行预加载
-            if hasattr(module, 'OnPreload'):
-                module.OnPreload()
-            
-            # 获取所有引用了该模块的模块
-            referrers = [m for m in sys.modules.values() 
-                        if m and hasattr(m, '__dict__') and module_name in m.__dict__]
-            
-            # 重新加载模块
-            del sys.modules[module_name]
-            # 强制重新从文件加载模块
-            spec = importlib.util.find_spec(module_name)
-            if not spec:
-                Log.e(f"找不到模块: {module_name}")
-                return False
-                
-            module = importlib.util.module_from_spec(spec)
-            sys.modules[module_name] = module
-            spec.loader.exec_module(module)
-            
-            # 更新引用
-            for referrer in referrers:
-                if hasattr(referrer, '__dict__'):
-                    referrer.__dict__[module_name] = module
-            
-            # 执行重载后回调
-            if hasattr(module, 'OnReload'):
-                module.OnReload()
-            Log.i(f"重新加载模块成功: {module_name}")
-        else:
-            # 首次加载直接使用import_module
-            module = importlib.import_module(module_name)
-            Log.i(f"首次加载模块成功: {module_name}")
-        
-        return True
-    except Exception as e:
-        Log.ex(e, f"加载模块失败: {module_name}")
-        return False
+
 
 # 添加reload命令
 @regCmd(r"加载", r"(?P<module_name>\w+)?")
 def reload(module_name):
     print(f"热加载模块1: {module_name}")
-    modules = []
-    
+    modules = []    
     import os
     import importlib.util
     # 获取客户端和服务器端脚本路径

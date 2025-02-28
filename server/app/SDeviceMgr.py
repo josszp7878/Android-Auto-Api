@@ -7,6 +7,9 @@ from flask_socketio import emit
 from sqlalchemy import func
 from typing import Dict, Optional, Callable
 from scripts.tools import TAG
+import threading
+import hashlib
+import time
 
 class SDeviceMgr:
     """设备管理器：管理所有设备"""
@@ -26,6 +29,8 @@ class SDeviceMgr:
             self.initialized = True
             self.result = None
             self.onCmdResult: Callable[[str], None] = None
+            self.cmdTimeout = 10  # 命令超时时间(秒)
+            self.pendingCmds = {}  # 存储待处理的命令 {cmd_id: timer}
     @property
     def devices(self):
         if self._devices is None:
@@ -75,11 +80,11 @@ class SDeviceMgr:
         Log.i(f'添加设备: {device_id}')
         return device
     
-    def get_device(self, device_id):
+    def get_device(self, device_id)->Optional[SDevice]:
         """获取设备"""
         return self.devices.get(device_id)
 
-    def get_device_by_sid(self, sid):
+    def get_device_by_sid(self, sid)->Optional[SDevice]:
         """根据sid获取设备"""
         for device in self.devices.values():
             if device.info.get('sid') == sid:
@@ -132,9 +137,18 @@ class SDeviceMgr:
             return None
     
     @property
-    def curDevice(self):
+    def curDevice(self)->Optional[SDevice]:
         return self.devices.get(self._curDeviceID)
-
+    
+    def CurDevice(self, showLog:bool=True)->Optional[SDevice]:
+        device = None
+        try:
+            device = self.get_device(self._curDeviceID)
+        except Exception as e:
+            Log.ex(e, "获取当前设备失败")
+        if device is None and showLog:
+            Log.e("当前设备不存在")
+        return device
 
     def update_device(self, device):
         try:
@@ -219,7 +233,9 @@ class SDeviceMgr:
         except Exception as e:
             Log.ex(e, f'向控制台发送事件 {event} 失败')
 
-
+##########################################################
+# 命令处理
+##########################################################
     def handCmdResult(self, data):
         """处理命令响应"""
         try:
@@ -228,12 +244,15 @@ class SDeviceMgr:
             device_id = data.get('device_id')
             command = data.get('command')
             cmdName = data.get('cmdName')  # 获取命令方法名
-            # sender = "@"
-            level = result.split('#')[0] if '#' in result else 'i'
+            cmd_id = data.get('cmd_id')  # 获取命令ID
+            
+            # 如果有命令ID，取消对应的超时定时器
+            if cmd_id and cmd_id in self.pendingCmds:
+                self.pendingCmds[cmd_id].cancel()
+                del self.pendingCmds[cmd_id]
+            
             # 替换单引号为双引号
             self.result = result.replace("'", '"')
-            # 添加调试日志
-            # Log.i('Server', f'收到命令响应: {device_id} -> {command} = {result}')
             
             # 根据命令方法名处理响应
             if cmdName == 'captureScreen':  # 使用方法名而不是命令文本判断
@@ -249,6 +268,7 @@ class SDeviceMgr:
             Log.i(f'命令响应: {device_id} -> {command} = {result}', TAG.CMD)
         except Exception as e:
             Log.ex(e, '处理命令响应出错')
+        
         # 解析level
         if isinstance(result, str) and '##' in result:
             level = result.split('##')[0]
@@ -258,11 +278,41 @@ class SDeviceMgr:
                 level = 'i'
         else:
             level = 'i'
+        
         if self.onCmdResult:
             self.onCmdResult(result)
+        
         Log()._log(f"{device_id}:{command}  => {result}", level, TAG.CMD)
 
-    def sendClientCmd(self, device_id, command, data=None, callback: Callable[[str], None]=None):
+    def genCmdId(self, device_id, command):
+        """生成命令唯一ID"""
+        # 使用设备ID、命令和时间戳生成唯一ID
+        cmd_str = f"{device_id}:{command}:{time.time()}"
+        return hashlib.md5(cmd_str.encode()).hexdigest()[:16]
+
+    def handleCmdTimeout(self, cmd_id, device_id, command):
+        """处理命令超时"""
+        if cmd_id in self.pendingCmds:
+            Log.w(f"命令执行超时: {device_id} -> {command}", TAG.CMD)
+            # 从待处理命令中移除
+            del self.pendingCmds[cmd_id]
+            # 调用结果回调
+            if self.onCmdResult:
+                self.onCmdResult(f"e##命令执行超时: {command}")
+            # 记录日志
+            Log()._log(f"{device_id}:{command} => 命令执行超时", 'e', TAG.CMD)
+
+    def CmdTimeout(self, timeout, device_id, command)->str:
+        """设置超时定时器"""
+        # 生成命令ID
+        cmd_id = self.genCmdId(device_id, command)
+        timeout = timeout if timeout else self.cmdTimeout
+        timer = threading.Timer(timeout, self.handleCmdTimeout, args=[cmd_id, device_id, command])
+        timer.daemon = True
+        timer.start()
+        return cmd_id
+    
+    def sendClientCmd(self, device_id, command, data=None, timeout:int=10, callback:Callable[[str], None]=None):
         """执行设备命令"""
         try:
             self.onCmdResult = callback
@@ -276,16 +326,17 @@ class SDeviceMgr:
                     Log.w('Server', f'设备 {device_id} 未登录')
                     return '设备未登录'
                 sid = device.info.get('sid')
-                # Log.i('Server', f'设备 SID: {sid}')
+                # Log.i('Server', f'设备 SID: {sid}， 命令: {command}， 数据: {data}')
                 if sid:
                     try:
-                        # 通过 sid 发送命令，包含 data 参数
+                        cmd_id = self.CmdTimeout(timeout, device_id, command)
+                        # 通过 sid 发送命令，包含 data 参数和命令ID
                         emit('S2C_DoCmd', {
                             'command': command,
                             'sender': current_app.config['SERVER_ID'],
-                            'data': data  # 添加 data 参数
+                            'data': data,  # 添加 data 参数
+                            'cmd_id': cmd_id  # 添加命令ID
                         }, to=sid)
-                        
                         Log.i('Server', f'命令已发送到设备 {device_id}')
                         return f'命令已发送到设备 {device_id}'
                     except Exception as e:
@@ -297,7 +348,8 @@ class SDeviceMgr:
                 
         except Exception as e:
             Log.ex(e, '执行设备命令出错')
-            return '执行命令失败'        
+            return '执行命令失败'       
+##########################################################
 
 
 deviceMgr = SDeviceMgr()

@@ -1,17 +1,14 @@
 from datetime import datetime
-from logger import Log, requireAndroid
+from logger import Log
 from CDevice import CDevice
-from tools import Tools, tools
+from CTools import CTools
 from CmdMgr import regCmd, CmdMgr
 import re
 from typing import Pattern, List
-from CFileServer import fileServer
 import threading
 import time as time_module
 from CClient import client
-
-# 缓存 Android 实例
-androidServices = Log.android
+from CTools import requireAndroid
 
 # 添加缓存相关的变量
 _screenInfoCache = None
@@ -22,6 +19,7 @@ _screenMonitorTask = None
 def OnReload():
     Log.w("Cmds模块热更新 清理命令列表")
     CmdMgr.clear()
+    import CCmds
 
 @regCmd(r"信息")
 def info():
@@ -94,18 +92,19 @@ def isConnect():
     return "未连接到服务器"
 
 @regCmd(r"坐标|位置", r"(?P<pattern>.+)")
-@requireAndroid
 def getPos(pattern):
     position = None
     try:
-        Log.i(f"@@@@点击指令: {pattern}")
+        # Log.i(f"@@@@点击指令: {pattern}")
         x, y = map(int, re.split(r"[,\s]+", pattern.strip()))
         position = (x, y)
     except Exception:
-        tools.refreshScreenInfos()
+        CTools.refreshScreenInfos()
         regex = re.compile(pattern)
         position = findPos(regex)
-    Log.i(f"坐标:{position}")
+        if not position:
+            Log.e(f"未找到坐标{pattern}")
+    # Log.i(f"坐标:{position}")
     return position
 
 def inRect(pattern, region):
@@ -122,11 +121,11 @@ def inRect(pattern, region):
     return False
 
 @regCmd(r"移到", r"(?P<param>.+)")
-@requireAndroid
 def move(param):
     position = getPos(param)
-    if position:
-        return androidServices.move(position[0], position[1])
+    android = CTools.android()
+    if position and android:
+        return android.move(position[0], position[1])
     return "未找到"
 
 @regCmd(r"点击", r"(?P<param>\S+)(?:\s+(?P<offset>\d+,\d+))?")
@@ -134,6 +133,10 @@ def click(param, offset=None):
     """点击指定位置，支持偏移"""
     Log.i(f"点击指令: {param} {offset}")
     if not param:
+        return False
+    android = CTools.android()
+    if not android:
+        Log.e("点击失败:未找到Android实例")
         return False
     position = getPos(param)   
     if position:
@@ -143,61 +146,73 @@ def click(param, offset=None):
             offset = offset.split(',')
             x, y = int(offset[0]), int(offset[1])
         x, y = position[0] + x, position[1] + y
-        return androidServices.click(x, y)
+        return android.click(x, y)
     return False
 
 @regCmd(r"返回")
-@requireAndroid
 def goBack():
-    return androidServices.goBack()
+    android = CTools.android()
+    if android:
+        return android.goBack()
+    return False
 
 @regCmd(r"主屏幕")
-@requireAndroid
 def goHome():
-    return androidServices.goHome()
+    android = CTools.android()
+    if android:
+        return android.goHome()
+    return False
 
 @regCmd(r"检查安装\s+(?P<pkgName>\S+)")
-@requireAndroid
 def isInstalled(pkgName):
-    return androidServices.isAppInstalled(pkgName)
+    android = CTools.android()
+    if android:
+        return android.isAppInstalled(pkgName)
+    return False
 
 @regCmd(r"安装\s+(?P<pkgName>\S+)")
-@requireAndroid
 def install(pkgName):
-    return androidServices.installApp(pkgName)
+    android = CTools.android()
+    if android:
+        return android.installApp(pkgName)
+    return False
 
 @regCmd(r"卸载\s+(?P<pkgName>\S+)")
-@requireAndroid
 def uninstall(pkgName):
-    return androidServices.uninstallApp(pkgName)
+    android = CTools.android()
+    if android:
+        return android.uninstallApp(pkgName)
+    return False
 
 @regCmd(r"启动|打开", r"(?P<pkgName>\S+)")
-@requireAndroid
 def openApp(pkgName):
     """打开应用"""
     try:
         # 使用 Tools 类的 openApp 方法
-        return Tools.openApp(pkgName)
+        return CTools.openApp(pkgName)
     except Exception as e:
         Log.ex(e, "打开应用失败")
         return False
 
 @regCmd(r"停止", r"(?P<pkgName>\S+)")
-@requireAndroid
 def stopApp(pkgName):
-    return androidServices.closeApp(pkgName)
+    android = CTools.android()
+    if android:
+        return android.closeApp(pkgName)
+    return False
 
 @regCmd(r"切换应用|任务列表|最近任务")
-@requireAndroid
 def switchApp():
     """显示最近任务列表"""
-    return androidServices.showRecentApps()
+    android = CTools.android()
+    if android:
+        return android.showRecentApps()
+    return False
 
 @regCmd(r"截屏")
-@requireAndroid
 def getScreen():
     try:
-        result = Tools().refreshScreenInfos()
+        result = CTools.refreshScreenInfos()
         for item in result:
             bounds = item["b"].split(",")
             Log.i("Text:", item["t"])
@@ -210,9 +225,9 @@ def getScreen():
 def findPos(regex: Pattern, region: List[int] = None):
     try:
         position = None
-        match, item = Tools().matchScreenText(regex, region)
+        match, item = CTools.matchScreenText(regex, region)
         if match:
-            position = Tools().toPos(item)
+            position = CTools.toPos(item)
             position = (position[0], position[1])
             Log.i(f"找到坐标: {position}")
         return position
@@ -221,37 +236,42 @@ def findPos(regex: Pattern, region: List[int] = None):
         return None
 
 @regCmd(r"查找应用", r"(?P<appName>[\w\s]+)")
-@requireAndroid
 def _toApp(appName: str) -> bool:
     """查找应用"""
     try:
-        texts = androidServices.getScreenText()
-        if not texts:
-            return False
-        for text in texts:
-            if appName in text:
-                return True
+        android = CTools.android()
+        if android:
+            texts = android.getScreenText()
+            if not texts:
+                return False
+            for text in texts:
+                if appName in text:
+                    return True
         return False
     except Exception as e:
         Log.ex(e, "查找应用失败")
         return False
 
-@regCmd(r"打开应用", r"(?P<appName>[\w\s]+)")
-@requireAndroid
+@regCmd(r"打开", r"(?P<appName>[\w\s]+)")
 def openApp(appName: str) -> bool:
     """打开指定应用"""
     try:
-        from scripts.tools import Tools
-        from CDevice import CDevice
-        
+        Log.i(f"打开应用: {appName}")
         CDevice.currentAppName = appName
         if CDevice.currentAppName == appName:
             return True
-        
-        # 使用 Tools 类的 openApp 方法
-        return Tools.openApp(appName)
+        return CTools.openApp(appName)
     except Exception as e:
         Log.ex(e, "打开应用失败")
+        return False
+    
+@regCmd(r"关闭", r"(?P<appName>[\w\s]+)?")
+def closeApp(appName: str) -> bool:
+    """关闭指定应用"""
+    try:
+        return CTools.closeApp(appName)
+    except Exception as e:
+        Log.ex(e, "关闭应用失败")
         return False
 
 def clearScreenCache():
@@ -271,7 +291,6 @@ def getScreenText(forceUpdate: bool = False) -> str:
         return ""
 
 @regCmd(r"监控", r"(?P<interval>\d+)?")
-@requireAndroid
 def startScreenMonitor(interval=None):
     """开始屏幕监控"""
     global _screenMonitorTask
@@ -285,10 +304,7 @@ def startScreenMonitor(interval=None):
         def monitor_task():
             while _screenMonitorTask:
                 try:
-                    image = androidServices.takeScreenshot()
-                    # Log.i("获取截图:")
-                    if image:
-                        client.emit("C2S_UpdateScreenshot", {"device_id": client.deviceID, "screenshot": image})
+                    client.TakeScreenshot()
                     time_module.sleep(interval)
                 except Exception as e:
                     Log.ex(e, "监控任务异常")
@@ -338,14 +354,15 @@ def saveScreenshotToLocal(base64_data, prefix="screenshot"):
         return None
 
 @regCmd(r"截图")
-@requireAndroid
 def captureScreen():
     """截图指令"""
     try:
         Log.i("截图指dddd令")
-        image = androidServices.takeScreenshot()
-        if not image:
-            return "e##截图失败:未获取到图片数据"
+        android = CTools.android()
+        if android:
+            image = android.takeScreenshot()
+            if not image:
+                return "e##截图失败:未获取到图片数据"
         if not image.startswith("data:image"):
             image = f"data:image/jpeg;base64,{image}"
         return image
@@ -355,7 +372,6 @@ def captureScreen():
 
 
 @regCmd(r"滑动", r"(?P<param>.+)")
-@requireAndroid
 def swipe(param):
     """滑动屏幕"""
     """
@@ -375,6 +391,9 @@ def swipe(param):
        ED - 从顶部向下滑动
     """
     try:
+        android = CTools.android()
+        if not android:
+            return "e##滑动失败:未找到Android实例"
         # 默认持续时间为0.5秒
         default_duration = 500
 
@@ -391,7 +410,7 @@ def swipe(param):
             startX, startY = map(int, start.split(','))
             endX, endY = map(int, end.split(','))
             Log.i(f"滑动指令: 开始位置({startX}, {startY}), 结束位置({endX}, {endY}), 持续时间: {duration} ms")
-            if androidServices.swipe(startX, startY, endX, endY, duration):
+            if android.swipe(startX, startY, endX, endY, duration):
                 return "滑动成功"
             else:
                 return "e##滑动失败"
@@ -401,10 +420,20 @@ def swipe(param):
             direction = parts[0]
             duration = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else default_duration
             Log.i(f"滑动指令: 方向({direction}), 持续时间: {duration} ms")
-            if androidServices.sweep(direction, duration):
+            if android.sweep(direction, duration):
                 return "滑动成功"
             else:
                 return "e##滑动失败"
     except Exception as e:
         Log.ex(e, "滑动失败")
         return f"e##滑动失败: {str(e)}"
+
+@regCmd('快照', None, '截取当前屏幕')
+def takeScreenshot():
+    """截取当前屏幕并发送到服务器"""
+    try:
+        device = CDevice.instance()
+        device.TakeScreenshot()
+    except Exception as e:
+        Log.ex(e, '截图失败')
+        return f'e##截图异常: {str(e)}'

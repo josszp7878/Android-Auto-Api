@@ -9,7 +9,7 @@ from scripts.logger import Log
 from .SDeviceMgr import deviceMgr
 import sys
 import os
-from scripts.CmdMgr import cmdMgr
+from scripts.CmdMgr import CmdMgr
 from . import SCmds
 # 从 run.py 中导入 socketio 实例
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -104,22 +104,12 @@ def handle_logout(data):
         Log.ex(e, '处理设备登出失败')
 
 
-
-@socketio.on('C2S_CmdResult')
-def handle_C2S_CmdResult(data):
-    """处理命令响应"""
-    try:
-        deviceMgr.handCmdResult(data)
-    except Exception as e:
-        Log.ex(e, '处理命令响应失败')
-
-
-@socketio.on('C2S_UpdateScreenshot')
-def handle_C2S_UpdateScreenshot(data):
+@socketio.on('C2S_Screenshot')
+def handle_C2S_Screenshot(data):
     """处理设备截图更新"""
     try:
         device_id = data.get('device_id')
-        screenshot_data = data.get('screenshot')
+        screenshot_data = data.get('image')
         if screenshot_data is None:
             return
         device = deviceMgr.get_device(device_id)
@@ -189,7 +179,9 @@ def handle_C2S_StartTask(data):
         if not device:
             Log.e(f'设备不存在: {device_id}')
             return
-        device.taskMgr.startTask(app_name, task_name)
+        taskMgr = device.taskMgr
+        task = taskMgr.getRunningTask(app_name, task_name, create=True)
+        taskMgr.startTask(task)
     except Exception as e:
         Log.ex(e, '处理任务启动请求失败')
 
@@ -275,14 +267,20 @@ def handle_command(data):
         if not device_id or not command:
             return {'error': '缺少必要参数'}   
         # 检查命令是否以:或：开头
-        result = "无效命令"
         if re.match(r'^[：:].*', command):
             # 去掉开头的:或：后发送给客户端
             clientCmd = command[1:]
-            result = f'纯客户端命令: {clientCmd}'
             deviceMgr.sendClientCmd(device_id, clientCmd, params)
         else:
-            result, _ = cmdMgr.do(command, sender=None, data=None)
-        Log.i(result, tag=TAG.CMD)
+            CmdMgr.do(command, sender=None, data=None)
     except Exception as e:
         Log.ex(e, '执行命令失败')
+
+
+@socketio.on('C2S_CmdResult')
+def handle_C2S_CmdResult(data):
+    """处理命令响应"""
+    try:
+        deviceMgr.handCmdResult(data)
+    except Exception as e:
+        Log.ex(e, '处理命令响应失败')

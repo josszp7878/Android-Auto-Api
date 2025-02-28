@@ -1,7 +1,7 @@
 import time
-from logger import log
+from logger import Log
 from CFileServer import fileServer
-from tools import Tools
+from CTools import CTools
 
 class CClient:
     """客户端管理类"""
@@ -37,9 +37,9 @@ class CClient:
     def Begin(self, deviceID=None, server=None):  
         print(f"开始初始化客户端: deviceID={deviceID}, server={server}")      
         try:
-            server = server or Tools.getLocalIP()
+            server = server or CTools.getLocalIP()
             print(f"获取本机IP: {server}")
-            server_url = f"http://{server}:{Tools.port}"
+            server_url = f"http://{server}:{CTools.port}"
             # 初始化设备连接
             print(f"开始初始化设备: {deviceID}")
             from CDevice import CDevice
@@ -50,10 +50,7 @@ class CClient:
             def onConnected(ok):
                 self.waitting = False
                 if not ok:
-                    print("设备连接服务器失败")
-                    # 在APP中显示Toast提示
-                    if log.isAndroid():
-                        log.toast("服务器连接失败，请检查服务器IP地址和相关的网络设置是否正确")
+                    CTools.toast("服务器连接失败，请检查服务器IP地址和相关的网络设置是否正确")
                 else:
                     print("设备连接服务器成功")
             
@@ -77,12 +74,11 @@ class CClient:
             
             if not self.device.connected:
                 print("设备连接失败")
-                if log.isAndroid():
-                    log.toast("无法连接到服务器，请检查网络和服务器地址")
+                if CTools.isAndroid():
+                    CTools.toast("无法连接到服务器，请检查网络和服务器地址")
                 return
             fileServer.serverUrl = server_url                
-            runFromApp = log.isAndroid()
-            if runFromApp:
+            if CTools.runFromAndroid:
                 # 更新脚本
                 self.waitting = True
                 def onUpdated(ok):
@@ -98,33 +94,33 @@ class CClient:
                         break
                 
             import CCmds as CCmds
-            from CmdMgr import cmdMgr
+            from CmdMgr import CmdMgr
             from CTaskMgr import taskMgr
 
-
-            if not runFromApp:  # 如果不是从App运行，则进入命令行模式
-                print("客户端运行中... 按Ctrl+C退出")    
+            print(f"runFrdddddddddddddomAndroid={CTools.runFromAndroid}")
+            if not CTools.runFromAndroid:  # 如果不是从App运行，则进入命令行模式
+                print("客户端运行中sss... 按Ctrl+C退出")    
                 while True:
                     try:
                         time.sleep(0.1)
                         cmd_input = input(f"{self.deviceID}> ").strip()
                         if cmd_input:
                             try:
-                                result = cmdMgr.do(cmd_input)
+                                result,_ = CmdMgr.do(cmd_input)
                                 if result:
                                     print(result)
                             except Exception as e:
-                                log.ex(e, '执行命令出错')    
+                                Log.ex(e, '执行命令出错')    
                                 break
                     except KeyboardInterrupt:
-                        log.i('\n正在退出...') 
+                        Log.i('\n正在退出...') 
                         break  
                 self.End()
             else:
                 while True:
                     time.sleep(100)
         except Exception as e:
-            log.ex(e, '初始化失败')
+            Log.ex(e, '初始化失败')
 
 
     
@@ -139,12 +135,12 @@ class CClient:
             from CTaskMgr import taskMgr
             # 停止所有任务
             taskMgr.uninit()
-            log.i("所有任务已停止")
+            Log.i("所有任务已停止")
 
             # 其他结束逻辑...
             # 例如，断开连接，清理资源等
         except Exception as e:
-            log.ex(e, "客户端结束失败")
+            Log.ex(e, "客户端结束失败")
 
 # 创建全局单例实例
 client = CClient()

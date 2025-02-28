@@ -17,6 +17,10 @@ class SDevice:
         self.last_seen = datetime.now()
         self._lastScreenshot = None
         self._ensure_screenshot_dir()
+    
+    @property
+    def deviceID(self):
+        return self.device_id
         
     def init(self, model: DeviceModel = None):
         Log.i(f'初始化设备&&&: {self.device_id}')
@@ -146,32 +150,10 @@ class SDevice:
         try:
             from .SDeviceMgr import deviceMgr
             # 先获取设备信息，如果出错则记录日志
-            try:
-                device_info = self.to_dict()
-                Log.i(f'设备 {self.device_id} 状态已获取，准备发送')
-            except Exception as e:
-                Log.ex(e, f'获取设备 {self.device_id} 信息失败')
-                # 使用最小化的设备信息
-                device_info = {
-                    'deviceId': self.device_id,
-                    'status': self.status,
-                    'error': '获取设备信息失败'
-                }
-            
-            # 尝试发送设备信息
-            try:
-                deviceMgr.emit2B('S2B_DeviceUpdate', device_info)
-                Log.i(f'设备 {self.device_id} 状态已刷新')
-            except Exception as e:
-                Log.ex(e, f'发送设备 {self.device_id} 状态失败')
-            
-            # 重置当前任务，如果出错则忽略
-            try:
-                if hasattr(self, '_taskMgr'):
-                    self._taskMgr.currentTask = None
-            except Exception as e:
-                Log.ex(e, f'重置设备 {self.device_id} 当前任务失败')
-
+            device_info = self.to_dict()
+            deviceMgr.emit2B('S2B_DeviceUpdate', device_info)
+            # Log.i(f'设备 {self.device_id} 状态已刷新')
+            self.taskMgr.currentTask = None
         except Exception as e:
             Log.ex(e, '刷新设备状态失败')
 
@@ -261,6 +243,23 @@ class SDevice:
                 
         except Exception as e:
             Log.ex(e, "保存截图失败")
+            return False
+
+    def takeScreenshot(self):
+        """向客户端发送截屏指令"""
+        try:
+            if self.status != 'login':
+                Log.w(f'设备 {self.device_id} 未登录，无法截屏')
+                return False
+            from .SDeviceMgr import deviceMgr
+            deviceMgr.sendClientCmd(
+                self.device_id, 
+                'takeScreenshot'
+            )
+            Log.i(f'向设备 {self.device_id} 发送截屏指令')
+            return True
+        except Exception as e:
+            Log.ex(e, f'向设备 {self.device_id} 发送截屏指令失败')
             return False
 
    

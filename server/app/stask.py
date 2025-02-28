@@ -28,7 +28,7 @@ class STask(db.Model):
     
     @property
     def taskId(self):
-        return Tools._toTaskId(self.appName, self.taskName)
+        return Tools.toTaskId(self.appName, self.taskName)
     
     @property
     def completed(self):

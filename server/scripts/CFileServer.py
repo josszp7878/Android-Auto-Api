@@ -1,12 +1,10 @@
 import os
 import json
 import requests
-import sys
-import importlib
 from typing import Callable
 from threading import Thread
 from logger import Log
-from tools import Tools
+from CTools import CTools
 
 # 定义应用根目录
 
@@ -33,7 +31,7 @@ class CFileServer:
             str: 脚本目录路径
         """
         if self._scriptDir is None:
-            android = Log.android
+            android = CTools.android()
             if android:
                 # Android环境下使用应用私有目录
                 # getFilesDir 直接返回字符串路径

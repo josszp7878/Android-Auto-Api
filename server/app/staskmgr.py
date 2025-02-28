@@ -3,7 +3,6 @@ from .STask import STask
 from scripts.logger import Log
 from datetime import datetime, date
 from scripts.tools import Tools
-from sqlalchemy import func
 from .Database import db  # 导入单例的db实例
 from scripts.tools import TaskState
 
@@ -96,7 +95,7 @@ class STaskMgr:
 
     def _getTasks(self, appName: str, taskName: str, notCompleted: bool = False) -> List[STask]:
         try:
-            taskId = Tools._toTaskId(appName, taskName)
+            taskId = Tools.toTaskId(appName, taskName)
             tasks = [t for t in self.tasks if t.taskId == taskId]
             if notCompleted:
                 tasks = [t for t in tasks if not t.completed]
@@ -172,15 +171,14 @@ class STaskMgr:
             Log.ex(e, '获取任务统计失败')
             return {'date': self._date.strftime('%Y-%m-%d'), 'total': 0, 'unfinished': 0}
 
-    def startTask(self, appName: str, taskName: str) -> bool:
+    def startTask(self, task: STask) -> bool:
         """启动任务"""
         try:
             # 获取运行中的任务
-            running_task = self.getRunningTask(appName, taskName, create=True)
-            if running_task:
-                running_task.start()
-                self.currentTask = running_task
-                self.currentApp = appName
+            if task:
+                task.start()
+                self.currentTask = task
+                self.currentApp = task.appName
                 return True
             return False
         except Exception as e:

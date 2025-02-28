@@ -3,12 +3,11 @@ from scripts.logger import Log
 from scripts.CmdMgr import regCmd
 from flask_socketio import emit
 from .SDeviceMgr import deviceMgr, SDeviceMgr
-from .models import db
 from .STask import STask, TaskState
 import json
 from .SEarningMgr import SEarningMgr
 from scripts.CmdMgr import CmdMgr
-
+from time import sleep
 
 def OnReload():
     Log.w("Cmds模块热更新 清理命令列表")
@@ -146,28 +145,19 @@ def progress(deviceId, appName, taskName):
 def resume():
     """继续当前设备的暂停任务"""
     try:
-        device_id = deviceMgr.curDeviceID
-        if not device_id:
+        device = deviceMgr.curDevice
+        if not device:
             return "e##未选择设备"
             
         # 获取暂停的任务
         task = STask.query.filter_by(
-            deviceId=device_id,
+            deviceId=device.deviceID,
             state=TaskState.PAUSED.value
         ).order_by(STask.time.desc()).first()
-        
         if not task:
             return "i##未找到暂停的任务"
-            
-        # 发送继续命令
-        deviceMgr.sendClientCmd(device_id, f"resumeTask {task.appName} {task.taskName}")
-        
-        # 更新任务状态
-        task.state = TaskState.RUNNING.value
-        db.session.commit()
-        
+        device.taskMgr.startTask(task)
         return f"i##已继续任务: {task.appName} {task.taskName}"
-        
     except Exception as e:
         Log.ex(e, "继续任务失败")
         return f"e##继续任务失败: {str(e)}"
@@ -358,43 +348,38 @@ def analyzeEarnings():
                 
             except Exception as e:
                 Log.ex(e, "处理截屏结果失败")
-        deviceMgr.sendClientCmd(deviceMgr.curDeviceID, 'getScreen', None, parseResult)
+        deviceMgr.sendClientCmd(deviceMgr.curDeviceID, 'getScreen', None, 10, parseResult)
         return "i##正在分析收益..."
     except Exception as e:
         Log.ex(e, "分析收益失败")
         return f"e##分析收益失败: {str(e)}"
 
-@regCmd('打开应用', r"(?P<appName>[^ ]+)", '打开指定应用')
+@regCmd('打开', r"(?P<appName>[^ ]+)", '打开指定应用')
 def openapp(appName):
     """打开指定应用
-    用法: 打开应用 <应用名>
+    用法: 打开 <应用名>
     """
     try:
-        # 使用模糊匹配查找应用
-        
-        # 使用模糊匹配查找应用
         from .SAppMgr import appMgr
         _appName = appMgr.getApp(appName)
-        
         if not _appName:
-            return f"e##找不到匹配的应用[{appName}]"
-        
+            return
         # 获取当前设备
-        device_id = deviceMgr.curDeviceID
-        if not device_id:
-            return "e##未选择设备"
-        
-        device = deviceMgr.get_device(device_id)
-        if not device:
-            return "e##设备不存在"
-        
+        device = deviceMgr.CurDevice()
+        if device is None:
+            return
+        def onOpenApp(x):
+            if Log.isError(x):
+                Log.e(x)
+                return
+            Log.i(f"打开应用回调: {x}")
+            # 设置当前应用名
+            if device.taskMgr:
+                device.taskMgr.currentApp = _appName
+            sleep(5)
+            device.takeScreenshot()
         # 发送打开应用命令
-        deviceMgr.sendClientCmd(device_id, f"打开 {_appName}")
-        
-        # 设置当前应用名
-        if device.taskMgr:
-            device.taskMgr._currentApp = _appName
-            
+        deviceMgr.sendClientCmd(device.deviceID, f"openApp {_appName}", None, 10, onOpenApp)
         return f"i##正在打开应用[{_appName}]"
         
     except Exception as e:
@@ -406,3 +391,15 @@ def apps():
     """列出所有应用"""
     from .SAppMgr import appMgr
     return "i##" + json.dumps(appMgr.get_app_names(), ensure_ascii=False, indent=2)
+
+@regCmd('快照', None, '对当前设备进行快照')
+def takeScreenshot():
+    """对当前设备进行快照"""
+    try:
+        device = deviceMgr.curDevice
+        if device is None:
+            Log.e('e##当前没有设备')
+        else:
+            device.takeScreenshot()
+    except Exception as e:
+        Log.ex(e, '执行快照命令失败')

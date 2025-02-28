@@ -1,9 +1,7 @@
-from typing import List, Tuple, Any
-import re
 from logger import Log
 from checker import check, GetMatchVal, GetPos
 from CTask import CTask
-
+from CTools import CTools
 
 # ["观看广告", "广告剩余(?P<seconds>\d+)秒"]
 class Check:    
@@ -28,7 +26,7 @@ class Check:
                 Log.e(f"未找到{strs[0]}")
                 return False
             Log.Do(f"点击{strs[0]}")    
-            return Log.android.click(pos[0], pos[1])
+            return CTools.android().click(pos[0], pos[1])
 
 
         return check(strs, region, check_function)
@@ -70,7 +68,7 @@ class Check:
                 Log.e("未找到完成按钮")
                 return False
             Log.Do("点击完成")
-            return Log.android.click(pos[0], pos[1])
+            return CTools.android().click(pos[0], pos[1])
 
         return check(sts, region, check_function)
 

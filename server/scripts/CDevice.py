@@ -2,6 +2,7 @@ import socketio
 import threading
 from datetime import datetime
 from logger import Log
+from CTools import CTools
 import time
 from CmdMgr import CmdMgr
 
@@ -50,7 +51,7 @@ class CDevice:
             self.sio.on('connect_error')(self.on_connect_error)
             
             # 添加通用事件监听器，捕获所有事件
-            self.sio.on('*')(self.on_any_event)
+            # self.sio.on('*')(self.on_any_event)
             
             self.initialized = True
 
@@ -60,7 +61,13 @@ class CDevice:
         self.logout()
         self.disconnect()
         self.initialized = False
-        
+    # def on_any_event(self, event, data):
+    #     """捕获所有事件"""
+    #     try:
+    #         if event not in ['connect', 'S2C_DoCmd', 'S2C_CmdResult', 'disconnect', 'connect_error']:
+    #             Log.i(f'收到未处理的事件: {event}, 数据: {data}')
+    #     except Exception as e:
+    #         Log.ex(e, f'处理事件 {event} 出错')    
         
     def isConnected(self):
         """检查是否已连接"""
@@ -191,15 +198,18 @@ class CDevice:
             command = data.get('command')
             sender = data.get('sender')
             cmdData = data.get('data', {})
+            cmd_id = data.get('cmd_id')  # 获取命令ID
+            
             Log.i(f'收到命令: {command} from {sender} data: {cmdData}')
             # 使用 CmdMgr 执行命令
-            result, cmdName = CmdMgr().do(command, sender, cmdData)
+            result, cmdName = CmdMgr.do(command, sender, cmdData)
             
             self.sio.emit('C2S_CmdResult', {
                 'result': result,
                 'device_id': self.deviceID,
                 'command': command,
-                'cmdName': cmdName
+                'cmdName': cmdName,
+                'cmd_id': cmd_id  # 返回命令ID
             })
         except Exception as e:
             Log.ex(e, f'执行命令出错: {command}')
@@ -208,7 +218,8 @@ class CDevice:
                 'result': f'e##{str(e)}',
                 'device_id': self.deviceID,
                 'command': command,
-                'cmdName': 'error'
+                'cmdName': 'error',
+                'cmd_id': data.get('cmd_id')  # 返回命令ID
             })
     
     def on_connect(self):
@@ -278,11 +289,13 @@ class CDevice:
             Log.ex(e, "发送事件失败")
             return False
 
-    def on_any_event(self, event, data):
-        """捕获所有事件"""
-        try:
-            if event not in ['connect', 'S2C_DoCmd', 'S2C_CmdResult', 'disconnect', 'connect_error']:
-                Log.i(f'收到未处理的事件: {event}, 数据: {data}')
-        except Exception as e:
-            Log.ex(e, f'处理事件 {event} 出错')
- 
+    def TakeScreenshot(self):
+        """截取当前屏幕并发送到服务器"""
+        android = CTools.android()
+        if not android:
+            Log.e("Android环境未初始化")
+            return False
+        image = android.takeScreenshot()
+        if image:
+            self.emit("C2S_Screenshot", {"device_id": self.deviceID, "image": image})
+        return True

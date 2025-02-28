@@ -1,10 +1,11 @@
-from typing import Dict, List, Optional, Tuple, Callable
+from typing import List, Optional, Tuple, Callable
 from CTask import CTask
 from logger import Log
 from CmdMgr import regCmd
 import threading
 from datetime import datetime
-from tools import Tools,TaskState
+from tools import Tools, TaskState
+
 
 class CTaskMgr:
     """客户端任务管理器(单例模式)"""
@@ -113,7 +114,7 @@ class CTaskMgr:
       
     def _getTask(self, appName: str, templateId: str) -> Optional[CTask]:
         """查找相同类型的任务(相同应用名和模板)"""
-        taskId = Tools._toTaskId(appName, templateId)
+        taskId = Tools.toTaskId(appName, templateId)
         return self.tasks.get(taskId)
 
     def _stopTask(self, appName: str, templateId: str) -> bool:
@@ -124,7 +125,7 @@ class CTaskMgr:
                 task = self._getTask(appName, templateId)
             if task:
                 task.stop()
-                taskId = Tools._toTaskId(appName, templateId)
+                taskId = Tools.toTaskId(appName, templateId)
                 del self.tasks[taskId]   
                 return True
             else:
@@ -151,7 +152,7 @@ class CTaskMgr:
                 
             task.lastAppName = appName
             task.onResult = onResult
-            taskId = Tools._toTaskId(appName, templateId)
+            taskId = Tools.toTaskId(appName, templateId)
             self.tasks[taskId] = task
             
             # 在新线程中执行任务
@@ -220,7 +221,7 @@ class CTaskMgr:
 
 
 
-@regCmd(r'停止任务', r'(?:(?P<appName>[\w\s]+)\s+(?P<templateId>[\w\s]+))?')
+@regCmd(r'停止', r'(?:(?P<appName>[\w\s]+)\s+(?P<templateId>[\w\s]+))?')
 def stopTask(appName: str = None, templateId: str = None) -> bool:
     """停止指定任务或所有任务
     用法: 
@@ -250,7 +251,7 @@ def stopTask(appName: str = None, templateId: str = None) -> bool:
         Log.ex(e, "停止任务异常")
         return False
 
-@regCmd(r'执行任务', r'(?:(?P<appName>[\w\s]+)\s+(?P<templateId>[\w\s]+))?')
+@regCmd(r'执行', r'(?:(?P<appName>[\w\s]+)\s+(?P<templateId>[\w\s]+))?')
 def startTask(appName: str = None, templateId: str = None, data: dict = None) -> bool:
     """执行指定任务或最近任务
     用法: 
@@ -285,37 +286,37 @@ def startTask(appName: str = None, templateId: str = None, data: dict = None) ->
         Log.ex(e, f"执行任务异常: {appName}/{templateId}")
         return False
 
-@regCmd(r'查询任务', r'(?P<appName>[\w\s]+)\s+(?P<templateId>[\w\s]+)')
-def queryTask(appName: str, templateId: str) -> bool:
-    """查询任务进度
-    用法: 查询任务 <应用名> <模板ID>
-    示例: 查询任务 快手极速版 ad
-    """
-    state, progress = taskMgr.getTaskProgress(appName, templateId)
-    if not state:
-        Log.i(f"未找到任务: {appName}/{templateId}")
-        return False
+# @regCmd(r'查询', r'(?P<appName>[\w\s]+)\s+(?P<templateId>[\w\s]+)')
+# def queryTask(appName: str, templateId: str) -> bool:
+#     """查询任务进度
+#     用法: 查询任务 <应用名> <模板ID>
+#     示例: 查询任务 快手极速版 ad
+#     """
+#     state, progress = taskMgr.getTaskProgress(appName, templateId)
+#     if not state:
+#         Log.i(f"未找到任务: {appName}/{templateId}")
+#         return False
         
-    Log.i(f"任务状态: {state.value}")
-    Log.i(f"执行进度: {progress:.1f}%")
-    return True
+#     Log.i(f"任务状态: {state.value}")
+#     Log.i(f"执行进度: {progress:.1f}%")
+#     return True
 
-@regCmd(r'任务列表', r'')
-def listTasks() -> bool:
-    """查看所有运行中的任务
-    用法: 任务列表
-    """
-    tasks = taskMgr.listRunningTasks()
-    if not tasks:
-        Log.i("当前没有运行中的任务")
-        return True
+# @regCmd(r'任务列表', r'')
+# def listTasks() -> bool:
+#     """查看所有运行中的任务
+#     用法: 任务列表
+#     """
+#     tasks = taskMgr.listRunningTasks()
+#     if not tasks:
+#         Log.i("当前没有运行中的任务")
+#         return True
         
-    for appName, taskName, state, progress in tasks:
-        Log.i(f"任务: {appName}/{taskName}")
-        Log.i(f"状态: {state.value}")
-        Log.i(f"进度: {progress:.1f}%")
-        Log.i("---")
-    return True 
+#     for appName, taskName, state, progress in tasks:
+#         Log.i(f"任务: {appName}/{taskName}")
+#         Log.i(f"状态: {state.value}")
+#         Log.i(f"进度: {progress:.1f}%")
+#         Log.i("---")
+#     return True 
 
 @regCmd(r'取消任务(?:\s+(?P<appName>[\w\s]+)\s+(?P<templateId>[\w\s]+))?')
 def cancelTask(appName: str = None, templateId: str = None) -> bool:

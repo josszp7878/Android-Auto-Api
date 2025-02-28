@@ -6,25 +6,24 @@ class Log:
     _instance = None
     _initialized = False
     MAX_CACHE_SIZE = 3000  # 最大缓存条数
-    android = None  # 改为类变量
     
-    # 添加Toast常量
-    TOAST_LENGTH_SHORT = 0  # Toast.LENGTH_SHORT
-    TOAST_LENGTH_LONG = 1   # Toast.LENGTH_LONG
-    TOAST_GRAVITY_TOP = 48    # Gravity.TOP
-    TOAST_GRAVITY_CENTER = 17 # Gravity.CENTER
-    TOAST_GRAVITY_BOTTOM = 80 # Gravity.BOTTOM
-    
-    def __init__(self):
-        if not hasattr(self, '_cache'):
-            self._cache = []
-            self._visualLogs = []
-    
-   
-    def isAndroid(self):
-        # print(f'self._android =={self._android}')
-        return Log.android is not None
-    
+    def __new__(cls):
+        """确保Log类是单例模式，并只初始化一次"""
+        if not cls._instance:
+            log = super().__new__(cls)
+            log._onCreate()
+            cls._instance = log
+        return cls._instance
+
+    # 构造函数
+    def _onCreate(self):
+        # 在这里进行一次性初始化
+        self._cache = []
+        self._visualLogs = []
+        self._isServer = True
+        self._initialized = False
+        print(f'初始化日志系统@@@: {self._isServer}')
+
     
     def clear(self):
         """清空日志缓存"""
@@ -32,30 +31,21 @@ class Log:
         self._cache.clear()
         self._visualLogs.clear()  # 注释掉这行
         
-    def __new__(cls):
-        if not cls._instance:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-    
     def init(self, is_server=True):
         """初始化日志系统"""
         if self._initialized:
             return self
-        self.is_server = is_server
-        try:
-            from java import jclass            
-            Log.android = jclass("cn.vove7.andro_accessibility_api.demo.script.PythonServices")
-        except Exception as e:
-            Log.android = None
-        # print(f'@@@@@@@Log.android = {Log.android}')
+        self._isServer = is_server
+        print(f'初始化日志系统%%%%%%%%%%: {is_server}')
         self._initialized = True        
         if is_server:
             self._load()
         return self
     
+
     @property
-    def IsServer(self):
-        return True if not hasattr(self, 'is_server') or self.is_server is None else self.is_server
+    def IsServer(self)->bool:
+        return self._isServer
         
     def uninit(self):
         """反初始化日志系统"""
@@ -208,27 +198,23 @@ class Log:
         except Exception as e:
             Log.ex(e, '获取日志失败')
     
-    def toast(self, msg, duration=None, gravity=None, xOffset=0, yOffset=100):
-        """在手机上显示Toast消息
-        Args:
-            msg: 要显示的消息
-            duration: 显示时长，可选值：TOAST_LENGTH_SHORT(2秒)，TOAST_LENGTH_LONG(3.5秒)
-            gravity: 显示位置，可选值：TOAST_GRAVITY_TOP, TOAST_GRAVITY_CENTER, TOAST_GRAVITY_BOTTOM
-            xOffset: X轴偏移量
-            yOffset: Y轴偏移量
+
+    def format(self, timestamp, tag, level, message):
+        """格式化日志消息
+        格式: "HH:MM:SS##tag##level##message"
         """
-        try:
-            android = Log.android
-            if android:
-                android.showToast(str(msg), 
-                                duration or self.TOAST_LENGTH_LONG,
-                                gravity or self.TOAST_GRAVITY_BOTTOM,
-                                xOffset, yOffset)
-            else:
-                print(f"Toast: {msg}")
-        except Exception as e:
-            print(f"显示Toast失败: {e}")
-            print(msg)
+        # 格式化时间,只保留时分秒
+        time_str = timestamp.strftime('%H:%M:%S')
+        
+        # 确保级别是小写的单个字符
+        level = str(level).lower()[0]
+        if level not in 'ewi':
+            level = 'i'
+        # 确保消息不为空
+        message = str(message or '')
+        tag = str(tag or '@')
+        
+        return f"{time_str}##{tag}##{level}##{message}"        
 
     @classmethod
     def show(cls, filter_str=None, page=1):
@@ -286,32 +272,11 @@ class Log:
         print(message)
         Log()._log(message, 'e', tag)     
     
-    def format(self, timestamp, tag, level, message):
-        """格式化日志消息
-        格式: "HH:MM:SS##tag##level##message"
-        """
-        # 格式化时间,只保留时分秒
-        time_str = timestamp.strftime('%H:%M:%S')
-        
-        # 确保级别是小写的单个字符
-        level = str(level).lower()[0]
-        if level not in 'ewi':
-            level = 'i'
-        # 确保消息不为空
-        message = str(message or '')
-        tag = str(tag or '@')
-        
-        return f"{time_str}##{tag}##{level}##{message}"
-
-def requireAndroid(func):
-    def wrapper(*args, **kwargs):
-        if not Log().isAndroid():
-            return "w##Android指令，当前环境不支持"
-        return func(*args, **kwargs)
-    # 保持原始函数的属性
-    wrapper.__name__ = func.__name__
-    wrapper.__doc__ = func.__doc__
-    return wrapper
+ 
+    
+    @classmethod
+    def isError(cls, message):
+        return message is str and message.startswith('e##')
 
 log = Log()
 

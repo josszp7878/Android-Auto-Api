@@ -158,7 +158,7 @@ class CTask:
                 })
                 Log.i(f"已发送取消任务请求: {self.appName}/{self.taskName}")
             from CTaskMgr import taskMgr
-            taskMgr.tasks.pop(Tools._toTaskId(self.appName, self.taskName))
+            taskMgr.tasks.pop(Tools.toTaskId(self.appName, self.taskName))
             return True
         except Exception as e:
             Log.ex(e, "取消任务失败")
