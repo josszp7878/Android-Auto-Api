@@ -1,5 +1,5 @@
 from datetime import datetime
-from .Database import db
+from Database import db
 
 class DeviceModel(db.Model):
     """设备数据模型"""

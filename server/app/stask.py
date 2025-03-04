@@ -1,7 +1,7 @@
 from datetime import datetime
-from scripts.tools import TaskState, Tools
-from .Database import db, Database
-from scripts.logger import Log
+from _Tools import TaskState, _Tools
+from Database import db, Database
+from _Log import _Log
 from flask import current_app
 from sqlalchemy import func
 
@@ -23,12 +23,12 @@ class STask(db.Model):
 
     @property
     def deviceMgr(self):
-        from .SDeviceMgr import deviceMgr
+        from SDeviceMgr import deviceMgr
         return deviceMgr
     
     @property
     def taskId(self):
-        return Tools.toTaskId(self.appName, self.taskName)
+        return _Tools.toTaskId(self.appName, self.taskName)
     
     @property
     def completed(self):
@@ -38,7 +38,7 @@ class STask(db.Model):
     def device(self):
         """获取任务对应的设备,使用缓存避免重复查询"""
         if not hasattr(self, '_device'):
-            from .SDeviceMgr import deviceMgr
+            from SDeviceMgr import deviceMgr
             self._device = deviceMgr.get_device(self.deviceId)
         return self._device
 
@@ -56,13 +56,13 @@ class STask(db.Model):
         """开始任务"""
         self.state = TaskState.RUNNING.value
         db.session.commit()
-        Log.i(f'任务启动: {self.id}-{self.taskName}')
+        _Log.i(f'任务启动: {self.id}-{self.taskName}')
 
     def update(self, progress: float):
         """更新任务进度"""
         try:
             if self.state != TaskState.RUNNING.value:
-                Log.i(f"任务 {self.taskName} 不在运行状态，无法更新进度")
+                _Log.i(f"任务 {self.taskName} 不在运行状态，无法更新进度")
                 return False
             # 确保 progress 是 float 类型
             self.progress = float(min(max(progress, 0), 1))
@@ -71,13 +71,13 @@ class STask(db.Model):
             return False
             
         except Exception as e:
-            Log.ex(e, '更新任务进度失败')
+            _Log.ex(e, '更新任务进度失败')
             return False
 
     def cancel(self):
         """取消任务，从数据库中删除"""
         try:
-            Log.i(f"任务 {self.taskName} 已取消")
+            _Log.i(f"任务 {self.taskName} 已取消")
             device = self.device
             if device and device.taskMgr:
                 # 如果是当前任务，先清除
@@ -90,33 +90,33 @@ class STask(db.Model):
                 db.session.commit()
             
             # 刷新界面（传入None表示清除任务显示）
-            from .SDeviceMgr import deviceMgr
+            from SDeviceMgr import deviceMgr
             deviceMgr.emit2B('S2B_TaskUpdate', {
                 'deviceId': self.deviceId,
                 'task': None
             })
                 
         except Exception as e:
-            Log.ex(e, '取消任务失败')
+            _Log.ex(e, '取消任务失败')
 
     def end(self, data: dict):
         """结束任务"""
         try:
             result = data.get('result', True)
             score = data.get('score', 0)
-            Log.i(f'任务结束: {self.id}-{self.taskName}, 结果: {"成功" if result else "失败"}, 得分: {score}')
+            _Log.i(f'任务结束: {self.id}-{self.taskName}, 结果: {"成功" if result else "失败"}, 得分: {score}')
             
             self.state = TaskState.SUCCESS.value if result else TaskState.FAILED.value
             self.score = score
             self.progress = 1.0 if result else self.progress
             self.endTime = datetime.now()
             if Database.commit(self):
-                Log.i(f"任务结束: 成功")
+                _Log.i(f"任务结束: 成功")
                 return STask.refresh(self)
             return False
             
         except Exception as e:
-            Log.ex(e, '结束任务失败')
+            _Log.ex(e, '结束任务失败')
             return False
 
     def stop(self):
@@ -125,7 +125,7 @@ class STask(db.Model):
             self.state = TaskState.PAUSED.value
             db.session.commit()
             STask.refresh(self)
-            Log.i(f"任务 {self.id}-{self.taskName} 已暂停，进度: {self.progress*100:.1f}%")
+            _Log.i(f"任务 {self.id}-{self.taskName} 已暂停，进度: {self.progress*100:.1f}%")
 
   
     def to_dict(self):
@@ -159,7 +159,7 @@ class STask(db.Model):
                 'efficiency': efficiency
             }
         except Exception as e:
-            Log.ex(e, '获取任务信息失败')
+            _Log.ex(e, '获取任务信息失败')
             return {
                 'id': self.id or 0,
                 'appName': self.appName,
@@ -176,9 +176,9 @@ class STask(db.Model):
     def refresh(cls, task: 'STask'):
         """刷新任务状态到界面"""
         try:
-            from .SDeviceMgr import deviceMgr
+            from SDeviceMgr import deviceMgr
             # 如果task为None，直接返回
-            Log.i(f"刷新任务状态1111: 任务：{task}")
+            _Log.i(f"刷新任务状态1111: 任务：{task}")
             if not task:
                 return
             # 获取设备
@@ -201,4 +201,4 @@ class STask(db.Model):
             })
             
         except Exception as e:
-            Log.ex(e, f'刷新任务状态失败')
+            _Log.ex(e, f'刷新任务状态失败')

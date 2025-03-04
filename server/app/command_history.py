@@ -1,5 +1,5 @@
 from datetime import datetime
-from .Database import db
+from Database import db
 
 
 class CommandHistory(db.Model):
@@ -97,8 +97,8 @@ class CommandHistory(db.Model):
                     cmd.update_response(result)
             return True 
         except Exception as e:
-            from scripts.logger import Log
-            Log.ex(e, '处理命令结果出错')
+            from _Log import _Log
+            _Log.ex(e, '处理命令结果出错')
             return False
     
     

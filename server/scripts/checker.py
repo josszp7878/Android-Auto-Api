@@ -1,9 +1,8 @@
 from typing import Pattern, List, Tuple, Any, Callable
 import re
-from logger import Log
+from _Log import _Log
 import time
-from tools import Tools, tools
-
+from _Tools import _Tools
 # 定义固定的region
 UP_REGION = [-1, 0, -1, 0.2]
 MID_REGION = [-1, 0.4, -1, 0.6]
@@ -34,7 +33,7 @@ def GetItem(param: List[Tuple[re.Match, dict]], index: int = 0) -> dict:
 def GetPos(param: List[Tuple[re.Match, dict]], index: int = 0) -> Tuple[float, float]:
     if index < 0 or index >= len(param):
         return None
-    return tools.toPos(param[index][1])
+    return _Tools.toPos(param[index][1])
 
 def _doCheck(patterns: List[Pattern], region: List[float] = None) -> List[Tuple[re.Match, dict]]:
     try:
@@ -47,7 +46,7 @@ def _doCheck(patterns: List[Pattern], region: List[float] = None) -> List[Tuple[
                 return None
         return matched
     except Exception as e:
-        Log.ex(e, "Checker执行异常")
+        _Log.ex(e, "Checker执行异常")
         return None
 
 def check(patterns: List[str], region: List[float] = None,
@@ -64,5 +63,5 @@ def check(patterns: List[str], region: List[float] = None,
             if time.time() - start_time > timeout:
                 return False
     except Exception as e:
-        Log.ex(e, "Checker执行异常")
+        _Log.ex(e, "Checker执行异常")
         return False

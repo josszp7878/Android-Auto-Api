@@ -78,7 +78,7 @@ public class ScriptEngine {
             // 执行Begin入口函数
             try {
                 mainModule = py.getModule("CMain");
-                mainModule.callAttr("Begin", deviceName, serverName);
+                mainModule.callAttr("Begin", deviceName, serverName, true);
                 Timber.d("Python Begin()函数执行成功");
             } catch (Exception e) {
                 Timber.e(e, "执行Python Begin()函数失败");

@@ -225,11 +225,21 @@
     background: #1e1e1e;
 }
 .console-input {
+    display: flex;
+    padding: 8px;
+    background-color: #2d2d2d;
+}
+.console-input input {
     flex: 1;
-    background: #2d2d2d;
-    border: 1px solid #3d3d3d;
-    color: #fff;
-    padding: 5px 10px;
+    background-color: #3e3e3e;
+    border: none;
+    color: #f0f0f0;
+    padding: 8px;
+    margin-right: 8px;
+    height: 36px; /* 固定高度 */
+    max-height: 36px; /* 限制最大高度 */
+    min-height: 36px; /* 限制最小高度 */
+    line-height: 20px; /* 行高 */
 }
 .console-line.cmd {
     display: flex;
@@ -322,16 +332,20 @@
 }
 
 /* 日志级别颜色 */
-.log-level-e {
-    color: #f44336 !important;  /* 错误-红色 */
+.log-i {
+    color: #ffffff; /* 白色 - 信息 */
 }
 
-.log-level-w {
-    color: #ff9800 !important;  /* 警告-橙色 */
+.log-w {
+    color: #ffa500; /* 橙色 - 警告 */
 }
 
-.log-level-i {
-    color: #2196F3 !important;  /* 信息-蓝色 */
+.log-e {
+    color: #ff0000; /* 红色 - 错误 */
+}
+
+.log-d {
+    color: #888888; /* 灰色 - 调试 */
 }
 
 /* 移除旧的颜色类 */
@@ -377,157 +391,163 @@
 
 /* 修改控制台布局 */
 .console-container {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 0;
+    height: 100vh;
+    background-color: #1e1e1e;
+    color: #f0f0f0;
+    transition: width 0.3s ease;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
+    z-index: 1000;
+    box-shadow: -2px 0 5px rgba(0, 0, 0, 0.2);
+}
+
+.console-container.expanded {
+    width: 33.33%; /* 默认宽度 */
+}
+
+/* 添加拖动条 */
+.console-resizer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 5px;
     height: 100%;
+    background-color: #3e3e3e;
+    cursor: ew-resize;
+    opacity: 0.5;
+    transition: opacity 0.2s;
+    z-index: 1001;
 }
 
-.console-tabs {
-    flex-shrink: 0;
+.console-resizer:hover {
+    opacity: 1;
+    background-color: #0078d7;
 }
 
-.console-content {
+/* 日志标题和搜索栏 */
+.console-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px;
+    background-color: #2d2d2d;
+    border-bottom: 1px solid #3e3e3e;
+}
+
+.console-title {
+    font-weight: bold;
+    color: #f0f0f0;
+}
+
+.console-search {
+    display: flex;
+    align-items: center;
+    background-color: #3e3e3e;
+    border-radius: 4px;
+    padding: 0 8px;
+    flex: 1;
+    margin-left: 10px;
+    max-width: 200px;
+}
+
+.console-search i {
+    color: #888;
+    margin-right: 5px;
+}
+
+.console-search input {
+    background: transparent;
+    border: none;
+    color: #f0f0f0;
+    padding: 5px;
+    width: 100%;
+    font-size: 12px;
+}
+
+.console-search input:focus {
+    outline: none;
+}
+
+/* 过滤标记样式 */
+.filter-indicator {
+    display: inline-block;
+    padding: 2px 5px;
+    margin-left: 5px;
+    border-radius: 3px;
+    font-size: 10px;
+    background-color: #0078d7;
+    color: white;
+}
+
+.filter-device {
+    background-color: #4CAF50;
+}
+
+.filter-tag {
+    background-color: #FF9800;
+}
+
+.filter-regex {
+    background-color: #9C27B0;
+}
+
+.filter-text {
+    background-color: #2196F3;
+}
+
+.console-logs {
     flex: 1;
     overflow-y: auto;
-    min-height: 200px;
+    padding: 8px;
+    background-color: #1e1e1e;
+    border-bottom: 1px solid #3e3e3e;
 }
 
-/* 确保输入框始终在底部 */
-.console-input-container {
-    position: sticky;
-    bottom: 0;
-    background: #1e1e1e;  /* 与控制台背景色一致 */
-    padding: 10px;
-    border-top: 1px solid #333;
-    z-index: 10;  /* 确保在内容之上 */
+.log-entry {
+    font-family: 'Consolas', monospace;
+    margin-bottom: 4px;
+    white-space: pre-wrap;
+    word-break: break-all;
 }
 
-.console-input {
-    width: calc(100% - 80px);  /* 为按钮留出空间 */
-    margin-right: 10px;
-}
-
-.command-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: #fff;
-    font-weight: bold;
-}
-
-.command-arrow {
-    color: #666;
-}
-
-.command-result {
-    margin-left: 20px;
-    padding: 4px 0;
-}
-
-.result-prefix {
-    color: #666;
-    margin-right: 8px;
-}
-
-.result-i { color: #B8B8B8; }  
-.result-w { color: #FFC107; }
-.result-e { color: #f44336; }
-
-/* 日志级别颜色 */
-.log-d { color: #007bff; }  /* 调试-蓝色 */
-.log-i { color: #28a745; }  /* 信息-绿色 */
-.log-w { color: #ffc107; }  /* 警告-黄色 */
-.log-e { color: #dc3545; }  /* 错误-红色 */
-
-/* 日志显示样式 */
-.console-log-line {
-    display: flex !important;
-    align-items: center !important;
-    padding: 2px 0;
-    font-family: monospace;
-    white-space: nowrap;
-    margin: 0 !important;  /* 防止其他样式添加边距 */
-}
-
-/* 日志时间戳 */
 .log-time {
-    color: #666;
+    color: #888;
     margin-right: 8px;
-    font-size: 0.9em;
-    white-space: nowrap;  /* 防止时间戳换行 */
 }
 
-/* 日志标签 */
 .log-tag {
+    color: #aaa;
+    margin-right: 8px;
+}
+
+.log-i .log-message {
+    color: #f0f0f0;
+}
+
+.log-w .log-message {
+    color: #ffcc00;
+}
+
+.log-e .log-message {
+    color: #ff6666;
+}
+
+.console-input button {
+    background-color: #0078d7;
+    border: none;
+    color: white;
+    padding: 8px 16px;
+}
+
+.loading-indicator {
+    text-align: center;
     color: #888;
-    margin-right: 8px;
-    font-size: 0.9em;
-    white-space: nowrap;  /* 防止标签换行 */
-}
-
-/* 日志内容容器 */
-.log-content {
-    flex: 1;
-    white-space: pre-wrap;
-    word-break: break-all;
-}
-
-/* 日志级别颜色 */
-.log-d .log-content { color: #007bff; }  /* 调试-蓝色 */
-.log-i .log-content { color: #28a745; }  /* 信息-绿色 */
-.log-w .log-content { color: #ffc107; }  /* 警告-黄色 */
-.log-e .log-content { color: #dc3545; }  /* 错误-红色 */
-
-/* 移除旧的日志样式 */
-.console-log {
-    display: flex;
-    align-items: center;
-    padding: 2px 0;
-}
-
-/* 移除多余的边距和换行 */
-.console-line.log {
-    margin: 0;
-    padding: 2px 0;
-}
-
-/* 日志面板样式 */
-.console-log-line {
-    display: flex;
-    align-items: center;
-    padding: 2px 4px;
-    font-family: monospace;
-    white-space: nowrap;
-}
-
-.log-timestamp {
-    color: #666;
-    margin-right: 8px;
-    font-size: 0.9em;
-    white-space: nowrap;
-}
-
-.log-deviceid {
-    color: #888;
-    margin-right: 8px;
-    white-space: nowrap;
-}
-
-.log-message {
-    flex: 1;
-    white-space: pre-wrap;
-    word-break: break-all;
-}
-
-/* 日志级别颜色 */
-.log-message.log-d { color: #007bff; }  /* 调试-蓝色 */
-.log-message.log-i { color: #28a745; }  /* 信息-绿色 */
-.log-message.log-w { color: #ffc107; }  /* 警告-黄色 */
-.log-message.log-e { color: #dc3545; }  /* 错误-红色 */
-
-/* 移除其他可能影响的样式 */
-.log-line, .log-time, .log-tag, .log-content {
-    display: none;
+    padding: 8px;
 }
 
 .window-footer {
@@ -601,4 +621,75 @@
     padding: 2px 6px;
     border-radius: 10px;
     color: #009688;
+}
+
+/* 主内容区域样式 */
+.container {
+    width: 100%;
+    max-width: 100%;
+    padding: 0;
+    margin: 0;
+    height: 100vh;
+    display: flex;
+    position: relative;
+}
+
+.main-content {
+    flex: 1;
+    padding: 20px;
+    transition: all 0.3s ease;
+    width: 100%;
+}
+
+/* 日志切换按钮 */
+.logs-toggle {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1001;
+    background-color: #3e3e3e;
+    border: none;
+    color: #f0f0f0;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.logs-toggle.expanded {
+    right: calc(33.33% + 10px);
+}
+
+.logs-toggle:hover {
+    background-color: #4e4e4e;
+}
+
+/* 其他日志样式保持不变 */
+.log-entry {
+    font-family: 'Consolas', monospace;
+    margin-bottom: 4px;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.log-time {
+    color: #888;
+    margin-right: 8px;
+}
+
+.log-tag {
+    color: #aaa;
+    margin-right: 8px;
+}
+
+.log-i .log-message {
+    color: #f0f0f0;
+}
+
+.log-w .log-message {
+    color: #ffcc00;
+}
+
+.log-e .log-message {
+    color: #ff6666;
 }

@@ -4,16 +4,11 @@ from flask_socketio import emit
 from app import socketio
 from datetime import datetime
 import json
-from .command_history import CommandHistory
-from scripts.logger import Log
-from .SDeviceMgr import deviceMgr
+from _Log import _Log
+from SDeviceMgr import deviceMgr
 import sys
 import os
-from scripts.CmdMgr import CmdMgr
-from . import SCmds
-# 从 run.py 中导入 socketio 实例
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from scripts.tools import TAG
 
 class DateTimeEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -28,7 +23,7 @@ def handle_connect(auth=None):
     try:
         device_id = request.args.get('device_id')
         client_type = request.args.get('client_type')
-        Log.i(f'收到连接请求: {device_id} {client_type}')
+        _Log.i(f'收到连接请求: {device_id} {client_type}')
         
         if client_type == 'console':
             deviceMgr.add_console(request.sid)
@@ -49,7 +44,7 @@ def handle_connect(auth=None):
                 return True
                 
     except Exception as e:
-        Log.ex(e, '处理连接时出错')
+        _Log.ex(e, '处理连接时出错')
     return False
 
 @socketio.on('disconnect')
@@ -68,7 +63,7 @@ def handle_disconnect():
             # Log.i(f'设备断开连接: {device.device_id}')
             device.onDisconnect()
     except Exception as e:
-        Log.ex(e, '处理客户端断开连接失败')
+        _Log.ex(e, '处理客户端断开连接失败')
 
 @socketio.on('device_login')
 def handle_login(data):
@@ -82,9 +77,9 @@ def handle_login(data):
         if not device:
             return
         ok = device.login()
-        Log.i(f'设备 {device_id} 登录结果: {ok}')
+        _Log.i(f'设备 {device_id} 登录结果: {ok}')
     except Exception as e:
-        Log.ex(e, '处理设备登录失败')
+        _Log.ex(e, '处理设备登录失败')
 
 
 @socketio.on('device_logout')
@@ -101,7 +96,7 @@ def handle_logout(data):
         emit('S2C_CmdResult', {'result': ret}, room=device.info['sid'])
         return ret
     except Exception as e:
-        Log.ex(e, '处理设备登出失败')
+        _Log.ex(e, '处理设备登出失败')
 
 
 @socketio.on('C2S_Screenshot')
@@ -117,22 +112,7 @@ def handle_C2S_Screenshot(data):
             return
         device.saveScreenshot(screenshot_data)  # 保存后会自动刷新前端
     except Exception as e:
-        Log.ex(e, '处理设备截图更新失败')
-
-
-@socketio.on('load_command_history')
-def handle_load_history(data):
-    """加载命令历史"""
-    try:
-        device_id = data.get('device_id')
-        page = data.get('page', 1)
-        per_page = 30
-        Log.i(f'加载设备 {device_id} 的历史记录, 页码: {page}')
-        response_data = CommandHistory.getHistory(device_id, page, per_page)
-        deviceMgr.emit2B('command_history', response_data)
-    except Exception as e:
-        Log.ex(e, '加载命令历史出错')
-        deviceMgr.emit2B('error', {'message': '加载历史记录失败'})
+        _Log.ex(e, '处理设备截图更新失败')
 
 
 @socketio.on('B2S_SetCurDev')
@@ -142,7 +122,7 @@ def handle_set_current_device(data):
         device_id = data.get('device_id')
         deviceMgr.curDeviceID = device_id
     except Exception as e:
-        Log.ex(e, '设置当前设备失败')
+        _Log.ex(e, '设置当前设备失败')
 
 
 @socketio.on('C2S_Log')
@@ -151,20 +131,19 @@ def handle_C2S_Log(data):
     try:
         message = data.get('message')
         # print(f'$$$$收到客户端日志: {message}')
-        Log().add(message)
+        _Log().add(message)
     except Exception as e:
-        Log.ex(e, '处理客户端日志失败')
+        _Log.ex(e, '处理客户端日志失败')
 
 
 @socketio.on('B2S_GetLogs')
 def handle_B2S_GetLogs(data=None):
     """处理获取日志请求"""
     try:
-        data = data or {}
-        page = data.get('page', 1)
-        Log.show(page=page)
+        date = data.get('date') if data else None
+        _Log._load(date)  # 这会加载日志并发送到前端
     except Exception as e:
-        Log.ex(e, '处理获取日志请求失败')
+        _Log.ex(e, '加载日志失败')
 
 
 @socketio.on('C2S_StartTask')
@@ -177,13 +156,13 @@ def handle_C2S_StartTask(data):
         
         device = deviceMgr.get_device(device_id)
         if not device:
-            Log.e(f'设备不存在: {device_id}')
+            _Log.e(f'设备不存在: {device_id}')
             return
         taskMgr = device.taskMgr
         task = taskMgr.getRunningTask(app_name, task_name, create=True)
         taskMgr.startTask(task)
     except Exception as e:
-        Log.ex(e, '处理任务启动请求失败')
+        _Log.ex(e, '处理任务启动请求失败')
 
 @socketio.on('C2S_UpdateTask')
 def handle_C2S_UpdateTask(data):
@@ -196,11 +175,11 @@ def handle_C2S_UpdateTask(data):
         
         device = deviceMgr.get_device(device_id)
         if not device:
-            Log.e(f'设备不存在: {device_id}')
+            _Log.e(f'设备不存在: {device_id}')
             return
         device.taskMgr.updateTask(app_name, task_name, progress)
     except Exception as e:
-        Log.ex(e, '处理任务进度更新失败')
+        _Log.ex(e, '处理任务进度更新失败')
 
 
 @socketio.on('C2S_StopTask')
@@ -210,14 +189,14 @@ def handle_stop_task(data):
         device_id = data.get('device_id')
         app_name = data.get('app_name')
         task_name = data.get('task_name')
-        Log.i(f'收到任务停止消息: {device_id}/{app_name}/{task_name}')
+        _Log.i(f'收到任务停止消息: {device_id}/{app_name}/{task_name}')
         device = deviceMgr.get_device(device_id)
         if not device:
-            Log.e(f'设备不存在: {device_id}')
+            _Log.e(f'设备不存在: {device_id}')
             return
         device.taskMgr.stopTask(app_name, task_name)
     except Exception as e:
-        Log.ex(e, '处理任务停止失败')
+        _Log.ex(e, '处理任务停止失败')
 
 
 @socketio.on('C2S_TaskEnd')
@@ -232,11 +211,11 @@ def handle_task_end(data):
         
         device = deviceMgr.get_device(device_id)
         if not device:
-            Log.e(f'设备不存在: {device_id}')
+            _Log.e(f'设备不存在: {device_id}')
             return
         device.taskMgr.endTask(app_name, task_name, score, result)
     except Exception as e:
-        Log.ex(e, '处理任务结束消息失败')
+        _Log.ex(e, '处理任务结束消息失败')
 
 
 @socketio.on('C2S_CancelTask')
@@ -246,14 +225,14 @@ def handle_cancel_task(data):
         device_id = data.get('device_id')
         app_name = data.get('app_name')
         task_name = data.get('task_name')
-        Log.i(f'收到任务取消消息: {device_id}/{app_name}/{task_name}')
+        _Log.i(f'收到任务取消消息: {device_id}/{app_name}/{task_name}')
         device = deviceMgr.get_device(device_id)
         if not device:
-            Log.e(f'设备不存在: {device_id}')
+            _Log.e(f'设备不存在: {device_id}')
             return
         device.taskMgr.cancelTask(app_name, task_name)
     except Exception as e:
-        Log.ex(e, '处理任务取消失败')
+        _Log.ex(e, '处理任务取消失败')
 
 
 @socketio.on('2S_Cmd')
@@ -263,18 +242,20 @@ def handle_command(data):
         device_id = data.get('device_id')
         command = data.get('command')  
         params = data.get('params', {})      
-        Log.i(f'执行命令: {device_id} {command} {params}')
-        if not device_id or not command:
-            return {'error': '缺少必要参数'}   
+        _Log.i(f'执行命令: {device_id} {command} {params}')
+        if not command:
+            return {'error': '缺少必要参数'}
+            
         # 检查命令是否以:或：开头
         if re.match(r'^[：:].*', command):
             # 去掉开头的:或：后发送给客户端
             clientCmd = command[1:]
             deviceMgr.sendClientCmd(device_id, clientCmd, params)
         else:
-            CmdMgr.do(command, sender=None, data=None)
+            # 发送命令到设备或服务器
+            deviceMgr.doServerCmd(device_id, command, params)
     except Exception as e:
-        Log.ex(e, '执行命令失败')
+        _Log.ex(e, '执行命令失败')
 
 
 @socketio.on('C2S_CmdResult')
@@ -283,4 +264,40 @@ def handle_C2S_CmdResult(data):
     try:
         deviceMgr.handCmdResult(data)
     except Exception as e:
-        Log.ex(e, '处理命令响应失败')
+        _Log.ex(e, '处理命令响应失败')
+
+@socketio.on('B2S_FilterLogs')
+def handle_B2S_FilterLogs(data):
+    """处理日志过滤请求"""
+    try:
+        filter_str = data.get('filter', '')
+        page = data.get('page', 1)
+        
+        # 应用过滤器
+        _Log().Filter(filter_str)
+        
+        # 刷新日志显示
+        _Log.show(page=page)
+    except Exception as e:
+        _Log.ex(e, '处理日志过滤请求失败')
+
+@socketio.on('B2S_GetAvailableDates')
+def handle_get_available_dates():
+    """处理获取可用日志日期的请求"""
+    try:
+        from app import APP_LOGS
+        import os
+        
+        # 获取日志目录中的所有日志文件
+        log_files = [f for f in os.listdir(APP_LOGS) if f.endswith('.log')]
+        
+        # 提取日期（去掉.log后缀）
+        dates = [f[:-4] for f in log_files]
+        
+        # 按日期排序（最新的在前）
+        dates.sort(reverse=True)
+        
+        # 发送到前端
+        socketio.emit('S2B_AvailableDates', {'dates': dates})
+    except Exception as e:
+        _Log.ex(e, '获取可用日志日期失败')

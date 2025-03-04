@@ -1,6 +1,6 @@
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import event
-from scripts.logger import Log
+from _Log import _Log
 
 class Database:
     """数据库管理类"""
@@ -28,7 +28,7 @@ class Database:
             db.session.commit()
             return True
         except Exception as e:
-            Log.ex(e, "数据库提交失败")
+            _Log.ex(e, "数据库提交失败")
             db.session.rollback()
             return False
         
@@ -38,7 +38,7 @@ class Database:
         """初始化数据库"""
         db.init_app(app)        
         # 导入所有模型以确保它们被注册
-        from . import models, STask
+        import models
         with app.app_context():
             try:
                 # 添加连接事件监听器来清除表缓存
@@ -50,9 +50,9 @@ class Database:
                 
                 # 只创建不存在的表
                 db.create_all()
-                Log.i("数据库初始化成功")
+                _Log.i("数据库初始化成功")
             except Exception as e:
-                Log.ex(e, "数据库初始化错误")
+                _Log.ex(e, "数据库初始化错误")
                 raise
 
 

@@ -33,12 +33,13 @@ socketio = SocketIO()
 app = None
 
 
-def create_app(config_name='development'):
+def create_app(config_name='development', debug=False):
     """创建 Flask 应用"""
     global app
     app = Flask(__name__,
-                static_folder='static',
-                static_url_path='/static')
+                static_folder='static',  # 这是相对于 server/app 目录的路径
+                static_url_path='/static',
+                template_folder='templates')
     
     # 加载配置
     app.config.from_object(config[config_name])
@@ -55,11 +56,13 @@ def create_app(config_name='development'):
     )
     
     # 导入并注册事件处理器
-    from . import Server  # 移到这里，确保在 socketio 初始化后导入
+    import Server  # 移到这里，确保在 socketio 初始化后导入
     
     # 注册蓝图
-    from .routes import bp
+    from routes import bp
     app.register_blueprint(bp)
+
+    app.debug = debug
 
     return app
 

@@ -1,6 +1,7 @@
 class Dashboard {
     constructor(initialDevices) {
         console.log('初始化Dashboard，设备数据:', initialDevices);
+        
         this.app = new Vue({
             el: '#app',
             delimiters: ['[[', ']]'],
@@ -8,16 +9,11 @@ class Dashboard {
                 devices: initialDevices || {},  // 确保有默认值
                 selectedDevice: null,
                 commandInput: '',
-                commandLogs: [],
-                showHistory: false,
-                commandHistory: [],
+                commandHistory: [],  // 保留命令历史用于上下键导航
                 currentHistoryIndex: -1,
                 lastActivityTime: Date.now(),
-                currentPage: 1,
-                hasMoreHistory: false,
-                loadingHistory: false,
-                activeTab: 'history',  // 当前激活的标签页
-                systemLogs: [],        // 系统日志数据
+                showLogs: true,  // 默认显示日志页面
+                systemLogs: [],  // 系统日志数据
                 logsPage: 1,
                 loadingLogs: false,
                 hasMoreLogs: false,
@@ -26,11 +22,22 @@ class Dashboard {
                     start: 0,
                     end: 0,
                     total: 0
-                }
+                },
+                logsPanelWidth: '33.33%',  // 日志面板宽度
+                isResizing: false,         // 是否正在调整大小
+                startX: 0,                 // 开始拖动的X坐标
+                startWidth: 0,             // 开始拖动时的宽度
+                logFilter: '',             // 日志过滤字符串
+                activeFilter: false,       // 是否有激活的过滤器
+                filterType: '',            // 过滤器类型
+                filterValue: '',           // 过滤值
+                filterRegex: null,         // 正则表达式过滤器
+                logDate: new Date().toISOString().split('T')[0], // 当前日期
+                availableDates: [new Date().toISOString().split('T')[0]], // 默认只有当前日期
+                filteredLogs: []
             },
             methods: {
                 formatTime(time) {
-                    // 直接返回时间字符串
                     return time || '未知';
                 },
                 selectDevice(deviceId) {
@@ -38,14 +45,14 @@ class Dashboard {
                     this.selectedDevice = this.selectedDevice === deviceId ? null : deviceId;
                     
                     if (this.selectedDevice) {  // 选中新设备
-                        this.showHistory = true;
+                        this.showLogs = true;
                         
                         // 通知后端设置当前设备ID
                         this.socket.emit('B2S_SetCurDev', {
                             device_id: deviceId
                         });
                     } else if (oldDevice) {  // 取消选中设备
-                        this.showHistory = false;
+                        this.showLogs = false;
                     }
                 },
                 showFullScreenshot(device) {
@@ -53,69 +60,24 @@ class Dashboard {
                         this.fullScreenshot = device.screenshot;
                     }
                 },
-                toggleHistory() {
-                    this.showHistory = !this.showHistory;
-                },
-                hideHistoryOnBlur(event) {
-                    const recentActivity = this.commandLogs.length > 0 && 
-                        Date.now() - this._lastActivityTime < 5000; // 5秒内的活动
-
-                    const historyBtn = event.relatedTarget;
-                    if (!historyBtn || !historyBtn.classList.contains('history-toggle')) {
-                        if (!recentActivity) {
-                            this.showHistory = false;
-                        }
-                    }
-                },
                 updateLastActivity() {
                     this.lastActivityTime = Date.now();
-                    this.showHistory = true;
+                    this.showLogs = true;
                 },
                 handleBlur() {
                     setTimeout(() => {
                         const timeSinceLastActivity = Date.now() - this.lastActivityTime;
                         if (timeSinceLastActivity > 5000) {  // 5秒无活动
-                            this.showHistory = false;
+                            this.showLogs = false;
                         }
                     }, 200);
-                },
-                keepHistoryOpen() {
-                    this.updateLastActivity();
                 },
                 sendCommand() {
                     if (!this.commandInput) return;
                     
-                    const isServerCommand = this.commandInput.startsWith('@');
-                    const deviceId = isServerCommand ? '@' : this.selectedDevice;
+                    // 获取当前选中的设备ID，如果没有则设为null
+                    const deviceId = this.selectedDevice || null;
                     
-                    if (!isServerCommand) {
-                        const device = this.devices[this.selectedDevice];
-                        if (!device || device.status !== 'login') {
-                            this.addLog('e', 'Server', '设备离线，无法发送命令');
-                            return;
-                        }
-                    }
-
-                    // 立即添加命令到历史记录
-                    const currentTime = new Date().toLocaleString('zh-CN', {
-                        year: 'numeric',
-                        month: '2-digit',
-                        day: '2-digit',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit',
-                        hour12: false
-                    });
-
-                    this.commandLogs.push({
-                        timestamp: currentTime,
-                        sender: 'Server',
-                        target: this.selectedDevice,
-                        command: this.commandInput,
-                        response: '',
-                        level: 'i'
-                    });
-
                     this.updateLastActivity();
                     this.socket.emit('2S_Cmd', {
                         device_id: deviceId,
@@ -146,63 +108,27 @@ class Dashboard {
                         this.commandInput = '';
                     }
                 },
-                addLog(tag, level, content) {
+                addLog(level, tag, message) {
                     const log = {
+                        time: new Date().toLocaleTimeString(),
                         tag,
                         level,
-                        content
+                        message
                     };
                     this.systemLogs.push(log);
                     this.$nextTick(() => {
-                        const consoleEl = this.$refs.consoleLogs;
-                        if (consoleEl) {
-                            consoleEl.scrollTop = consoleEl.scrollHeight;
-                        }
+                        this.scrollToBottom();
                     });
-                },               
-                addCmd(type, content, source) {
-                    const cmd = {
-                        type,
-                        content,
-                        source,
-                        timestamp: new Date()
-                    };
-                    
-                    this.commandLogs.push(cmd);
-                    
-                    this.$nextTick(() => {
-                        const consoleEl = this.$refs.consoleHistory;
-                        if (consoleEl) {
-                            consoleEl.scrollTop = consoleEl.scrollHeight;
-                        }
-                    });
+                },
+                scrollToBottom() {
+                    const consoleEl = this.$refs.consoleLogs;
+                    if (consoleEl) {
+                        consoleEl.scrollTop = consoleEl.scrollHeight;
+                    }
                 },
                 handleOutsideClick() {
-                    if (this.showHistory) {
-                        this.showHistory = false;
-                    }
-                },
-                loadCommandHistory() {
-                    if (this.loadingHistory || !this.selectedDevice) return;
-                    
-                    console.log('Loading history for device:', this.selectedDevice, 'page:', this.currentPage);
-                    this.loadingHistory = true;
-                    this.socket.emit('load_command_history', {
-                        device_id: this.selectedDevice,
-                        page: this.currentPage
-                    });
-                    // 首次加载时滚动到底部
-                    if (this.currentPage === 1) {
-                        setTimeout(() => this.scrollToBottom(), 100);
-                    }
-                },
-                handleHistoryScroll(e) {
-                    const el = e.target;
-                    if (this.hasMoreHistory && 
-                        !this.loadingHistory && 
-                        el.scrollTop <= 30) {  // 接近顶部时加载更多
-                        this.currentPage++;
-                        this.loadCommandHistory();
+                    if (this.showLogs) {
+                        this.showLogs = false;
                     }
                 },
                 handleLogsScroll(e) {
@@ -220,114 +146,29 @@ class Dashboard {
                     
                     this.socket.emit('B2S_GetLogs', {
                         device_id: this.selectedDevice,
-                        page: this.logsPage,
-                        date: this.currentDate  // 添加日期参数
+                        page: this.logsPage
                     });
                 },
-                switchToLogs() {
-                    this.activeTab = 'logs';
-                    // 如果日志为空，重新获取
-                    if (this.systemLogs.length === 0) {
-                        this.socket.emit('B2S_GetLogs');
-                    }
-                    // 切换标签页后立即滚动到底部
-                    this.$nextTick(() => {
-                        this.scrollToBottom();
-                    });
-                },
-                parseLogLine(logLine) {
-                    // 使用##分隔符分割日志行
-                    const parts = logLine.split('##');
-                    if (parts.length === 4) {
-                        const [time, tag, level, message] = parts;
+                parseLogLine(line) {
+                    // 解析日志行，提取时间、标签、级别和消息
+                    const match = line.match(/^\[(.*?)\]\s+(\w+)\s+(\w+):\s+(.*)$/);
+                    if (match) {
                         return {
-                            time,
-                            tag,
-                            level,
-                            message
+                            time: match[1],
+                            level: match[2].toLowerCase(),
+                            tag: match[3],
+                            message: match[4]
                         };
-                    } else {
-                        console.warn('无法解析日志行:', logLine);
-                        return null;
+                    }
+                    return null;
+                },
+                toggleLogs() {
+                    this.showLogs = !this.showLogs;
+                    if (this.showLogs) {
+                        // 如果是打开日志，重置宽度为默认值
+                        this.logsPanelWidth = '33.33%';
                     }
                 },
-                updateLogs(logs, isRealtime = true) {
-                    this.systemLogs = logs;
-                    this.isRealtime = isRealtime;
-                    setTimeout(() => this.scrollToBottom(), 100);
-                },
-                handleLogMessage(data) {
-                    if (this.isRealtime) {
-                        this.systemLogs.push({
-                            time: data.time,  // 保持为字符串
-                            level: data.level,
-                            tag: data.tag,
-                            message: data.message
-                        });
-                        this.updateLogs(this.systemLogs);
-                    }
-                },
-                scrollToBottom() {
-                    const consoleHistory = this.$refs.consoleHistory;
-                    const consoleLogs = this.$refs.consoleLogs;
-                    
-                    // 禁用平滑滚动，直接跳转
-                    if (this.activeTab === 'history' && consoleHistory) {
-                        consoleHistory.style.scrollBehavior = 'auto';
-                        consoleHistory.scrollTop = consoleHistory.scrollHeight;
-                        consoleHistory.style.scrollBehavior = 'smooth';  // 恢复平滑滚动，用于用户手动滚动
-                    } else if (this.activeTab === 'logs' && consoleLogs) {
-                        consoleLogs.style.scrollBehavior = 'auto';
-                        consoleLogs.scrollTop = consoleLogs.scrollHeight;
-                        consoleLogs.style.scrollBehavior = 'smooth';
-                    }
-                },
-                filterByCurrentDevice() {
-                    if (this.selectedDevice) {
-                        // 使用设备ID作为过滤条件
-                        this.socket.emit('B2S_GetLogs', {
-                            filter: this.selectedDevice
-                        });
-                    }
-                },
-                drawProgress(deviceId, progress, isRunning = true) {
-                    const canvas = this.$refs[`progress-${deviceId}`][0];
-                    if (!canvas) return;
-                    
-                    const ctx = canvas.getContext('2d');
-                    const centerX = canvas.width / 2;
-                    const centerY = canvas.height / 2;
-                    const radius = Math.min(centerX, centerY) - 2;
-                    
-                    // 清除画布
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                    
-                    // 绘制完整的灰色圆
-                    ctx.beginPath();
-                    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-                    ctx.fillStyle = 'rgba(200, 200, 200, 0.2)';
-                    ctx.fill();
-                    
-                    // 绘制进度扇形
-                    if (progress > 0) {
-                        ctx.beginPath();
-                        ctx.moveTo(centerX, centerY);
-                        ctx.arc(centerX, centerY, radius, 
-                               -Math.PI / 2, 
-                               (-Math.PI / 2) + (Math.PI * 2 * progress));
-                        ctx.lineTo(centerX, centerY);
-                        ctx.fillStyle = isRunning ? '#4CAF50' : '#808080';
-                        ctx.fill();
-                    }
-                    
-                    // 绘制进度文本，转换为整数百分比
-                    ctx.fillStyle = '#FFFFFF';
-                    ctx.font = 'bold 14px Arial';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText(`${Math.round(progress * 100)}%`, centerX, centerY);
-                },
-                
                 updateDeviceTask(data) {
                     const device = this.devices[data.deviceId];
                     if (device) {
@@ -426,16 +267,155 @@ class Dashboard {
                             }
                         });
                     }
+                },
+                drawProgress(deviceId, progress, isRunning) {
+                    const canvas = this.$refs[`progress-${deviceId}`][0];
+                    if (!canvas) return;
+                    
+                    const ctx = canvas.getContext('2d');
+                    const centerX = canvas.width / 2;
+                    const centerY = canvas.height / 2;
+                    const radius = Math.min(centerX, centerY) - 2;
+                    
+                    // 清除画布
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    
+                    // 绘制完整的灰色圆
+                    ctx.beginPath();
+                    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(200, 200, 200, 0.2)';
+                    ctx.fill();
+                    
+                    // 绘制进度扇形
+                    if (progress > 0) {
+                        ctx.beginPath();
+                        ctx.moveTo(centerX, centerY);
+                        ctx.arc(centerX, centerY, radius, 
+                               -Math.PI / 2, 
+                               (-Math.PI / 2) + (Math.PI * 2 * progress));
+                        ctx.lineTo(centerX, centerY);
+                        ctx.fillStyle = isRunning ? '#4CAF50' : '#808080';
+                        ctx.fill();
+                    }
+                    
+                    // 绘制进度文本，转换为整数百分比
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.font = 'bold 14px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(`${Math.round(progress * 100)}%`, centerX, centerY);
+                },
+                startResize(e) {
+                    this.isResizing = true;
+                    this.startX = e.clientX;
+                    this.startWidth = parseFloat(this.logsPanelWidth);
+                    
+                    // 添加事件监听
+                    document.addEventListener('mousemove', this.doResize);
+                    document.addEventListener('mouseup', this.stopResize);
+                    
+                    // 防止选中文本
+                    e.preventDefault();
+                },
+                doResize(e) {
+                    if (!this.isResizing) return;
+                    
+                    // 计算新宽度
+                    const windowWidth = window.innerWidth;
+                    const dx = this.startX - e.clientX;
+                    let newWidth = this.startWidth + (dx / windowWidth * 100);
+                    
+                    // 限制最小和最大宽度
+                    newWidth = Math.max(20, Math.min(80, newWidth));
+                    
+                    // 更新宽度
+                    this.logsPanelWidth = `${newWidth}%`;
+                },
+                stopResize() {
+                    this.isResizing = false;
+                    document.removeEventListener('mousemove', this.doResize);
+                    document.removeEventListener('mouseup', this.stopResize);
+                },
+                applyLogFilter() {
+                    const filter = this.logFilter.trim();
+                    
+                    if (!filter) {
+                        // 清除过滤器
+                        this.activeFilter = false;
+                        this.filterType = '';
+                        this.filterValue = '';
+                        this.filterRegex = null;
+                        return;
+                    }
+                    
+                    this.activeFilter = true;
+                    
+                    // 根据首字符确定过滤类型
+                    if (filter.startsWith('@')) {
+                        // 设备名过滤
+                        this.filterType = '@';
+                        this.filterValue = filter.substring(1).trim();
+                    } else if (filter.startsWith(':')) {
+                        // TAG过滤
+                        this.filterType = ':';
+                        this.filterValue = filter.substring(1).trim();
+                    } else if (filter.startsWith('*')) {
+                        // 正则表达式过滤
+                        this.filterType = '*';
+                        this.filterValue = filter.substring(1).trim();
+                        try {
+                            this.filterRegex = new RegExp(this.filterValue, 'i');
+                        } catch (e) {
+                            console.error('无效的正则表达式:', e);
+                            this.addLog('e', 'Filter', `无效的正则表达式: ${e.message}`);
+                            this.filterRegex = null;
+                        }
+                    } else {
+                        // 文本过滤
+                        this.filterType = 'text';
+                        this.filterValue = filter;
+                    }
+                },
+                loadLogsByDate(event) {
+                    const date = event.target.value;
+                    this.logManager.loadLogs(date);
+                },
+                clearLogs() {
+                    this.logManager.clearLogs();
+                }
+            },
+            computed: {
+                filterClass() {
+                    switch(this.filterType) {
+                        case '@': return 'filter-device';
+                        case ':': return 'filter-tag';
+                        case '*': return 'filter-regex';
+                        default: return 'filter-text';
+                    }
                 }
             },
             mounted() {
-                this._lastActivityTime = Date.now();
-                
                 // 连接到服务器，并标识为控制台
                 this.socket = io({
                     query: {
                         client_type: 'console'
                     }
+                });
+                console.log('Vue: 创建 socket 实例');
+                
+                // 创建日志管理器，传入 socket 实例
+                this.logManager = new LogManager(this.socket);
+                console.log('Vue: 创建 LogManager 实例');
+                
+                // 设置回调
+                this.logManager.setCallbacks({
+                    onLogsUpdated: (logs, loading) => {
+                        console.log(`日志更新回调: ${logs.length} 条日志, 加载状态: ${loading}`);
+                        // 直接更新 Vue 数据
+                        this.filteredLogs = [...logs];
+                        this.loadingLogs = loading;
+                    },
+                    // 其他回调...
                 });
                 
                 // 添加调试日志
@@ -452,85 +432,23 @@ class Dashboard {
                     this.$nextTick(this.scrollToBottom);
                 });
                 
-                // this.socket.on('S2B_CmdResult', (data) => {
-                //     const content = data.result || '';
-                //     let level = data.level || 'i';
+                // 命令结果处理
+                this.socket.on('S2B_CmdResult', (data) => {
+                    const content = data.result || '';
+                    let level = data.level || 'i';
                     
-                //     // 更新最后一条命令的响应
-                //     if (this.commandLogs.length > 0) {
-                //         const lastLog = this.commandLogs[this.commandLogs.length - 1];
-                //         lastLog.response = content;
-                //         lastLog.level = level;
-                //     }
+                    // 添加到日志
+                    this.addLog(level, 'Command', content);
                     
-                //     this.updateLastActivity();
-                // });
+                    this.updateLastActivity();
+                    // 滚动到底部显示结果
+                    this.$nextTick(this.scrollToBottom);
+                });
 
                 this.socket.on('error', (data) => {
                     this.updateLastActivity();
-                    this.addCmd('response', data.message, this.selectedDevice);
-                    this.loadingHistory = false;
+                    this.addLog('e', 'Error', data.message);
                 });
-
-                this.socket.on('command_history', (data) => {
-                    console.log('Received command history:', data);
-                    const commands = data.commands;
-                    this.hasMoreHistory = data.has_next;
-                    
-                    const logs = commands.map(cmd => {
-                        // 解析响应level和内容
-                        let level = 'i';
-                        let content = cmd.response || '';
-                        if(content.includes('##')) {
-                            [level, content] = content.split('##');
-                        }
-                        
-                        // 格式化时间
-                        const timestamp = new Date(cmd.created_at).toLocaleString('zh-CN', {
-                            year: 'numeric',
-                            month: '2-digit',
-                            day: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            second: '2-digit',
-                            hour12: false
-                        });
-                        
-                        return {
-                            timestamp: timestamp,
-                            sender: cmd.sender,
-                            target: cmd.target,
-                            command: cmd.command,
-                            response: content,
-                            level: level
-                        };
-                    });
-                    
-                    // 更新命令历史
-                    if (this.currentPage > 1) {
-                        // 分页加载时，添加到现有历史
-                        this.commandLogs = [...this.commandLogs, ...logs];
-                    } else {
-                        // 首次加载时，替换全部历史
-                        this.commandLogs = logs;
-                    }
-                    
-                    // 首次加载时滚动到底部
-                    if (this.currentPage === 1) {
-                        this.$nextTick(() => {
-                            this.scrollToBottom();
-                        });
-                    }
-                });
-
-                this.socket.on('clear_history', (data) => {
-                    const deviceId = data.device_id;
-                    if (this.selectedDevice === deviceId) {
-                        this.commandLogs = [];  // 清空当前设备的命令历史
-                        console.log(`设备 ${deviceId} 的指令历史已清除`);
-                    }
-                });
-
 
                 // 获取初始日志数据
                 this.socket.emit('B2S_GetLogs');
@@ -560,49 +478,17 @@ class Dashboard {
                     this.loadingLogs = false;
                     this.hasMoreLogs = data.has_more;
                     
-                    // 滚动处理...
+                    // 滚动到底部
+                    this.$nextTick(this.scrollToBottom);
                 });
-
 
                 // 添加滚动到底部的处理
                 this.socket.on('scroll_logs', () => {
-                    this.$nextTick(() => {
-                        const consoleEl = this.$refs.consoleLogs;
-                        if (consoleEl) {
-                            consoleEl.scrollTop = consoleEl.scrollHeight;
-                        }
-                    });
+                    this.$nextTick(this.scrollToBottom);
                 });
 
-                // 修改日志消息监听
-                this.socket.on('S2B_AddLog', (data) => {
-                    console.log('收到日志数据:', data);
-                    const content = data.message;
-                    const parsed = this.parseLogLine(content);
-                    if (parsed) {
-                        const log = {
-                            time: parsed.time,
-                            tag: parsed.tag,
-                            level: parsed.level,
-                            message: parsed.message
-                        };
-                        
-                        // 使用 push 而不是 unshift
-                        this.systemLogs.push(log);
-                        
-                        this.$nextTick(() => {
-                            const consoleEl = this.$refs.consoleLogs;
-                            if (consoleEl) {
-                                consoleEl.scrollTop = consoleEl.scrollHeight;
-                            }
-                        });
-                    } else {
-                        console.warn('Failed to parse log:', content);
-                    }
-                });
-
-                // 修改设备状态更新处理
-                this.socket.on('S2B_DeviceUpdate', (data) => {
+                // 设备状态更新
+                this.socket.on('device_update', (data) => {
                     console.log('收到设备状态更新:', data);
                     if (!this.devices[data.deviceId]) {
                         // 创建新设备
@@ -644,63 +530,7 @@ class Dashboard {
                     });
                 });
 
-                this.socket.on('response', function(data) {
-                    let result = data.result;
-                    if (typeof result === 'string') {
-                        // 将HTML换行转换为实际显示
-                        result = result.replace(/<br>/g, '\n');
-                    }
-                    // 更新显示
-                    console.log(result);
-                });
-
-                this.socket.on('clear_logs', () => {
-                    // 清空系统日志显示
-                    this.systemLogs = [];
-                });
-
-                // 更新日志统计信息
-                this.socket.on('S2B_LogCount', (data) => {
-                    this.logStats = {
-                        start: data.start,
-                        end: data.end,
-                        total: data.total
-                    };
-                });
-
-                // 更新设备卡片显示
-                this.updateDeviceCard = function(deviceId) {
-                    const device = this.devices[deviceId];
-                    if (!device) return;
-
-                    const cardElement = document.querySelector(`#device-${deviceId}`);
-                    if (!cardElement) return;
-
-                    // 更新任务状态显示
-                    const taskStatusElement = cardElement.querySelector('.task-status');
-                    if (taskStatusElement) {
-                        if (device.currentTask) {
-                            const task = device.currentTask;
-                            taskStatusElement.innerHTML = `
-                                <div class="task-info">
-                                    <span class="task-name">${task.appName}/${task.taskName}</span>
-                                    <div class="progress">
-                                        <div class="progress-bar" role="progressbar" 
-                                             style="width: ${task.progress}%" 
-                                             aria-valuenow="${task.progress}" 
-                                             aria-valuemin="0" 
-                                             aria-valuemax="100">
-                                            ${task.progress}%
-                                        </div>
-                                    </div>
-                                </div>
-                            `;
-                        } else {
-                            taskStatusElement.innerHTML = '<span class="no-task">无任务运行</span>';
-                        }
-                    }
-                };
-                // 统一处理任务更新事件
+                // 任务更新
                 this.socket.on('S2B_TaskUpdate', (data) => {
                     console.log('收到任务更新:', data);
                     const deviceId = data.deviceId;                    
@@ -710,7 +540,7 @@ class Dashboard {
                     }
                 });
 
-                // 添加连接状态日志
+                // 连接状态日志
                 this.socket.on('disconnect', () => {
                     console.log('控制台已断开连接');
                     this.addLog('w', 'Console', '控制台已断开连接');
@@ -719,6 +549,20 @@ class Dashboard {
                 this.socket.on('connect_error', (error) => {
                     console.error('连接错误:', error);
                     this.addLog('e', 'Console', `连接错误: ${error.message}`);
+                });
+
+                // 添加窗口大小变化监听
+                window.addEventListener('resize', () => {
+                    if (this.isResizing) {
+                        this.stopResize();
+                    }
+                });
+
+                // 接收可用的日志日期
+                this.socket.on('S2B_AvailableDates', (data) => {
+                    if (data.dates && Array.isArray(data.dates)) {
+                        this.app.availableDates = data.dates;
+                    }
                 });
             }
         });
