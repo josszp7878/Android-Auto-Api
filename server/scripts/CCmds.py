@@ -38,18 +38,16 @@ class CCmds:
                 return {
                     "deviceID": device.deviceID if device else "未知",
                     "version": "1.0.0",
-                    "timestamp": str(datetime.now()),
+                    "timestamp": str(datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
                 }
             except Exception as e:
-                _Log.ex(e, "获取设备信息失败")
                 return f"e->获取设备信息失败: {str(e)}"
         
         # 注册时间命令
         @regCmd(r"时间")
-        def getCurrentTime():
+        def date():
             """获取当前时间"""
-            _Log.i("获取当前时间dddd")
-            return str(datetime.now())
+            return str(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         
         # 注册状态命令
         @regCmd(r"状态")
@@ -61,7 +59,7 @@ class CCmds:
         
         # ... 其他命令注册 ...
         
-        _Log.i(f"CCmds模块命令注册完成")
+        # _Log.d(f"CCmds模块命令注册完成")
 
         @regCmd(r"断开")
         def disconnect():
@@ -455,3 +453,14 @@ class CCmds:
             except Exception as e:
                 _Log.ex(e, '截图失败')
                 return f'e->截图异常: {str(e)}'
+
+        @regCmd(r"当前应用")
+        def curApp():
+            """获取当前正在运行的应用信息"""
+            try:
+                appInfo = CTools.getCurrentApp()
+                if appInfo:
+                    return f"i->当前应用: {appInfo['appName']}({appInfo['packageName']})"
+                return "w->获取当前应用失败"
+            except Exception as e:
+                _Log.ex(e, "获取当前应用失败")

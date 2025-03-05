@@ -243,6 +243,6 @@ class CTaskMgr:
         
         # ... 其他命令注册 ...
         
-        _Log.i("CTaskMgr模块命令注册完成")
+        # _Log.d("CTaskMgr模块命令注册完成")
 
 taskMgr = CTaskMgr.getInstance()

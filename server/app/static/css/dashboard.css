@@ -18,7 +18,7 @@
     height: 400px;
     margin: 10px;
     padding: 0;  /* 移除内边距，让内容完全对齐边缘 */
-    border: 1px solid #ddd;
+    border: 2px solid transparent; /* 添加透明边框作为占位 */
     border-radius: 8px;
     background-color: #2d2d2d;
     transition: all 0.3s ease;
@@ -63,7 +63,7 @@
 
 /* 选中状态的设备卡片 */
 .device-card.selected {
-    border: 3px solid #28a745;
+    border-color: #28a745;
     box-shadow: 0 0 15px rgba(40, 167, 69, 0.5);
 }
 
@@ -692,4 +692,22 @@
 
 .log-e .log-message {
     color: #ff6666;
+}
+
+/* 设备状态背景样式 */
+.device-card {
+    transition: background-color 0.3s ease;
+}
+
+.device-offline {
+    background-color: #f5f5f5;
+    opacity: 0.7;
+}
+
+.device-online {
+    background-color: #e8f5e9;
+}
+
+.device-running {
+    background-color: #e3f2fd;
 }

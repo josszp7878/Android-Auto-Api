@@ -14,7 +14,8 @@ def index():
     """首页路由，返回设备列表"""
     _Log.i('Server', '访问首页')
     devices = deviceMgr.to_dict()
-    return render_template('index.html', initial_devices=devices)
+    curDeviceID = deviceMgr.curDeviceID
+    return render_template('index.html', initial_devices=devices, curDeviceID=curDeviceID)
 
 
 @bp.route('/device/<device_id>')
@@ -29,7 +30,7 @@ def device(device_id):
 @bp.route('/scripts/<path:filename>')
 def serve_script(filename):
     """处理脚本文件请求"""
-    _Log.i('Server', f'处理脚本文件请求: {filename}')
+    # _Log.i('Server', f'处理脚本文件请求: {filename}')
     script_dir = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
         'scripts'

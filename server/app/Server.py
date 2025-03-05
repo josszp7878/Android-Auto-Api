@@ -120,7 +120,7 @@ def handle_set_current_device(data):
     """设置当前设备"""
     try:    
         device_id = data.get('device_id')
-        deviceMgr.curDeviceID = device_id
+        deviceMgr.SetCurDevice(device_id, refresh=False)
     except Exception as e:
         _Log.ex(e, '设置当前设备失败')
 
@@ -129,9 +129,7 @@ def handle_set_current_device(data):
 def handle_C2S_Log(data):
     """处理客户端日志"""
     try:
-        message = data.get('message')
-        # print(f'$$$$收到客户端日志: {message}')
-        _Log().add(message)
+        _Log().add(data)
     except Exception as e:
         _Log.ex(e, '处理客户端日志失败')
 
@@ -242,7 +240,7 @@ def handle_command(data):
         device_id = data.get('device_id')
         command = data.get('command')  
         params = data.get('params', {})      
-        _Log.i(f'执行命令: {device_id} {command} {params}')
+        # _Log.d(f'执行命令: {device_id} {command} {params}')
         if not command:
             return {'error': '缺少必要参数'}
             
@@ -301,3 +299,5 @@ def handle_get_available_dates():
         socketio.emit('S2B_AvailableDates', {'dates': dates})
     except Exception as e:
         _Log.ex(e, '获取可用日志日期失败')
+
+

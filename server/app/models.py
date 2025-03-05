@@ -1,5 +1,8 @@
 from datetime import datetime
 from Database import db
+from contextlib import contextmanager
+from sqlalchemy.exc import SQLAlchemyError
+from _Log import _Log
 
 class DeviceModel(db.Model):
     """设备数据模型"""
@@ -50,4 +53,22 @@ class EarningRecord(db.Model):
             'amount': self.amount,
             'time': self.time.strftime('%Y-%m-%d %H:%M:%S')
         }
+
+@contextmanager
+def session_scope():
+    """提供事务范围的会话，自动处理提交/回滚和异常"""
+    try:
+        yield db.session
+        db.session.commit()
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        _Log.ex(e, "数据库事务执行失败")
+        raise
+    finally:
+        db.session.remove()
+
+# 移除这里的示例代码
+# with session_scope() as session:
+#     # 使用 session 进行数据库操作
+#     pass
 

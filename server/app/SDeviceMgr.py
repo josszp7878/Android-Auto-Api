@@ -9,6 +9,7 @@ from typing import Dict, Optional, Callable
 import threading
 import hashlib
 import time
+from contextlib import contextmanager
 
 class SDeviceMgr:
     """设备管理器：管理所有设备"""
@@ -112,15 +113,22 @@ class SDeviceMgr:
     @property
     def curDeviceID(self) -> str:
         """获取当前设备ID"""
+        if not self._curDeviceID:
+            for device_id, device in self.devices.items():
+                if device.status == 'online':
+                    self._curDeviceID = device_id
+                    break
         return self._curDeviceID
         
-    @curDeviceID.setter
-    def curDeviceID(self, value: str):
+    def SetCurDevice(self, deviceID: str, refresh:bool=True):
         """设置当前设备ID"""
-        if value != self._curDeviceID:
-            self._curDeviceID = value
-            _Log.i(f"当前设备切换为: {value}")
-            
+        if deviceID != self._curDeviceID:
+            self._curDeviceID = deviceID
+            _Log.i(f"当前设备切换为: {deviceID}")
+            if refresh:
+                self.emit2B('S2B_SetCurDev', {'device_id': deviceID})
+    
+
     @property
     def currentApp(self) -> Optional[str]:
         """获取当前设备的当前应用名称"""
@@ -151,40 +159,22 @@ class SDeviceMgr:
 
     def update_device(self, device):
         try:
-            # 确保设备存在于内存中
-            _devices = self.devices
-            if not _devices.get(device.device_id):
-                _devices[device.device_id] = device            
-            # 更新数据库 - 使用 merge 模式
-            try:
-                # 尝试获取现有设备
-                db_device = DeviceModel.query.get(device.device_id)
-                # Log.i('DeviceManager', f"设备 {db_device}, {device.device_id}")
-                if db_device:   
-                    # 更新现有设备
-                    _Log.i(f"更新设备 {db_device}", 'DeviceManager')
+            with session_scope() as session:
+                # 确保设备存在于内存中
+                _devices = self.devices
+                if not _devices.get(device.device_id):
+                    _devices[device.device_id] = device
+                    
+                # 更新数据库
+                db_device = session.query(DeviceModel).get(device.device_id)
+                if db_device:
                     db_device.status = device.status
                     db_device.info = device.info
                     db_device.last_seen = datetime.now()
                 else:
-                    # 创建新设备
-                    db_device = DeviceModel(
-                        device_id=device.device_id,
-                        status=device.status,
-                        info=device.info,
-                        last_seen=datetime.now()
-                    )
-                    _Log.i('DeviceManager', f"创建新设备 {db_device}")
-                    db.session.add(db_device)
-                
-                # 提交更改
-                db.session.commit()
-                
-            except Exception as e:
-                _Log.ex(e, '数据库更新失败')
-                db.session.rollback()
-                raise
-            
+                    db_device = DeviceModel.from_device(device)
+                    session.add(db_device)
+                    
             return True
         except Exception as e:
             _Log.ex(e, '更新设备失败')
@@ -264,7 +254,7 @@ class SDeviceMgr:
                         result = '截图已更新'
                     else:
                         result = '截图更新失败'
-            _Log.i(f'命令响应: {device_id} -> {command} = {result}', TAG.CMD.value)
+            # _Log.i(f'命令响应: {device_id} -> {command} = {result}', TAG.CMD.value)
         except Exception as e:
             _Log.ex(e, '处理命令响应出错')
         
@@ -272,7 +262,7 @@ class SDeviceMgr:
         if self.onCmdResult:
             self.onCmdResult(result)
         
-        _Log().log(f"{device_id}:{command}  => {result}", TAG.CMD.value)
+        _Log.log(result, device_id)
 
     def genCmdId(self, device_id, command):
         """生成命令唯一ID"""
@@ -313,7 +303,7 @@ class SDeviceMgr:
         try:
             self.onCmdResult = callback
             with current_app.app_context():
-                _Log.i(f'发送客户端命令: {device_id} -> {command}, DATA: {data}')
+                # _Log.d(f'发送客户端命令: {device_id} -> {command}, DATA: {data}')
                 device = self.get_device(device_id)
                 if device is None:
                     _Log.e(f'设备 {device_id} 不存在')
@@ -333,7 +323,7 @@ class SDeviceMgr:
                             'data': data,  # 添加 data 参数
                             'cmd_id': cmd_id  # 添加命令ID
                         }, to=sid)
-                        _Log.i('Server', f'命令已发送到设备 {device_id}')
+                        # _Log.d('Server', f'命令已发送到设备 {device_id}')
                         return f'命令已发送到设备 {device_id}'
                     except Exception as e:
                         _Log.ex(e, '发送命令时出错')

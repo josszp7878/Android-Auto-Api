@@ -1,18 +1,24 @@
 class Dashboard {
-    constructor(initialDevices) {
+    constructor(initialDevices, curDeviceID) {
         console.log('初始化Dashboard，设备数据:', initialDevices);
+        console.log('当前设备ID:', curDeviceID);
+        
+        // 确保所有初始设备状态为离线
+        for (let deviceId in initialDevices) {
+            initialDevices[deviceId].status = 'offline';
+        }
         
         this.app = new Vue({
             el: '#app',
             delimiters: ['[[', ']]'],
             data: {
-                devices: initialDevices || {},  // 确保有默认值
-                selectedDevice: null,
+                devices: initialDevices || {},  // 使用处理过的初始设备数据
+                selectedDevice: curDeviceID || null,  // 使用服务器传来的当前设备ID
                 commandInput: '',
                 commandHistory: [],  // 保留命令历史用于上下键导航
                 currentHistoryIndex: -1,
                 lastActivityTime: Date.now(),
-                showLogs: true,  // 默认显示日志页面
+                showLogs: curDeviceID ? true : false,  // 如果有当前设备就显示日志
                 systemLogs: [],  // 系统日志数据
                 logsPage: 1,
                 loadingLogs: false,
@@ -487,47 +493,30 @@ class Dashboard {
                     this.$nextTick(this.scrollToBottom);
                 });
 
-                // 设备状态更新
-                this.socket.on('device_update', (data) => {
-                    console.log('收到设备状态更新:', data);
-                    if (!this.devices[data.deviceId]) {
-                        // 创建新设备
-                        this.$set(this.devices, data.deviceId, {
-                            status: data.status || 'offline',
-                            screenshot: data.screenshot || '/static/screenshots/default.jpg',  // 使用默认截图
-                            screenshotTime: data.screenshotTime || '',
-                            todayTaskScore: data.todayTaskScore || 0,
-                            totalScore: data.totalScore || 0
-                        });
-                    } else {
-                        // 更新现有设备
-                        const device = this.devices[data.deviceId];
-                        Object.keys(data).forEach(key => {
-                            if (data[key] !== undefined) {
-                                // 确保截图不为null
-                                if (key === 'screenshot' && !data[key]) {
-                                    data[key] = '/static/screenshots/default.jpg';
-                                }
-                                this.$set(device, key, data[key]);
-                            }
-                        });
+                // 设备状态变化处理
+                this.socket.on('S2B_DeviceUpdate', (data) => {
+                    console.log('设备状态更新:', data);
+                    
+                    // 更新 Vue 数据
+                    if (this.devices[data.deviceId]) {
+                        // 更新设备状态
+                        this.$set(this.devices[data.deviceId], 'status', data.status);
+                        
+                        // 如果有截图数据,更新截图
+                        if (data.screenshot) {
+                            this.$set(this.devices[data.deviceId], 'screenshot', data.screenshot);
+                        }
                     }
                     
-                    // 强制更新设备卡片的样式
-                    this.$nextTick(() => {
-                        const deviceCard = document.querySelector(`#device-${data.deviceId}`);
-                        if (deviceCard) {
-                            // 移除所有状态相关的类
-                            deviceCard.classList.remove('offline', 'online', 'login');
-                            // 添加当前状态的类
-                            deviceCard.classList.add(data.status);
-                            
-                            // 更新背景图
-                            const screenshot = data.screenshot || '/static/screenshots/default.jpg';
-                            deviceCard.style.backgroundImage = `url(${screenshot})`;
-                            deviceCard.style.backgroundColor = 'transparent';
+                    // 更新设备卡片的离线状态
+                    const deviceCard = document.querySelector(`[data-device-id="${data.deviceId}"]`);
+                    if (deviceCard) {
+                        if (data.status === 'offline') {
+                            deviceCard.classList.add('offline');
+                        } else {
+                            deviceCard.classList.remove('offline');
                         }
-                    });
+                    }
                 });
 
                 // 任务更新
@@ -562,6 +551,17 @@ class Dashboard {
                 this.socket.on('S2B_AvailableDates', (data) => {
                     if (data.dates && Array.isArray(data.dates)) {
                         this.app.availableDates = data.dates;
+                    }
+                });
+
+                // 在 mounted 中添加事件监听
+                this.socket.on('S2B_SetCurDev', (data) => {
+                    console.log('服务器设置当前设备:', data);
+                    if (data.device_id) {
+                        // 更新选中状态
+                        this.selectedDevice = data.device_id;
+                        // 显示日志面板
+                        this.showLogs = true;
                     }
                 });
             }

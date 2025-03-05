@@ -197,7 +197,7 @@ class CDevice:
             cmdData = data.get('data', {})
             cmd_id = data.get('cmd_id')  # 获取命令ID
             
-            _Log.i(f'收到命令: {command} from {sender} data: {cmdData}')
+            # _Log.d(f'收到命令: {command} from {sender} data: {cmdData}')
             # 使用 CmdMgr 执行命令
             from _CmdMgr import _CmdMgr
             result, cmdName = _CmdMgr.do(command, sender, cmdData)
@@ -289,7 +289,7 @@ class CDevice:
 
     def TakeScreenshot(self):
         """截取当前屏幕并发送到服务器"""
-        android = CTools.android()
+        global android
         if not android:
             _Log.e("Android环境未初始化")
             return False

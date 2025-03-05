@@ -17,8 +17,12 @@
                     <div class="device-wrapper" v-for="(device, id) in devices" :key="id">
                         <div class="device-card" 
                              :id="'device-' + id"
-                             :class="[device.status, { selected: selectedDevice === id }]">
-                            <!-- 背景图片区域单独处理点击 -->
+                             :class="{
+                                 'offline': device.status === 'offline',
+                                 'selected': selectedDevice === id
+                             }"
+                             :data-device-id="device.deviceId">
+                            <!-- 背景图片区域 -->
                             <div class="device-background"
                                  :style="{
                                      backgroundImage: `url(${device.screenshot || '/static/screenshots/default.jpg'})`,
@@ -130,7 +134,10 @@
     <script src="/static/js/dashboard.js"></script>
     <script>
         // 初始化仪表盘
-        const dashboard = new Dashboard({{ initial_devices | tojson | safe }});
+        const dashboard = new Dashboard(
+            {{ initial_devices | tojson | safe }},
+            {{ curDeviceID | tojson | safe }}  // 传入当前设备ID
+        );
     </script>
 </body>
 </html> 

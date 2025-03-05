@@ -26,7 +26,8 @@ class Check:
                 _Log.e(f"未找到{strs[0]}")
                 return False
             _Log.Do(f"点击{strs[0]}")    
-            return CTools.android().click(pos[0], pos[1])
+            global android
+            return android.click(pos[0], pos[1])
 
 
         return check(strs, region, check_function)
@@ -68,7 +69,8 @@ class Check:
                 _Log.e("未找到完成按钮")
                 return False
             _Log.Do("点击完成")
-            return CTools.android().click(pos[0], pos[1])
+            global android
+            return android.click(pos[0], pos[1])
 
         return check(sts, region, check_function)
 

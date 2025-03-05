@@ -8,19 +8,6 @@ class CTools:
     _screenInfoCache = None
 
     @classmethod
-    def android(cls): # 获取Android对象
-        if not hasattr(cls, '_android'):
-            try:
-                from java import jclass            
-                cls._android = jclass("cn.vove7.andro_accessibility_api.demo.script.PythonServices")
-            except ImportError:
-                # 非Android环境，返回None
-                _Log.i("非Android环境，无法加载java模块")
-                cls._android = None
-        return cls._android
-
-    runFromAndroid = True   
-    @classmethod
     def getLocalIP(cls):
         """获取本机IP地址"""
         import socket
@@ -150,11 +137,12 @@ class CTools:
     def _openAppByClick(cls, app_name: str) -> bool:
         """通过点击方式打开应用（适用于鸿蒙系统）"""
         try:
-            if not cls.android().goHome():
+            global android
+            if not android.goHome():
                 _Log.e(cls.Tag, "Failed to go home")
                 return False
             time.sleep(0.5)
-            nodes = cls.android().findTextNodes()
+            nodes = android.findTextNodes()
             targetNode = next((node for node in nodes if app_name in node.getText()), None)
             
             if not targetNode:
@@ -162,7 +150,7 @@ class CTools:
                 return False
             
             bounds = targetNode.getBounds()
-            if not cls.android().click(bounds.centerX(), bounds.centerY()):
+            if not android.click(bounds.centerX(), bounds.centerY()):
                 _Log.e(cls.Tag, "Failed to click app icon")
                 return False
             return True
@@ -188,7 +176,7 @@ class CTools:
             yOffset: Y轴偏移量
         """
         try:
-            android = cls.android()
+            from CMain import android
             if android:
                 android.showToast(str(msg), 
                                 duration or cls.TOAST_LENGTH_LONG,
@@ -211,8 +199,9 @@ class CTools:
             list: 最近打开的应用列表，每项包含包名和应用名
         """
         try:
+            from CMain import runFromAndroid
             # 检查是否在Android环境
-            if not cls.runFromAndroid:
+            if not runFromAndroid:
                 _Log.e("获取最近应用失败: 非Android环境")
                 return []
             
@@ -317,7 +306,8 @@ class CTools:
         """
         try:
             # 检查是否在Android环境
-            if not cls.runFromAndroid:
+            from CMain import runFromAndroid
+            if not runFromAndroid:
                 _Log.e("获取当前应用失败: 非Android环境")
                 return None
             

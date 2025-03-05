@@ -51,45 +51,32 @@ class LogManager {
     
     // 接收服务器加载的日志
     this.socket.on('S2B_LoadLogs', (data) => {
-      console.log(`收到日志数据: ${data.logs ? data.logs.length : 0}条`);
-      this.logs = data.logs || [];
+      if (!data || !data.logs) {
+        console.error('收到无效的日志数据:', data);
+        return;
+      }
+
+      // 直接使用服务器发送的结构化日志数据
+      this.logs = data.logs; 
       this.currentDate = data.date;
       this.parseAndFilterLogs();
     });
     
     // 接收新增的日志
     this.socket.on('S2B_AddLog', (data) => {
-      try {
-        console.log('收到新日志:', data);
-        if (!data || !data.message) {
-          console.error('收到无效的日志数据:', data);
-          return;
+      if (!data || !data.message) {
+        console.error('收到无效的日志数据:', data);
+        return;
+      }
+
+      this.logs.push(data);
+      if (this.matchesFilter(data)) {
+        this.filteredLogs.push(data);
+        if (this.filteredLogs.length > this.perPage) {
+          this.filteredLogs.shift();
         }
-        
-        this.logs.push(data.message);
-        
-        // 解析并添加到过滤后的日志
-        const parsedLog = this.parseLogEntry(data.message);
-        console.log('解析后的日志:', parsedLog);
-        
-        if (parsedLog && this.matchesFilter(parsedLog)) {
-          this.filteredLogs.push(parsedLog);
-          // 限制显示的日志数量，避免内存占用过大
-          if (this.filteredLogs.length > 1000) {
-            this.filteredLogs.shift();
-          }
-          
-          // 通知日志更新
-          console.log('通知日志更新, 当前过滤后日志数量:', this.filteredLogs.length);
-          if (this.onLogsUpdated) {
-            console.log('调用 onLogsUpdated 回调');
-            this.onLogsUpdated(this.filteredLogs, this.loadingLogs);
-          } else {
-            console.warn('onLogsUpdated 回调未设置');
-          }
-        }
-      } catch (error) {
-        console.error('处理新日志时出错:', error);
+
+        this.onLogsUpdated && this.onLogsUpdated(this.filteredLogs);
       }
     });
   }
@@ -155,7 +142,7 @@ class LogManager {
     this.loadingLogs = false;
     
     // 触发日志更新事件
-    this.onLogsUpdated && this.onLogsUpdated(this.filteredLogs, this.loadingLogs);
+    this.onLogsUpdated && this.onLogsUpdated(this.filteredLogs);
   }
   
   // 检查日志是否匹配当前过滤条件
@@ -252,31 +239,20 @@ class LogManager {
   
   // 更新日志显示区域
   updateLogDisplay(logs) {
-    const logContainer = document.getElementById('logContainer');
+    const logContainer = document.getElementById('logs-container');
     logContainer.innerHTML = '';
-    
+
     logs.forEach(log => {
-      const parts = log.split('##');
-      if (parts.length >= 4) {
-        const time = parts[0];
-        const tag = parts[1];
-        const level = parts[2];
-        const message = parts.slice(3).join('##');
-        
-        const logElement = document.createElement('div');
-        logElement.className = `log-item log-level-${level}`;
-        logElement.innerHTML = `
-          <span class="log-time">${time}</span>
-          <span class="log-tag">${tag}</span>
-          <span class="log-level">${level}</span>
-          <span class="log-message">${message}</span>
-        `;
-        
-        logContainer.appendChild(logElement);
-      }
+      const logElement = document.createElement('div');
+      logElement.className = `log-entry log-${log.level}`;
+      logElement.innerHTML = `
+        <span class="log-time">${log.time}</span>
+        <span class="log-tag">${log.tag}</span>
+        <span class="log-message">${log.message}</span>
+      `;
+      logContainer.appendChild(logElement);
     });
-    
-    // 滚动到底部
+
     logContainer.scrollTop = logContainer.scrollHeight;
   }
   
@@ -326,7 +302,7 @@ class LogManager {
   loadLogs(date) {
     this.currentDate = date;
     this.loadingLogs = true;
-    this.onLogsUpdated && this.onLogsUpdated(this.filteredLogs, this.loadingLogs);
+    this.onLogsUpdated && this.onLogsUpdated(this.filteredLogs);
     this.socket.emit('B2S_GetLogs', { date });
   }
   
@@ -335,7 +311,7 @@ class LogManager {
     this.logs = [];
     this.filteredLogs = [];
     this.currentPage = 1;
-    this.onLogsUpdated && this.onLogsUpdated(this.filteredLogs, this.loadingLogs);
+    this.onLogsUpdated && this.onLogsUpdated(this.filteredLogs);
     this.refreshDisplay();
   }
   

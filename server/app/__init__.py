@@ -37,32 +37,47 @@ def create_app(config_name='development', debug=False):
     """创建 Flask 应用"""
     global app
     app = Flask(__name__,
-                static_folder='static',  # 这是相对于 server/app 目录的路径
+                static_folder='static',
                 static_url_path='/static',
                 template_folder='templates')
     
     # 加载配置
     app.config.from_object(config[config_name])
     
+    from Database import db
+    # 初始化数据库
+    db.init_app(app)
+    
     # 初始化 SocketIO
     socketio.init_app(
         app,
         cors_allowed_origins="*",
         async_mode='eventlet',
-        logger=False,  # 关闭详细日志
-        engineio_logger=False,  # 关闭 Engine.IO 日志
-        ping_timeout=60,  # 增加 ping 超时时间
-        ping_interval=25  # 保持默认 ping 间隔
+        logger=False,
+        engineio_logger=False,
+        ping_timeout=60,
+        ping_interval=25
     )
     
+    # 创建所有数据库表
+    with app.app_context():
+        db.create_all()
+    
     # 导入并注册事件处理器
-    import Server  # 移到这里，确保在 socketio 初始化后导入
+    import Server
     
     # 注册蓝图
     from routes import bp
     app.register_blueprint(bp)
 
     app.debug = debug
+
+    @app.teardown_appcontext
+    def shutdown_session(exception=None):
+        try:
+            db.session.remove()
+        except:
+            pass
 
     return app
 

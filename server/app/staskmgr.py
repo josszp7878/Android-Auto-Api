@@ -1,9 +1,11 @@
 from typing import Optional, List
 from STask import STask
 from _Log import _Log
-from datetime import datetime, date
+from datetime import datetime, date, time
 from Database import db  # 导入单例的db实例
 from _Tools import TaskState, _Tools
+from contextlib import contextmanager
+from sqlalchemy.exc import SQLAlchemyError
 
 class STaskMgr:
     """设备任务管理器"""
@@ -69,23 +71,21 @@ class STaskMgr:
             self._currentApp = value
             _Log.i(f"当前应用切换为: {value}")
 
-    def getTodayScore(self) -> int:
+    @classmethod
+    def getTodayScore(cls):
         """获取今日任务得分"""
         try:
-            today = datetime.now().date()
-            today_tasks = STask.query.filter(
-                STask.deviceId == self._device.id,
-                STask.time >= today
+            today_start = datetime.combine(datetime.now().date(), time.min)
+            today_end = datetime.combine(datetime.now().date(), time.max)
+            
+            today_tasks = db.session.query(STask).filter(
+                STask.time.between(today_start, today_end)
             ).all()
-            # 添加调试日志
-            scores = [task.score for task in today_tasks]
-            # Log.i(f"任务得分列表: {scores}")
-            # 过滤掉 None 值并计算总和
-            valid_scores = [s for s in scores if s is not None]
-            score = sum(valid_scores)
-            return score
+            
+            return sum(task.score for task in today_tasks if task.score)
+            
         except Exception as e:
-            _Log.ex(e, "获取今日任务得分失败")
+            _Log.ex(e, '获取今日任务得分失败')
             return 0
 
     def init(self,device_id:str):
@@ -260,3 +260,16 @@ class STaskMgr:
         except Exception as e:
             _Log.ex(e, f'更新任务进度失败: {appName}/{taskName}/{progress}')
             return False
+
+@contextmanager
+def session_scope():
+    """提供事务范围的会话，自动处理提交/回滚和异常"""
+    try:
+        yield db.session
+        db.session.commit()
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        _Log.ex(e, "数据库事务执行失败")
+        raise
+    finally:
+        db.session.remove()
