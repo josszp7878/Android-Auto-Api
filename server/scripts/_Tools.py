@@ -1,4 +1,4 @@
-from _Log import _Log
+import _Log
 from enum import Enum
 
 class TaskState(Enum):
@@ -58,6 +58,6 @@ class _Tools:
                     return attr, getattr(attr, method_name)
             return None, None
         except Exception as e:
-            _Log.ex(e, f"查找类方法失败: {method_name}")
+            _Log.Log.ex(e, f"查找类方法失败: {method_name}")
             return None, None
 

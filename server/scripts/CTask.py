@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional, Dict, Callable, Any
 from _Tools import TaskState
-from _Log import _Log
+import _Log
 import time
 
 
@@ -49,7 +49,7 @@ class CTask:
                 return fun(self)
             return True
         except Exception as e:
-            _Log.ex(e, f"开始任务失败: {self.taskName}")
+            _Log.Log.ex(e, f"开始任务失败: {self.taskName}")
             return False
             
             
@@ -105,7 +105,7 @@ class CTask:
                return result if result else TaskState.FAILED
             return self.state
         except Exception as e:
-            _Log.ex(e, f"任务执行异常: {self.taskName}")
+            _Log.Log.ex(e, f"任务执行异常: {self.taskName}")
             self.state = TaskState.FAILED
             return self.state
 
@@ -126,7 +126,7 @@ class CTask:
         """停止任务"""
         if self.state == TaskState.RUNNING:
             self.state = TaskState.PAUSED
-            _Log.i(f"任务 {self.taskName} 已暂停")
+            _Log.Log.i(f"任务 {self.taskName} 已暂停")
             # 发送任务停止消息
             try:
                 from CClient import client
@@ -136,19 +136,19 @@ class CTask:
                         'task_name': self.taskName
                     })
             except Exception as e:
-                _Log.ex(e, '发送任务停止消息失败')
+                _Log.Log.ex(e, '发送任务停止消息失败')
 
     def setScore(self, score: int):
         """设置任务得分"""
         self.score = score
-        _Log.i(f"任务 {self.taskName} 得分: {self.score}")
+        _Log.Log.i(f"任务 {self.taskName} 得分: {self.score}")
 
     def cancel(self) -> bool:
         """取消任务"""
         try:
             if self.state == TaskState.RUNNING:
                 self.state = TaskState.CANCELLED
-                _Log.i(f"任务 {self.taskName} 已取消")
+                _Log.Log.i(f"任务 {self.taskName} 已取消")
             # 发送取消事件到服务器
             from CClient import client
             if client:
@@ -156,10 +156,10 @@ class CTask:
                     'app_name': self.appName,
                     'task_name': self.taskName
                 })
-                _Log.i(f"已发送取消任务请求: {self.appName}/{self.taskName}")
+                _Log.Log.i(f"已发送取消任务请求: {self.appName}/{self.taskName}")
             from CTaskMgr import taskMgr
             taskMgr.tasks.pop(Tools.toTaskId(self.appName, self.taskName))
             return True
         except Exception as e:
-            _Log.ex(e, "取消任务失败")
+            _Log.Log.ex(e, "取消任务失败")
             return False

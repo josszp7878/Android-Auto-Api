@@ -14,6 +14,7 @@ import android.util.Base64
 import android.view.Gravity
 import android.util.Log
 import android.util.DisplayMetrics
+import android.provider.Settings
 import cn.vove7.andro_accessibility_api.demo.MainActivity
 import cn.vove7.andro_accessibility_api.demo.service.ScreenCapture
 import cn.vove7.auto.AutoApi
@@ -355,12 +356,49 @@ class PythonServices {
             }
         }
 
+        @JvmStatic
         fun checkPermission(permission: String): Boolean {
-            return ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED;
+            return when {
+                permission == "android.permission.PACKAGE_USAGE_STATS" -> {
+                    val appContext = context.applicationContext
+                    val pm = appContext.packageManager
+                    val mode = pm.checkPermission(
+                        permission,
+                        appContext.packageName
+                    )
+                    mode == PackageManager.PERMISSION_GRANTED
+                }
+                else -> ContextCompat.checkSelfPermission(context, permission) == 
+                       PackageManager.PERMISSION_GRANTED
+            }
         }
 
+        @JvmStatic
         fun requestPermission(permission: String) {
-            ActivityCompat.requestPermissions(context, arrayOf(permission), MainActivity.REQUEST_CODE_PERMISSIONS);
+            val intent = when (permission) {
+                "android.permission.PACKAGE_USAGE_STATS" -> {
+                    Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+                        putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                }
+                else -> {
+                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.parse("package:${context.packageName}")
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                }
+            }
+            context.startActivity(intent)
+            showToast("请开启「${getPermissionName(permission)}」权限", TOAST_LENGTH_LONG)
+        }
+
+        private fun getPermissionName(permission: String): String {
+            return when(permission) {
+                "android.permission.PACKAGE_USAGE_STATS" -> "使用情况访问"
+                "android.permission.WRITE_EXTERNAL_STORAGE" -> "存储"
+                else -> "所需"
+            }
         }
 
         @JvmStatic
@@ -466,6 +504,12 @@ class PythonServices {
                 Timber.tag("PythonServices").e(e, "Sweep $swipeDirection failed")
                 false
             }
+        }
+
+        // 添加Context获取方法
+        @JvmStatic
+        fun getContext(): Context {
+            return context
         }
     }
 } 

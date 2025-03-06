@@ -1,6 +1,6 @@
 from typing import Pattern, List, Tuple, Any, Callable
 import re
-from _Log import _Log
+import _Log
 import time
 from _Tools import _Tools
 # 定义固定的region
@@ -46,7 +46,7 @@ def _doCheck(patterns: List[Pattern], region: List[float] = None) -> List[Tuple[
                 return None
         return matched
     except Exception as e:
-        _Log.ex(e, "Checker执行异常")
+        _Log.Log.ex(e, "Checker执行异常")
         return None
 
 def check(patterns: List[str], region: List[float] = None,
@@ -63,5 +63,5 @@ def check(patterns: List[str], region: List[float] = None,
             if time.time() - start_time > timeout:
                 return False
     except Exception as e:
-        _Log.ex(e, "Checker执行异常")
+        _Log.Log.ex(e, "Checker执行异常")
         return False

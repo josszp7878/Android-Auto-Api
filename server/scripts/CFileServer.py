@@ -3,7 +3,7 @@ import json
 import requests
 from typing import Callable
 from threading import Thread
-from _Log import _Log
+import _Log
 
 class CFileServer:
     _instance = None  # 用于存储单例实例
@@ -56,14 +56,14 @@ class CFileServer:
             from CMain import getScriptDir
             scriptDir = getScriptDir()
             scriptFile = os.path.join(scriptDir, filename)
-            # _Log.d(f"下载文件: {url} 到 {scriptFile}")
+            # _Log.Log.d(f"下载文件: {url} 到 {scriptFile}")
             
             # 确保目录存在
             os.makedirs(os.path.dirname(scriptFile), exist_ok=True)
             
             with open(scriptFile, 'w', newline = '', encoding='utf-8') as f:
                 f.write(response.text)
-            _Log.d(f"下载文件完成: {filename} (大小: {os.path.getsize(scriptFile)} bytes)")
+            _Log.Log.d(f"下载文件完成: {filename} (大小: {os.path.getsize(scriptFile)} bytes)")
             if onComplete:
                 onComplete(True)
             return True

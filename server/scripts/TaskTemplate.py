@@ -40,8 +40,8 @@ class TaskTemplate:
             templates = cls._get_templates()
             if templateId not in templates:
                 templates[templateId] = Template()
-                from _Log import _Log
-                # _Log.d(f"注册任务模板: {templateId}({alias})")
+                import _Log
+                # _Log.Log.d(f"注册任务模板: {templateId}({alias})")
             
             return func
         return decorator

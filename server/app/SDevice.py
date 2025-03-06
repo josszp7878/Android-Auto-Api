@@ -2,7 +2,7 @@ from datetime import datetime
 from pathlib import Path
 from flask import current_app
 from models import db, DeviceModel
-from _Log import _Log
+import _Log
 import base64
 from STaskMgr import STaskMgr
 from SEarningMgr import SEarningMgr
@@ -49,7 +49,7 @@ class SDevice:
                 end_date=end_date
             )
         except Exception as e:
-            _Log.ex(e, '获取设备总分失败')
+            _Log.Log.ex(e, '获取设备总分失败')
             return 0.0
 
     @property
@@ -87,38 +87,38 @@ class SDevice:
                     db.session.commit()
                     # print(f'设备 {self.device_id} 状态已同步到数据库')
         except Exception as e:
-            _Log.ex(e, '同步设备状态到数据库出错')
+            _Log.Log.ex(e, '同步设备状态到数据库出错')
 
     
     def onConnect(self):
         """设备连接回调"""
         try:
             self.status = 'online'
-            _Log.i(f'设备 {self.device_id} 已连接')
+            _Log.Log.i(f'设备 {self.device_id} 已连接')
             self._commit()
             
             # 将刷新操作放在单独的 try-except 块中
             try:
                 self.refresh()  # 统一刷新状态
             except Exception as e:
-                _Log.ex(e, f'设备 {self.device_id} 刷新状态失败，但连接已建立')
+                _Log.Log.ex(e, f'设备 {self.device_id} 刷新状态失败，但连接已建立')
                 # 连接失败不影响设备连接状态
             
             return True
         except Exception as e:
-            _Log.ex(e, '设备连接处理失败')
+            _Log.Log.ex(e, '设备连接处理失败')
             return False
     
     def onDisconnect(self):
         """设备断开连接回调"""
         try:
             self.status = 'offline'
-            _Log.i(f'设备 {self.device_id} 已断开连接')
+            _Log.Log.i(f'设备 {self.device_id} 已断开连接')
             self._commit()
             self.refresh()  # 统一刷新状态
             return True
         except Exception as e:
-            _Log.ex(e, '设备断开连接处理失败')
+            _Log.Log.ex(e, '设备断开连接处理失败')
             return False
 
     def login(self):
@@ -130,7 +130,7 @@ class SDevice:
             self.refresh()  # 统一刷新状态
             return True
         except Exception as e:
-            _Log.ex(e, '设备登录失败')
+            _Log.Log.ex(e, '设备登录失败')
             return False
     
     def logout(self):
@@ -142,7 +142,7 @@ class SDevice:
             self.refresh()  # 统一刷新状态
             return True
         except Exception as e:
-            _Log.ex(e, '设备登出失败')
+            _Log.Log.ex(e, '设备登出失败')
             return False    
         
     def refresh(self):
@@ -155,7 +155,7 @@ class SDevice:
             # Log.i(f'设备 {self.device_id} 状态已刷新')
             self.taskMgr.currentTask = None
         except Exception as e:
-            _Log.ex(e, '刷新设备状态失败')
+            _Log.Log.ex(e, '刷新设备状态失败')
 
     def to_dict(self):
         """返回设备信息字典"""
@@ -172,7 +172,7 @@ class SDevice:
                     if 'static' in screenshotFile:
                         screenshotFile = '/static' + screenshotFile.split('static')[1]
                 except Exception as e:
-                    _Log.ex(e, '获取截图时间失败')
+                    _Log.Log.ex(e, '获取截图时间失败')
                     # 使用默认值
                     screenshotTime = datetime.now().strftime('%H:%M:%S')
             
@@ -183,14 +183,14 @@ class SDevice:
             try:
                 todayTaskScore = self.taskMgr.getTodayScore() if hasattr(self, '_taskMgr') else 0
             except Exception as e:
-                _Log.ex(e, '获取今日任务分数失败')
+                _Log.Log.ex(e, '获取今日任务分数失败')
                 todayTaskScore = 0
             
             # 获取总分
             try:
                 totalScore = self.total_score
             except Exception as e:
-                _Log.ex(e, '获取总分失败')
+                _Log.Log.ex(e, '获取总分失败')
                 totalScore = 0
             
             return {
@@ -202,7 +202,7 @@ class SDevice:
                 'totalScore': totalScore
             }
         except Exception as e:
-            _Log.ex(e, '生成设备信息字典失败')
+            _Log.Log.ex(e, '生成设备信息字典失败')
             # 返回最小化的设备信息
             return {
                 'deviceId': self.device_id,
@@ -242,24 +242,24 @@ class SDevice:
                 return True
                 
         except Exception as e:
-            _Log.ex(e, "保存截图失败")
+            _Log.Log.ex(e, "保存截图失败")
             return False
 
     def takeScreenshot(self):
         """向客户端发送截屏指令"""
         try:
             if self.status != 'login':
-                _Log.w(f'设备 {self.device_id} 未登录，无法截屏')
+                _Log.Log.w(f'设备 {self.device_id} 未登录，无法截屏')
                 return False
             from SDeviceMgr import deviceMgr
             deviceMgr.sendClientCmd(
                 self.device_id, 
                 'takeScreenshot'
             )
-            _Log.i(f'向设备 {self.device_id} 发送截屏指令')
+            _Log.Log.i(f'向设备 {self.device_id} 发送截屏指令')
             return True
         except Exception as e:
-            _Log.ex(e, f'向设备 {self.device_id} 发送截屏指令失败')
+            _Log.Log.ex(e, f'向设备 {self.device_id} 发送截屏指令失败')
             return False
 
    

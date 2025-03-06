@@ -1,6 +1,6 @@
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import event
-from _Log import _Log
+import _Log
 
 class Database:
     """数据库管理类"""
@@ -28,7 +28,7 @@ class Database:
             db.session.commit()
             return True
         except Exception as e:
-            _Log.ex(e, "数据库提交失败")
+            _Log.Log.ex(e, "数据库提交失败")
             db.session.rollback()
             return False
         
@@ -50,9 +50,9 @@ class Database:
                 
                 # 只创建不存在的表
                 db.create_all()
-                _Log.i("数据库初始化成功")
+                _Log.Log.i("数据库初始化成功")
             except Exception as e:
-                _Log.ex(e, "数据库初始化错误")
+                _Log.Log.ex(e, "数据库初始化错误")
                 raise
 
 

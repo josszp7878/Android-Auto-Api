@@ -1,5 +1,5 @@
 import time
-from _Log import _Log
+import _Log
 from CFileServer import fileServer
 from CTools import CTools
 import CMain  # 直接导入整个模块
@@ -30,9 +30,9 @@ class CClient:
             if self.device and self.device.connected:
                 self.device.emit(event, data)
             else:
-                _Log.e("设备未连接，无法发送事件")
+                _Log.Log.e("设备未连接，无法发送事件")
         except Exception as e:
-            _Log.ex(e, "发送事件失败")
+            _Log.Log.ex(e, "发送事件失败")
 
     def Begin(self, deviceID=None, server=None):  
         print(f"初始化客户端: deviceID={deviceID}, server={server}")      
@@ -53,7 +53,7 @@ class CClient:
             def onConnected(ok):
                 self.waitting = False
                 if not ok:
-                    CTools.toast("服务器连接失败，请检查服务器IP地址和相关的网络设置是否正确")
+                    tools.toast("服务器连接失败，请检查服务器IP地址和相关的网络设置是否正确")
                 else:
                     print("设备连接服务器成功")
 
@@ -73,10 +73,10 @@ class CClient:
                     print(f"等待连接时发生错误: {str(e)}")
                     break
             if not self.device.connected:
-                CTools.toast("无法连接到服务器，请检查网络和服务器地址")
+                tools.toast("无法连接到服务器，请检查网络和服务器地址")
                 return
             fileServer.serverUrl = server_url       
-            _Log.i(f"客户端运行中222: runFromAndroid={CMain.runFromAndroid}")  # 使用模块级别访问
+            _Log.Log.i(f"客户端运行中222: runFromAndroid={CMain.runFromAndroid}")  # 使用模块级别访问
             if not CMain.runFromAndroid:  # 使用模块级别访问
                 print("客户端运行中sss... 按Ctrl+C退出")    
                 while True:
@@ -89,17 +89,17 @@ class CClient:
                                 if result:
                                     print(result)
                             except Exception as e:
-                                _Log.ex(e, '执行命令出错')    
+                                _Log.Log.ex(e, '执行命令出错')    
                                 break
                     except KeyboardInterrupt:
-                        _Log.i('\n正在退出...') 
+                        _Log.Log.i('\n正在退出...') 
                         break  
                 self.End()
             else:
                 while True:
                     time.sleep(100)
         except Exception as e:
-            _Log.ex(e, '初始化失败')
+            _Log.Log.ex(e, '初始化失败')
 
     def End(self):
         """清理函数"""
@@ -112,9 +112,9 @@ class CClient:
             from CTaskMgr import taskMgr
             # 停止所有任务
             taskMgr.uninit()
-            _Log.i("所有任务已停止")
+            _Log.Log.i("所有任务已停止")
         except Exception as e:
-            _Log.ex(e, "客户端结束失败")
+            _Log.Log.ex(e, "客户端结束失败")
 
 # 创建全局单例实例
 client = CClient()

@@ -2,7 +2,7 @@ from datetime import datetime
 from Database import db
 from contextlib import contextmanager
 from sqlalchemy.exc import SQLAlchemyError
-from _Log import _Log
+import _Log
 
 class DeviceModel(db.Model):
     """设备数据模型"""
@@ -62,7 +62,7 @@ def session_scope():
         db.session.commit()
     except SQLAlchemyError as e:
         db.session.rollback()
-        _Log.ex(e, "数据库事务执行失败")
+        _Log.Log.ex(e, "数据库事务执行失败")
         raise
     finally:
         db.session.remove()

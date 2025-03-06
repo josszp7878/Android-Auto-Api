@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import json
 import re
+from _GState import gState
 
 TempKey = '_IsServer' 
 
@@ -13,34 +14,43 @@ class TAG(Enum):
     SCMD = "SCMD"
     Server = "@"
 
-class _Log:
+class Log:
     """统一的日志管理类"""
     _cache = []
     _visualLogs = []
-    _isServer = True    
     _scriptDir = None
+
+    _isServer = None    
+    @classmethod
+    def IsServer(cls):
+        """是否是服务器端"""    
+        return cls._isServer
+    
+    @classmethod
+    def init(cls):
+        if not hasattr(cls, '_init'):
+            cls._isServer = gState.restore('_isServer')
+            cls._scriptDir = gState.restore('_scriptDir')
+            print(f'日志系统初始化 log={gState.get("Log_")}')
+            cls._init = True
 
     @classmethod
     def OnPreload(cls):
         """热更新前的预处理，保存当前状态"""
-        globals()[TempKey] = cls._isServer
-        cls.i(f'日志系统热更新前保存状态: isServer={globals().get(TempKey)}')
+        gState.save('_isServer', cls._isServer)
+        gState.save('_scriptDir', cls._scriptDir)
+        cls.i(f'日志系统热更新前保存状态: isServer={cls._isServer}, scriptDir={cls._scriptDir}')
         return True
     
     @classmethod
-    def IsServer(cls):
-        """是否是服务器端"""
-        return cls._isServer
-
-
-    @classmethod
     def OnReload(cls):
-        """热更新后的回调函数，恢复之前的状态"""
-        if TempKey in globals():
-            cls.i(f'日志系统热更新后恢复状态: isServer={globals()[TempKey]}')
-            cls.init(globals()[TempKey])
-            del globals()[TempKey]
+        # """热更新后的回调函数，恢复之前的状态"""
+        # cls._isServer = gState.restore('_isServer')
+        # cls._scriptDir = gState.restore('_scriptDir')
+        # gState.save('Log_', cls)
+        # cls.i(f'日志系统热更新后恢复状态: isServer={cls._isServer}, scriptDir={cls._scriptDir}')
         return True
+ 
 
     @classmethod
     def clear(cls):
@@ -50,8 +60,8 @@ class _Log:
         cls._visualLogs.clear()
 
     @classmethod
-    def init(cls, is_server=True):
-        """初始化日志系统"""
+    def setIsServer(cls, is_server=True):
+        """设置是否是服务器端"""
         cls._isServer = is_server
         if is_server:
             cls._load()
@@ -68,7 +78,7 @@ class _Log:
             cls._scriptDir = getScriptDir()
         if not os.path.exists(cls._scriptDir):
             cls._scriptDir = None
-            _Log.ex(Exception('脚本目录不存在'), '脚本目录不存在')
+            _Log.Log.ex(Exception('脚本目录不存在'), '脚本目录不存在')
         return cls._scriptDir
         
     @classmethod
@@ -148,38 +158,37 @@ class _Log:
                 level = level or 'i'
             except Exception:
                 content = str(content)
-
-        if cls._isServer:
-            if level is None:
-                level = 'i'
-                match = re.match(r'(e|w|i|d)\s*->\*', content)
-                if match:
-                    level = match.group(1)
-                    content = content.replace(match.group(0), '').strip()
-            logDict = {
-                'time': timestamp.strftime('%Y-%m-%d %H:%M:%S'),
-                'tag': tag or TAG.Server.value,
-                'level': level or 'i',
-                'message': content
-            }
-            cls.add(logDict)
-            print(f"@@@@@@{timestamp.strftime('%Y-%m-%d %H:%M:%S')} [{tag}] {level}: {content}")
-        else:
-            try:
-                from CDevice import CDevice
-                device = CDevice.instance()
-                if device:
-                    tag = f'{device.deviceID}{tag}' if tag else device.deviceID
-                    if device.connected:
-                        device.sio.emit('C2S_Log', {
-                            'time': timestamp.strftime('%Y-%m-%d %H:%M:%S'),
-                            'tag': tag,
-                            'level': level or 'i',
-                            'message': content
-                        })
-            except Exception as e:
-                print(f'发送日志到服务器失败: {e}')
-        # print(f"{timestamp.strftime('%Y-%m-%d %H:%M:%S')} [{tag}] {level}: {content}")
+        if cls._isServer is not None:
+            if cls._isServer:
+                if level is None:
+                    level = 'i'
+                    match = re.match(r'(e|w|i|d)\s*->\*', content)
+                    if match:
+                        level = match.group(1)
+                        content = content.replace(match.group(0), '').strip()
+                logDict = {
+                    'time': timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+                    'tag': tag or TAG.Server.value,
+                    'level': level or 'i',
+                    'message': content
+                }
+                cls.add(logDict)
+            else:
+                try:
+                    from CDevice import CDevice
+                    device = CDevice.instance()
+                    if device:
+                        tag = f'{device.deviceID}{tag}' if tag else device.deviceID
+                        if device.connected:
+                            device.sio.emit('C2S_Log', {
+                                'time': timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+                                'tag': tag,
+                                'level': level or 'i',
+                                'message': content
+                            })
+                except Exception as e:
+                    print(f'发送日志到服务器失败: {e}')
+        print(f"{timestamp.strftime('%H:%M:%S')} [{tag}] {level}: {content}")
     
        
     @classmethod
@@ -225,9 +234,10 @@ class _Log:
     @classmethod
     def isError(cls, message):
         return isinstance(message, str) and message.startswith('e->')
-    
- 
-    
+    @classmethod
+    def isWarning(cls, message):
+        return isinstance(message, str) and message.startswith('w->')
 
+Log.init()
 
 

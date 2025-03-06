@@ -2,12 +2,13 @@ import os
 import time
 import sys
 
-android = None
 # 全局变量声明
-runFromAndroid = False  # 默认非Android环境
+runFromAndroid = False 
 
 def getScriptDir():
     _scriptDir = None
+    import CTools
+    android = CTools.CTools.android
     if android:
         # Android环境下使用应用私有目录
         _scriptDir = android.getFilesDir('scripts', True)
@@ -19,7 +20,6 @@ def getScriptDir():
 
 # 更新脚本
 def updateScripts():
-    print(f'33333 runFromAndroid={runFromAndroid}')  # 调试输出
     if runFromAndroid:  # 使用全局变量判断
         # 更新脚本
         print('更新脚本ddd')
@@ -44,28 +44,22 @@ def Begin(deviceID=None, server=None, androidEnv=None):
         if androidEnv is not None:
             runFromAndroid = androidEnv  # 设置全局变量
             print(f'Begin中设置 runFromAndroid={runFromAndroid}')  # 调试输出
-            if runFromAndroid:
-                try:
-                    from java import jclass            
-                    android = jclass("cn.vove7.andro_accessibility_api.demo.script.PythonServices")
-                except Exception as e:
-                    print('加载java模块失败')
-
-        # print(f'脚本更新前   &&&&&&&：runFromAndroid={runFromAndroid}')
-        # 先更新脚本再初始化客户端
-        updateScripts()
-        from _Log import _Log
-        _Log().init(is_server=False)
+        if runFromAndroid:
+            updateScripts()
+        import _Log
+        _Log.Log.setIsServer(is_server=False)
         from CClient import client
         print(f"初始化客户端: androidEnv={androidEnv} runFromAndroid={runFromAndroid}")
         client.Begin(deviceID, server)
     except Exception as e:
-        _Log.ex(e, "初始化客户端失败")
+        _Log.Log.ex(e, "初始化客户端失败")
 
 def End():
-    """清理函数"""
-    from CClient import client
-    client.End()
+    try:
+        from CClient import client
+        client.End()
+    except Exception as e:
+        print("清理函数失败")
 
 def main():
     # 命令行启动支持

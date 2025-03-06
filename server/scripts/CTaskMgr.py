@@ -1,6 +1,6 @@
 from typing import List, Optional, Tuple, Callable
 from CTask import CTask
-from _Log import _Log
+import _Log
 from _CmdMgr import regCmd
 import threading
 from datetime import datetime
@@ -50,7 +50,7 @@ class CTaskMgr:
             from TaskTemplate import TaskTemplate
             template = TaskTemplate.getTemplate(templateId)
             if not template:
-                _Log.e(f"找不到任务模板: {templateId}")
+                _Log.Log.e(f"找不到任务模板: {templateId}")
                 return None
             
             # 创建 CTask 实例
@@ -59,11 +59,11 @@ class CTaskMgr:
             task.state = TaskState.RUNNING
             task.time = datetime.now()
             
-            _Log.i(f"创建任务: {appName}/{templateId}")
+            _Log.Log.i(f"创建任务: {appName}/{templateId}")
             return task
             
         except Exception as e:
-            _Log.ex(e, f"创建任务失败: {appName}/{templateId}")
+            _Log.Log.ex(e, f"创建任务失败: {appName}/{templateId}")
             return None
     
     def startTask(self, appName: str, taskName: str) -> bool:
@@ -79,11 +79,11 @@ class CTaskMgr:
             task['startTime'] = datetime.now()
             self.current_task = task
             
-            _Log.i(f"启动任务: {appName}/{taskName}")
+            _Log.Log.i(f"启动任务: {appName}/{taskName}")
             return True
             
         except Exception as e:
-            _Log.ex(e, f"启动任务失败: {appName}/{taskName}")
+            _Log.Log.ex(e, f"启动任务失败: {appName}/{taskName}")
             return False
     
     def stopTask(self, appName: str, taskName: str):
@@ -94,10 +94,10 @@ class CTaskMgr:
                 task['state'] = 'stopped'
                 if self.current_task == task:
                     self.current_task = None
-                _Log.i(f"停止任务: {appName}/{taskName}")
+                _Log.Log.i(f"停止任务: {appName}/{taskName}")
                 
         except Exception as e:
-            _Log.ex(e, f"停止任务失败: {appName}/{taskName}")
+            _Log.Log.ex(e, f"停止任务失败: {appName}/{taskName}")
     
     def updateProgress(self, appName: str, taskName: str, progress: float):
         """更新任务进度"""
@@ -105,10 +105,10 @@ class CTaskMgr:
             task = self.getTask(appName, taskName)
             if task:
                 task['progress'] = progress
-                _Log.i(f"更新任务进度: {appName}/{taskName} -> {progress}")
+                _Log.Log.i(f"更新任务进度: {appName}/{taskName} -> {progress}")
                 
         except Exception as e:
-            _Log.ex(e, f"更新任务进度失败: {appName}/{taskName}")
+            _Log.Log.ex(e, f"更新任务进度失败: {appName}/{taskName}")
     
       
     def _getTask(self, appName: str, templateId: str) -> Optional[CTask]:
@@ -131,7 +131,7 @@ class CTaskMgr:
                 # Log.w(f"未找到任务: 应用名={appName}, 模板ID={templateId}")
                 return False
         except Exception as e:
-            _Log.ex(e, "停止任务失败")
+            _Log.Log.ex(e, "停止任务失败")
             return False
         
 
@@ -141,12 +141,12 @@ class CTaskMgr:
         try:
             existingTask = self._getTask(appName, templateId)
             if existingTask and existingTask.state == TaskState.RUNNING:
-                _Log.e(f"相同类型的任务正在执行: {appName}/{templateId}")
+                _Log.Log.e(f"相同类型的任务正在执行: {appName}/{templateId}")
                 return None
                 
             task = self.createTask(appName, templateId)
             if not task:
-                _Log.e(f"创建任务失败: {appName}/{templateId}")
+                _Log.Log.e(f"创建任务失败: {appName}/{templateId}")
                 return None
                 
             task.lastAppName = appName
@@ -175,24 +175,24 @@ class CTaskMgr:
                         'app_name': appName,
                         'task_name': templateId
                     })
-                    _Log.i(f'任务启动成功: {appName}/{templateId}')
+                    _Log.Log.i(f'任务启动成功: {appName}/{templateId}')
             except Exception as e:
-                _Log.ex(e, '发送任务启动事件失败')
+                _Log.Log.ex(e, '发送任务启动事件失败')
             
             return task
             
         except Exception as e:
-            _Log.ex(e, f"执行任务异常: {appName}/{templateId}")
+            _Log.Log.ex(e, f"执行任务异常: {appName}/{templateId}")
             return None
         
             
     def _runTaskInThread(self, task: CTask, taskId: str, data: dict = None):
         """在线程中执行任务"""
         try:
-            _Log.i(f"执行任务: {task.taskName}, 进度: {data.get('progress', 0) if data else 0}")
+            _Log.Log.i(f"执行任务: {task.taskName}, 进度: {data.get('progress', 0) if data else 0}")
             state = task.run(data)
         except Exception as e:
-            _Log.ex(e, f"任务执行异常: {task.taskName}")
+            _Log.Log.ex(e, f"任务执行异常: {task.taskName}")
         finally:
             if taskId in self.tasks:
                 del self.tasks[taskId]        
@@ -214,20 +214,20 @@ class CTaskMgr:
             running_tasks = self.listRunningTasks()
             for appName, templateId, _, _ in running_tasks:
                 self._stopTask(appName, templateId)
-                _Log.i(f"任务已停止: {appName}/{templateId}")
+                _Log.Log.i(f"任务已停止: {appName}/{templateId}")
         except Exception as e:
-            _Log.ex(e, "停止所有任务失败")
+            _Log.Log.ex(e, "停止所有任务失败")
 
     @classmethod
     def OnReload(cls):
-        _Log.i("CTaskMgr模块热更新 重新注册命令")
+        _Log.Log.i("CTaskMgr模块热更新 重新注册命令")
         from _CmdMgr import _CmdMgr
         _CmdMgr.regAllCmds()
 
     @classmethod
     def registerCommands(cls):
         """注册任务管理相关命令"""
-        _Log.i("注册CTaskMgr模块命令...")
+        _Log.Log.i("注册CTaskMgr模块命令...")
         
         @regCmd(r"任务列表")
         def taskList():
@@ -243,6 +243,6 @@ class CTaskMgr:
         
         # ... 其他命令注册 ...
         
-        # _Log.d("CTaskMgr模块命令注册完成")
+        # _Log.Log.d("CTaskMgr模块命令注册完成")
 
 taskMgr = CTaskMgr.getInstance()
