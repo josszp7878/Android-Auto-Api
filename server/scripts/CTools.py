@@ -69,18 +69,19 @@ class CTools_:
             return []
     
     @classmethod
-    def matchScreenText(cls, regex: Pattern, region: List[int] = None):
-        """查找匹配文本的位置
-        Args:
-            pattern: 匹配模式(正则表达式)
-            region: 搜索区域[left, top, right, bottom], None表示全屏搜索
-            forceUpdate: 是否强制更新缓存
-        Returns:
-            tuple: (x, y) 匹配文本的中心坐标,未找到返回None
-        """
+    def matchScreenText(cls, str: str):
         try:
             # 使用缓存的屏幕信息
-            screenInfo = cls._screenInfoCache        
+            screenInfo = cls._screenInfoCache
+                        # 解析action，支持带区域的文本格式
+            region = None
+            text = str            
+            # 匹配形如"金币[12,0,0,30]"的格式
+            match = re.search(r'(.*?)\[(\d+),(\d+),(\d+),(\d+)\]', str)
+            if match:
+                text = match.group(1)
+                region = [int(match.group(2)), int(match.group(3)),
+                          int(match.group(4)), int(match.group(5))]
             # 遍历屏幕信息，查找匹配的文本
             for item in screenInfo:
                 # 解析当前文本的边界
@@ -418,6 +419,21 @@ class CTools_:
             return True
         return False
 
+    @classmethod
+    def clickText(cls, text):
+        """点击匹配文本（支持区域参数）"""
+        # 使用现有匹配方法
+        match, item = cls.matchScreenText(text)
+        if match and item:
+            x, y = cls.toPos(item)
+            if cls.android.click(x, y):
+                return True
+        return False
+
+    @classmethod 
+    def switchToProfile(cls):
+        """跳转到个人页示例"""
+        cls.swipe("CD 800")  # 向下滑动
 
 def requireAndroid(func):
     def wrapper(*args, **kwargs):

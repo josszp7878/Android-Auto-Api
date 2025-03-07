@@ -8,6 +8,8 @@ from CClient import client
 from CDevice import CDevice
 import CTools
 import json
+from CPage import CPage
+from CPageMgr import CPageMgr
 
 # 添加缓存相关的变量
 _screenInfoCache = None
@@ -388,5 +390,30 @@ class CCmds:
         #     except Exception as e:
         #         _Log.Log_.ex(e, "检测桌面状态失败")
         #         return False
+
+        @regCmd(r"跳转", r"(?P<target>.+)")
+        def navigateTo(target):
+            try:
+                pageMgr.go(target)
+                return f"到达：{target}"
+            except Exception as e:
+                return f"e->跳转失败：{str(e)}"
+
+        @regCmd(r"当前页面")
+        def currentPage():
+            return pageMgr.findCurrentPageName() or "未知"
+
+        @regCmd(r"跳转", r"(?P<target>.+)")
+        def testNavigate(target):
+            """页面跳转测试命令"""
+            try:
+                CPageMgr.go(target)
+                return f"测试跳转成功到达：{target}"
+            except Exception as e:
+                return f"e->测试跳转失败：{str(e)}"
+
+        # 文件末尾初始化
+        pageMgr = CPageMgr()
+        pageMgr.loadConfig("config/pages.json")
 
        
