@@ -40,7 +40,9 @@ class Dashboard {
                 filterRegex: null,         // 正则表达式过滤器
                 logDate: new Date().toISOString().split('T')[0], // 当前日期
                 availableDates: [new Date().toISOString().split('T')[0]], // 默认只有当前日期
-                filteredLogs: []
+                filteredLogs: [],
+                isScrolling: false,
+                _scrollTimeout: null
             },
             methods: {
                 formatTime(time) {
@@ -138,9 +140,18 @@ class Dashboard {
                     }
                 },
                 handleLogsScroll(e) {
+                    if(this.logManager) {
+                        this.isScrolling = true;
+                        this.logManager.handleScroll(e);
+                        
+                        clearTimeout(this._scrollTimeout);
+                        this._scrollTimeout = setTimeout(() => {
+                            this.isScrolling = false;
+                        }, 200);
+                    }
+                    
                     const el = e.target;
-                    // 当滚动到顶部时加载更多日志
-                    if (!this.loadingLogs && el.scrollTop <= 30) {
+                    if (!this.loadingLogs && el.scrollTop <= 30 && !this.isScrolling) {
                         this.loadMoreLogs();
                     }
                 },
@@ -388,6 +399,23 @@ class Dashboard {
                 },
                 clearLogs() {
                     this.logManager.clearLogs();
+                },
+                updateLogs(logs) {
+                    if(this.logManager && !this.logManager.isScrolling) {
+                        const logContainer = this.$refs.consoleLogs;
+                        const wasAtBottom = logContainer && 
+                            (logContainer.scrollHeight - logContainer.scrollTop <= logContainer.clientHeight + 50);
+                            
+                        this.systemLogs = logs;
+                        
+                        if(wasAtBottom) {
+                            this.$nextTick(() => {
+                                if(logContainer) {
+                                    logContainer.scrollTop = logContainer.scrollHeight;
+                                }
+                            });
+                        }
+                    }
                 }
             },
             computed: {
@@ -421,7 +449,9 @@ class Dashboard {
                         this.filteredLogs = [...logs];
                         this.loadingLogs = loading;
                     },
-                    // 其他回调...
+                    onScrollStateChanged: (isScrolling) => {
+                        this.isScrolling = isScrolling;
+                    }
                 });
                 
                 // 添加调试日志

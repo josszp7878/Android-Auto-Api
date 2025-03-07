@@ -1,7 +1,7 @@
 import _Log
 from checker import check, GetMatchVal, GetPos
 from CTask import CTask
-from CTools import CTools
+from CTools import CTools_
 
 # ["观看广告", "广告剩余(?P<seconds>\d+)秒"]
 class Check:    
@@ -18,14 +18,14 @@ class Check:
         def check_function(ms):
             count = GetMatchVal(ms, 'count')
             count = int(count)            
-            _Log.Log.i(f"{strs[0]}:score={count} minScore={minScore}")
+            _Log.Log_.i(f"{strs[0]}:score={count} minScore={minScore}")
             if count > minScore:
                 return True
             pos = GetPos(ms)
             if pos is None:
-                _Log.Log.e(f"未找到{strs[0]}")
+                _Log.Log_.e(f"未找到{strs[0]}")
                 return False
-            _Log.Log.Do(f"点击{strs[0]}")    
+            _Log.Log_.Do(f"点击{strs[0]}")    
             global android
             return android.click(pos[0], pos[1])
 
@@ -43,9 +43,9 @@ class Check:
             seconds = GetMatchVal(ms, 'seconds')
             seconds = int(seconds)
             if seconds > 0:
-                _Log.Log.i(f"广告剩余{seconds}秒")
+                _Log.Log_.i(f"广告剩余{seconds}秒")
                 return False
-            _Log.Log.i("广告结束")
+            _Log.Log_.i("广告结束")
             return True
 
         return check(sts, region, check_function)
@@ -61,14 +61,14 @@ class Check:
             count = GetMatchVal(c, 'count')
             if count is not None:
                 count = int(count)
-                _Log.Log.i(f"获得{count}金币")
+                _Log.Log_.i(f"获得{count}金币")
                 task.setScore(count)
                 return True
             pos = GetPos(c)
             if pos is None:
-                _Log.Log.e("未找到完成按钮")
+                _Log.Log_.e("未找到完成按钮")
                 return False
-            _Log.Log.Do("点击完成")
+            _Log.Log_.Do("点击完成")
             global android
             return android.click(pos[0], pos[1])
 

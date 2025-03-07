@@ -12,16 +12,16 @@ class SCmds:
     @classmethod
     def OnReload(cls):
         """热更新后重新注册命令"""
-        _Log.Log.w("SCmds模块热更新 重新注册命令")
+        _Log.Log_.w("SCmds模块热更新 重新注册命令")
         # 使用全局命令重新注册机制
         from _CmdMgr import _CmdMgr
         _CmdMgr.regAllCmds()
-        _Log.Log.i("命令重新注册完成")
+        _Log.Log_.i("命令重新注册完成")
     
     @classmethod
     def registerCommands(cls):
         """注册服务器命令"""
-        _Log.Log.i("注册SCmds模块命令...")
+        _Log.Log_.i("注册SCmds模块命令...")
         
         @regCmd(r"服务器信息")
         def info():
@@ -41,11 +41,11 @@ class SCmds:
             try:
                 date_format = format or "%Y-%m-%d %H:%M:%S"
                 current_time = datetime.now().strftime(date_format)
-                _Log.Log.i(f"date: 当前日期和时间: {current_time}")
+                _Log.Log_.i(f"date: 当前日期和时间: {current_time}")
                 deviceMgr.sendClientCmd(deviceMgr.curDeviceID, f"date {current_time}")
                 return f"i->当前日期和时间: {current_time}"
             except Exception as e:
-                _Log.Log.ex(e, "获取日期时间失败")
+                _Log.Log_.ex(e, "获取日期时间失败")
                 return f"e->获取日期时间失败: {str(e)}"
 
 
@@ -66,7 +66,7 @@ class SCmds:
                 emit('clear_logs')            
                 return '控制台日志已清除'
             except Exception as e:
-                _Log.Log.ex(e, '清除日志缓存出错')
+                _Log.Log_.ex(e, '清除日志缓存出错')
                 return '清除日志缓存失败'
 
         @regCmd('设备列表')
@@ -126,7 +126,7 @@ class SCmds:
                 return f"i->任务进度: {progress_percent:.1f}%"
                 
             except Exception as e:
-                _Log.Log.ex(e, "查询任务进度失败")
+                _Log.Log_.ex(e, "查询任务进度失败")
                 return f"e->查询任务进度失败: {str(e)}"
 
         @regCmd('继续')
@@ -147,7 +147,7 @@ class SCmds:
                 device.taskMgr.startTask(task)
                 return f"i->已继续任务: {task.appName} {task.taskName}"
             except Exception as e:
-                _Log.Log.ex(e, "继续任务失败")
+                _Log.Log_.ex(e, "继续任务失败")
                 return f"e->继续任务失败: {str(e)}"
 
         @regCmd('调试')
@@ -191,7 +191,7 @@ class SCmds:
                 return debug_info
                 
             except Exception as e:
-                _Log.Log.ex(e, "获取调试信息失败")
+                _Log.Log_.ex(e, "获取调试信息失败")
                 return f"e->获取调试信息失败: {str(e)}"
 
         @regCmd('任务列表', r"(?P<deviceId>[^ ]+)?(?P<state>[^ ]+)?")
@@ -234,7 +234,7 @@ class SCmds:
                 return result
                 
             except Exception as e:
-                _Log.Log.ex(e, "获取任务列表失败")
+                _Log.Log_.ex(e, "获取任务列表失败")
                 return f"e->获取任务列表失败: {str(e)}"
 
         @regCmd('设置日期', r"(?P<date>[^ ]+)")
@@ -270,7 +270,7 @@ class SCmds:
             except ValueError as e:
                 return f"e->日期格式错误: {str(e)}"
             except Exception as e:
-                _Log.Log.ex(e, "设置日期失败")
+                _Log.Log_.ex(e, "设置日期失败")
                 return f"e->设置日期失败: {str(e)}"
 
         @regCmd('停止')
@@ -295,7 +295,7 @@ class SCmds:
                 deviceMgr.sendClientCmd(device_id, f"stopTask {task.appName} {task.taskName}")
                 
             except Exception as e:
-                _Log.Log.ex(e, "停止任务失败")
+                _Log.Log_.ex(e, "停止任务失败")
                 return f"e->停止任务失败: {str(e)}"
             
             return f"i->已发送停止命令: {task.appName} {task.taskName}"
@@ -314,7 +314,7 @@ class SCmds:
                     
                 return f"i->结果已保存到 result.json"
             except Exception as e:
-                _Log.Log.ex(e, "保存结果失败")
+                _Log.Log_.ex(e, "保存结果失败")
                 return f"e->保存结果失败: {str(e)}"
 
         @regCmd('分析收益')
@@ -327,19 +327,19 @@ class SCmds:
                         # 获取当前应用名称
                         appName = deviceMgr.currentApp
                         if not appName:
-                            _Log.Log.e("当前没有运行的应用")
+                            _Log.Log_.e("当前没有运行的应用")
                             return
                         if SEarningMgr.Load(appName, data):
-                            _Log.Log.i("收益记录导入成功")
+                            _Log.Log_.i("收益记录导入成功")
                         else:
-                            _Log.Log.e("部分收益记录导入失败")
+                            _Log.Log_.e("部分收益记录导入失败")
                         
                     except Exception as e:
-                        _Log.Log.ex(e, "处理截屏结果失败")
+                        _Log.Log_.ex(e, "处理截屏结果失败")
                 deviceMgr.sendClientCmd(deviceMgr.curDeviceID, 'getScreen', None, 10, parseResult)
                 return "i->正在分析收益..."
             except Exception as e:
-                _Log.Log.ex(e, "分析收益失败")
+                _Log.Log_.ex(e, "分析收益失败")
                 return f"e->分析收益失败: {str(e)}"
 
         @regCmd('打开', r"(?P<appName>[^ ]+)")
@@ -357,10 +357,10 @@ class SCmds:
                 if device is None:
                     return
                 def onOpenApp(x):
-                    if _Log.Log.isError(x):
-                        _Log.Log.e(x)
+                    if _Log.Log_.isError(x):
+                        _Log.Log_.e(x)
                         return
-                    _Log.Log.i(f"打开应用回调: {x}")
+                    _Log.Log_.i(f"打开应用回调: {x}")
                     # 设置当前应用名
                     if device.taskMgr:
                         device.taskMgr.currentApp = _appName
@@ -371,7 +371,7 @@ class SCmds:
                 return f"i->正在打开应用[{_appName}]"
                 
             except Exception as e:
-                _Log.Log.ex(e, "打开应用失败")
+                _Log.Log_.ex(e, "打开应用失败")
                 return f"e->打开应用失败: {str(e)}"
 
         @regCmd('应用列表')
@@ -386,11 +386,11 @@ class SCmds:
             try:
                 device = deviceMgr.curDevice
                 if device is None:
-                    _Log.Log.e('e->当前没有设备')
+                    _Log.Log_.e('e->当前没有设备')
                 else:
                     device.takeScreenshot()
             except Exception as e:
-                _Log.Log.ex(e, '执行快照命令失败')
+                _Log.Log_.ex(e, '执行快照命令失败')
 
         @regCmd('@', r"(?P<command>.+)")
         def serverCommand(command):
@@ -402,5 +402,19 @@ class SCmds:
                 result, _ = _CmdMgr.do(command, sender=None, data=None)
                 return result
             except Exception as e:
-                _Log.Log.ex(e, "执行服务器命令失败")
+                _Log.Log_.ex(e, "执行服务器命令失败")
                 return f"e->执行服务器命令失败: {str(e)}"
+
+        @regCmd('扫描应用')
+        def scanApp():
+            """分析当前设备屏幕上的应用"""
+            try:
+                device = deviceMgr.curDevice
+                if not device:
+                    return "e->请先选择设备"
+                if device.getAppOnScreen():
+                    return "分析完成"
+                return "e->分析指令发送失败"
+            except Exception as e:
+                _Log.Log_.ex(e, "执行屏幕分析失败")
+                return f"e->{str(e)}"

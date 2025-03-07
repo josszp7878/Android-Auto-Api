@@ -101,16 +101,18 @@
                     </div>
                 </div>
                 
-                <div class="console-logs" ref="consoleLogs" @scroll="handleLogsScroll">
-                    <div v-for="log in filteredLogs" class="log-entry" :class="'log-' + log.level">
+                <div class="console-logs" 
+                     ref="consoleLogs" 
+                     @scroll="handleLogsScroll($event)"
+                     :class="{'scrolling': isScrolling}">
+                    <div v-for="log in filteredLogs" 
+                         class="log-entry" 
+                         :class="'log-' + log.level">
                         <span class="log-time">[[ log.time ]]</span>
                         <span class="log-tag">[[ log.tag ]]</span>
                         <span class="log-message">[[ log.message ]]</span>
                     </div>
                     <div v-if="loadingLogs" class="loading-indicator">加载中...</div>
-                    <div v-if="filteredLogs.length === 0 && !loadingLogs" class="no-logs">
-                        没有匹配的日志记录
-                    </div>
                 </div>
                 
                 <!-- 命令输入区域 -->

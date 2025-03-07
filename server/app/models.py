@@ -54,6 +54,26 @@ class EarningRecord(db.Model):
             'time': self.time.strftime('%Y-%m-%d %H:%M:%S')
         }
 
+class AppModel(db.Model):
+    __tablename__ = 'apps'
+    id = db.Column(db.Integer, primary_key=True)
+    deviceId = db.Column(db.String(50), nullable=False)
+    appName = db.Column(db.String(100), nullable=False)
+    totalScore = db.Column(db.Float, default=0.0)
+    income = db.Column(db.Float, default=0.0)
+    status = db.Column(db.String(20), default='active')
+    lastUpdate = db.Column(db.DateTime, default=datetime.now)
+
+    @classmethod
+    def from_device(cls, device):
+        return cls(
+            deviceId=device.device_id,
+            appName=device.appName,
+            totalScore=device.totalScore,
+            income=device.income,
+            status=device.status
+        )
+
 @contextmanager
 def session_scope():
     """提供事务范围的会话，自动处理提交/回滚和异常"""
@@ -62,7 +82,7 @@ def session_scope():
         db.session.commit()
     except SQLAlchemyError as e:
         db.session.rollback()
-        _Log.Log.ex(e, "数据库事务执行失败")
+        _Log.Log_.ex(e, "数据库事务执行失败")
         raise
     finally:
         db.session.remove()

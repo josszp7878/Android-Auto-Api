@@ -8,7 +8,7 @@ runFromAndroid = False
 def getScriptDir():
     _scriptDir = None
     import CTools
-    android = CTools.CTools.android
+    android = CTools.CTools_.android
     if android:
         # Android环境下使用应用私有目录
         _scriptDir = android.getFilesDir('scripts', True)
@@ -47,12 +47,12 @@ def Begin(deviceID=None, server=None, androidEnv=None):
         if runFromAndroid:
             updateScripts()
         import _Log
-        _Log.Log.setIsServer(is_server=False)
+        _Log.Log_.setIsServer(is_server=False)
         from CClient import client
         print(f"初始化客户端: androidEnv={androidEnv} runFromAndroid={runFromAndroid}")
         client.Begin(deviceID, server)
     except Exception as e:
-        _Log.Log.ex(e, "初始化客户端失败")
+        _Log.Log_.ex(e, "初始化客户端失败")
 
 def End():
     try:

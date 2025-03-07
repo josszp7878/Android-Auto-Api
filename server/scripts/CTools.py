@@ -1,8 +1,9 @@
 from typing import Pattern, List
 import time
 import _Log
+import re
 
-class CTools:
+class CTools_:
     Tag = "CTools"
     port = 5000
     _screenInfoCache = None
@@ -11,16 +12,16 @@ class CTools:
     @classmethod
     def init(cls):
         if not hasattr(cls, '_init'):
-            _Log.Log.i(f'初始化CTools模块')  # 最简洁的写法
+            _Log.Log_.i(f'初始化CTools模块')  # 最简洁的写法
             try:
                 from java import jclass     
                 cls.android = jclass("cn.vove7.andro_accessibility_api.demo.script.PythonServices")
                 print(f'加载java模块成功 android={cls.android}')
                 cls._init = True
             except ModuleNotFoundError:
-                _Log.Log.i('java模块未找到')
+                _Log.Log_.i('java模块未找到')
             except Exception as e:
-                _Log.Log.ex(e, '初始化CTools模块失败')
+                _Log.Log_.ex(e, '初始化CTools模块失败')
 
     @classmethod
     def getLocalIP(cls):
@@ -38,13 +39,13 @@ class CTools:
     @classmethod
     def refreshScreenInfos(cls) -> list:
         """获取并解析屏幕信息,支持缓存"""
-        _Log.Log.i(f'获取屏幕信息 android={cls.android}')
+        _Log.Log_.i(f'获取屏幕信息 android={cls.android}')
         try:
             if cls.android:
                 info = cls.android.getScreenInfo()
-                _Log.Log.i(f"获取屏幕信息 info={info}")
+                _Log.Log_.i(f"获取屏幕信息 info={info}")
                 if info is None:
-                    _Log.Log.e("获取屏幕信息失败ss")
+                    _Log.Log_.e("获取屏幕信息失败ss")
                     return []
                 size = info.size()
                 result = []
@@ -60,11 +61,11 @@ class CTools:
                 cls._screenInfoCache = result
                 return result
             else:
-                _Log.Log.i("非Android环境，无法获取屏幕信息sss")
+                _Log.Log_.i("非Android环境，无法获取屏幕信息sss")
                 return []
             
         except Exception as e:
-            _Log.Log.ex(e, "获取屏幕信息失败")
+            _Log.Log_.ex(e, "获取屏幕信息失败")
             return []
     
     @classmethod
@@ -99,7 +100,7 @@ class CTools:
             return None, None
             
         except Exception as e:
-            _Log.Log.ex(e, "FindUI 指令执行失败")
+            _Log.Log_.ex(e, "FindUI 指令执行失败")
             return None, None    
         
     @classmethod
@@ -111,27 +112,67 @@ class CTools:
             manufacturer = Build.MANUFACTURER.lower()
             return "huawei" in manufacturer or "honor" in manufacturer
         except Exception as e:
-            _Log.Log.ex(e, '检查系统类型失败')
+            _Log.Log_.ex(e, '检查系统类型失败')
             return False
 
     lastAppName = None
     @classmethod
-    def openApp(cls, app_name: str) -> bool:
-        _Log.Log.i(f"Opening app: {app_name}", cls.Tag)
+    def openApp(cls, appName):
+        """打开应用"""
+        log = _Log.Log_
         try:
-            ret = False
-            # 检查系统类型
+            # 检查应用是否已经打开
+            curApp = cls.getCurrentApp()
+            if curApp and curApp.get('appName') == appName:
+                return "i->应用已打开"
+            
+            # 根据系统类型选择打开方式
             if cls._isHarmonyOS():
-                _Log.Log.i(f"Using HarmonyOS method (click)", cls.Tag)
-                ret = cls._openAppByClick(app_name)
+                log.i(f"使用鸿蒙系统方式打开应用: {appName}")
+                cls.goHome()
+                
+                # 尝试在不同屏幕上查找并打开应用
+                opened = False
+                direction = 'CL'  # 先向左滑动
+                
+                # 防止无限循环，最多尝试8个屏幕
+                max_screens = 8
+                screen_count = 0
+                
+                while not opened and screen_count < max_screens:
+                    # 尝试点击打开应用
+                    ret = cls._openAppByClick(appName)
+                    if ret:
+                        log.i(f"成功点击打开应用: {appName}")
+                        opened = True
+                        break
+                    
+                    # 应用未找到，尝试滑动到下一屏
+                    log.i(f"应用未找到，滑动屏幕: {direction}")
+                    ok = cls.switchScreen(direction)
+                    
+                    # 滑动成功，继续在新屏幕上查找
+                    if ok:
+                        screen_count += 1
+                        continue
+                    
+                    # 滑动失败或屏幕内容未变化，尝试反方向
+                    if direction == 'CL':
+                        direction = 'CR'  # 改为向右滑动
+                        screen_count = 0  # 重置计数
+                    else:
+                        # 两个方向都尝试过，退出循环
+                        log.i("左右滑屏都失败，无法找到应用")
+                        break
             else:
-                _Log.Log.i(f"Using Android method (service)", cls.Tag)
-                ret = cls.android.openApp(app_name)
-            if ret:
-                cls.lastAppName = app_name
-            return ret
+                # Android系统使用服务方式打开
+                log.i(f"使用Android系统服务打开应用: {appName}")
+                opened = cls.android.openApp(appName)
+            if opened:
+                cls.lastAppName = appName
+            return opened
         except Exception as e:
-            _Log.Log.ex(e, '打开应用失败')
+            log.ex(e, "打开应用失败")
             return False
 
     @classmethod
@@ -139,37 +180,31 @@ class CTools:
         try:
             if not app_name:
                 app_name = cls.lastAppName
-            _Log.Log.i(cls.Tag, f"Closing app: {app_name}")
+            _Log.Log_.i(cls.Tag, f"Closing app: {app_name}")
             if cls.android:
                 return cls.android.closeApp(app_name)
             return False
         except Exception as e:
-            _Log.Log.ex(e, '打开应用失败')
+            _Log.Log_.ex(e, '打开应用失败')
             return False
 
     @classmethod
     def _openAppByClick(cls, app_name: str) -> bool:
         """通过点击方式打开应用（适用于鸿蒙系统）"""
         try:
-            if not cls.android.goHome():
-                _Log.Log.e(cls.Tag, "Failed to go home")
-                return False
-            time.sleep(0.5)
             nodes = cls.android.findTextNodes()
             targetNode = next((node for node in nodes if app_name in node.getText()), None)
-            
             if not targetNode:
-                _Log.Log.e(cls.Tag, f"App icon not found: {app_name}")
+                _Log.Log_.e(cls.Tag, f"App icon not found: {app_name}")
                 return False
             
             bounds = targetNode.getBounds()
             if not cls.android.click(bounds.centerX(), bounds.centerY()):
-                _Log.Log.e(cls.Tag, "Failed to click app icon")
-                return False
+                _Log.Log_.e(cls.Tag, "Failed to click app icon")
             return True
             
         except Exception as e:
-            _Log.Log.ex(e, f"Failed to open app by click: {str(e)}")
+            _Log.Log_.ex(e, f"Failed to open app by click: {str(e)}")
             return False
 
     # 添加Toast常量
@@ -201,210 +236,192 @@ class CTools:
             print(msg)
 
     @classmethod
-    def getRecentApps(cls, limit=5):
-        """获取最近打开的应用列表（纯Python实现）
+    def getCurrentApp(cls, period=60):
+        """获取当前正在运行的应用信息
         
         Args:
-            limit: 返回的应用数量限制，默认5个
+            period: 查询最近使用应用的时间范围(秒)，默认60秒
             
-        Returns:
-            list: 最近打开的应用列表，每项包含包名和应用名
-        """
-        try:
-            from CMain import runFromAndroid
-            # 检查是否在Android环境
-            if not runFromAndroid:
-                _Log.Log.e("获取最近应用失败: 非Android环境")
-                return []
-            
-            # 导入Java类
-            from java.lang import System
-            from java.util import Collections
-            from java.util import ArrayList
-            from java.util.concurrent import TimeUnit
-            from android.content import Context
-            from android.app.usage import UsageStatsManager
-            from android.content import Intent
-            from android.provider import Settings
-            from android.content.pm import PackageManager
-            from org.json import JSONArray, JSONObject
-            
-            # 获取Android上下文
-            if not android:
-                _Log.Log.e("获取最近应用失败: 未找到Android实例")
-                return []
-            
-            context = android.getContext()
-            if not context:
-                _Log.Log.e("获取最近应用失败: 未找到Context")
-                return []
-            
-            # 获取UsageStatsManager
-            usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE)
-            if not usageStatsManager:
-                _Log.Log.e("获取最近应用失败: 未找到UsageStatsManager")
-                return []
-            
-            # 获取过去24小时的应用使用情况
-            endTime = System.currentTimeMillis()
-            startTime = endTime - 24 * 60 * 60 * 1000  # 24小时
-            
-            # 查询应用使用情况
-            for retry in range(3):  # 最多重试3次
-                usageStatsList = usageStatsManager.queryUsageStats(
-                    UsageStatsManager.INTERVAL_DAILY, startTime, endTime)
-                
-                if usageStatsList and not usageStatsList.isEmpty():
-                    break
-                
-                if retry < 2:  # 前两次尝试请求权限
-                    if not cls.android.checkPermission("android.permission.PACKAGE_USAGE_STATS"):
-                        _Log.Log.w(f"第{retry+1}次尝试申请权限")
-                        cls.android.requestPermission("android.permission.PACKAGE_USAGE_STATS")
-                        time.sleep(8)  # 等待用户操作
-            else:
-                _Log.Log.e("权限申请未通过，无法获取应用使用记录")
-                return []
-            
-            # 转换为Python列表
-            stats_list = []
-            for i in range(usageStatsList.size()):
-                stats_list.append(usageStatsList.get(i))
-            
-            # 按最后使用时间排序
-            stats_list.sort(key=lambda x: x.getLastTimeUsed(), reverse=True)
-            
-            # 获取PackageManager
-            pm = context.getPackageManager()
-            
-            # 构建结果列表
-            result = []
-            count = 0
-            
-            for stats in stats_list:
-                if count >= limit:
-                    break
-                
-                packageName = stats.getPackageName()
-                
-                # 跳过系统应用
-                if (packageName.startswith("com.android") or 
-                    packageName.startswith("android") or
-                    packageName == context.getPackageName()):
-                    continue
-                
-                try:
-                    appInfo = pm.getApplicationInfo(packageName, 0)
-                    appName = pm.getApplicationLabel(appInfo).toString()
-                    
-                    result.append({
-                        "packageName": packageName,
-                        "appName": appName,
-                        "lastUsed": stats.getLastTimeUsed()
-                    })
-                    
-                    count += 1
-                except Exception as e:
-                    # 跳过无法获取信息的应用
-                    pass
-                
-            return result
-        except Exception as e:
-            _Log.Log.ex(e, "获取最近应用失败")
-            return []
-
-    @classmethod
-    def getCurrentApp(cls, period=60):
-        """获取当前正在运行的应用信息（纯Python实现）
-        
         Returns:
             dict: 包含包名(packageName)和应用名(appName)的字典，失败返回None
         """
         try:
-            # 检查是否在Android环境
-            from CMain import runFromAndroid
-            if not runFromAndroid:
-                _Log.Log.e("获取当前应用失败: 非Android环境")
+            # _Log.Log_.i("获取当前应用222")
+            if not cls.android:
+                _Log.Log_.e("获取当前应用失败: 未找到Android实例")
                 return None
             
-            # 导入Java类
-            from java.lang import System
-            from java.util import Collections
-            from android.content import Context
-            from android.app.usage import UsageStatsManager
-            from android.content.pm import PackageManager
-            
-            # 获取Android上下文
-            android = cls.android
-            if not android:
-                _Log.Log.e("获取当前应用失败: 未找到Android实例")
+            # 显式传递period参数
+            result = cls.android.getCurrentApp(period)
+            if result is None:
                 return None
             
-            context = android.getContext()  # 调用Kotlin端暴露的方法
-            if not context:
-                _Log.Log.e("获取当前应用失败: 未找到Context")
-                return None
-            
-            # 获取UsageStatsManager
-            usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE)
-            if not usageStatsManager:
-                _Log.Log.e("获取当前应用失败: 未找到UsageStatsManager")
-                return None
-            
-            # 获取最近1分钟的应用使用情况
-            endTime = System.currentTimeMillis()
-            startTime = endTime - period * 1000  # 1分钟
-            
-            # 查询应用使用情况
-            usageStatsList = usageStatsManager.queryUsageStats(
-                UsageStatsManager.INTERVAL_DAILY, startTime, endTime)
-            
-            if not usageStatsList or usageStatsList.isEmpty():
-                if not android.checkPermission("android.permission.PACKAGE_USAGE_STATS"):
-                    _Log.Log.w("需要授予使用情况访问权限")
-                    android.requestPermission("android.permission.PACKAGE_USAGE_STATS")
-                    return None
-                else:
-                    _Log.Log.w("没有最近应用使用记录")
-                    return None
-            
-            # 找出最近使用的应用
-            recentStats = None
-            maxLastUsed = 0
-            
-            for i in range(usageStatsList.size()):
-                stats = usageStatsList.get(i)
-                if stats.getLastTimeUsed() > maxLastUsed:
-                    maxLastUsed = stats.getLastTimeUsed()
-                    recentStats = stats
-            if not recentStats:
-                return None
-            
-            packageName = recentStats.getPackageName()
-            pm = context.getPackageManager()
-            
-            try:
-                appInfo = pm.getApplicationInfo(packageName, 0)
-                # _Log.Log.i(f"获取应用信息 appInfo={appInfo}")
-                appName = pm.getApplicationLabel(appInfo)
-                _Log.Log.i(f"获取应用信息 appInfo={appInfo} appName={appName}")
-                return {
-                    "packageName": packageName,
-                    "appName": appName,
-                    "lastUsed": recentStats.getLastTimeUsed()
-                }
-            except Exception as e:
-                _Log.Log.e(f"获取应用信息失败: {e}")
-                return None
+            return {
+                "packageName": result.get("packageName"),
+                "appName": result.get("appName"),
+                "lastUsed": result.get("lastUsed")
+            }
         except Exception as e:
-            _Log.Log.ex(e, "获取当前应用失败")
+            _Log.Log_.ex(e, "获取当前应用失败")
             return None
 
+    @classmethod
+    def isHome(cls) -> bool:
+        """判断当前是否在桌面
+        
+        通过当前应用包名判断是否在桌面，支持多种桌面应用
+        
+        Returns:
+            bool: 是否在桌面
+        """
+        try:
+            # 常见桌面应用包名列表
+            LAUNCHER_PACKAGES = {
+                'com.android.launcher3',         # 原生Android
+                'com.google.android.apps.nexuslauncher', # Pixel
+                'com.sec.android.app.launcher',  # 三星
+                'com.huawei.android.launcher',   # 华为
+                'com.miui.home',                 # 小米
+                'com.oppo.launcher',             # OPPO
+                'com.vivo.launcher',             # vivo
+                'com.realme.launcher',           # Realme
+                'com.oneplus.launcher'           # 一加
+            }
+            
+            # 获取当前应用信息
+            app_info = cls.getCurrentApp()
+            if not app_info:
+                _Log.Log_.w("获取当前应用信息失败，无法判断是否在桌面")
+                return False
+            
+            package_name = app_info.get("packageName", "")
+            # _Log.Log_.i(f"当前应用包名: {package_name}")
+            
+            # 检查是否在已知桌面包名列表中
+            if package_name in LAUNCHER_PACKAGES:
+                # _Log.Log_.i(f"当前在桌面 (已知桌面包名)")
+                return True
+            
+            # 检查包名是否包含launcher或home关键词
+            if "launcher" in package_name.lower() or "home" in package_name.lower():
+                # _Log.Log_.i(f"当前在桌面 (包名包含launcher或home)")
+                return True
+            # _Log.Log_.i(f"当前不在桌面")
+            return False
+        except Exception as e:
+            _Log.Log_.ex(e, "判断是否在桌面失败")
+            return False
+
+    @classmethod
+    def goHome(cls):
+        while not cls.isHome():
+            time.sleep(0.5)
+            cls.android.goHome()
+
+    _screenText = None
+    @classmethod
+    def swipe(cls, param: str) -> bool:
+        """统一处理滑动操作
+        支持两种格式:
+        1. 坐标格式: "x1,y1 > x2,y2 [duration]"
+        2. 方向枚举: "方向 [duration]"
+        
+        支持的方向:
+        CR - 从中心向右滑动
+        CL - 从中心向左滑动  
+        CU - 从中心向上滑动
+        CD - 从中心向下滑动
+        ER - 从左边缘向右滑动
+        EL - 从右边缘向左滑动
+        EU - 从底部向上滑动
+        ED - 从顶部向下滑动
+        """
+        log = _Log.Log_
+        try:
+            android = cls.android
+            if not android:
+                log.e("滑动失败:未找到Android实例")
+                return False
+                
+            # 默认持续时间为0.5秒
+            default_duration = 500
+
+            # 使用正则表达式解析参数
+            match = re.match(r"(?P<start>\d+,\d+)\s*>\s*(?P<end>\d+,\d+)(?:\s+(?P<duration>\d+))?", param)
+            if match:
+                # 解析为坐标
+                start = match.group("start")
+                end = match.group("end")
+                duration_str = match.group("duration")
+                
+                # 检查 duration 是否为数字
+                duration = int(duration_str) if duration_str and duration_str.isdigit() else default_duration
+                startX, startY = map(int, start.split(','))
+                endX, endY = map(int, end.split(','))
+                # log.i(f"滑动指令: 开始位置({startX}, {startY}), 结束位置({endX}, {endY}), 持续时间: {duration} ms")
+                return android.swipe(startX, startY, endX, endY, duration)
+            else:
+                # 解析为枚举
+                parts = param.split()
+                direction = parts[0]
+                duration = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else default_duration
+                # log.i(f"滑动指令: 方向({direction}), 持续时间: {duration} ms")
+                return android.sweep(direction, duration)
+                
+        except Exception as e:
+            log.ex(e, "滑动失败")
+            return False
+
+    @classmethod
+    def switchScreen(cls, direction: str):
+        """切换屏幕
+        
+        Args:
+            direction: 滑动方向 ('CL'/'CR'/'CU'/'CD')
+            
+        Returns:
+            bool: 是否切换成功
+        """
+        if not cls.isHome():
+            _Log.Log_.i("当前不在桌面, 不能切屏")
+            return False
+
+        # 使用 swipe 方法进行滑动
+        if not cls.swipe(f"{direction} 500"):
+            return False
+
+        time.sleep(0.5)
+        
+        # 检查屏幕内容变化
+        text = cls.android.getScreenText()
+        similarity = 0
+        
+        # 计算屏幕内容变化的相似度
+        if cls._screenText is None:
+            similarity = 0
+        elif cls._screenText == text:
+            similarity = 1
+        else:
+            # 计算文本相似度
+            oldTexts = set(cls._screenText.split())
+            newTexts = set(text.split())
+            # 计算交集和并集
+            intersection = oldTexts.intersection(newTexts)
+            union = oldTexts.union(newTexts)
+            # 计算Jaccard相似度
+            similarity = len(intersection) / len(union) if union else 1.0
+            
+        # 如果相似度低于0.9，说明屏幕内容有显著变化
+        screenChanged = similarity < 0.9
+        if screenChanged:
+            cls._screenText = text
+            return True
+        return False
 
 
 def requireAndroid(func):
     def wrapper(*args, **kwargs):
-        if not _Log.Log.isAndroid():
+        if not _Log.Log_.isAndroid():
             return "w->Android指令，当前环境不支持"
         return func(*args, **kwargs)
     # 保持原始函数的属性
@@ -412,5 +429,5 @@ def requireAndroid(func):
     wrapper.__doc__ = func.__doc__
     return wrapper
 
-CTools.init()
+CTools_.init()
 

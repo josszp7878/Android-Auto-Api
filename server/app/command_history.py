@@ -98,7 +98,7 @@ class CommandHistory(db.Model):
             return True 
         except Exception as e:
             import _Log
-            _Log.Log.ex(e, '处理命令结果出错')
+            _Log.Log_.ex(e, '处理命令结果出错')
             return False
     
     

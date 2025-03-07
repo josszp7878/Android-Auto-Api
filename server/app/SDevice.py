@@ -1,11 +1,13 @@
 from datetime import datetime
 from pathlib import Path
 from flask import current_app
-from models import db, DeviceModel
+from models import db, DeviceModel, AppModel
 import _Log
 import base64
 from STaskMgr import STaskMgr
 from SEarningMgr import SEarningMgr
+import json
+from SAppMgr import appMgr  # 局部导入避免循环依赖
 
 class SDevice:
     """设备类：管理设备状态和信息"""
@@ -17,18 +19,22 @@ class SDevice:
         self.last_seen = datetime.now()
         self._lastScreenshot = None
         self._ensure_screenshot_dir()
+        self.apps = []  # 新增应用列表缓存
     
     @property
     def deviceID(self):
         return self.device_id
         
     def init(self, model: DeviceModel = None):
-        # Log.i(f'初始化设备&&&: {self.device_id}')
+        # _Log.Log_.i(f'初始化设备&&&: {self.device_id}')
         if model:
             self.device_id = model.device_id
             self._status = model.status
             self.last_seen = model.last_seen
         self.taskMgr.init(self.device_id)
+        # 新增：从数据库加载应用列表
+        with current_app.app_context():
+            self.apps = AppModel.query.filter_by(deviceId=self.device_id).all()
 
     @property
     def total_score(self) -> float:
@@ -49,7 +55,7 @@ class SDevice:
                 end_date=end_date
             )
         except Exception as e:
-            _Log.Log.ex(e, '获取设备总分失败')
+            _Log.Log_.ex(e, '获取设备总分失败')
             return 0.0
 
     @property
@@ -87,38 +93,38 @@ class SDevice:
                     db.session.commit()
                     # print(f'设备 {self.device_id} 状态已同步到数据库')
         except Exception as e:
-            _Log.Log.ex(e, '同步设备状态到数据库出错')
+            _Log.Log_.ex(e, '同步设备状态到数据库出错')
 
     
     def onConnect(self):
         """设备连接回调"""
         try:
             self.status = 'online'
-            _Log.Log.i(f'设备 {self.device_id} 已连接')
+            _Log.Log_.i(f'设备 {self.device_id} 已连接')
             self._commit()
             
             # 将刷新操作放在单独的 try-except 块中
             try:
                 self.refresh()  # 统一刷新状态
             except Exception as e:
-                _Log.Log.ex(e, f'设备 {self.device_id} 刷新状态失败，但连接已建立')
+                _Log.Log_.ex(e, f'设备 {self.device_id} 刷新状态失败，但连接已建立')
                 # 连接失败不影响设备连接状态
             
             return True
         except Exception as e:
-            _Log.Log.ex(e, '设备连接处理失败')
+            _Log.Log_.ex(e, '设备连接处理失败')
             return False
     
     def onDisconnect(self):
         """设备断开连接回调"""
         try:
             self.status = 'offline'
-            _Log.Log.i(f'设备 {self.device_id} 已断开连接')
+            _Log.Log_.i(f'设备 {self.device_id} 已断开连接')
             self._commit()
             self.refresh()  # 统一刷新状态
             return True
         except Exception as e:
-            _Log.Log.ex(e, '设备断开连接处理失败')
+            _Log.Log_.ex(e, '设备断开连接处理失败')
             return False
 
     def login(self):
@@ -130,7 +136,7 @@ class SDevice:
             self.refresh()  # 统一刷新状态
             return True
         except Exception as e:
-            _Log.Log.ex(e, '设备登录失败')
+            _Log.Log_.ex(e, '设备登录失败')
             return False
     
     def logout(self):
@@ -142,7 +148,7 @@ class SDevice:
             self.refresh()  # 统一刷新状态
             return True
         except Exception as e:
-            _Log.Log.ex(e, '设备登出失败')
+            _Log.Log_.ex(e, '设备登出失败')
             return False    
         
     def refresh(self):
@@ -152,10 +158,10 @@ class SDevice:
             # 先获取设备信息，如果出错则记录日志
             device_info = self.to_dict()
             deviceMgr.emit2B('S2B_DeviceUpdate', device_info)
-            # Log.i(f'设备 {self.device_id} 状态已刷新')
+            # _Log.Log_.i(f'设备 {self.device_id} 状态已刷新')
             self.taskMgr.currentTask = None
         except Exception as e:
-            _Log.Log.ex(e, '刷新设备状态失败')
+            _Log.Log_.ex(e, '刷新设备状态失败')
 
     def to_dict(self):
         """返回设备信息字典"""
@@ -172,7 +178,7 @@ class SDevice:
                     if 'static' in screenshotFile:
                         screenshotFile = '/static' + screenshotFile.split('static')[1]
                 except Exception as e:
-                    _Log.Log.ex(e, '获取截图时间失败')
+                    _Log.Log_.ex(e, '获取截图时间失败')
                     # 使用默认值
                     screenshotTime = datetime.now().strftime('%H:%M:%S')
             
@@ -183,14 +189,14 @@ class SDevice:
             try:
                 todayTaskScore = self.taskMgr.getTodayScore() if hasattr(self, '_taskMgr') else 0
             except Exception as e:
-                _Log.Log.ex(e, '获取今日任务分数失败')
+                _Log.Log_.ex(e, '获取今日任务分数失败')
                 todayTaskScore = 0
             
             # 获取总分
             try:
                 totalScore = self.total_score
             except Exception as e:
-                _Log.Log.ex(e, '获取总分失败')
+                _Log.Log_.ex(e, '获取总分失败')
                 totalScore = 0
             
             return {
@@ -202,7 +208,7 @@ class SDevice:
                 'totalScore': totalScore
             }
         except Exception as e:
-            _Log.Log.ex(e, '生成设备信息字典失败')
+            _Log.Log_.ex(e, '生成设备信息字典失败')
             # 返回最小化的设备信息
             return {
                 'deviceId': self.device_id,
@@ -242,24 +248,96 @@ class SDevice:
                 return True
                 
         except Exception as e:
-            _Log.Log.ex(e, "保存截图失败")
+            _Log.Log_.ex(e, "保存截图失败")
             return False
 
     def takeScreenshot(self):
         """向客户端发送截屏指令"""
         try:
             if self.status != 'login':
-                _Log.Log.w(f'设备 {self.device_id} 未登录，无法截屏')
+                _Log.Log_.w(f'设备 {self.device_id} 未登录，无法截屏')
                 return False
             from SDeviceMgr import deviceMgr
             deviceMgr.sendClientCmd(
                 self.device_id, 
                 'takeScreenshot'
             )
-            _Log.Log.i(f'向设备 {self.device_id} 发送截屏指令')
+            _Log.Log_.i(f'向设备 {self.device_id} 发送截屏指令')
             return True
         except Exception as e:
-            _Log.Log.ex(e, f'向设备 {self.device_id} 发送截屏指令失败')
+            _Log.Log_.ex(e, f'向设备 {self.device_id} 发送截屏指令失败')
+            return False
+
+    def getAppOnScreen(self):
+        """分析屏幕上的应用并更新数据库"""
+        try:
+            def parseResult(data):
+                try:
+                    # 空数据检查
+                    if not data:
+                        _Log.Log_.w("收到空屏幕数据")
+                        return
+
+                    # # 类型转换
+                    # if isinstance(data, bytes):
+                    #     data = data.decode('utf-8')
+                    # 移除可能存在的非法字符
+                    data = data.strip().replace('\x00', '')
+                    # 尝试多种解析方式
+                    try:
+                        screen_info = json.loads(data)
+                    except json.JSONDecodeError:
+                        # 尝试修复常见格式问题
+                        data = data.replace("'", '"').replace("True", "true").replace("False", "false")
+                        screen_info = json.loads(data)
+                        
+                    # 解析成功后处理应用信息
+                    detected_apps = set()
+                    
+                    # 从屏幕信息中提取候选应用名
+                    for item in screen_info:
+                        text = item.get('t', '')
+                        if not text:
+                            continue
+                        
+                        # 使用应用管理器验证是否为已知应用
+                        exist = appMgr.app_exists(text.strip())
+                        _Log.Log_.i(f'应用{text.strip()} 是否存在: {exist}')
+                        if exist:
+                            detected_apps.add(exist)
+                    
+                    # 更新数据库
+                    with current_app.app_context():
+                        for app_name in detected_apps:
+                            record = AppModel.query.filter_by(
+                                deviceId=self.device_id,
+                                appName=app_name
+                            ).first()
+                            
+                            if not record:
+                                record = AppModel(
+                                    deviceId=self.device_id,
+                                    appName=app_name,
+                                    totalScore=0.0,
+                                    income=0.0,
+                                    status='detected'
+                                )
+                                db.session.add(record)
+                            record.lastUpdate = datetime.now()
+                        
+                        db.session.commit()
+                        self.apps = AppModel.query.filter_by(deviceId=self.device_id).all()
+                        
+                    _Log.Log_.i(f'成功更新{len(detected_apps)}个应用到数据库')
+
+                except Exception as e:
+                    _Log.Log_.ex(e, "处理应用分析结果失败")
+
+            from SDeviceMgr import deviceMgr
+            deviceMgr.sendClientCmd(self.device_id, 'getScreen', None, 10, parseResult)
+            return True
+        except Exception as e:
+            _Log.Log_.ex(e, "分析屏幕应用失败")
             return False
 
    

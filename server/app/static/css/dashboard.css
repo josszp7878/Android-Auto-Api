@@ -506,6 +506,29 @@
     padding: 8px;
     background-color: #1e1e1e;
     border-bottom: 1px solid #3e3e3e;
+    scroll-behavior: smooth; /* 添加平滑滚动 */
+}
+
+.console-logs.scrolling {
+    pointer-events: none; /* 滚动时禁止交互 */
+}
+
+/* 优化滚动条样式 */
+.console-logs::-webkit-scrollbar {
+    width: 8px;
+}
+
+.console-logs::-webkit-scrollbar-track {
+    background: #2d2d2d;
+}
+
+.console-logs::-webkit-scrollbar-thumb {
+    background: #666;
+    border-radius: 4px;
+}
+
+.console-logs::-webkit-scrollbar-thumb:hover {
+    background: #888;
 }
 
 .log-entry {

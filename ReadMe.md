@@ -603,3 +603,28 @@ checker.check()
 has_perm = CTools.android.checkPermission("android.permission.PACKAGE_USAGE_STATS")
 print(f"使用情况权限状态: {'已授予' if has_perm else '未授予'}")
 ```
+
+### 2024-02-20
+新增功能：
+- 添加屏幕应用分析功能
+- 新增`分析屏幕`命令，可识别屏幕上的应用并记录到数据库
+- 新增AppModel数据库表存储应用信息
+
+### 2024-02-21 更新
+功能优化：
+- 增强屏幕应用识别功能
+- 使用应用特征库进行精准匹配
+- 新增应用管理器(SAppMgr)维护已知应用特征
+- 分析结果只记录已知应用
+
+## 2023-07-15 更新
+
+### 新增功能
+- 添加获取当前前台应用包名功能 `getCurrentPackage()`
+- 添加判断当前是否在桌面的功能 `isOnHomeScreen()`
+- 添加获取根节点的功能 `getRootNode()`
+
+### 技术细节
+- 使用多种方法检测当前前台应用，提高兼容性
+- 通过包名列表和UI特征双重检测桌面状态，适配不同厂商手机
+- 支持主流Android厂商的桌面应用检测

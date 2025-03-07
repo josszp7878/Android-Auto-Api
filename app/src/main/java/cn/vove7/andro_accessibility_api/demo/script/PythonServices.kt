@@ -35,11 +35,16 @@ import cn.vove7.andro_accessibility_api.demo.service.ToolBarService
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import cn.vove7.auto.api.swipe as gestureSwipe
+import android.view.accessibility.AccessibilityNodeInfo
+import android.app.usage.UsageStats
+import android.app.usage.UsageStatsManager
+import androidx.annotation.RequiresApi
 
 /**
  * Python服务接口的Kotlin实现
  */
 class PythonServices {
+    @Suppress("DEPRECATION")
     companion object {
         private const val TAG = "PythonServices"
 
@@ -48,6 +53,20 @@ class PythonServices {
 
         // 缓存应用的包名和显示名称
         private val appNameToPackageMap = mutableMapOf<String, String>()
+
+        // 在companion object中添加常用桌面包名列表
+        @JvmStatic
+        private val LAUNCHER_PACKAGES = setOf(
+            "com.android.launcher3",         // 原生Android
+            "com.google.android.apps.nexuslauncher", // Pixel
+            "com.sec.android.app.launcher",  // 三星
+            "com.huawei.android.launcher",   // 华为
+            "com.miui.home",                 // 小米
+            "com.oppo.launcher",             // OPPO
+            "com.vivo.launcher",             // vivo
+            "com.realme.launcher",           // Realme
+            "com.oneplus.launcher"           // 一加
+        )
 
         /**
          * 初始化 Context 和应用信息
@@ -510,6 +529,144 @@ class PythonServices {
         @JvmStatic
         fun getContext(): Context {
             return context
+        }
+
+        /**
+         * 获取当前前台应用的包名
+         */
+        @JvmStatic
+        fun getCurrentPackage(): String {
+            Timber.tag(TAG).i("Getting current package name")
+            return try {
+                // 尝试通过无障碍服务获取
+                val rootNode = AutoApi.AutoImpl?.rootInActiveWindow()
+                if (rootNode != null) {
+                    val packageName = rootNode.packageName?.toString()
+                    Timber.tag(TAG).d("Current package from accessibility: %s", packageName)
+                    rootNode.recycle()
+                    return packageName ?: ""
+                }
+                
+                // 备用方法：通过ActivityManager获取
+                val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    val foregroundApp = am.appTasks.firstOrNull()?.taskInfo?.topActivity?.packageName
+                    Timber.tag(TAG).d("Current package from ActivityManager: %s", foregroundApp)
+                    foregroundApp ?: ""
+                } else {
+                    // 旧版本Android上的备用方法
+                    val tasks = am.getRunningTasks(1)
+                    if (!tasks.isNullOrEmpty()) {
+                        val packageName = tasks[0].topActivity?.packageName
+                        Timber.tag(TAG).d("Current package from getRunningTasks: %s", packageName)
+                        packageName ?: ""
+                    } else ""
+                }
+            } catch (e: Exception) {
+                Timber.tag(TAG).e(e, "Failed to get current package")
+                ""
+            }
+        }
+
+ 
+        /**
+         * 获取当前根节点
+         */
+        @JvmStatic
+        fun getRootNode(): AccessibilityNodeInfo? {
+            return try {
+                AutoApi.AutoImpl?.rootInActiveWindow()
+            } catch (e: Exception) {
+                Timber.tag(TAG).e(e, "Failed to get root node")
+                null
+            }
+        }
+
+        /**
+         * 获取当前正在运行的应用信息
+         * 
+         * @param period 查询最近使用应用的时间范围(秒)，默认60秒
+         * @return Map<String, Any> 包含包名(packageName)、应用名(appName)和最后使用时间(lastUsed)的Map，失败返回null
+         */
+        @Suppress("UNREACHABLE_CODE")
+        @RequiresApi(Build.VERSION_CODES.LOLLIPOP_MR1)
+        @JvmStatic
+        fun getCurrentApp(period: Int = 60): Map<String, Any>? {
+            Timber.tag(TAG).i("Getting current running app info")
+            return try {
+                // 获取Android上下文
+                val appContext = context.applicationContext
+                
+                // 获取UsageStatsManager
+                val usageStatsManager = appContext.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
+                if (usageStatsManager == null) {
+                    Timber.tag(TAG).e("Failed to get UsageStatsManager")
+                    return null
+                }
+                
+                // 获取最近period秒的应用使用情况
+                val endTime = System.currentTimeMillis()
+                val startTime = endTime - period * 1000L
+                
+                // 查询应用使用情况
+                val usageStatsList = usageStatsManager.queryUsageStats(
+                    UsageStatsManager.INTERVAL_DAILY, startTime, endTime)
+                
+                if (usageStatsList.isNullOrEmpty()) {
+                    // 检查权限
+                    if (!checkPermission("android.permission.PACKAGE_USAGE_STATS")) {
+                        Timber.tag(TAG).w("Usage access permission required")
+                        requestPermission("android.permission.PACKAGE_USAGE_STATS")
+                        return null
+                    } else {
+                        Timber.tag(TAG).w("No recent app usage records")
+                        return null
+                    }
+                }
+                
+                // 找出最近使用的应用
+                var recentStats: UsageStats? = null
+                var maxLastUsed = 0L
+                
+                for (stats in usageStatsList) {
+                    if (stats.lastTimeUsed > maxLastUsed) {
+                        maxLastUsed = stats.lastTimeUsed
+                        recentStats = stats
+                    }
+                }
+                
+                if (recentStats == null) {
+                    Timber.tag(TAG).w("No recent app found")
+                    return null
+                }
+                
+                val packageName = recentStats.packageName
+                val pm = appContext.packageManager
+                
+                try {
+                    val appInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        pm.getApplicationInfo(packageName, PackageManager.ApplicationInfoFlags.of(0))
+                    } else {
+                        @Suppress("DEPRECATION")
+                        pm.getApplicationInfo(packageName, 0)
+                    }
+                    
+                    val appName = pm.getApplicationLabel(appInfo).toString()
+                    Timber.tag(TAG).i("Current app: %s (%s)", appName, packageName)
+                    
+                    return mapOf(
+                        "packageName" to packageName,
+                        "appName" to appName,
+                        "lastUsed" to recentStats.lastTimeUsed
+                    )
+                } catch (e: Exception) {
+                    Timber.tag(TAG).e(e, "Failed to get app info")
+                    return null
+                }
+            } catch (e: Exception) {
+                Timber.tag(TAG).e(e, "Failed to get current app")
+                return null
+            }
         }
     }
 } 

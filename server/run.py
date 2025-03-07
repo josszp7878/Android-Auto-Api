@@ -10,8 +10,8 @@ from app.Database import Database
 
 def signal_handler(sig, frame):
     """处理 Ctrl+C 信号"""
-    _Log.Log.i('正在关闭服务器...')
-    _Log.Log.uninit()
+    _Log.Log_.i('正在关闭服务器...')
+    _Log.Log_.uninit()
     exit(0)
 
 
@@ -25,9 +25,9 @@ if __name__ == '__main__':
         signal.signal(signal.SIGINT, signal_handler)
         
         # 初始化日志系统并打开服务器日志
-        _Log.Log.setIsServer(is_server=True)        
+        _Log.Log_.setIsServer(is_server=True)        
         # 启动服务器
-        _Log.Log.i(f'服务器启动在: http://{cfg.SERVER_HOST}:{cfg.SERVER_PORT}')
+        _Log.Log_.i(f'服务器启动在: http://{cfg.SERVER_HOST}:{cfg.SERVER_PORT}')
         
         # 初始化数据库
         Database.init(app)
@@ -43,7 +43,7 @@ if __name__ == '__main__':
             log_output=False      # 启用日志输出
         )
     except Exception as e:
-        print(f'服务器启动失败: {_Log.Log.formatEx(e)}')
-        _Log.Log.uninit()
+        print(f'服务器启动失败: {_Log.Log_.formatEx(e)}')
+        _Log.Log_.uninit()
     finally:
-        _Log.Log.i('服务器关闭')
+        _Log.Log_.i('服务器关闭')

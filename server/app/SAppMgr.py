@@ -24,9 +24,9 @@ class SAppMgr:
             with open(config_path, 'r', encoding='utf-8') as f:
                 config = json.load(f)
                 self._apps = config.get('apps', {})
-            _Log.Log.i(f"已加载{len(self._apps)}个应用配置")
+            _Log.Log_.i(f"已加载{len(self._apps)}个应用配置")
         except Exception as e:
-            _Log.Log.ex(e, "加载应用配置失败")
+            _Log.Log_.ex(e, "加载应用配置失败")
             self._apps = {}
     
     def getRatio(self, app_name: str) -> float:
@@ -40,10 +40,10 @@ class SAppMgr:
             app = self._apps.get(app_name)
             if app:
                 return float(app['ratio'])
-            _Log.Log.w(f"应用[{app_name}]未配置，使用默认比例0.01")
+            _Log.Log_.w(f"应用[{app_name}]未配置，使用默认比例0.01")
             return 0.01
         except Exception as e:
-            _Log.Log.ex(e, "获取应用换算比例失败")
+            _Log.Log_.ex(e, "获取应用换算比例失败")
             return 0.01
     
     def get_app_info(self, app_name: str) -> dict:
@@ -93,13 +93,13 @@ class SAppMgr:
             # 按相似度排序，取最匹配的
             if matches:
                 matches.sort(key=lambda x: x[1], reverse=True)
-                _Log.Log.i(f"应用[{app_name}]模糊匹配到[{matches[0][0]}]")
+                _Log.Log_.i(f"应用[{app_name}]模糊匹配到[{matches[0][0]}]")
                 return matches[0][0]
         except Exception as _:
             pass
         finally:
             if showLog:
-                _Log.Log.i(f"应用[{app_name}]匹配失败")
+                _Log.Log_.i(f"应用[{app_name}]匹配失败")
         return None
 
 

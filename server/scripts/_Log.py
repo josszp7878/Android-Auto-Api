@@ -14,7 +14,7 @@ class TAG(Enum):
     SCMD = "SCMD"
     Server = "@"
 
-class Log:
+class Log_:
     """统一的日志管理类"""
     _cache = []
     _visualLogs = []
@@ -78,7 +78,7 @@ class Log:
             cls._scriptDir = getScriptDir()
         if not os.path.exists(cls._scriptDir):
             cls._scriptDir = None
-            _Log.Log.ex(Exception('脚本目录不存在'), '脚本目录不存在')
+            _Log.Log_.ex(Exception('脚本目录不存在'), '脚本目录不存在')
         return cls._scriptDir
         
     @classmethod
@@ -238,6 +238,32 @@ class Log:
     def isWarning(cls, message):
         return isinstance(message, str) and message.startswith('w->')
 
-Log.init()
+class LogHandler:
+    # 存储日志的缓冲区
+    _log_buffer = []
+    _max_buffer_size = 1000  # 限制缓冲区大小
+    
+    @classmethod
+    def append_log(cls, log_entry):
+        """添加日志到缓冲区"""
+        cls._log_buffer.append(log_entry)
+        
+        # 限制缓冲区大小
+        if len(cls._log_buffer) > cls._max_buffer_size:
+            cls._log_buffer.pop(0)  # 移除最旧的日志
+    
+    @classmethod
+    def get_logs(cls, start_index=0):
+        """获取日志，支持分页"""
+        if start_index >= len(cls._log_buffer):
+            return []
+        return cls._log_buffer[start_index:]
+    
+    @classmethod
+    def clear_logs(cls):
+        """清空日志缓冲区"""
+        cls._log_buffer.clear()
+
+Log_.init()
 
 

@@ -27,12 +27,17 @@ class LogManager {
     this.loadingLogs = false;
     this.showLogs = false;
     this.logsPanelWidth = '40%';
+    this.isScrolling = false; // 添加滚动状态标记
+    this.scrollTimeout = null; // 滚动超时处理
     
     // 回调函数
     this.onLogsUpdated = null;
     this.onFilterChanged = null;
     this.onVisibilityChanged = null;
     this.onWidthChanged = null;
+    
+    // 添加滚动状态变化回调
+    this.onScrollStateChanged = null;
     
     // 初始化Socket.IO事件监听
     this.initSocketEvents();
@@ -217,13 +222,25 @@ class LogManager {
   
   // 刷新日志显示
   refreshDisplay() {
-    const logs = this.getCurrentPageLogs();
-    const totalPages = Math.ceil(this.filteredLogs.length / this.perPage);
+    // 如果正在滚动,不更新显示
+    if(this.isScrolling) {
+      return;
+    }
     
-    // 更新UI显示
-    this.updateLogDisplay(logs);
-    this.updatePagination(this.currentPage, totalPages);
-    this.updateLogCount();
+    // 保存当前滚动位置
+    const logContainer = document.querySelector('.console-logs');
+    const scrollTop = logContainer.scrollTop;
+    const wasAtBottom = (logContainer.scrollHeight - logContainer.scrollTop) === logContainer.clientHeight;
+
+    // 更新日志显示
+    this.onLogsUpdated && this.onLogsUpdated(this.filteredLogs);
+
+    // 恢复滚动位置
+    if(wasAtBottom) {
+      logContainer.scrollTop = logContainer.scrollHeight;
+    } else {
+      logContainer.scrollTop = scrollTop;
+    }
   }
   
   // 更新日志计数信息
@@ -316,8 +333,32 @@ class LogManager {
   }
   
   // 处理日志滚动
-  handleScroll(isAtBottom) {
-    this.autoScroll = isAtBottom;
+  handleScroll(event) {
+    if(this.scrollTimeout) {
+        clearTimeout(this.scrollTimeout);
+    }
+    
+    this.isScrolling = true;
+    
+    // 滚动结束后200ms恢复状态
+    this.scrollTimeout = setTimeout(() => {
+        this.isScrolling = false;
+        // 如果在底部,恢复自动滚动
+        const element = event.target;
+        if(element.scrollHeight - element.scrollTop === element.clientHeight) {
+            this.autoScroll = true;
+        }
+        
+        // 通知 Vue 实例更新滚动状态
+        if(this.onScrollStateChanged) {
+            this.onScrollStateChanged(false);
+        }
+    }, 200);
+    
+    // 通知 Vue 实例更新滚动状态
+    if(this.onScrollStateChanged) {
+        this.onScrollStateChanged(true);
+    }
   }
   
   // 设置回调函数
@@ -330,6 +371,9 @@ class LogManager {
     if (callbacks.onFilterChanged) this.onFilterChanged = callbacks.onFilterChanged;
     if (callbacks.onVisibilityChanged) this.onVisibilityChanged = callbacks.onVisibilityChanged;
     if (callbacks.onWidthChanged) this.onWidthChanged = callbacks.onWidthChanged;
+    if (callbacks.onScrollStateChanged) {
+        this.onScrollStateChanged = callbacks.onScrollStateChanged;
+    }
   }
   
   // 切换日志面板显示状态
