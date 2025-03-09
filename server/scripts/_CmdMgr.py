@@ -155,7 +155,10 @@ class _CmdMgr:
                         referrer.__dict__[module_name] = module
                 # 打印模块所有成员
                 # _Log.Log_.d(f'模块 {module_name} 的成员:::: {dir(module)}')
-
+                # 清除全局引用
+                from _G import G
+                G.clear()
+                G.Log().d(f'清除全局引用: {module_name}')
                 # 执行重载后回调
                 _, onReload = _Tools.GetClassMethod(module, 'OnReload')
                 # _Log.Log_.d(f"重新加载模块成功: onReload{module_name}")

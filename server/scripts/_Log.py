@@ -4,7 +4,6 @@ import os
 from pathlib import Path
 import json
 import re
-from _GState import gState
 
 TempKey = '_IsServer' 
 
@@ -27,30 +26,23 @@ class Log_:
         return cls._isServer
     
     @classmethod
-    def init(cls):
+    def init_(cls):
         if not hasattr(cls, '_init'):
-            cls._isServer = gState.restore('_isServer')
-            cls._scriptDir = gState.restore('_scriptDir')
-            print(f'日志系统初始化 log={gState.get("Log_")}')
+            from _G import G
+            cls._isServer = G.restore('_isServer')
+            cls._scriptDir = G.restore('_scriptDir')
+            print(f'日志系统初始化 log={G.get("Log_")}')
             cls._init = True
 
     @classmethod
     def OnPreload(cls):
         """热更新前的预处理，保存当前状态"""
-        gState.save('_isServer', cls._isServer)
-        gState.save('_scriptDir', cls._scriptDir)
+        from _G import G
+        G.save('_isServer', cls._isServer)
+        G.save('_scriptDir', cls._scriptDir)
         cls.i(f'日志系统热更新前保存状态: isServer={cls._isServer}, scriptDir={cls._scriptDir}')
         return True
     
-    @classmethod
-    def OnReload(cls):
-        # """热更新后的回调函数，恢复之前的状态"""
-        # cls._isServer = gState.restore('_isServer')
-        # cls._scriptDir = gState.restore('_scriptDir')
-        # gState.save('Log_', cls)
-        # cls.i(f'日志系统热更新后恢复状态: isServer={cls._isServer}, scriptDir={cls._scriptDir}')
-        return True
- 
 
     @classmethod
     def clear(cls):
@@ -238,32 +230,6 @@ class Log_:
     def isWarning(cls, message):
         return isinstance(message, str) and message.startswith('w->')
 
-class LogHandler:
-    # 存储日志的缓冲区
-    _log_buffer = []
-    _max_buffer_size = 1000  # 限制缓冲区大小
-    
-    @classmethod
-    def append_log(cls, log_entry):
-        """添加日志到缓冲区"""
-        cls._log_buffer.append(log_entry)
-        
-        # 限制缓冲区大小
-        if len(cls._log_buffer) > cls._max_buffer_size:
-            cls._log_buffer.pop(0)  # 移除最旧的日志
-    
-    @classmethod
-    def get_logs(cls, start_index=0):
-        """获取日志，支持分页"""
-        if start_index >= len(cls._log_buffer):
-            return []
-        return cls._log_buffer[start_index:]
-    
-    @classmethod
-    def clear_logs(cls):
-        """清空日志缓冲区"""
-        cls._log_buffer.clear()
-
-Log_.init()
+Log_.init_()
 
 

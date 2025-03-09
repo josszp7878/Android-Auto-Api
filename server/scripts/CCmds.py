@@ -8,8 +8,7 @@ from CClient import client
 from CDevice import CDevice
 import CTools
 import json
-from CPage import CPage
-from CPageMgr import CPageMgr
+from _G import G
 
 # 添加缓存相关的变量
 _screenInfoCache = None
@@ -114,38 +113,10 @@ class CCmds:
                 return f"已连接到服务器，设备ID: {device.deviceID}"
             return "未连接到服务器"
 
-        @regCmd(r"坐标|位置", r"(?P<pattern>.+)")
-        def getPos(pattern):
-            position = None
-            try:
-                # _Log.Log_.i(f"@@@@点击指令: {pattern}")
-                x, y = map(int, re.split(r"[,\s]+", pattern.strip()))
-                position = (x, y)
-            except Exception:
-                CTools.CTools_.refreshScreenInfos()
-                regex = re.compile(pattern)
-                position = findPos(regex)
-                if not position:
-                    _Log.Log_.e(f"未找到坐标{pattern}")
-            # _Log.Log_.i(f"坐标:{position}")
-            return position
-
-        def inRect(pattern, region):
-            position = getPos(pattern)
-            if position:
-                x, y = position
-                left, top, right, bottom = region
-                if left > 0 and not (left <= x <= right):
-                    return False
-                if top > 0 and not (top <= y <= bottom):
-                    return False
-                return True
-                
-            return False
-
-        @regCmd(r"移到", r"(?P<param>.+)")
-        def move(param):
-            position = getPos(param)
+        
+        @regCmd(r"移到", r"(?P<text>.+)")
+        def move(text):
+            position = CTools.CTools_.findText(text)
             android = cls.android()
             if position and android:
                 return android.move(position[0], position[1])
@@ -171,18 +142,6 @@ class CCmds:
                 x, y = position[0] + x, position[1] + y
                 return android.click(x, y)
             return False
-
-        @regCmd(r"返回")
-        def goBack():
-            android = cls.android()
-            if android:
-                return android.goBack()
-            return False
-
-        @regCmd(r"主屏幕")
-        def goHome():
-            CTools.CTools_.goHome()
-            return True
 
         @regCmd(r"检查安装\s+(?P<pkgName>\S+)")
         def isInstalled(pkgName):
@@ -241,18 +200,6 @@ class CCmds:
                 _Log.Log_.ex(e, "获取屏幕信息失败")
                 return '[]'
 
-        def findPos(regex: Pattern, region: List[int] = None):
-            try:
-                position = None
-                match, item = CTools.CTools_.matchScreenText(regex, region)
-                if match:
-                    position = CTools.CTools_.toPos(item)
-                    position = (position[0], position[1])
-                    _Log.Log_.i(f"找到坐标: {position}")
-                return position
-            except Exception as e:
-                _Log.Log_.ex(e, "FindUI 指令执行失败")
-                return None
 
         @regCmd(r"查找应用", r"(?P<appName>[\w\s]+)")
         def _toApp(appName: str) -> bool:
@@ -343,7 +290,7 @@ class CCmds:
         def captureScreen():
             """截图指令"""
             try:
-                _Log.Log_.i("截图指dddd令")
+                _Log.Log_.i("截图指令")
                 android = cls.android()
                 if android:
                     image = android.takeScreenshot()
@@ -391,29 +338,44 @@ class CCmds:
         #         _Log.Log_.ex(e, "检测桌面状态失败")
         #         return False
 
-        @regCmd(r"跳转", r"(?P<target>.+)")
-        def navigateTo(target):
-            try:
-                pageMgr.go(target)
-                return f"到达：{target}"
-            except Exception as e:
-                return f"e->跳转失败：{str(e)}"
-
         @regCmd(r"当前页面")
         def currentPage():
-            return pageMgr.findCurrentPageName() or "未知"
+            return G.PageMgr().findCurPage() or None
 
         @regCmd(r"跳转", r"(?P<target>.+)")
-        def testNavigate(target):
+        def go(target):
             """页面跳转测试命令"""
-            try:
-                CPageMgr.go(target)
-                return f"测试跳转成功到达：{target}"
-            except Exception as e:
-                return f"e->测试跳转失败：{str(e)}"
+            return G.PageMgr().go(target)
 
-        # 文件末尾初始化
-        pageMgr = CPageMgr()
-        pageMgr.loadConfig("config/pages.json")
+        @regCmd(r"桌面")
+        def home():
+            """返回手机桌面"""
+            return CTools.CTools_.goHome()
+        
+        @regCmd(r"返回")
+        def back():
+            """返回上一页"""
+            return CTools.CTools_.goBack()
 
+        @regCmd(r"查找路径", r"(?P<fromPage>\S+)\s*->\s*(?P<toPage>\S+)")
+        def findPath(fromPage, toPage):
+            """测试路径查找功能"""
+            path = G.PageMgr().findPath(fromPage, toPage)
+            if path:
+                return f"找到路径: {' → '.join(path)}"
+            else:
+                return f"未找到 {fromPage} 到 {toPage} 的路径"
+
+        @regCmd(r"查找", r"(?P<text>\S+)(?:\s+(?P<dir>[LRUDNONE]+))?(?:\s+(?P<distance>\d+))?")
+        def findText(text, dir=None, distance=None):
+            """测试文字查找功能
+            格式：测试查找 文字 [方向] [距离]
+            示例：测试查找 下一步 LR 500
+            """
+            distance = int(distance) if distance else None
+            
+            pos = CTools.CTools_.findText(text, dir, distance)
+            if pos:
+                return f"找到文字位置: {pos[0]},{pos[1]}"
+            return "未找到匹配文字"
        

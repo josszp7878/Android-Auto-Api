@@ -1,65 +1,106 @@
 {
-    "pages": [
-        {
-            "name": "桌面",
-            "rules": [
-                "{CTools.isHome()}"
-            ],
-            "transitions": [
-                {
-                    "target": "快手极速版",
-                    "action": "{DoCmd.run($toPage )}"
-                },
-                {
-                    "target": "个人页",
-                    "action": "@switchToProfile"
+    "Top": {
+        "check": ["{CTools.isHome()}"],
+        "timeout": 10,
+        "children": {
+            "应用市场": {
+                "check": ["搜索应用"],
+                "in": "打开应用('应用市场')",
+                "children": {
+                    "搜索页": {
+                        "check": ["搜索历史"],
+                        "in": "click('搜索框')",
+                        "out": "print('退出搜索')",
+                        "children": {
+                            "应用详情页": {
+                                "check": ["立即下载"],
+                                "in": "click('搜索结果')",
+                                "children": {
+                                    "安装页": {
+                                        "check": ["安装进度"],
+                                        "in": "click('安装')"
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
-            ]
-        },
-        {
-            "name": "快手极速版",
-            "rules": [
-                "任务中心",
-                "每日任务.*",
-                "去完成[200,500,300,600]"
-            ],
-            "transitions": [
-                {
-                    "target": "首页",
-                    "action": "返回"
-                },
-                {
-                    "target": "奖励页",
-                    "action": "立即领取$(datetime.now().day)"
+            },
+            "社交媒体": {
+                "check": ["动态更新"],
+                "children": {
+                    "微信": {
+                        "in": "打开应用('微信')",
+                        "children": {
+                            "聊天列表": {
+                                "check": ["新消息"],
+                                "in": "click('微信图标')",
+                                "children": {
+                                    "聊天窗口": {
+                                        "check": ["输入框"],
+                                        "in": "click('联系人')"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "微博": {
+                        "in": "打开应用('微博')",
+                        "children": {
+                            "热搜榜": {
+                                "check": ["热搜列表"],
+                                "in": "click('发现')"
+                            }
+                        }
+                    }
                 }
-            ]
-        },
-        {
-            "name": "个人页",
-            "rules": [
-                "我的账户",
-                "欢迎$(CTools.getCurrentApp()['appName'])",
-                "{CTools.isHome()}"  // 需要返回True的代码
-            ],
-            "transitions": [
-                {
-                    "target": "首页",
-                    "action": "返回$(datetime.now().hour < 12 ? '上午' : '下午')"
+            },
+            "游戏中心": {
+                "parent": "Top",
+                "check": ["热门游戏"],
+                "in": "打开应用('游戏中心')",
+                "children": {
+                    "详情页": {
+                        "parent": "特殊父节点"
+                    }
                 }
-            ]
-        },
-        {
-            "name": "奖励页",
-            "rules": [
-                "奖励领取",
-                "剩余：\\d+金币"
-            ],
-            "transitions": [
-                {
-                    "target": "首页",
-                    "action": "@goHome"
+            },
+            "快手极速版": {
+                "check": ["任务中心"],
+                "children": {
+                    "任务页": {
+                        "check": ["去完成"],
+                        "in": "click('去完成')",
+                        "children": {
+                            "奖励页": {
+                                "check": ["立即领取"],
+                                "in": "click('领取')"
+                            }
+                        }
+                    }
                 }
-            ]
+            },
+            "抖音": {
+                "in": "打开应用('抖音')",
+                "children": {
+                    "直播页": {
+                        "check": ["直播间"]
+                    }
+                }
+            },
+            "P": {
+                "check": ["P页面特征"],
+                "children": {
+                    "A": {
+                        "check": ["A页面特征"],
+                        "in": "进入A的动作"
+                    },
+                    "B": {
+                        "check": ["B页面特征"],
+                        "in": "进入B的动作"
+                    }
+                }
+            }
         }
-    ]
+    }
 } 

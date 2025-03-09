@@ -1,17 +1,18 @@
-import re
-
 class CPage:
-    def __init__(self, name, rules):
+    def __init__(self, name, rules, parent=None):
         self.name = name
-        self.rules = [self.parseRule(r) for r in rules]
-        self.transitions = {}
+        # 直接存储原始规则字符串
+        self.rules = rules  
+        self.parent = parent  # 父节点
+        self.transitions = {} # 子节点:inAction
+        self.backAction = ""  # 返回父节点的动作
 
-    @staticmethod
-    def parseRule(rule):
-        # 解析带区域范围的规则 示例："金币[12,0,0,30]"
-        match = re.match(r"(.+?)\[([\d,]+)\]$", rule)
-        if match:
-            text, area = match.groups()
-            region = list(map(int, area.split(',')))
-            return {'pattern': re.compile(text), 'region': region}
-        return {'pattern': re.compile(rule), 'region': None} 
+    @property
+    def hierarchy(self):
+        """生成层级路径（调试用）"""
+        path = []
+        current = self
+        while current:
+            path.append(current.name)
+            current = current.parent_page  # 需要添加parent_page属性
+        return ' → '.join(reversed(path))
