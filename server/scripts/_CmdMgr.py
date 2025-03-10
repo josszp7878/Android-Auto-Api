@@ -203,7 +203,7 @@ class _CmdMgr:
             
             # 调用更新脚本方法
             _Log.Log_.i("正在更新脚本...")
-            fileServer.updateScripts(onUpdateCompleted)
+            fileServer.update(onUpdateCompleted)
             
             # 等待更新完成，最多等待30秒
             if not update_completed.wait(30):
@@ -302,15 +302,16 @@ class _CmdMgr:
         Returns:
             bool: 是否成功重新注册
         """
+        log = _Log.Log_
+        log.i("开始重新注册命令...")
         try:
-            _Log.Log_.d("开始重新注册命令...")
             # 1. 清除所有命令注册
             cls.clear()            
             # 2. 首先注册自己的命令
             cls.registerCommands()
             
             # 3. 扫描脚本目录，找到所有包含registerCommands方法的模块
-            scriptDir = _Log.Log_.scriptDir()
+            scriptDir = log.scriptDir()
             modules = cls.scanModules(scriptDir)
             # 4. 加载这些模块并执行它们的命令注册函数
             # _Log.Log_.d(f"加载模块: {modules}")
@@ -329,7 +330,7 @@ class _CmdMgr:
                             # 如果模块已加载，则重新加载
                             module = sys.modules[full_module_name]
                     except Exception as e:
-                        _Log.Log_.ex(e, f"加载模块失败: {full_module_name}")
+                        log.ex(e, f"加载模块失败: {full_module_name}")
                         continue
                     
                     # 查找模块中的registerCommands类方法
@@ -339,14 +340,14 @@ class _CmdMgr:
                         method()
                         success_count += 1
                 except Exception as e:
-                    _Log.Log_.ex(e, f"注册模块 {module} 的命令失败")
+                    log.ex(e, f"注册模块 {module} 的命令失败")
             
             # 5. 输出重新注册结果
             cmd_count = len(cls.cmdRegistry)
-            _Log.Log_.i(f"命令重新注册完成，成功注册{success_count}/{len(modules)}个模块，共{cmd_count}个命令")
+            log.i(f"命令重新注册完成，成功注册{success_count}/{len(modules)}个模块，共{cmd_count}个命令")
             return success_count == len(modules)
         except Exception as e:
-            _Log.Log_.ex(e, "命令重新注册失败")
+            log.ex(e, "命令重新注册失败")
             return False
     
  

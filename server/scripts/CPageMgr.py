@@ -13,7 +13,6 @@ class CPageMgr_:
     currentPage = None
     pathCache = {}
     topology = {}  # {pageName: {'in': set(), 'out': set()}}
-    roots = set()
     # 新增返回跳转记录
     backTransitions = {}  # {pageName: {'fromPage': str, 'action': str}}
     ROOT_PAGE = "Top"
@@ -21,12 +20,15 @@ class CPageMgr_:
     @classmethod
     def init_(cls):
         if not hasattr(cls, '_init'):
+            log = G.Log()
             try:
-                cls._loadConfig("config/pages.json")
+                configDir = log.configDir()
+                log.i('初始化页面管理器', f"配置目录: {configDir}")
+                cls._loadConfig(f"{configDir}/pages.json")
                 cls.currentPage = cls.ROOT_PAGE  # 新增初始化
-                G.Log().i(f"页面管理器初始化完成，当前页设为: {cls.ROOT_PAGE}")
+                log.i(f"页面管理器初始化完成，当前页设为: {cls.ROOT_PAGE}")
             except Exception as e:
-                G.Log().e(f"初始化失败: {str(e)}")
+                log.e(f"初始化失败: {str(e)}")
             cls._init = True
       
     @classmethod
@@ -54,9 +56,13 @@ class CPageMgr_:
     @classmethod
     def _loadConfig(cls, configPath):
         """支持自动推断与显式配置的混合模式"""
-        with open(configPath, 'r', encoding='utf-8') as f:
-            config_data = json.load(f)
-        
+        try:
+            with open(configPath, 'r', encoding='utf-8') as f:
+                config_data = json.load(f)
+        except Exception as e:
+            G.Log().ex(e, f"加载配置文件失败: {configPath}")
+            return
+        log = G.Log()
         def process_node(node_config, context_parent=None):
             """递归处理节点，context_parent为上下文父节点"""
             for page_name, page_config in node_config.items():
@@ -91,46 +97,45 @@ class CPageMgr_:
 
         # 从根节点开始处理
         process_node(config_data, context_parent=None)
+        log.i(f"拓扑关系: {cls.topology}")
+        log.i(f"当前所有页面: {cls.pages}")
 
-    @classmethod
-    def _addPage(cls, name, rules, transitions):
-        # 创建页面对象并立即存入字典
-        page = CPage.CPage(name, rules)
-        cls.pages[name] = page  # 先存入字典再处理跳转
+    # @classmethod
+    # def _addPage(cls, name, rules, transitions):
+    #     # 创建页面对象并立即存入字典
+    #     page = CPage.CPage(name, rules)
+    #     cls.pages[name] = page  # 先存入字典再处理跳转
         
-        # 确保当前页面存在于拓扑
-        if name not in cls.topology:
-            cls.topology[name] = {'in': set(), 'out': set()}
+    #     # 确保当前页面存在于拓扑
+    #     if name not in cls.topology:
+    #         cls.topology[name] = {'in': set(), 'out': set()}
         
-        # 处理跳转关系时区分正向和返回
-        for t in transitions:
-            is_back = t.get('backward', False)
-            target = t['target']
-            action = t['action']
+    #     # 处理跳转关系时区分正向和返回
+    #     for t in transitions:
+    #         is_back = t.get('backward', False)
+    #         target = t['target']
+    #         action = t['action']
             
-            # 确保目标页面存在于拓扑
-            if target not in cls.topology:
-                cls.topology[target] = {'in': set(), 'out': set()}
+    #         # 确保目标页面存在于拓扑
+    #         if target not in cls.topology:
+    #             cls.topology[target] = {'in': set(), 'out': set()}
             
-            if not is_back:
-                # 正向跳转：影响拓扑
-                cls.topology[name]['out'].add(target)
-                cls.topology[target]['in'].add(name)
-                # 此时page对象已存在
-                page.transitions[target] = action  # 直接操作已创建的page对象
-            else:
-                # 返回跳转：单独记录
-                cls.backTransitions[target] = {
-                    'fromPage': name,
-                    'action': action
-                }
+    #         if not is_back:
+    #             # 正向跳转：影响拓扑
+    #             cls.topology[name]['out'].add(target)
+    #             cls.topology[target]['in'].add(name)
+    #             # 此时page对象已存在
+    #             page.transitions[target] = action  # 直接操作已创建的page对象
+    #         else:
+    #             # 返回跳转：单独记录
+    #             cls.backTransitions[target] = {
+    #                 'fromPage': name,
+    #                 'action': action
+    #             }
         
         # 初始化根节点列表
-        cls.roots = {name for name, info in cls.topology.items() if not info['in']}
-
         G.Log().i(f"▄▄▄▄▄ 新增页面 [{name}] ▄▄▄▄▄")
         G.Log().i(f"拓扑关系: {cls.topology[name]}")
-        G.Log().i(f"当前所有根节点: {cls.roots}")
 
         # 添加规则类型检查
         for idx, rule in enumerate(rules):

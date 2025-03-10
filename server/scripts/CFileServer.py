@@ -4,6 +4,7 @@ import requests
 from typing import Callable
 from threading import Thread
 import _Log
+import _G
 
 class CFileServer:
     _instance = None  # 用于存储单例实例
@@ -20,12 +21,12 @@ class CFileServer:
             self.serverUrl = None
 
    
-    def updateScripts(self, callback: Callable[[bool], None]):
+    def update(self, callback: Callable[[bool], None]):
         # 定义一个内部函数run，用于执行更新脚本的操作
         def run():
             success = False
             try:
-                curVersions = self.currentVersions()
+                curVersions = self.currentVersions
                 remoteVersions = self.remoteVersions()
                 # 遍历远程脚本的版本信息
                 for filename, remoteVersion in remoteVersions.items():
@@ -35,7 +36,7 @@ class CFileServer:
                         self.download(filename)
                         success = True
                 if success:
-                    self.saveVersions(remoteVersions)
+                    self.currentVersions = remoteVersions
                     print("脚本更新成功!!")
             except Exception as e:
                 print(e)                    
@@ -49,44 +50,42 @@ class CFileServer:
             onComplete: 完成回调函数
         """
         try:
-            url = f"{self.serverUrl}/scripts/{filename}"
+            url = f"{self.serverUrl}/{filename}"
             response = requests.get(url, timeout=8)
             response.raise_for_status()
-
-            from CMain import getScriptDir
-            scriptDir = getScriptDir()
+            log = _G.G.Log()
+            scriptDir = log.clientScriptDir()
             scriptFile = os.path.join(scriptDir, filename)
-            # _Log.Log_.d(f"下载文件: {url} 到 {scriptFile}")
             
             # 确保目录存在
             os.makedirs(os.path.dirname(scriptFile), exist_ok=True)
             
             with open(scriptFile, 'w', newline = '', encoding='utf-8') as f:
                 f.write(response.text)
-            _Log.Log_.d(f"下载文件完成: {filename} (大小: {os.path.getsize(scriptFile)} bytes)")
+            log.d(f"下载文件完成: {filename} (大小: {os.path.getsize(scriptFile)} bytes)")
             if onComplete:
                 onComplete(True)
             return True
         except Exception as e:
-            print(e)
+            log.ex(e, f"下载文件失败: {filename}")
             if onComplete:
                 onComplete(False)
             return False
 
+    @property
     def currentVersions(self):
-        from CMain import getScriptDir
-        scriptDir = getScriptDir()
-        version_file = os.path.join(scriptDir, "version.txt")
+        dir = _G.G.Log().rootDir()
+        version_file = os.path.join(dir, "version.txt")
         if not os.path.exists(version_file):
             return {}
 
         with open(version_file, 'r', encoding='utf-8') as f:
             return json.load(f)
-
-    def saveVersions(self, versions):
-        from CMain import getScriptDir
-        scriptDir = getScriptDir()
-        version_file = os.path.join(scriptDir, "version.txt")
+    
+    @currentVersions.setter
+    def currentVersions(self, versions):
+        dir = _G.G.Log().rootDir()
+        version_file = os.path.join(dir, "version.txt")
         with open(version_file, 'w', encoding='utf-8') as f:
             json.dump(versions, f)
             

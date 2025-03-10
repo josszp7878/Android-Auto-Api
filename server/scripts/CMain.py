@@ -5,18 +5,6 @@ import sys
 # 全局变量声明
 runFromAndroid = False 
 
-def getScriptDir():
-    _scriptDir = None
-    import CTools
-    android = CTools.CTools_.android
-    if android:
-        # Android环境下使用应用私有目录
-        _scriptDir = android.getFilesDir('scripts', True)
-    else:
-        # 开发环境使用当前目录
-        _scriptDir = os.path.dirname(os.path.abspath(__file__))
-    print(f"脚本目录: {_scriptDir}")
-    return _scriptDir
 
 # 更新脚本
 def updateScripts():
@@ -28,7 +16,7 @@ def updateScripts():
             nonlocal waitting
             waitting = False
         from CFileServer import fileServer
-        fileServer.updateScripts(onUpdated)
+        fileServer.update(onUpdated)
         # 等待脚本更新完成
         while waitting:
             try:

@@ -60,19 +60,70 @@ class Log_:
         return cls
     
     @classmethod
-    def scriptDir(cls):
-        if cls._scriptDir:
-            return cls._scriptDir
-        if cls._isServer:
-            cls._scriptDir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'app')
+    def clientScriptDir(cls):
+        dir = None
+        import CTools
+        android = CTools.CTools_.android
+        if android:
+            # Android环境下使用应用私有目录
+            dir = android.getFilesDir('scripts', True)
         else:
-            from CMain import getScriptDir
-            cls._scriptDir = getScriptDir()
-        if not os.path.exists(cls._scriptDir):
-            cls._scriptDir = None
-            _Log.Log_.ex(Exception('脚本目录不存在'), '脚本目录不存在')
-        return cls._scriptDir
-        
+            # 开发环境使用当前目录
+            dir = os.path.dirname(os.path.abspath(__file__))
+            print(f"脚本目录: {dir}")
+        return dir 
+    
+    @classmethod
+    def rootDir(cls):
+        dir = None
+        import CTools
+        android = CTools.CTools_.android
+        if android:
+            # Android环境下使用应用私有目录
+            dir = android.getFilesDir()
+        else:
+            # 开发环境使用当前目录
+            dir =  os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            print(f"根目录: {dir}")
+        return dir 
+    
+    @classmethod
+    def scriptDir(cls):
+        dir = os.path.join(cls.rootDir(), 'scripts')
+        if not os.path.exists(dir):
+            os.makedirs(dir)
+        return dir
+        # if cls._scriptDir:
+        #     return cls._scriptDir
+        # if cls._isServer:
+        #     cls._scriptDir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'app')
+        # else:
+        #     cls._scriptDir = cls.clientScriptDir()
+        # if not os.path.exists(cls._scriptDir):
+        #     cls._scriptDir = None
+        #     cls.ex(Exception('脚本目录不存在'), '脚本目录不存在')
+        # return cls._scriptDir
+
+    @classmethod
+    def ConfigDir(cls):
+        configDir = os.path.join(cls.rootDir(), 'config')
+        if not os.path.exists(configDir):
+            os.makedirs(configDir)
+        return configDir
+        # """获取配置文件目录"""
+        # if cls._configDir:
+        #     return cls._configDir
+        # if cls._isServer:
+        #     cls._configDir = "server/config"
+        # else:
+        #     import CTools
+        #     android = CTools.CTools_.android
+        #     if android is None:
+        #         cls._configDir = "server/config"
+        #     else:
+        #         cls._configDir = android.getFilesDir('config', True)
+        # return cls._configDir
+    
     @classmethod
     def uninit(cls):
         """反初始化日志系统"""

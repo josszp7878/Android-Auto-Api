@@ -1,9 +1,104 @@
+from __future__ import annotations
 from cmath import log
 from typing import Pattern, List
 import time
 import _Log
 import _G
 import re
+
+class RegionCheck:
+    """区域检查工具类"""
+    def __init__(self):
+        self.region = None
+        
+    @classmethod
+    def parse(cls, text: str)->tuple['RegionCheck', str]:
+        """
+        支持新格式：
+        - 传统格式：[x1,x2,y1,y2]
+        - Y轴简写：y<min>,<max> 或 y<value>
+        - X轴简写：x<min>,<max> 或 x<value>
+        """
+        check = RegionCheck()
+        match = re.search(
+            r'([\s\S]*?)\s*\[([\d,x,X,y,Y,\s]+)\]',  # [\s\S]匹配包括换行符在内的任意字符
+            text.strip(),  # 去除首尾空白
+            re.DOTALL  # 使.匹配包括换行符在内的所有字符
+        )
+        region_config = None
+        if match:
+            region_config = match.group(2)
+            text = match.group(1)
+        if not region_config:
+            return None, text
+        # 解析特殊格式
+        if region_config.startswith(('y','Y')):
+            y_part = region_config[1:].replace('，', ',').split(',')
+            y_values = list(map(int, y_part))
+            check.region = check._toY(y_values)
+        elif region_config.startswith(('x','X')):
+            x_part = region_config[1:].replace('，', ',').split(',')
+            x_values = list(map(int, x_part))
+            check.region = check._toX(x_values)
+        else:
+            # 传统格式处理
+            nums = region_config.strip('[]').split(',')
+            check.region = list(map(int, nums)) + [0]*(4-len(nums))
+        return check, text
+
+    def _toY(self, y_values):
+        """处理Y轴简写格式"""
+        if len(y_values) == 1:  # y100 → y≥100
+            return [0, 0, y_values[0], 0]
+        elif len(y_values) == 2:  # y100,200 → 100≤y≤200
+            return [0, 0, y_values[0], y_values[1]]
+        else:
+            raise ValueError("Y轴格式错误")
+
+    def _toX(self, x_values):
+        """处理X轴简写格式"""
+        if len(x_values) == 1:  # x100 → x≥100
+            return [x_values[0], 0, 0, 0]
+        elif len(x_values) == 2:  # x100,200 → 100≤x≤200
+            return [x_values[0], x_values[1], 0, 0]
+        else:
+            raise ValueError("X轴格式错误")
+
+    def _getScreenSize(self):
+        """获取屏幕尺寸"""
+        if CTools_.android:
+            return CTools_.android.getDisplayMetrics()
+        return (1080, 1920)  # 默认分辨率
+
+    def _convertValue(self, value, isX=True):
+        """转换负值为屏幕相对值"""
+        if value >= 0:
+            return value
+        screenW, screenH = self._getScreenSize()
+        base = screenW if isX else screenH
+        return base + value  # 负值相加等于减去绝对值
+
+    def isIn(self, x, y):
+        """判断坐标是否在区域内（支持负值）"""
+        # 转换负值坐标
+        x_min = self._convertValue(self.region[0], True)
+        x_max = self._convertValue(self.region[1], True)
+        y_min = self._convertValue(self.region[2], False)
+        y_max = self._convertValue(self.region[3], False)
+        
+        x_ok = True
+        if x_min > 0: x_ok = x >= x_min
+        if x_max > 0: x_ok = x_ok and x <= x_max
+        
+        y_ok = True
+        if y_min > 0: y_ok = y >= y_min
+        if y_max > 0: y_ok = y_ok and y <= y_max
+        
+        return x_ok and y_ok
+
+    def isRectIn(self, x1, y1, x2, y2):
+        """判断矩形是否在区域内"""
+        return self.isIn(x1, y1) and self.isIn(x2, y2)
 
 class CTools_:
     Tag = "CTools"
@@ -14,16 +109,18 @@ class CTools_:
     @classmethod
     def init(cls):
         if not hasattr(cls, '_init'):
-            _Log.Log_.i(f'初始化CTools模块')  # 最简洁的写法
+            log = _G.G.Log()
+            log.i(f'初始化CTools模块')  # 最简洁的写法
             try:
                 from java import jclass     
                 cls.android = jclass("cn.vove7.andro_accessibility_api.demo.script.PythonServices")
                 print(f'加载java模块成功 android={cls.android}')
                 cls._init = True
             except ModuleNotFoundError:
-                _Log.Log_.i('java模块未找到')
+                log.e('java模块未找到')
             except Exception as e:
-                _Log.Log_.ex(e, '初始化CTools模块失败')
+                log.ex(e, '初始化CTools模块失败')
+
 
     @classmethod
     def getLocalIP(cls):
@@ -78,31 +175,18 @@ class CTools_:
             if not screenInfo:
                 return None, None
             # 解析区域和文本（保持原有逻辑）
-            region = None
-            text = str            
-            # 匹配形如"金币[12,0,0,30]"的格式
-            match = re.search(r'(.*?)\[(\d+),(\d+),(\d+),(\d+)\]', str)
-            if match:
-                text = match.group(1)
-                region = [int(match.group(2)), int(match.group(3)),
-                          int(match.group(4)), int(match.group(5))]
-            
+            regioCheck, text = RegionCheck.parse(str)
             # 生成正则表达式（添加.*通配）
             regex = re.compile(f".*{text}.*")
             
             # 遍历屏幕信息，查找匹配的文本
             for item in screenInfo:
                 # 解析当前文本的边界
-                bounds = [int(x) for x in item['b'].split(',')]
-                
-                # 区域检查
-                if region is not None:
-                    if (bounds[2] < region[0] or  # 文本在区域左边
-                        bounds[0] > region[2] or  # 文本在区域右边
-                        bounds[3] < region[1] or  # 文本在区域上边
-                        bounds[1] > region[3]):   # 文本在区域下边
+                if regioCheck:
+                    bounds = [int(x) for x in item['b'].split(',')]
+                    isIn = regioCheck.isRectIn(bounds[0], bounds[2], bounds[1], bounds[3])
+                    if not isIn:
                         continue
-                
                 # 执行正则匹配
                 if regex.search(item['t']):
                     return True, item
@@ -555,6 +639,7 @@ class CTools_:
         intersection = set1 & set2
         union = set1 | set2
         return len(intersection)/len(union) if union else 0
+
 
 def requireAndroid(func):
     def wrapper(*args, **kwargs):

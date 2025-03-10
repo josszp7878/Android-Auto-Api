@@ -41,15 +41,17 @@ def serve_script(filename):
 @bp.route('/timestamps')
 def get_timestamps():
     """处理时间戳请求"""
-    _Log.Log_.i('Server', "处理时间戳请求")
+    log = _Log.Log_
+    log.i('Server', "处理时间戳请求")
     timestamps = {}
-    script_dir = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
-        'scripts'
-    )
-    if os.path.exists(script_dir):
-        for file in os.listdir(script_dir):
-            file_path = os.path.join(script_dir, file)
+    dir = log.rootDir()
+    log.i('获取目录文件版本', f"脚本目录: {dir}")
+    if os.path.exists(dir):
+        for file in os.listdir(dir):
+            # 忽略大写S开头的服务器本地文件
+            if file.startswith('S'):
+                continue
+            file_path = os.path.join(dir, file)            
             if os.path.isfile(file_path):
                 timestamps[file] = str(int(os.path.getmtime(file_path)))
     return json.dumps(timestamps)
