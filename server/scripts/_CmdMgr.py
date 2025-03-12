@@ -31,17 +31,39 @@ class _CmdMgr:
         # 如果第一个参数是函数，说明装饰器没有参数
         if callable(cmd_pattern):
             func = cmd_pattern
+            # 清除同名或同模块同函数名的旧命令
+            cls._clearOldCommand(func.__name__, func.__module__, func.__name__)
             # 使用函数名作为命令名
             cls.cmdRegistry[func.__name__] = (func, None, func.__doc__)
             return func
         
         # 如果第一个参数不是函数，说明装饰器有参数
         def decorator(func):
+            # 清除同名或同模块同函数名的旧命令
+            cls._clearOldCommand(cmd_pattern, func.__module__, func.__name__)
             # 使用命令模式作为键
             cmd_tuple = (func, param_pattern, func.__doc__)
             cls.cmdRegistry[cmd_pattern] = cmd_tuple
             return func
         return decorator
+    
+    @classmethod
+    def _clearOldCommand(cls, pattern, module_name, func_name):
+        """清除旧命令
+        
+        Args:
+            pattern: 命令模式
+            module_name: 模块名
+            func_name: 函数名
+        """
+        # 清除同名命令
+        if pattern in cls.cmdRegistry:
+            del cls.cmdRegistry[pattern]
+        
+        # 清除同模块同函数名的命令
+        for p, (f, _, _) in list(cls.cmdRegistry.items()):
+            if f.__module__ == module_name and f.__name__ == func_name:
+                del cls.cmdRegistry[p]
     
     @classmethod
     def clear(cls):
@@ -362,28 +384,28 @@ class _CmdMgr:
             """重新加载所有命令"""
             return cls._reset()
         
-        @cls.reg(r"加载", r"(?P<module_name>\S+)")
-        def reload(module_name=None):
+        @cls.reg(r"加载", r"(?P<moduleName>\S+)")
+        def reload(moduleName=None):
             """重新加载模块
             用法: 重载 [模块名]
             如果不指定模块名，则重新加载所有命令
             """
-            ret = False
-            if not module_name:
+            g = _G._G_
+            log = g.Log()
+            
+            if not moduleName:
                 return f"e->需要模块名"
-            # _Log.Log_.d(f'&&&& _Log.Log_.IsServer()={_Log.Log_.IsServer()}')
-            if not _Log.Log_.IsServer():
-                from CMain import runFromAndroid
-                # _Log.Log_.d(f'ddddd runFromAndroid={runFromAndroid}')
-                if runFromAndroid:
-                    from CFileServer import fileServer
-                    fileServer.download(f'{module_name}.py', lambda success: cls._reloadModule(module_name))
-            # 重新加载指定模块
-            ret = cls._reloadModule(module_name)
-            if ret:
-                return f"i->重载{module_name}成功"
+            
+            # 检查是否需要下载最新版本
+            moduleFile = f"scripts/{moduleName}.py"
+            if g.CFileServer():
+                # 先下载最新版本，然后在回调中重新加载
+                g.CFileServer().download(moduleFile, lambda success: cls._reloadModule(moduleName))
+                return f"i->正在下载并重载{moduleName}..."
             else:
-                return f"e->重载{module_name}失败"
+                # 如果没有文件服务器，直接重载
+                ret = cls._reloadModule(moduleName)
+                return f"i->重载{moduleName}{'成功' if ret else '失败'}"
         
         @cls.reg(r"命令列表")
         def cmdList():
