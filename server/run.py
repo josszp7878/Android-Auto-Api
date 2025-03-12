@@ -6,7 +6,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'app'))
 sys.path.append(os.path.join(os.path.dirname(__file__), 'scripts'))
 from config import config
 import _Log
-from app.Database import Database
+from Database import Database
 
 def signal_handler(sig, frame):
     """处理 Ctrl+C 信号"""

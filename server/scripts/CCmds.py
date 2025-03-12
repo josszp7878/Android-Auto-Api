@@ -40,6 +40,7 @@ class CCmds:
         def info():
             """获取设备信息"""
             try:
+                _Log.Log_.i("获取设备信息ddd")
                 device = CDevice.instance()
                 _Log.Log_.i(f"获取设备信息: {device}")
                 return {

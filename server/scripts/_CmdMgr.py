@@ -6,7 +6,7 @@ import importlib
 from typing import Dict, Tuple, Callable, Optional, List
 import os
 import json
-
+import _G
 
 class _CmdMgr:
     """命令管理器"""
@@ -295,19 +295,21 @@ class _CmdMgr:
         # _Log.Log_.d(f"扫描脚本目录: {dir}")
         if not os.path.exists(dir):
             return
+        isServer = _Log.Log_.IsServer()
         for file in os.listdir(dir):
             if file.endswith('.py') and file != '__init__.py':
-                if func is None or func(file):
-                    module = file[:-3]  # 去掉.py后缀
-                    modules.append(module)
+                commonFile = file.startswith('_')
+                clientFile = file.startswith('C')
+                if commonFile or (isServer and not clientFile) or (not isServer and clientFile):
+                    if func is None or func(file):
+                        module = file[:-3]  # 去掉.py后缀
+                        modules.append(module)
 
     @classmethod
     def scanModules(cls, dir: str):
         modules = []
         cls._scanModules(dir, modules)
         # print(f"扫描模块: {modules} isServer={_Log.Log_.IsServer()}")
-        if _Log.Log_.IsServer():
-            cls._scanModules(os.path.join(dir, "../scripts"), modules, lambda file: file.startswith("_"))
         return modules
 
 
