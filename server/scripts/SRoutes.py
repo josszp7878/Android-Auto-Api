@@ -1,6 +1,6 @@
 from flask import Blueprint, send_file, render_template, jsonify, request, current_app, send_from_directory
 from app import app
-import _Log
+import _G
 from SDeviceMgr import deviceMgr
 import os
 import json
@@ -12,7 +12,8 @@ bp = Blueprint('main', __name__)
 @bp.route('/')
 def index():
     """首页路由，返回设备列表"""
-    _Log.Log_.i('Server', '访问首页')
+    log = _G._G_.Log()
+    log.i('Server', '访问首页')
     devices = deviceMgr.to_dict()
     curDeviceID = deviceMgr.curDeviceID
     return render_template('index.html', initial_devices=devices, curDeviceID=curDeviceID)
@@ -27,33 +28,38 @@ def device(device_id):
     return render_template('device.html', device_id=device_id, device=device.to_dict())
 
 
-@bp.route('/scripts/<path:filename>')
-def serve_script(filename):
-    """处理脚本文件请求"""
-    # _Log.Log_.i('Server', f'处理脚本文件请求: {filename}')
-    script_dir = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
-        'scripts'
-    )
-    return send_file(os.path.join(script_dir, filename))
+@bp.route('/file/<path:filename>')
+def serve_file(filename):
+    """处理文件请求"""
+    g = _G._G_
+    log = g.Log()
+    file_path = os.path.join(g.rootDir(), filename)
+    log.i('Server', f'处理文件请求: {file_path}')
+    return send_file(file_path)
 
 
 @bp.route('/timestamps')
 def get_timestamps():
     """处理时间戳请求"""
-    log = _Log.Log_
+    g = _G._G_
+    log = g.Log()
     log.i('Server', "处理时间戳请求")
     timestamps = {}
-    dir = log.rootDir()
+    dir = g.rootDir()
     log.i('获取目录文件版本', f"脚本目录: {dir}")
-    if os.path.exists(dir):
-        for file in os.listdir(dir):
-            # 忽略大写S开头的服务器本地文件
-            if file.startswith('S'):
-                continue
-            file_path = os.path.join(dir, file)            
-            if os.path.isfile(file_path):
-                timestamps[file] = str(int(os.path.getmtime(file_path)))
+    def getVersion(rootDir, relativeDir, timestamps):
+        """获取目录下所有文件的时间戳"""
+        dir = os.path.join(rootDir, relativeDir)
+        if os.path.exists(dir):
+            for file in os.listdir(dir):
+                # 忽略大写S开头的服务器本地文件
+                if file.startswith('S'):
+                    continue
+                file_path = os.path.join(dir, file)  
+                if os.path.isfile(file_path):
+                    timestamps[f"{relativeDir}/{file}"] = str(int(os.path.getmtime(file_path)))
+    getVersion(dir, 'scripts', timestamps)
+    getVersion(dir, 'config', timestamps)
     return json.dumps(timestamps)
 
 

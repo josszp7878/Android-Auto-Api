@@ -1,5 +1,5 @@
 from datetime import datetime
-from Database import db
+from SDatabase import db
 from contextlib import contextmanager
 from sqlalchemy.exc import SQLAlchemyError
 import _Log
@@ -82,7 +82,7 @@ def session_scope():
         db.session.commit()
     except SQLAlchemyError as e:
         db.session.rollback()
-        _Log.Log_.ex(e, "数据库事务执行失败")
+        _Log._Log_.ex(e, "数据库事务执行失败")
         raise
     finally:
         db.session.remove()
