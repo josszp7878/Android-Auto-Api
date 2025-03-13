@@ -21,6 +21,8 @@ class CFileServer_:
             try:
                 curVersions = cls.currentVersions()
                 remoteVersions = cls.remoteVersions()
+                # log.d(f"当前版本: {curVersions}")
+                # log.d(f"远程版本: {remoteVersions}")
                 # 遍历远程脚本的版本信息
                 for filename, remoteVersion in remoteVersions.items():
                     currentVersion = curVersions.get(filename, "0")
@@ -36,36 +38,6 @@ class CFileServer_:
             callback(success)
         Thread(target=run).start()
 
-    @classmethod
-    def toRelativePath(cls, filename):
-        """查找文件
-        如果filename不带后缀且不包含路径，则在根目录及子目录下查找匹配的文件
-        Args:
-            filename: 文件名
-        Returns:
-            找到的文件相对路径，未找到则返回None
-        """
-        g = _G._G_
-        log = g.Log()
-        dir = g.scriptDir()
-        # 检查文件名是否包含路径或后缀
-        if os.path.basename(filename) == filename and '.' not in filename:
-            log.d(f"查找文件: {filename}")
-            # 在根目录及子目录下查找匹配的文件
-            for root, dirs, files in os.walk(dir):
-                for file in files:
-                    # 忽略大小写比较文件名前缀
-                    name, ext = os.path.splitext(file)
-                    if name.lower() == filename.lower():
-                        # 返回相对于根目录的路径
-                        relPath = os.path.relpath(os.path.join(root, file), dir)
-                        log.d(f"找到匹配文件: {relPath}")
-                        return relPath
-            log.d(f"未找到匹配文件: {filename}")
-            return None
-        else:
-            # 如果包含路径或后缀，直接返回
-            return filename
         
     @classmethod
     def download(cls, filename, onComplete=None):
@@ -78,6 +50,7 @@ class CFileServer_:
         log = g.Log()
         try:
             url = f"{cls.serverUrl}/file/{filename}"
+            log.d(f"下载文件...: {url}")
             response = requests.get(url, timeout=8)
             response.raise_for_status()
             scriptFile = os.path.join(g.rootDir(), filename)
@@ -86,7 +59,13 @@ class CFileServer_:
             
             with open(scriptFile, 'w', newline = '', encoding='utf-8') as f:
                 f.write(response.text)
-            log.d(f"下载文件完成d: {scriptFile} (大小: {os.path.getsize(scriptFile)} bytes)")
+            log.d(f"下载文件完成: {scriptFile} (大小: {os.path.getsize(scriptFile)} bytes)")
+            
+            # 如果下载的是脚本文件，清除脚本名称缓存
+            if filename.startswith('scripts/') and filename.endswith('.py'):
+                g.clearScriptNamesCache()
+                log.d(f"脚本文件已更新，清除脚本名称缓存")
+            
             if onComplete:
                 onComplete(True)
             return True

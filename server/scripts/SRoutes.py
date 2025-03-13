@@ -46,7 +46,7 @@ def get_timestamps():
     log.i('Server', "处理时间戳请求")
     timestamps = {}
     dir = g.rootDir()
-    log.i('获取目录文件版本', f"脚本目录: {dir}")
+    log.i(f'获取目录文件版本:{dir}')
     def getVersion(rootDir, relativeDir, timestamps):
         """获取目录下所有文件的时间戳"""
         dir = os.path.join(rootDir, relativeDir)

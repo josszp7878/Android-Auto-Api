@@ -3,7 +3,7 @@
 """
 import threading
 import os
-from typing import TYPE_CHECKING, List, Callable
+from typing import TYPE_CHECKING, List, Callable, Optional, Union
 
 if TYPE_CHECKING:
     from CFileServer import CFileServer_
@@ -21,6 +21,14 @@ class _G_:
     _dir = None
     _store = {}
     _isServer = None    
+    log = None
+    _scriptNamesCache = None  # 添加脚本名称缓存
+
+    @classmethod
+    def init(cls):
+        import _Log
+        cls.log = _Log._Log_()
+
     @classmethod
     def IsServer(cls):
         """是否是服务器端"""    
@@ -135,7 +143,7 @@ class _G_:
                 if method and callable(method):
                     return method(*args, **kwargs)
         except Exception as e:
-            cls.Log().ex(e, f"获取类方法失败: {methodName}")
+            cls.log.ex(e, f"获取类方法失败: {methodName}")
 
     @classmethod
     def getClass(cls, moduleName):
@@ -145,61 +153,137 @@ class _G_:
             class_name: 类名（如'Log_'）
             store_key: 存储键（默认使用类名）
         """
-        #一定不要使用cls.Log()，否则会陷入死循环
+        moduleName = cls.getScriptName(moduleName)
+        if not moduleName:
+            return None
+        # 从完整路径中提取文件名（不含扩展名）
         className = cls.getClassName(moduleName)
         if className not in cls._store:
-            import _Log
-            log = _Log._Log_
             try:
                 module = __import__(moduleName, fromlist=[className])
                 klass = None
                 try:
                     klass = getattr(module, className)
                 except Exception as e:
-                    log.w(e, f"获取类失败: {className}")
+                    cls.log.w(e, f"获取类失败: {className}")
                     return None
                 cls._store[className] = klass
             except Exception as e:
-                log.ex(e, f"导入{moduleName}失败")
+                cls.log.ex(e, f"导入{moduleName}失败")
                 return None
         return cls._store[className]
 
+    @classmethod
+    def getScriptName(cls, fileName: str):
+        """获取脚本名"""
+        scripts = cls.getScriptNames()
+        if scripts:
+            return cls._findFileInList(fileName, scripts)
+        return None
 
     @classmethod
-    def getFileNames(cls, dir: str, ext: str = '.py', func: Callable[[str], bool] = None):
+    def clearScriptNamesCache(cls):
+        """清除脚本名称缓存"""
+        cls._scriptNamesCache = None
+        cls.log.d("脚本名称缓存已清除")
+
+    @classmethod
+    def getScriptNames(cls):
         """扫描指定目录下的Python模块
         
-        根据当前环境(服务器/客户端)扫描对应前缀的Python文件，
-        并将符合条件的模块名添加到modules列表中
+       根据当前环境(服务器/客户端)扫描对应前缀的Python文件，
+       并将符合条件的模块名添加到modules列表中
+       
+       Returns:
+           List[str]: 符合条件的模块名列表
+       """
+        # 如果有缓存，直接返回缓存
+        if cls._scriptNamesCache is not None:
+            return cls._scriptNamesCache
         
-        Args:
-            dir: 要扫描的目录路径
-            modules: 用于存储找到的模块名的列表
-            func: 可选的过滤函数，接受文件名并返回布尔值
-        """
+        files = cls.getAllFiles('scripts')
+        ext = '.py'
         fileNames: List[str] = []
-        log = cls.Log()
-        dir = f'{cls.rootDir()}/{dir}'
         try:
             prefix = 'S' if cls.IsServer() else 'C'
-            for file in os.listdir(dir):
+            for file in files:
                 if ext and not file.endswith(ext):
                     continue
                 firstChar = file[0]
                 if firstChar != prefix and firstChar != '_':
                     continue
-                if func is None or func(file):
-                    module = file[:-3]  # 去掉.py后缀
-                    fileNames.append(module)
+                module = file[:-3]  # 去掉.py后缀
+                fileNames.append(module)
         except Exception as e:
-            log.ex(e, "扫描脚本目录失败")
+            cls.log.ex(e, "扫描脚本目录失败")
+        
+        # 缓存结果
+        cls._scriptNamesCache = fileNames
+        
         return fileNames
+    
 
     @classmethod
-    def findFileName(cls, fileName: str, dir: str = None):
-        """查找文件名，保证忽略文件名的大小写，返回实际的文件名"""
-        fileNames = cls.getFileNames(dir)
-        for file in fileNames:
-            if file.lower() == fileName.lower():
+    def findFileName(cls, fileName: str, subDir: Optional[str] = None) -> Optional[str]:
+        """在指定目录下查找文件
+        
+        Args:
+            fileName: 要查找的文件名（不含扩展名）
+            subDir: 子目录名，如果为None则在rootDir下查找
+            
+        Returns:
+            找到的文件名（不含扩展名），未找到则返回None
+        """
+        files = cls.getAllFiles(subDir)
+        return cls._findFileInList(fileName, files)
+    
+    @classmethod
+    def _findFileInList(cls, fileName: str, files: List[str]) -> Optional[str]:
+        """在文件列表中查找匹配的文件名，忽略大小写，支持带扩展名的文件名
+        Args:
+            fileName: 要查找的文件名
+            files: 文件列表
+            
+        Returns:
+            找到的文件名，未找到则返回None
+        """
+        fileNameLower = fileName.lower()
+        for file in files:
+            # 忽略大小写比较文件名
+            fileLower = file.lower()
+            if fileNameLower in fileLower:
                 return file
         return None
+    
+    
+    @classmethod
+    def getAllFiles(cls, subDir: Optional[str] = None) -> List[str]:
+        """获取指定目录下所有文件
+        
+        Args:
+            subDir: 子目录名，如果为None则获取rootDir下所有文件
+            
+        Returns:
+            文件名列表（不含扩展名）
+        """
+        # 确定搜索根目录
+        if subDir:
+            rootDir = os.path.join(cls.rootDir(), subDir)
+        else:
+            rootDir = cls.rootDir()
+            
+        cls.log.d(f"获取目录 {rootDir} 下的所有文件")
+        
+        # 存储所有文件
+        all_files = []        
+        # 递归搜索目录
+        for root, _, files in os.walk(rootDir):
+            for file in files:
+                # 计算相对路径
+                relPath = os.path.relpath(os.path.join(root, file), rootDir)
+                all_files.append(relPath)
+        
+        return all_files
+
+
+_G_.init()

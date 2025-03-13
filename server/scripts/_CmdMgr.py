@@ -299,9 +299,7 @@ class _CmdMgr_:
             # 1. 清除所有命令注册
             cls.clear()            
             # 3. 扫描脚本目录，找到所有包含registerCommands方法的模块
-            modules = g.getFileNames('scripts', '.py')
-            # 4. 加载这些模块并执行它们的命令注册函数
-            # _Log._Log_.d(f"加载模块: {modules}")
+            modules = g.getScriptNames()
             success_count = 0
             for module in modules:
                 try:
@@ -347,7 +345,7 @@ class _CmdMgr_:
             g = _G._G_
             log = g.Log()
             log.i(f"重新加载模块: {moduleName}")
-            moduleName = g.findFileName(moduleName, 'scripts')
+            moduleName = g.getScriptName(moduleName)
             if not moduleName:
                 return "e->找不到模块"
             # 检查是否需要下载最新版本

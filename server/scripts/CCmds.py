@@ -58,8 +58,8 @@ class CCmds_:
         @regCmd(r"时间")
         def date():
             """获取当前时间""" 
-            log = _G._G_.Log()
-            log.i("获取当前时dffdd")
+            # log = _G._G_.Log()
+            # log.i("获取当前时dffdd")
             return str(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         
         # 注册状态命令
@@ -396,11 +396,11 @@ class CCmds_:
                     else:
                         log.w(f"文件[{fileName}]下载失败")
                 if fileName:
-                    log.i(f"下载文件: {fileName}")
-                    existFileName = g.findFileName(fileName, 'scripts')
+                    existFileName = g.findFileName(fileName)
                     if existFileName:
                         fileName = existFileName
-                    FS.download(f'scripts/{fileName}.py', callback)    
+                    # log.i(f"下载文件: {fileName}")
+                    FS.download(fileName, callback)    
                 else:
                     log.i("下载所有文件")
                     FS.update(callback)
@@ -408,5 +408,21 @@ class CCmds_:
             except Exception as e:
                 log.ex(e, '下载操作异常')
                 return False
+
+        @regCmd('获取文件', r"(?P<fileName>.+)")
+        def getFileName(fileName):
+            """检查文件是否存在
+            Args:
+                fileName: 要检查的文件名
+            Returns:
+                str: 文件是否存在的结果
+            """
+            g = _G._G_
+            log = g.Log()
+            try:
+                return g.findFileName(fileName)
+            except Exception as e:
+                log.ex(e, f'检查文件 {fileName} 是否存在时出错')
+                return f"e->{str(e)}"
 
 
