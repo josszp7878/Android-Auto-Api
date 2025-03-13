@@ -77,6 +77,27 @@ class ToolBarService : LifecycleService() {
             return _deviceName!!
         }
         set(value) {
+            // 当设备名称更新时，尝试同步脚本文件
+            if (value != _deviceName && value.isNotEmpty()) {
+                try {
+                    // 在后台线程中执行文件同步
+                    Thread {
+                        try {
+                            scriptEngine.syncFiles(value)
+                            Handler(Looper.getMainLooper()).post {
+                                Toast.makeText(this, "脚本文件同步中...", Toast.LENGTH_SHORT).show()
+                            }
+                        } catch (e: Exception) {
+                            Timber.e(e, "同步脚本文件失败")
+                            Handler(Looper.getMainLooper()).post {
+                                Toast.makeText(this, "同步脚本文件失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }.start()
+                } catch (e: Exception) {
+                    Timber.e(e, "启动同步线程失败")
+                }
+            }
             _deviceName = value
             getPrefs().edit().putString(DEVICE_NAME_KEY, value).apply()
         }
@@ -320,7 +341,9 @@ class ToolBarService : LifecycleService() {
         binding.root.findViewById<Button>(R.id.saveButton).setOnClickListener {
             serverIP = binding.serverNameInput.text.toString()
             deviceName = binding.deviceNameInput.text.toString()
-            windowManager.removeView(dialogView) // 移除悬浮窗口
+            windowManager.removeView(dialogView)
+            // 保存后立即同步
+            scriptEngine.syncFiles(serverIP)
         }
 
         // 添加取消按钮逻辑

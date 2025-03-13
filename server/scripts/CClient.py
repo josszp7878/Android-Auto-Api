@@ -1,121 +1,145 @@
 import time
-import _Log
-from CFileServer import fileServer
-import CTools
-import CMain  # 直接导入整个模块
+import _G
 
-class CClient:
-    """客户端管理类"""
-    _instance = None
-    
-    def __new__(cls):
-        if not cls._instance:
-            cls._instance = super(CClient, cls).__new__(cls)
-        return cls._instance
-    
-    def __init__(self):
-        if not hasattr(self, 'initialized'):
-            self.deviceID = None
-            self.server = None
-            self.device = None
-            self.initialized = False
+class CClient_:
+    """客户端管理类（静态方法）"""
+    _init = False
+    deviceID = None
+    server = None
+    device = None
+    fromAndroid = False
 
-    def emit(self, event, data=None):
+
+    @classmethod
+    def Clone(cls, clone):
+        try:
+            """克隆实例"""
+            g = _G._G_
+            cls.fromAndroid = clone.fromAndroid
+            cls.deviceID = clone.deviceID
+            cls.server = clone.server
+            cls.device = clone.device
+            g.Log().d("CClient克隆完成")
+            return True
+        except Exception as e:
+            g.Log().ex(e, "克隆失败")
+            return False
+
+    @classmethod
+    def emit(cls, event, data=None):
         """发送事件到服务器
         Args:
             event: 事件名称
             data: 事件数据
         """
+        g = _G._G_
+        log = g.Log()
         try:
-            if self.device and self.device.connected:
-                self.device.emit(event, data)
+            if cls.device and cls.device.connected:
+                cls.device.emit(event, data)
             else:
-                _Log.Log_.e("设备未连接，无法发送事件")
+                log.e("设备未连接，无法发送事件")
         except Exception as e:
-            _Log.Log_.ex(e, "发送事件失败")
+            log.ex(e, "发送事件失败")
 
-    def Begin(self, deviceID=None, server=None):  
-        print(f"初始化客户端: deviceID={deviceID}, server={server}")      
-        try:
-            tools = CTools.CTools_()
-            server = server or tools.getLocalIP()
-            print(f"获取本机IP: {server}")
-            server_url = f"http://{server}:{tools.port}"
-            # 初始化设备连接
-            from CDevice import CDevice
-            self.deviceID = deviceID or 'TEST1'
-            self.server = server
-            self.device = CDevice(self.deviceID)       
-            # 注册所有命令
-            from _CmdMgr import _CmdMgr
-            _CmdMgr.regAllCmds()     
-            # 等待连接
-            self.waitting = True
-            def onConnected(ok):
-                self.waitting = False
-                if not ok:
-                    tools.toast("服务器连接失败，请检查服务器IP地址和相关的网络设置是否正确")
-                else:
-                    print("设备连接服务器成功")
+    @classmethod
+    def updateFiles(cls):
+        """更新脚本文件"""
+        g = _G._G_
+        # log = _G._G_.Log()
+        if cls.fromAndroid:  # 使用全局变量判断
+            # 更新脚本
+            waitting = True
 
-            self.device.connect(server_url, onConnected)
-            
-            # 等待连接完成
-            timeout = 30  # 30秒超时
-            start_time = time.time()
-            while self.waitting:
+            def onUpdated(ok):
+                nonlocal waitting
+                waitting = False
+            g.getClass('CFileServer').update(onUpdated)
+            # 等待脚本更新完成
+            while waitting:
                 try:
-                    if time.time() - start_time > timeout:
-                        print("连接超时")
-                        break
                     time.sleep(1)
                     print(".", end="", flush=True)
-                except Exception as e:
-                    print(f"等待连接时发生错误: {str(e)}")
+                except Exception:
                     break
-            if not self.device.connected:
-                tools.toast("无法连接到服务器，请检查网络和服务器地址")
-                return
-            fileServer.serverUrl = server_url       
-            # _Log.Log_.i(f"客户端运行中222: runFromAndroid={CMain.runFromAndroid}")  # 使用模块级别访问
-            if not CMain.runFromAndroid:  # 使用模块级别访问
-                print("客户端运行中sss... 按Ctrl+C退出")    
-                while True:
-                    try:
-                        time.sleep(0.1)
-                        cmd_input = input(f"{self.deviceID}> ").strip()
-                        if cmd_input:
-                            try:
-                                result,_ = _CmdMgr.do(cmd_input)
-                                if result:
-                                    print(result)
-                            except Exception as e:
-                                _Log.Log_.ex(e, '执行命令出错')    
-                                break
-                    except KeyboardInterrupt:
-                        _Log.Log_.i('\n正在退出...') 
-                        break  
-                self.End()
-            else:
-                while True:
-                    time.sleep(100)
+
+    @classmethod
+    def Begin(cls, deviceID=None, server=None, fromAndroid=False):  
+        """初始化客户端"""
+        g = _G._G_
+        log = g.Log()
+        cls.fromAndroid = fromAndroid
+        g.setIsServer(False)
+        log.d(f"初始化客户端: deviceID={deviceID}, server={server}, fromAndroid={fromAndroid}")      
+        try:
+            tools = g.CTools()
+            server = server or tools.getLocalIP()
+            server_url = f"http://{server}:{tools.port}"
+            
+            from CDevice import CDevice_
+            cls.deviceID = deviceID or 'TEST1'
+            cls.server = server
+            cls.device = CDevice_(cls.deviceID)
+            g.CmdMgr().regAllCmds()
+            cls._connectServer(server_url, tools)
+            g.CFileServer().serverUrl = server_url
+            if not cls.fromAndroid:
+                cls._runConsole()
+
         except Exception as e:
-            _Log.Log_.ex(e, '初始化失败')
+            log.ex(e, '初始化失败')
 
-    def End(self):
+    @classmethod
+    def _connectServer(cls, server_url, tools):
+        """连接服务器核心逻辑"""
+        waitting = True
+        def onConnected(ok):
+            nonlocal waitting
+            waitting = False
+            if not ok:
+                tools.toast("服务器连接失败")
+        cls.device.connect(server_url, onConnected)
+        timeout = 30
+        start_time = time.time()
+        while waitting:
+            if time.time() - start_time > timeout:
+                print("连接超时")
+                break
+            time.sleep(1)
+            print(".", end="", flush=True)
+
+        if not cls.device.connected:
+            tools.toast("无法连接到服务器")
+
+    @classmethod
+    def _runConsole(cls):
+        g = _G._G_
+        log = g.Log()
+        """运行命令行交互"""
+        print("客户端运行中... 按Ctrl+C退出")    
+        while True:
+            try:
+                cmd_input = input(f"{cls.deviceID}> ").strip()
+                if cmd_input:
+                    result,_ = g.getClass('_CmdMgr').do(cmd_input)
+                    if result:
+                        print(result)
+            except KeyboardInterrupt:
+                log.i('\n正在退出...') 
+                break  
+            except Exception as e:
+                log.ex(e, '执行命令出错')
+        cls.End()
+
+    @classmethod
+    def End(cls):
         """清理函数"""
-        print("End")
-        if self.device:
-            self.device.uninit()
-        self.initialized = False
-
+        log = _G._G_.Log()
+        if cls.device:
+            cls.device.uninit()
         try:
             from CTaskMgr import taskMgr
-            # 停止所有任务
             taskMgr.uninit()
-            _Log.Log_.i("所有任务已停止")
+            log.i("所有任务已停止")
         except Exception as e:
-            _Log.Log_.ex(e, "客户端结束失败")
-
-# 创建全局单例实例
-client = CClient()
+            log.ex(e, "客户端结束失败")

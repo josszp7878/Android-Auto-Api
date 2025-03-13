@@ -1,13 +1,13 @@
 from typing import Optional, List
-from STask import STask
+from STask import STask_
 import _Log
 from datetime import datetime, date, time
-from Database import db  # 导入单例的db实例
-from _Tools import TaskState, _Tools
+from SDatabase import db  # 导入单例的db实例
+from _Tools import TaskState, _Tools_
 from contextlib import contextmanager
 from sqlalchemy.exc import SQLAlchemyError
 
-class STaskMgr:
+class STaskMgr_:
     """设备任务管理器"""
     
     def __init__(self, device):
@@ -18,11 +18,11 @@ class STaskMgr:
         self._currentApp = None  # 当前应用名称
 
     @property
-    def currentTask(self) -> Optional[STask]:
+    def currentTask(self) -> Optional[STask_]:
         """获取当前任务"""
         return self._current_task
     @currentTask.setter
-    def currentTask(self, task: Optional[STask]):
+    def currentTask(self, task: Optional[STask_]):
         """设置当前任务"""
         try:
             if task is None:
@@ -36,16 +36,16 @@ class STaskMgr:
                     self._current_task = next_task            
             else:
                 if task.completed:
-                    _Log.Log_.e(f"任务 {task.taskName} 已完成，无法设置为当前任务")
+                    _Log._Log_.e(f"任务 {task.taskName} 已完成，无法设置为当前任务")
                     return
                 # 如果任务未完成，直接设置
                 self._current_task = task            
             # 刷新任务状态
             if self._current_task:
-                STask.refresh(self._current_task)
+                STask_.refresh(self._current_task)
             
         except Exception as e:
-            _Log.Log_.ex(e, "设置当前任务失败")
+            _Log._Log_.ex(e, "设置当前任务失败")
     
     @property
     def date(self):
@@ -69,7 +69,7 @@ class STaskMgr:
         """设置当前应用名称"""
         if value != self._currentApp:
             self._currentApp = value
-            _Log.Log_.i(f"当前应用切换为: {value}")
+            _Log._Log_.i(f"当前应用切换为: {value}")
 
     @classmethod
     def getTodayScore(cls):
@@ -78,32 +78,32 @@ class STaskMgr:
             today_start = datetime.combine(datetime.now().date(), time.min)
             today_end = datetime.combine(datetime.now().date(), time.max)
             
-            today_tasks = db.session.query(STask).filter(
-                STask.time.between(today_start, today_end)
+            today_tasks = db.session.query(STask_).filter(
+                STask_.time.between(today_start, today_end)
             ).all()
             
             return sum(task.score for task in today_tasks if task.score)
             
         except Exception as e:
-            _Log.Log_.ex(e, '获取今日任务得分失败')
+            _Log._Log_.ex(e, '获取今日任务得分失败')
             return 0
 
     def init(self,device_id:str):
-        # _Log.Log_.i(f"初始化任务管理器########: {device_id}")
+        # _Log._Log_.i(f"初始化任务管理器########: {device_id}")
         self._device.id = device_id
 
-    def _getTasks(self, appName: str, taskName: str, notCompleted: bool = False) -> List[STask]:
+    def _getTasks(self, appName: str, taskName: str, notCompleted: bool = False) -> List[STask_]:
         try:
-            taskId = _Tools.toTaskId(appName, taskName)
+            taskId = _Tools_.toTaskId(appName, taskName)
             tasks = [t for t in self.tasks if t.taskId == taskId]
             if notCompleted:
                 tasks = [t for t in tasks if not t.completed]
             return tasks
         except Exception as e:
-            _Log.Log_.ex(e, f'获取任务失败: {taskId}')
+            _Log._Log_.ex(e, f'获取任务失败: {taskId}')
             return []
 
-    def getRunningTask(self, appName: str, taskName: str, create: bool = False) -> Optional[STask]:
+    def getRunningTask(self, appName: str, taskName: str, create: bool = False) -> Optional[STask_]:
         """获取运行中的任务,如果没有且create=True则创建新任务
         同一个应用的同名任务可以有多个实例
         """
@@ -124,15 +124,15 @@ class STaskMgr:
                 return running_tasks[-1]
                 
             # 从数据库查询该应用下的运行中任务
-            tasks = STask.query.filter(
-                STask.deviceId == self._device.id,
-                STask.appName == appName,
-                STask.taskName == taskName,
-                STask.state.in_([
+            tasks = STask_.query.filter(
+                STask_.deviceId == self._device.id,
+                STask_.appName == appName,
+                STask_.taskName == taskName,
+                STask_.state.in_([
                     TaskState.RUNNING.value,
                     TaskState.PAUSED.value
                 ])
-            ).order_by(STask.time.desc()).all()
+            ).order_by(STask_.time.desc()).all()
             
             if tasks:
                 # 添加到缓存并返回最新的任务
@@ -143,17 +143,17 @@ class STaskMgr:
                 
             # 没找到任务且需要创建
             if create:
-                task = STask(self._device.id, appName, taskName)
+                task = STask_(self._device.id, appName, taskName)
                 db.session.add(task)
                 db.session.commit()
                 self.tasks.append(task)
-                _Log.Log_.i(f"设备 {self._device.id} 创建新任务: {appName}/{taskName}")
+                _Log._Log_.i(f"设备 {self._device.id} 创建新任务: {appName}/{taskName}")
                 return task
             
             return None
             
         except Exception as e:
-            _Log.Log_.ex(e, f'获取任务失败: {appName}/{taskName}')
+            _Log._Log_.ex(e, f'获取任务失败: {appName}/{taskName}')
             return None
         
     def getTaskStats(self) -> dict:
@@ -167,10 +167,10 @@ class STaskMgr:
                 'unfinished': unfinished
             }
         except Exception as e:
-            _Log.Log_.ex(e, '获取任务统计失败')
+            _Log._Log_.ex(e, '获取任务统计失败')
             return {'date': self._date.strftime('%Y-%m-%d'), 'total': 0, 'unfinished': 0}
 
-    def startTask(self, task: STask) -> bool:
+    def startTask(self, task: STask_) -> bool:
         """启动任务"""
         try:
             # 获取运行中的任务
@@ -181,7 +181,7 @@ class STaskMgr:
                 return True
             return False
         except Exception as e:
-            _Log.Log_.ex(e, f'启动任务失败: {appName}/{taskName}')
+            _Log._Log_.ex(e, f'启动任务失败: {appName}/{taskName}')
             return False
 
     def pauseTask(self, appName: str, taskName: str) -> bool:
@@ -192,10 +192,10 @@ class STaskMgr:
                 task.pause()
                 return True
             else:
-                _Log.Log_.e(f'任务不存在: {appName}/{taskName}')
+                _Log._Log_.e(f'任务不存在: {appName}/{taskName}')
                 return False
         except Exception as e:
-            _Log.Log_.ex(e, f'暂停任务失败: {appName}/{taskName}')
+            _Log._Log_.ex(e, f'暂停任务失败: {appName}/{taskName}')
             return False
         
     def endTask(self, appName: str, taskName: str, score: int, result: str) -> bool:
@@ -211,10 +211,10 @@ class STaskMgr:
                     self.currentTask = None
                 return True
             else:
-                _Log.Log_.e(f'任务不存在: {appName}/{taskName}')
+                _Log._Log_.e(f'任务不存在: {appName}/{taskName}')
                 return False
         except Exception as e:
-            _Log.Log_.ex(e, f'结束任务失败: {appName}/{taskName}')
+            _Log._Log_.ex(e, f'结束任务失败: {appName}/{taskName}')
             return False
     def stopTask(self, appName: str, taskName: str) -> bool:
         """停止任务"""
@@ -224,10 +224,10 @@ class STaskMgr:
                 task.stop()
                 return True
             else:
-                _Log.Log_.e(f'任务不存在: {appName}/{taskName}')
+                _Log._Log_.e(f'任务不存在: {appName}/{taskName}')
                 return False
         except Exception as e:
-            _Log.Log_.ex(e, f'停止任务失败: {appName}/{taskName}')
+            _Log._Log_.ex(e, f'停止任务失败: {appName}/{taskName}')
             return False
 
     def cancelTask(self, appName: str, taskName: str) -> bool:
@@ -241,10 +241,10 @@ class STaskMgr:
                     self.currentTask = None
                 return True
             else:
-                _Log.Log_.e(f'任务不存在: {appName}/{taskName}')
+                _Log._Log_.e(f'任务不存在: {appName}/{taskName}')
                 return False
         except Exception as e:
-            _Log.Log_.ex(e, f'取消任务失败: {appName}/{taskName}')
+            _Log._Log_.ex(e, f'取消任务失败: {appName}/{taskName}')
             return False
         
     def updateTask(self, appName: str, taskName: str, progress: int) -> bool:
@@ -255,10 +255,10 @@ class STaskMgr:
                 task.update(progress)
                 return True
             else:
-                _Log.Log_.e(f'任务不存在: {appName}/{taskName}')
+                _Log._Log_.e(f'任务不存在: {appName}/{taskName}')
                 return False
         except Exception as e:
-            _Log.Log_.ex(e, f'更新任务进度失败: {appName}/{taskName}/{progress}')
+            _Log._Log_.ex(e, f'更新任务进度失败: {appName}/{taskName}/{progress}')
             return False
 
 @contextmanager
@@ -269,7 +269,7 @@ def session_scope():
         db.session.commit()
     except SQLAlchemyError as e:
         db.session.rollback()
-        _Log.Log_.ex(e, "数据库事务执行失败")
+        _Log._Log_.ex(e, "数据库事务执行失败")
         raise
     finally:
         db.session.remove()

@@ -1,4 +1,4 @@
-class CPage:
+class CPage_:
     def __init__(self, name, rules, parent=None):
         self.name = name
         # 直接存储原始规则字符串

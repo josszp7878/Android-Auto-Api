@@ -1,18 +1,18 @@
 from __future__ import annotations
-from cmath import log
-from typing import Pattern, List
 import time
-import _Log
 import _G
 import re
 
+
+
 class RegionCheck:
     """区域检查工具类"""
+
     def __init__(self):
         self.region = None
-        
+
     @classmethod
-    def parse(cls, text: str)->tuple['RegionCheck', str]:
+    def parse(cls, text: str) -> tuple['RegionCheck', str]:
         """
         支持新格式：
         - 传统格式：[x1,x2,y1,y2]
@@ -32,11 +32,11 @@ class RegionCheck:
         if not region_config:
             return None, text
         # 解析特殊格式
-        if region_config.startswith(('y','Y')):
+        if region_config.startswith(('y', 'Y')):
             y_part = region_config[1:].replace('，', ',').split(',')
             y_values = list(map(int, y_part))
             check.region = check._toY(y_values)
-        elif region_config.startswith(('x','X')):
+        elif region_config.startswith(('x', 'X')):
             x_part = region_config[1:].replace('，', ',').split(',')
             x_values = list(map(int, x_part))
             check.region = check._toX(x_values)
@@ -85,42 +85,63 @@ class RegionCheck:
         x_max = self._convertValue(self.region[1], True)
         y_min = self._convertValue(self.region[2], False)
         y_max = self._convertValue(self.region[3], False)
-        
+
         x_ok = True
-        if x_min > 0: x_ok = x >= x_min
-        if x_max > 0: x_ok = x_ok and x <= x_max
-        
+        if x_min > 0:
+            x_ok = x >= x_min
+        if x_max > 0:
+            x_ok = x_ok and x <= x_max
+
         y_ok = True
-        if y_min > 0: y_ok = y >= y_min
-        if y_max > 0: y_ok = y_ok and y <= y_max
-        
+        if y_min > 0:
+            y_ok = y >= y_min
+        if y_max > 0:
+            y_ok = y_ok and y <= y_max
+
         return x_ok and y_ok
 
     def isRectIn(self, x1, y1, x2, y2):
         """判断矩形是否在区域内"""
         return self.isIn(x1, y1) and self.isIn(x2, y2)
 
+
 class CTools_:
     Tag = "CTools"
     port = 5000
-    _screenInfoCache = None
     android = None
-    
+    _screenInfoCache = None
+
     @classmethod
     def init(cls):
-        if not hasattr(cls, '_init'):
-            log = _G.G.Log()
-            log.i(f'初始化CTools模块')  # 最简洁的写法
-            try:
-                from java import jclass     
-                cls.android = jclass("cn.vove7.andro_accessibility_api.demo.script.PythonServices")
-                print(f'加载java模块成功 android={cls.android}')
-                cls._init = True
-            except ModuleNotFoundError:
-                log.e('java模块未找到')
-            except Exception as e:
-                log.ex(e, '初始化CTools模块失败')
+        try:
+            if cls.android is None:
+                from java import jclass
+            cls.android = jclass(
+                "cn.vove7.andro_accessibility_api.demo.script.PythonServices")
+        except Exception as e:
+            return None
+    
 
+    @classmethod
+    def Clone(cls, clone):
+        g = _G._G_
+        log = g.Log()
+        cls._screenInfoCache = clone._screenInfoCache
+        log.i(f'CTools克隆完成 android={cls.android}')
+        return True
+
+    # @classmethod
+    # def init(cls):
+    #     if not hasattr(cls, '_init'):
+    #         log = _G._G_.Log()
+    #         log.i(f'初始化CTools模块')  # 最简洁的写法
+    #         try:
+    #             print(f'加载java模块成功 android={cls.android}')
+    #             cls._init = True
+    #         except ModuleNotFoundError:
+    #             log.e('java模块未找到')
+    #         except Exception as e:
+    #             log.ex(e, '初始化CTools模块失败')
 
     @classmethod
     def getLocalIP(cls):
@@ -134,17 +155,18 @@ class CTools_:
         centerX = (bounds[0] + bounds[2]) // 2
         centerY = (bounds[1] + bounds[3]) // 2
         return (centerX, centerY)
-    
+
     @classmethod
     def refreshScreenInfos(cls) -> list:
         """获取并解析屏幕信息,支持缓存"""
-        _Log.Log_.i(f'获取屏幕信息 android={cls.android}')
+        log = _G._G_.Log()
+        # log.i(f'获取屏幕信息 android={cls.android}')
         try:
             if cls.android:
                 info = cls.android.getScreenInfo()
-                _Log.Log_.i(f"获取屏幕信息 info={info}")
+                # log.i(f"获取屏幕信息 info={info}")
                 if info is None:
-                    _Log.Log_.e("获取屏幕信息失败ss")
+                    log.e("获取屏幕信息失败ss")
                     return []
                 size = info.size()
                 result = []
@@ -155,18 +177,18 @@ class CTools_:
                         't': item.get('t'),
                         'b': item.get('b')
                     })
-                    
+
                 # 更新缓存
                 cls._screenInfoCache = result
                 return result
             else:
-                _Log.Log_.i("非Android环境，无法获取屏幕信息sss")
+                log.i("非Android环境，无法获取屏幕信息sss")
                 return []
-            
+
         except Exception as e:
-            _Log.Log_.ex(e, "获取屏幕信息失败")
+            log.ex(e, "获取屏幕信息失败")
             return []
-    
+
     @classmethod
     def matchScreenText(cls, str: str):
         try:
@@ -178,37 +200,40 @@ class CTools_:
             regioCheck, text = RegionCheck.parse(str)
             # 生成正则表达式（添加.*通配）
             regex = re.compile(f".*{text}.*")
-            
+
             # 遍历屏幕信息，查找匹配的文本
             for item in screenInfo:
                 # 解析当前文本的边界
                 if regioCheck:
                     bounds = [int(x) for x in item['b'].split(',')]
-                    isIn = regioCheck.isRectIn(bounds[0], bounds[2], bounds[1], bounds[3])
+                    isIn = regioCheck.isRectIn(
+                        bounds[0], bounds[2], bounds[1], bounds[3])
                     if not isIn:
                         continue
                 # 执行正则匹配
                 if regex.search(item['t']):
                     return True, item
             return None, None
-            
+
         except Exception as e:
-            _Log.Log_.ex(e, "FindUI 指令执行失败")
+            log.ex(e, "FindUI 指令执行失败")
             return None, None
-        
+
     @classmethod
     def _isHarmonyOS(cls) -> bool:
         """检查是否是鸿蒙系统"""
+        log = _G._G_.Log()
         try:
             # 检查系统属性中是否包含鸿蒙特征
             from android.os import Build
             manufacturer = Build.MANUFACTURER.lower()
             return "huawei" in manufacturer or "honor" in manufacturer
         except Exception as e:
-            _Log.Log_.ex(e, '检查系统类型失败')
+            log.ex(e, '检查系统类型失败')
             return False
 
     lastAppName = None
+
     @classmethod
     def openApp(cls, appName):
         if not appName:
@@ -216,51 +241,19 @@ class CTools_:
         if cls.android is None:
             return False
         """打开应用"""
-        log = _Log.Log_
+        log = _G._G_.Log()
         try:
             # 检查应用是否已经打开
             curApp = cls.getCurrentApp()
             if curApp and curApp.get('appName') == appName:
                 return "i->应用已打开"
-            
+
+            opened = False
             # 根据系统类型选择打开方式
             if cls._isHarmonyOS():
                 log.i(f"使用鸿蒙系统方式打开应用: {appName}")
                 cls.goHome()
-                cls.click(appName, 'LR', 500)                
-                # # 尝试在不同屏幕上查找并打开应用
-                # opened = False
-                # direction = 'CL'  # 先向左滑动
-                
-                # # 防止无限循环，最多尝试8个屏幕
-                # max_screens = 8
-                # screen_count = 0
-                
-                # while not opened and screen_count < max_screens:
-                #     # 尝试点击打开应用
-                #     ret = cls._openAppByClick(appName)
-                #     if ret:
-                #         log.i(f"成功点击打开应用: {appName}")
-                #         opened = True
-                #         break
-                    
-                #     # 应用未找到，尝试滑动到下一屏
-                #     log.i(f"应用未找到，滑动屏幕: {direction}")
-                #     ok = cls.switchScreen(direction)
-                    
-                #     # 滑动成功，继续在新屏幕上查找
-                #     if ok:
-                #         screen_count += 1
-                #         continue
-                    
-                #     # 滑动失败或屏幕内容未变化，尝试反方向
-                #     if direction == 'CL':
-                #         direction = 'CR'  # 改为向右滑动
-                #         screen_count = 0  # 重置计数
-                #     else:
-                #         # 两个方向都尝试过，退出循环
-                #         log.i("左右滑屏都失败，无法找到应用")
-                #         break
+                opened = cls.click(appName, 'LR')
             else:
                 # Android系统使用服务方式打开
                 log.i(f"使用Android系统服务打开应用: {appName}")
@@ -274,42 +267,46 @@ class CTools_:
 
     @classmethod
     def closeApp(cls, app_name: str = None) -> bool:
+        log = _G._G_.Log()
         try:
             if not app_name:
                 app_name = cls.lastAppName
-            _Log.Log_.i(cls.Tag, f"Closing app: {app_name}")
+            log.i(cls.Tag, f"Closing app: {app_name}")
             if cls.android:
                 return cls.android.closeApp(app_name)
             return False
         except Exception as e:
-            _Log.Log_.ex(e, '打开应用失败')
+            log.ex(e, '打开应用失败')
             return False
 
     @classmethod
     def _openAppByClick(cls, app_name: str) -> bool:
         """通过点击方式打开应用（适用于鸿蒙系统）"""
+        log = _G._G_.Log()
         try:
             nodes = cls.android.findTextNodes()
-            targetNode = next((node for node in nodes if app_name in node.getText()), None)
+            targetNode = next(
+                (node for node in nodes if app_name in node.getText()), None)
             if not targetNode:
-                _Log.Log_.e(cls.Tag, f"App icon not found: {app_name}")
+                log.e(cls.Tag, f"App icon not found: {app_name}")
                 return False
-            
+
             bounds = targetNode.getBounds()
             if not cls.android.click(bounds.centerX(), bounds.centerY()):
-                _Log.Log_.e(cls.Tag, "Failed to click app icon")
+                log.e(cls.Tag, "Failed to click app icon")
             return True
-            
+
         except Exception as e:
-            _Log.Log_.ex(e, f"Failed to open app by click: {str(e)}")
+            log.ex(e, f"Failed to open app by click: {str(e)}")
             return False
 
     # 添加Toast常量
     TOAST_LENGTH_SHORT = 0  # Toast.LENGTH_SHORT
     TOAST_LENGTH_LONG = 1   # Toast.LENGTH_LONG
     TOAST_GRAVITY_TOP = 48    # Gravity.TOP
-    TOAST_GRAVITY_CENTER = 17 # Gravity.CENTER
-    TOAST_GRAVITY_BOTTOM = 80 # Gravity.BOTTOM
+    TOAST_GRAVITY_CENTER = 17  # Gravity.CENTER
+    TOAST_GRAVITY_BOTTOM = 80  # Gravity.BOTTOM
+
     @classmethod
     def toast(cls, msg, duration=None, gravity=None, xOffset=0, yOffset=100):
         """在手机上显示Toast消息
@@ -322,10 +319,10 @@ class CTools_:
         """
         try:
             if cls.android:
-                cls.android.showToast(str(msg), 
-                                duration or cls.TOAST_LENGTH_LONG,
-                                gravity or cls.TOAST_GRAVITY_BOTTOM,
-                                xOffset, yOffset)
+                cls.android.showToast(str(msg),
+                                      duration or cls.TOAST_LENGTH_LONG,
+                                      gravity or cls.TOAST_GRAVITY_BOTTOM,
+                                      xOffset, yOffset)
             else:
                 print(f"Toast: {msg}")
         except Exception as e:
@@ -335,48 +332,49 @@ class CTools_:
     @classmethod
     def getCurrentApp(cls, period=60):
         """获取当前正在运行的应用信息
-        
+
         Args:
             period: 查询最近使用应用的时间范围(秒)，默认60秒
-            
+
         Returns:
             dict: 包含包名(packageName)和应用名(appName)的字典，失败返回None
         """
+        log = _G._G_.Log()
         try:
-            # _Log.Log_.i("获取当前应用222")
+            # _Log._Log_.i("获取当前应用222")
             if not cls.android:
-                _Log.Log_.e("获取当前应用失败: 未找到Android实例")
+                log.e("获取当前应用失败: 未找到Android实例")
                 return None
-            
+
             # 显式传递period参数
             result = cls.android.getCurrentApp(period)
             if result is None:
                 return None
-            
+
             return {
                 "packageName": result.get("packageName"),
                 "appName": result.get("appName"),
                 "lastUsed": result.get("lastUsed")
             }
         except Exception as e:
-            _Log.Log_.ex(e, "获取当前应用失败")
+            log.ex(e, "获取当前应用失败")
             return None
 
     @classmethod
     def isHome(cls) -> bool:
         """判断当前是否在桌面
-        
+
         通过当前应用包名判断是否在桌面，支持多种桌面应用
-        
+
         Returns:
             bool: 是否在桌面
         """
-        log = _G.G.Log()
+        log = _G._G_.Log()
         try:
             # 常见桌面应用包名列表
             LAUNCHER_PACKAGES = {
                 'com.android.launcher3',         # 原生Android
-                'com.google.android.apps.nexuslauncher', # Pixel
+                'com.google.android.apps.nexuslauncher',  # Pixel
                 'com.sec.android.app.launcher',  # 三星
                 'com.huawei.android.launcher',   # 华为
                 'com.miui.home',                 # 小米
@@ -385,26 +383,26 @@ class CTools_:
                 'com.realme.launcher',           # Realme
                 'com.oneplus.launcher'           # 一加
             }
-            
+
             # 获取当前应用信息
             app_info = cls.getCurrentApp()
             if not app_info:
                 log.w("获取当前应用信息失败，无法判断是否在桌面")
                 return False
-            
+
             package_name = app_info.get("packageName", "")
-            # _Log.Log_.i(f"当前应用包名: {package_name}")
-            
+            # _Log._Log_.i(f"当前应用包名: {package_name}")
+
             # 检查是否在已知桌面包名列表中
             if package_name in LAUNCHER_PACKAGES:
-                # _Log.Log_.i(f"当前在桌面 (已知桌面包名)")
+                # _Log._Log_.i(f"当前在桌面 (已知桌面包名)")
                 return True
-            
+
             # 检查包名是否包含launcher或home关键词
             if "launcher" in package_name.lower() or "home" in package_name.lower():
-                # _Log.Log_.i(f"当前在桌面 (包名包含launcher或home)")
+                # _Log._Log_.i(f"当前在桌面 (包名包含launcher或home)")
                 return True
-            # _Log.Log_.i(f"当前不在桌面")
+            # _Log._Log_.i(f"当前不在桌面")
             return False
         except Exception as e:
             log.ex(e, "判断是否在桌面失败")
@@ -424,13 +422,14 @@ class CTools_:
             return cls.android.goBack()
         return False
     _screenText = None
+
     @classmethod
     def swipe(cls, param: str) -> bool:
         """统一处理滑动操作
         支持两种格式:
         1. 坐标格式: "x1,y1 > x2,y2 [duration]"
         2. 方向枚举: "方向 [duration]"
-        
+
         支持的方向:
         CR - 从中心向右滑动
         CL - 从中心向左滑动  
@@ -441,26 +440,28 @@ class CTools_:
         EU - 从底部向上滑动
         ED - 从顶部向下滑动
         """
-        log = _Log.Log_
+        log = _G._G_.Log()
         try:
             android = cls.android
             if not android:
                 log.e("滑动失败:未找到Android实例")
                 return False
-                
+
             # 默认持续时间为0.5秒
             default_duration = 500
 
             # 使用正则表达式解析参数
-            match = re.match(r"(?P<start>\d+,\d+)\s*>\s*(?P<end>\d+,\d+)(?:\s+(?P<duration>\d+))?", param)
+            match = re.match(
+                r"(?P<start>\d+,\d+)\s*>\s*(?P<end>\d+,\d+)(?:\s+(?P<duration>\d+))?", param)
             if match:
                 # 解析为坐标
                 start = match.group("start")
                 end = match.group("end")
                 duration_str = match.group("duration")
-                
+
                 # 检查 duration 是否为数字
-                duration = int(duration_str) if duration_str and duration_str.isdigit() else default_duration
+                duration = int(
+                    duration_str) if duration_str and duration_str.isdigit() else default_duration
                 startX, startY = map(int, start.split(','))
                 endX, endY = map(int, end.split(','))
                 # log.i(f"滑动指令: 开始位置({startX}, {startY}), 结束位置({endX}, {endY}), 持续时间: {duration} ms")
@@ -469,16 +470,17 @@ class CTools_:
                 # 解析为枚举
                 parts = param.split()
                 direction = parts[0]
-                duration = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else default_duration
+                duration = int(parts[1]) if len(
+                    parts) > 1 and parts[1].isdigit() else default_duration
                 # log.i(f"滑动指令: 方向({direction}), 持续时间: {duration} ms")
                 return android.sweep(direction, duration)
-                
+
         except Exception as e:
             log.ex(e, "滑动失败")
             return False
 
-    # @classmethod
-    # def switchScreen(cls, direction: str):
+    @classmethod
+    def switchScreen(cls, direction: str):
         """切换屏幕
         
         Args:
@@ -488,7 +490,7 @@ class CTools_:
             bool: 是否切换成功
         """
         if not cls.isHome():
-            _Log.Log_.i("当前不在桌面, 不能切屏")
+            log.i("当前不在桌面, 不能切屏")
             return False
 
         # 使用 swipe 方法进行滑动
@@ -496,11 +498,11 @@ class CTools_:
             return False
 
         time.sleep(0.5)
-        
+
         # 检查屏幕内容变化
         text = cls.android.getScreenText()
         similarity = 0
-        
+
         # 计算屏幕内容变化的相似度
         if cls._screenText is None:
             similarity = 0
@@ -515,7 +517,7 @@ class CTools_:
             union = oldTexts.union(newTexts)
             # 计算Jaccard相似度
             similarity = len(intersection) / len(union) if union else 1.0
-            
+
         # 如果相似度低于0.9，说明屏幕内容有显著变化
         screenChanged = similarity < 0.9
         if screenChanged:
@@ -524,132 +526,242 @@ class CTools_:
         return False
 
     @classmethod
-    def clickText(cls, text: str, region=None) -> bool:
+    def click(cls, text: str, direction: str = 'UD') -> bool:
         """点击文本（增加重试机制）"""
-        retry = 3
+        log = _G._G_.Log()
+        retry = 2
         while retry > 0:
-            match, item = cls.matchScreenText(text, region)
-            if match:
-                x, y = cls.toPos(item)
+            log.i(f"点击文本: {text}")
+            pos = cls.findText(text, direction)
+            log.i(f"找到文本: {text}, 位置: {pos}")
+            if pos:
+                x, y = pos
                 return cls.android.click(x, y)
             time.sleep(1)
             retry -= 1
         return False
 
-    @classmethod 
+    @classmethod
     def switchToProfile(cls):
         """跳转到个人页示例"""
         cls.swipe("CD 800")  # 向下滑动
 
     @classmethod
-    def findText(cls, text, searchDir=None, distance=None):
-        """增强版文字查找，支持滑动查找
+    def swipeTo(cls, direction, matchFunc, maxTry=10):
+        """智能滑动查找
+        
         Args:
-            text: 要查找的文字
-            searchDir: 滑动方向 L/R/U/D/LR/UD
-            distance: 滑动距离（像素）
-        Returns: (x,y) 或 None
+            direction: 滑动方向，支持单向(L/R/U/D)和双向(LR/UD)
+            matchFunc: 匹配函数，接收无参数并返回匹配结果，找到返回True
+            maxTry: 最大尝试次数，默认10次
+            
+        Returns:
+            bool: 是否找到匹配内容
+        """
+        log = _G._G_.Log()
+        
+        # 检查初始屏幕是否匹配
+        if matchFunc():
+            return True
+        
+        # 解析方向
+        primary_dir = direction[0]  # 主方向
+        has_secondary = len(direction) > 1  # 是否有次方向
+        secondary_dir = direction[1] if has_secondary else None
+        
+        # 方向映射到滑动命令
+        dir_to_cmd = {
+            'L': 'CL',
+            'R': 'CR',
+            'U': 'CU',
+            'D': 'CD'
+        }
+        
+        # 反向映射
+        opposite_dir = {
+            'L': 'R',
+            'R': 'L',
+            'U': 'D',
+            'D': 'U'
+        }
+        
+        # 开始主方向滑动
+        current_dir = primary_dir
+        tries = 0
+        lastScreen = None
+        
+        while tries < maxTry:
+            # 获取当前屏幕内容用于相似度比较
+            currentScreen = cls.getScreenText()
+            
+            # 检查是否已经到达边界(屏幕内容相似度高)
+            if lastScreen and cls.isScreenSimilar(currentScreen, lastScreen):
+                log.i(f"方向{current_dir}已到达边界")
+                
+                # 如果支持双向且当前是主方向，切换到次方向
+                if has_secondary and current_dir == primary_dir:
+                    current_dir = secondary_dir
+                    log.i(f"切换到次方向: {current_dir}")
+                    lastScreen = None  # 重置屏幕比较
+                    tries = 0  # 重置尝试次数
+                    continue
+                else:
+                    # 单向或已尝试次方向，结束查找
+                    log.i("所有方向都已尝试，未找到匹配")
+                    return False
+            
+            lastScreen = currentScreen
+            
+            # 执行滑动
+            cmd = dir_to_cmd.get(current_dir)
+            if not cmd:
+                log.e(f"无效的滑动方向: {current_dir}")
+                return False
+            
+            log.i(f"第{tries+1}次滑动，方向: {cmd}")
+            cls.swipe(f"{cmd} 500")
+            time.sleep(0.5)  # 等待滑动完成
+            
+            # 检查滑动后是否匹配
+            if matchFunc():
+                log.i(f"在方向{current_dir}的第{tries+1}次滑动后找到匹配")
+                return True
+            
+            tries += 1
+        
+        log.i(f"达到最大尝试次数({maxTry})，未找到匹配")
+        return False
+
+    # 增强版文本查找功能
+    # return (x,y)
+    @classmethod
+    def findText(cls, text, searchDir=None, distance=None):
+        """增强版文本查找功能
+        支持在滑动屏幕过程中持续查找文字
+        
+        Args:
+            text: 要查找的文本
+            searchDir: 搜索方向，如 L/R/U/D(单向) 或 LR/UD(双向)
+            distance: 搜索距离限制
+            
+        Returns:
+            找到文本的坐标元组(x,y)或None
+        """
+        log = _G._G_.Log()
+        
+        # 尝试在当前屏幕查找
+        pos = cls._findText(text, searchDir, distance)
+        if pos:
+            return pos
+        
+        # 如果没有指定搜索方向，只在当前屏幕查找
+        if not searchDir:
+            # log.i(f"未指定搜索方向，只在当前屏幕查找文本: {text}")
+            return None
+        
+        # 定义匹配函数
+        def matchFunc():
+            nonlocal pos
+            pos = cls._findText(text, searchDir, distance)
+            return pos is not None
+        
+        # 使用swipeTo进行滑动查找
+        found = cls.swipeTo(searchDir, matchFunc)
+        return pos if found else None
+
+    @classmethod
+    def _findText(cls, text, searchDir=None, distance=None):
+        """在当前屏幕尝试查找文本
+        
+        Args:
+            text: 要查找的文本
+            searchDir: 搜索方向限制
+            distance: 搜索距离限制
+            
+        Returns:
+            找到文本的坐标元组(x,y)或None
+        """
+        log = _G._G_.Log()
+        try:
+            if cls.android:
+                nodes = cls.android.findTextNodes()
+                if not nodes:
+                    log.i("屏幕上未找到任何文本节点")
+                    return None
+                    
+                for node in nodes:
+                    nodeText = node.getText()
+                    if text in nodeText:
+                        bounds = node.getBounds()
+                        x, y = bounds.centerX(), bounds.centerY()
+                        
+                        # 检查方向和距离限制
+                        if searchDir and distance:
+                            screenWidth = cls.android.getScreenWidth()
+                            screenHeight = cls.android.getScreenHeight()
+                            centerX, centerY = screenWidth // 2, screenHeight // 2
+                            
+                            # 检查是否在指定方向和距离内
+                            if 'L' in searchDir and x > centerX:
+                                continue
+                            if 'R' in searchDir and x < centerX:
+                                continue
+                            if 'U' in searchDir and y > centerY:
+                                continue
+                            if 'D' in searchDir and y < centerY:
+                                continue
+                            
+                            # 检查距离
+                            dist = ((x - centerX) ** 2 + (y - centerY) ** 2) ** 0.5
+                            if dist > distance:
+                                continue
+                        
+                        log.i(f"找到文本: {text}, 位置: {x},{y}")
+                        return (x, y)
+            
+            log.i(f"屏幕上未找到文本: {text}")
+            return None
+        except Exception as e:
+            log.ex(e, f"查找文本异常")
+            return None
+
+    @classmethod
+    def isScreenSimilar(cls, screen1, screen2, threshold=0.7):
+        """判断两个屏幕内容是否相似
+        
+        Args:
+            screen1: 第一个屏幕的文本内容列表
+            screen2: 第二个屏幕的文本内容列表
+            threshold: 相似度阈值(0-1)，默认0.7
+            
+        Returns:
+            布尔值，表示是否相似
+        """
+        if not screen1 or not screen2:
+            return False
+        
+        # 计算共同元素数量
+        common = set(screen1).intersection(set(screen2))
+        
+        # 计算相似度(Jaccard相似度)
+        similarity = len(common) / len(set(screen1).union(set(screen2)))
+        
+        return similarity >= threshold
+
+    @classmethod
+    def getScreenText(cls):
+        """获取当前屏幕上的所有文本
+        
+        Returns:
+            文本内容列表
         """
         try:
-            log = _Log.Log_
-            maxTry = 8  # 最大尝试次数
-            triedDirs = set()
-            lastText = ""
-            
-            def tryFind():
-                nonlocal lastText
-                cls.refreshScreenInfos()
-                match, item = cls.matchScreenText(text)
-                if match: 
-                    return cls.toPos(item)
-                # 计算屏幕内容相似度
-                curText = cls.android.getScreenText() if cls.android else ""
-                similarity = cls._calcSimilarity(lastText, curText)
-                lastText = curText
-                return None, similarity
-
-            # 首次尝试
-            pos, _ = tryFind()
-            if pos: return pos
-            if searchDir is None:
-                return None
-            # 解析滑动方向
-            dirs = []
-            if 'L' in searchDir: dirs.append('CL')
-            if 'R' in searchDir: dirs.append('CR')
-            if 'U' in searchDir: dirs.append('CU') 
-            if 'D' in searchDir: dirs.append('CD')
-            
-            # 自动设置滑动距离
-            if not distance:
-                metrics = cls.android.getDisplayMetrics() if cls.android else (1080, 1920)
-                distance = int(metrics[0]*0.3) if searchDir in ('L','R','LR') else int(metrics[1]*0.3)
-
-            for _ in range(maxTry):
-                for dir in dirs:
-                    if dir in triedDirs: continue
-                    
-                    log.i(f"向{dir}方向滑动{distance}px查找[{text}]")
-                    cls.swipe(f"{dir} {distance}")
-                    time.sleep(0.5)
-                    
-                    pos, similarity = tryFind()
-                    if pos: return pos
-                    if similarity >= 0.95: 
-                        triedDirs.add(dir)  # 该方向已到头
-                        log.i(f"{dir}方向滑动无效")
-            return None
+            if cls.android:
+                nodes = cls.android.findTextNodes()
+                return [node.getText() for node in nodes if node.getText()]
+            return []
         except Exception as e:
-            log.ex(e, "文字查找失败")
-            return None
-    
-    @classmethod
-    def inRect(cls, text, region):
-        """判断文本是否在指定区域内"""
-        try:
-            pos = cls.findText(text)
-            if pos:
-                x, y = pos
-            left, top, right, bottom = region
-            if left > 0 and not (left <= x <= right):
-                return False
-            if top > 0 and not (top <= y <= bottom):
-                return False
-                return True
-            return False
-        except Exception as e:
-            log.ex(e, "判断文本是否在指定区域内失败")
-            return False
-    
-    @classmethod    
-    def click(cls, text, searchDir=None, distance=None) -> bool:
-        """点击文本（增加重试机制）"""
-        pos = cls.findText(text, searchDir, distance)
-        if pos:
-            return cls.android.click(pos[0], pos[1])
-        return False
-    
-
-    @classmethod
-    def _calcSimilarity(cls, text1, text2):
-        """计算文本相似度"""
-        if not text1 or not text2: return 0
-        set1 = set(text1.split())
-        set2 = set(text2.split())
-        intersection = set1 & set2
-        union = set1 | set2
-        return len(intersection)/len(union) if union else 0
-
-
-def requireAndroid(func):
-    def wrapper(*args, **kwargs):
-        if not _Log.Log_.isAndroid():
-            return "w->Android指令，当前环境不支持"
-        return func(*args, **kwargs)
-    # 保持原始函数的属性
-    wrapper.__name__ = func.__name__
-    wrapper.__doc__ = func.__doc__
-    return wrapper
+            _G._G_.Log().ex(e, "获取屏幕文本异常")
+            return []
 
 CTools_.init()
-

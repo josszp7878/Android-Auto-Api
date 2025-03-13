@@ -43,8 +43,8 @@ def create_app(config_name='development', debug=False):
     
     # 加载配置
     app.config.from_object(config[config_name])
-    
-    from Database import db
+
+    from SDatabase import db
     # 初始化数据库
     db.init_app(app)
     
@@ -67,7 +67,7 @@ def create_app(config_name='development', debug=False):
     import Server
     
     # 注册蓝图
-    from routes import bp
+    from SRoutes import bp
     app.register_blueprint(bp)
 
     app.debug = debug

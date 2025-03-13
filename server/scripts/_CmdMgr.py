@@ -1,24 +1,21 @@
 import re
-from _Tools import _Tools
+from _Tools import _Tools_
 import _Log
+import _G
 import sys
 import importlib
 from typing import Dict, Tuple, Callable, Optional, List
 import os
 import json
-import _G
 
-class _CmdMgr:
+
+class _CmdMgr_:
     """命令管理器"""
     
     _instance = None  # 单例实例
     
     # 直接使用类属性
     cmdRegistry: Dict[str, Tuple[Callable, Optional[str]]] = {}
-    def __new__(cls, *args, **kwargs):
-        if not cls._instance:
-            cls._instance = super(_CmdMgr, cls).__new__(cls)
-        return cls._instance
     
     @classmethod
     def reg(cls, cmd_pattern=None, param_pattern=None):
@@ -68,7 +65,7 @@ class _CmdMgr:
     @classmethod
     def clear(cls):
         """清除命令"""
-        _CmdMgr.cmdRegistry.clear()
+        _CmdMgr_.cmdRegistry.clear()
     
     @classmethod
     def do(cls, command, deviceID=None, data=None):
@@ -83,27 +80,27 @@ class _CmdMgr:
         if cmdArgs and cmdArgs.strip() == '':
             cmdArgs = None
     
-        # _Log.Log_.d(f'执行命令: {cmdName} {cmdArgs}')
+        # _Log._Log_.d(f'执行命令: {cmdName} {cmdArgs}')
         try:
             func = param_pattern = None
             # 按正则表达式匹配命令别名
             for pattern, (f, p, _) in cls.cmdRegistry.items():
                 if re.match(f"^{pattern}$", cmdName):
                     func, param_pattern = f, p
-                    # _Log.Log_.d(f'按命令别名匹配到命令: {pattern} => {f.__name__}')
+                    # _Log._Log_.d(f'按命令别名匹配到命令: {pattern} => {f.__name__}')
                     break
             # 再精确匹配函数名
             if not func:
                 for _, (f, p, _) in cls.cmdRegistry.items():
                     if f.__name__.lower() == cmdName:
                         func, param_pattern = f, p
-                        # _Log.Log_.d(f'按命令名精确匹配到命令: {f.__name__}')
+                        # _Log._Log_.d(f'按命令名精确匹配到命令: {f.__name__}')
                         break
             # 3. 如果前两个都没匹配上，输出命令名匹配不成功
             if not func:
                 return "w->未知命令", None
             
-            # _Log.Log_.d(f'执行函数: {func.__name__}, 参数模式: {param_pattern}, 参数: {cmdArgs}')
+            # _Log._Log_.d(f'执行函数: {func.__name__}, 参数模式: {param_pattern}, 参数: {cmdArgs}')
             
             # 4. 如果匹配成功，继续正则表达式匹配参数模式
             # 如果命令不支持参数但提供了参数，返回错误
@@ -117,7 +114,7 @@ class _CmdMgr:
             # 匹配参数
             match = re.match(f"^{param_pattern}$", cmdArgs)
             if not match:
-                _Log.Log_.e(f'参数格式错误: {cmdArgs} {param_pattern}')
+                _Log._Log_.e(f'参数格式错误: {cmdArgs} {param_pattern}')
                 return "w->参数格式错误", func.__name__
             
             # 将 data 参数添加到 match.groupdict() 中
@@ -130,113 +127,109 @@ class _CmdMgr:
                 params['deviceID'] = deviceID
             
             # 执行命令并返回结果
-            _Log.Log_.d(f'执行函数: {func.__name__}, 参数: {params}')
+            _Log._Log_.d(f'执行函数: {func.__name__}, 参数: {params}')
             return func(**params), func.__name__
         except Exception as e:
-            _Log.Log_.ex(e, f'{cmd}命令执行错误')
+            _Log._Log_.ex(e, f'{cmd}命令执行错误')
             return f"e->{str(e)}", None
         
     @classmethod
-    def _reloadModule(cls, module_name: str) -> bool:
+    def _reloadModule(cls, moduleName: str) -> bool:
         """处理模块重新加载
         Args:
             module_name: 模块名称，支持带路径的形式(如scripts._Tools)
         Returns:
             bool: 是否重载成功
         """
+        g = _G._G_
+        log = g.Log()
         try:
-            _Log.Log_.d(f'重新加载模块: {module_name}')
+            log.d(f'重新加载模块: {moduleName}')
             # 检查模块是否已加载
-            if module_name in sys.modules:
-                module = sys.modules[module_name]                
-                # 查找模块中的类，并执行预加载
-                _, onPreload = _Tools.GetClassMethod(module, 'OnPreload')
-                if onPreload:
-                    onPreload()
-                
+            if moduleName in sys.modules:
+                module = sys.modules[moduleName]
+                oldCls = g.getClass(moduleName)
+                # 获取模块对应的类（假设类名为模块名加下划线）
+                if hasattr(oldCls, 'OnPreload'):
+                    oldCls.OnPreload()
                 # 获取所有引用了该模块的模块
                 referrers = [m for m in sys.modules.values() 
-                            if m and hasattr(m, '__dict__') and module_name in m.__dict__]
-                # _Log.Log_.d(f'获取所有引用了该模块的模块: {referrers}')
+                            if m and hasattr(m, '__dict__') and moduleName in m.__dict__]
+                # _Log._Log_.d(f'获取所有引用了该模块的模块: {referrers}')
                 # 重新加载模块
-                del sys.modules[module_name]
+                del sys.modules[moduleName]
                 
                 # 强制重新从文件加载模块
-                spec = importlib.util.find_spec(module_name)
+                spec = importlib.util.find_spec(moduleName)
                 if not spec:
-                    _Log.Log_.e(f"找不到模块: {module_name}")
+                    log.e(f"找不到模块: {moduleName}")
                     return False
-                # _Log.Log_.d(f'重新加载模块: {module_name}')
+                # _Log._Log_.d(f'重新加载模块: {module_name}')
                 module = importlib.util.module_from_spec(spec)
-                sys.modules[module_name] = module
-                # _Log.Log_.d(f'重新执行。。。模块: {module_name} module={module}')
+                sys.modules[moduleName] = module
+                # _Log._Log_.d(f'重新执行。。。模块: {module_name} module={module}')
                 spec.loader.exec_module(module)
                 # 更新引用
                 for referrer in referrers:
                     if hasattr(referrer, '__dict__'):
-                        referrer.__dict__[module_name] = module
+                        referrer.__dict__[moduleName] = module
                 # 打印模块所有成员
-                # _Log.Log_.d(f'模块 {module_name} 的成员:::: {dir(module)}')
+                # _Log._Log_.d(f'模块 {module_name} 的成员:::: {dir(module)}')
                 # 清除全局引用
-                from _G import G
-                G.clear()
-                G.Log().d(f'清除全局引用: {module_name}')
-                # 执行重载后回调
-                _, onReload = _Tools.GetClassMethod(module, 'OnReload')
-                # _Log.Log_.d(f"重新加载模块成功: onReload{module_name}")
-                if onReload:
-                    # 执行类的重载方法
-                    onReload()
+                g.clear()
+                log.d(f'清除全局引用: {moduleName}')    
+                g.CallMethod(module, 'Clone', oldCls)
+                g.CallMethod(module, 'OnReload')
+                # _Log._Log_.d(f"重新加载模块成功: onReload{module_name}")
             else:
                 # 首次加载直接使用import_module
                 try:
-                    module = importlib.import_module(module_name)
-                    # _Log.Log_.d(f"首次加载模块成功: {module_name}")
+                    module = importlib.import_module(moduleName)
+                    # _Log._Log_.d(f"首次加载模块成功: {module_name}")
                 except ImportError as e:
-                    _Log.Log_.e(f"找不到模块: {module_name}, 错误: {e}")
+                    log.e(f"找不到模块: {moduleName}, 错误: {e}")
                     return False
             
             return True
         except Exception as e:
-            _Log.Log_.ex(e, "模块重载失败")
+            log.ex(e, "模块重载失败")
             return False
 
     @classmethod
     def _reset(cls):
+        g = _G._G_
+        log = g.Log()
         """重新加载所有脚本并重启脚本引擎"""
         try:
-            _Log.Log_.i("开始全量重载脚本...")
-            if _Log.Log_.IsServer():
+            log.i("开始全量重载脚本...")
+            if g.IsServer():
                 return "e->当前是服务器，无法全量重载"
-            # 1. 更新所有脚本
-            from CFileServer import fileServer
-            from CClient import client
-            
             # 创建一个事件来等待脚本更新完成
             import threading
             update_completed = threading.Event()
             
             def onUpdateCompleted(success):
                 if success:
-                    _Log.Log_.i("脚本更新完成")
+                    _Log._Log_.i("脚本更新完成")
                 else:
-                    _Log.Log_.e("脚本更新失败")
+                    _Log._Log_.e("脚本更新失败")
                 update_completed.set()
             
             # 调用更新脚本方法
-            _Log.Log_.i("正在更新脚本...")
-            fileServer.update(onUpdateCompleted)
+            log.i("正在更新脚本...")
+            g.getClass('CFileServer').update(onUpdateCompleted)
             
             # 等待更新完成，最多等待30秒
             if not update_completed.wait(30):
-                _Log.Log_.e("脚本更新超时")
+                log.e("脚本更新超时")
                 return "e->脚本更新超时，重载失败"
             
             # 2. 清除Python中所有脚本模块并重新加载
-            _Log.Log_.i("正在清除模块缓存...")
+            log.i("正在清除模块缓存...")
             import sys
             import importlib
 
+            client = _G._G_.getClass('CClient')()
             # 缓存必要的状态
             deviceID = client.deviceID if client else None
             server = client.server if client else None
@@ -259,15 +252,15 @@ class _CmdMgr:
                 if module_name in sys.modules:
                     del sys.modules[module_name]
             
-            # _Log.Log_.d(f"已清除{len(modules_to_reload)}个模块缓存")
+            # _Log._Log_.d(f"已清除{len(modules_to_reload)}个模块缓存")
             # 3. 重新执行入口函数，重启脚本
-            # _Log.Log_.i("正在重启脚本引擎...")
+            # _Log._Log_.i("正在重启脚本引擎...")
             # 先结束当前客户端
             if client:
                 try:
                     client.End()
                 except Exception as e:
-                    _Log.Log_.ex(e, "结束客户端失败")
+                    _Log._Log_.ex(e, "结束客户端失败")
             
             # 重新导入CMain模块并执行Begin
             try:
@@ -282,34 +275,36 @@ class _CmdMgr:
                     CMain.Begin(deviceID, server)
                     return "i->脚本全量重载完成"
                 else:
-                    _Log.Log_.e("无法获取设备ID或服务器地址")
+                    _Log._Log_.e("无法获取设备ID或服务器地址")
             except Exception as e:
-                _Log.Log_.ex(e, "重启脚本引擎失败")
+                _Log._Log_.ex(e, "重启脚本引擎失败")
         except Exception as e:
-            _Log.Log_.ex(e, "脚本全量重载失败")
+            _Log._Log_.ex(e, "脚本全量重载失败")
        
 
     @classmethod
     def _scanModules(cls, dir: str, modules: List[str], func: Callable[[str], bool] = None):
         """扫描脚本目录，找到所有包含registerCommands方法的模块"""
-        # _Log.Log_.d(f"扫描脚本目录: {dir}")
-        if not os.path.exists(dir):
-            return
-        isServer = _Log.Log_.IsServer()
-        for file in os.listdir(dir):
-            if file.endswith('.py') and file != '__init__.py':
-                commonFile = file.startswith('_')
-                clientFile = file.startswith('C')
-                if commonFile or (isServer and not clientFile) or (not isServer and clientFile):
-                    if func is None or func(file):
-                        module = file[:-3]  # 去掉.py后缀
-                        modules.append(module)
+        g = _G._G_
+        log = g.Log()
+        try:
+            prefix = 'S' if g.IsServer() else 'C'
+            for file in os.listdir(dir):
+                if not file.endswith('.py'):
+                    continue
+                firstChar = file[0]
+                if firstChar != prefix and firstChar != '_':
+                    continue
+                if func is None or func(file):
+                    module = file[:-3]  # 去掉.py后缀
+                    modules.append(module)
+        except Exception as e:
+            log.ex(e, "扫描脚本目录失败")
 
     @classmethod
     def scanModules(cls, dir: str):
         modules = []
         cls._scanModules(dir, modules)
-        # print(f"扫描模块: {modules} isServer={_Log.Log_.IsServer()}")
         return modules
 
 
@@ -326,7 +321,8 @@ class _CmdMgr:
         Returns:
             bool: 是否成功重新注册
         """
-        log = _Log.Log_
+        g = _G._G_
+        log = g.Log()
         log.i("开始重新注册命令...")
         try:
             # 1. 清除所有命令注册
@@ -335,10 +331,10 @@ class _CmdMgr:
             cls.registerCommands()
             
             # 3. 扫描脚本目录，找到所有包含registerCommands方法的模块
-            scriptDir = log.scriptDir()
-            modules = cls.scanModules(scriptDir)
+            dir = _G._G_.scriptDir()
+            modules = cls.scanModules(dir)
             # 4. 加载这些模块并执行它们的命令注册函数
-            # _Log.Log_.d(f"加载模块: {modules}")
+            # _Log._Log_.d(f"加载模块: {modules}")
             success_count = 0
             for module in modules:
                 try:
@@ -358,11 +354,8 @@ class _CmdMgr:
                         continue
                     
                     # 查找模块中的registerCommands类方法
-                    _, method = _Tools.GetClassMethod(module, 'registerCommands')
-                    if method:
-                        # 执行命令注册
-                        method()
-                        success_count += 1
+                    g.CallMethod(module, 'registerCommands')
+                    success_count += 1
                 except Exception as e:
                     log.ex(e, f"注册模块 {module} 的命令失败")
             
@@ -379,25 +372,18 @@ class _CmdMgr:
     @classmethod
     def registerCommands(cls):
         """注册命令管理器自身的命令"""
-        # _Log.Log_.i("注册CmdMgr模块命令...")
-        
+        # _Log._Log_.i("注册CmdMgr模块命令...")
         @cls.reg(r"重启")
         def reloadAll():
             """重新加载所有命令"""
             return cls._reset()
         
         @cls.reg(r"加载", r"(?P<moduleName>\S+)")
-        def reload(moduleName=None):
-            """重新加载模块
-            用法: 重载 [模块名]
-            如果不指定模块名，则重新加载所有命令
-            """
+        def reload(moduleName):
+            """重新加载指定模块"""
             g = _G._G_
             log = g.Log()
-            
-            if not moduleName:
-                return f"e->需要模块名"
-            
+            log.i(f"重新加载模块: {moduleName}")
             # 检查是否需要下载最新版本
             moduleFile = f"scripts/{moduleName}.py"
             if g.CFileServer():
@@ -407,7 +393,7 @@ class _CmdMgr:
             else:
                 # 如果没有文件服务器，直接重载
                 ret = cls._reloadModule(moduleName)
-                return f"i->重载{moduleName}{'成功' if ret else '失败'}"
+                return f"i->重载{moduleName}{ret}"
         
         @cls.reg(r"命令列表")
         def cmdList():
@@ -421,8 +407,6 @@ class _CmdMgr:
         @cls.reg(r"帮助")
         def help():
             """显示所有可用命令的帮助信息"""
-            from scripts._Log import _Log
-            
             # 创建命令信息字典
             commands_info = {
                 "commands": [],
@@ -478,14 +462,14 @@ class _CmdMgr:
                 commands_info["commands"].append(cmd_data)            
             # 转换为JSON字符串，使用缩进美化输出
             return json.dumps(commands_info, ensure_ascii=False, indent=2)
-        # _Log.Log_.d("CmdMgr模块命令注册完成")
+        # _Log._Log_.d("CmdMgr模块命令注册完成")
 
 
     @classmethod
     def OnReload(cls):
-        _Log.Log_.i("CmdMgr模块热更新 重新注册命令")
+        _Log._Log_.i("CmdMgr模块热更新 重新注册命令")
         # 使用全局命令重新注册机制
         cls.regAllCmds()
 
 # 创建全局单例实例
-regCmd = _CmdMgr.reg
+regCmd = _CmdMgr_.reg

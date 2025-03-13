@@ -1,12 +1,12 @@
 from datetime import datetime
-from typing import Optional, Dict, Callable, Any
+from typing import Optional, Callable, Any
 from _Tools import TaskState
 import _Log
 import time
 
 
 
-class CTask:
+class CTask_:
     """任务包装类,用于管理单个任务的执行过程"""
     
     def __init__(self, appName: str, taskName: str):
@@ -19,7 +19,7 @@ class CTask:
         self.onResult: Optional[Callable[[TaskState], None]] = None        
     
     @classmethod
-    def create(cls, appName: str, taskName: str) -> 'CTask':
+    def create(cls, appName: str, taskName: str) -> 'CTask_':
         """
         创建任务实例
         Args:
@@ -34,8 +34,8 @@ class CTask:
     @property
     def template(self) -> Any:
         if not hasattr(self, '_template'):
-            from TaskTemplate import TaskTemplate
-            self._template = TaskTemplate.getTemplate(self.taskName)
+            from TaskTemplate import TaskTemplate_
+            self._template = TaskTemplate_.getTemplate(self.taskName)
         return self._template
     
         
@@ -43,13 +43,13 @@ class CTask:
         """开始任务"""
         try:
             self.startTime = datetime.now()
-            # _Log.Log_.i(f"开始任务: {self.taskName}")
+            # _Log._Log_.i(f"开始任务: {self.taskName}")
             fun = self.template.start
             if fun:
                 return fun(self)
             return True
         except Exception as e:
-            _Log.Log_.ex(e, f"开始任务失败: {self.taskName}")
+            _Log._Log_.ex(e, f"开始任务失败: {self.taskName}")
             return False
             
             
@@ -76,7 +76,7 @@ class CTask:
             progress = data.get('progress', 0) if data else 0
             if progress >= 1:
                 return TaskState.SUCCESS
-            # _Log.Log_.i(f"运行任务: {self.taskName}, from {progress*100}%")
+            # _Log._Log_.i(f"运行任务: {self.taskName}, from {progress*100}%")
             self.state = TaskState.RUNNING
             if not self.start():
                 self.cancel()
@@ -84,7 +84,7 @@ class CTask:
             curTime = datetime.now()
             pastTime = 0
             pastTime = progress * self.duration
-            # _Log.Log_.i(f"任务 {self.taskName} 运行中, pastTime : {pastTime}, duration: {self.duration}")
+            # _Log._Log_.i(f"任务 {self.taskName} 运行中, pastTime : {pastTime}, duration: {self.duration}")
             while True:
                 if self.state != TaskState.RUNNING:
                     break
@@ -97,7 +97,7 @@ class CTask:
                 time.sleep(self.interval)
                 pastTime += self.interval
                 progress = pastTime/self.duration
-                # _Log.Log_.i(f"任务 {self.taskName} 运行中@@@: progress: {progress}")
+                # _Log._Log_.i(f"任务 {self.taskName} 运行中@@@: progress: {progress}")
                 self.update(progress)
             # 只有正常完成的任务才执行end
             if self.state == TaskState.FAILED or self.state == TaskState.SUCCESS:
@@ -105,7 +105,7 @@ class CTask:
                return result if result else TaskState.FAILED
             return self.state
         except Exception as e:
-            _Log.Log_.ex(e, f"任务执行异常: {self.taskName}")
+            _Log._Log_.ex(e, f"任务执行异常: {self.taskName}")
             self.state = TaskState.FAILED
             return self.state
 
@@ -126,7 +126,7 @@ class CTask:
         """停止任务"""
         if self.state == TaskState.RUNNING:
             self.state = TaskState.PAUSED
-            _Log.Log_.i(f"任务 {self.taskName} 已暂停")
+            _Log._Log_.i(f"任务 {self.taskName} 已暂停")
             # 发送任务停止消息
             try:
                 from CClient import client
@@ -136,19 +136,19 @@ class CTask:
                         'task_name': self.taskName
                     })
             except Exception as e:
-                _Log.Log_.ex(e, '发送任务停止消息失败')
+                _Log._Log_.ex(e, '发送任务停止消息失败')
 
     def setScore(self, score: int):
         """设置任务得分"""
         self.score = score
-        _Log.Log_.i(f"任务 {self.taskName} 得分: {self.score}")
+        _Log._Log_.i(f"任务 {self.taskName} 得分: {self.score}")
 
     def cancel(self) -> bool:
         """取消任务"""
         try:
             if self.state == TaskState.RUNNING:
                 self.state = TaskState.CANCELLED
-                _Log.Log_.i(f"任务 {self.taskName} 已取消")
+                _Log._Log_.i(f"任务 {self.taskName} 已取消")
             # 发送取消事件到服务器
             from CClient import client
             if client:
@@ -156,10 +156,10 @@ class CTask:
                     'app_name': self.appName,
                     'task_name': self.taskName
                 })
-                _Log.Log_.i(f"已发送取消任务请求: {self.appName}/{self.taskName}")
+                _Log._Log_.i(f"已发送取消任务请求: {self.appName}/{self.taskName}")
             from CTaskMgr import taskMgr
             taskMgr.tasks.pop(Tools.toTaskId(self.appName, self.taskName))
             return True
         except Exception as e:
-            _Log.Log_.ex(e, "取消任务失败")
+            _Log._Log_.ex(e, "取消任务失败")
             return False

@@ -1,11 +1,10 @@
 from datetime import datetime
 import json
-from models import db, EarningRecord
+from SModels import db, EarningRecord
 import _Log
-from SAppMgr import appMgr  # 添加导入
 import re
 
-class SEarningMgr:
+class SEarningMgr_:
     """收益记录管理类"""
     
     # 关键文本的正则表达式
@@ -43,11 +42,11 @@ class SEarningMgr:
             db.session.add(record)
             db.session.commit()
             
-            _Log.Log_.i(f"添加收益记录: {deviceId}-{appName} {earnType}={amount}")
+            _Log._Log_.i(f"添加收益记录: {deviceId}-{appName} {earnType}={amount}")
             return True
             
         except Exception as e:
-            _Log.Log_.ex(e, "添加收益记录失败")
+            _Log._Log_.ex(e, "添加收益记录失败")
             return False
     
     @staticmethod        
@@ -55,22 +54,22 @@ class SEarningMgr:
         """从OCR结果加载收益记录"""
         try:
             # 检查关键字
-            if not (re.search(SEarningMgr.PATTERNS['coin_section'], content) or 
-                   re.search(SEarningMgr.PATTERNS['cash_section'], content)):
-                _Log.Log_.e("内容格式错误: 缺少必要的关键字")
+            if not (re.search(SEarningMgr_.PATTERNS['coin_section'], content) or 
+                   re.search(SEarningMgr_.PATTERNS['cash_section'], content)):
+                _Log._Log_.e("内容格式错误: 缺少必要的关键字")
                 return False
                 
             # 解析记录
-            records = SEarningMgr._parse_records(content)
+            records = SEarningMgr_._parse_records(content)
             if not records:
-                _Log.Log_.e("未找到有效的收益记录")
+                _Log._Log_.e("未找到有效的收益记录")
                 return False
                 
             # 获取设备ID
             from SDeviceMgr import deviceMgr
             device_id = deviceMgr.curDeviceID
             if not device_id:
-                _Log.Log_.e("未选择设备")
+                _Log._Log_.e("未选择设备")
                 return False
                 
             # 导入记录
@@ -84,7 +83,7 @@ class SEarningMgr:
                     )
                     
                     # 添加记录
-                    if SEarningMgr.Add(
+                    if SEarningMgr_.Add(
                         deviceId=device_id,
                         appName=appName,
                         earnType='score',
@@ -94,14 +93,14 @@ class SEarningMgr:
                         success_count += 1
                         
                 except Exception as e:
-                    _Log.Log_.ex(e, f"导入记录失败: {record}")
+                    _Log._Log_.ex(e, f"导入记录失败: {record}")
                     
             total = len(records)
-            _Log.Log_.i(f"导入完成: 成功{success_count}/{total}")
+            _Log._Log_.i(f"导入完成: 成功{success_count}/{total}")
             return success_count == total
             
         except Exception as e:
-            _Log.Log_.ex(e, "导入收益记录失败")
+            _Log._Log_.ex(e, "导入收益记录失败")
             return False
     
     @staticmethod
@@ -136,13 +135,13 @@ class SEarningMgr:
                 y = int(item['b'].split(',')[1])
                 
                 # 检查是否是日期
-                date_match = re.search(SEarningMgr.PATTERNS['date'], text)
+                date_match = re.search(SEarningMgr_.PATTERNS['date'], text)
                 if date_match:
                     current_date = date_match.group()
                     continue
                     
                 # 检查是否是金额
-                amount_match = re.search(SEarningMgr.PATTERNS['amount'], text)
+                amount_match = re.search(SEarningMgr_.PATTERNS['amount'], text)
                 if amount_match and current_date:
                     # 获取上一行的文本作为类型描述
                     if i > 0:
@@ -168,7 +167,7 @@ class SEarningMgr:
             return records
             
         except Exception as e:
-            _Log.Log_.ex(e, "解析收益记录失败")
+            _Log._Log_.ex(e, "解析收益记录失败")
             return []
     
     def GetEarnings(self, deviceId: str, appName: str, start_date: datetime, end_date: datetime, earnType: str) -> float:
@@ -206,5 +205,5 @@ class SEarningMgr:
             return total_earnings
             
         except Exception as e:
-            _Log.Log_.ex(e, "获取收益记录失败")
+            _Log._Log_.ex(e, "获取收益记录失败")
             return 0    

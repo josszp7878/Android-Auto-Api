@@ -2,21 +2,23 @@ from app import create_app, socketio
 import signal
 import sys
 import os
-sys.path.append(os.path.join(os.path.dirname(__file__), 'app'))
 sys.path.append(os.path.join(os.path.dirname(__file__), 'scripts'))
 from config import config
-import _Log
-from Database import Database
+from SDatabase import Database
+import _G
 
 def signal_handler(sig, frame):
     """处理 Ctrl+C 信号"""
-    _Log.Log_.i('正在关闭服务器...')
-    _Log.Log_.uninit()
+    log = _G._G_.Log()
+    log.i('正在关闭服务器...')
+    log.uninit()
     exit(0)
 
 
 if __name__ == '__main__':
     try:
+        g = _G._G_
+        log = g.Log()
         # 创建应用实例
         app = create_app('development')
         cfg = config['development']
@@ -25,15 +27,15 @@ if __name__ == '__main__':
         signal.signal(signal.SIGINT, signal_handler)
         
         # 初始化日志系统并打开服务器日志
-        _Log.Log_.setIsServer(is_server=True)        
+        g.setIsServer(True)        
         # 启动服务器
-        _Log.Log_.i(f'服务器启动在: http://{cfg.SERVER_HOST}:{cfg.SERVER_PORT}')
+        log.i(f'服务器启动在: http://{cfg.SERVER_HOST}:{cfg.SERVER_PORT}')
         
         # 初始化数据库
         Database.init(app)
         # 注册所有命令
-        from _CmdMgr import _CmdMgr
-        _CmdMgr.regAllCmds()
+        import _CmdMgr
+        _CmdMgr._CmdMgr_.regAllCmds()
         socketio.run(
             app, 
             host=cfg.SERVER_HOST,
@@ -43,7 +45,7 @@ if __name__ == '__main__':
             log_output=False      # 启用日志输出
         )
     except Exception as e:
-        print(f'服务器启动失败: {_Log.Log_.formatEx(e)}')
-        _Log.Log_.uninit()
+        log.ex(e, f'服务器启动失败')
+        log.uninit()
     finally:
-        _Log.Log_.i('服务器关闭')
+        log.i('服务器关闭')

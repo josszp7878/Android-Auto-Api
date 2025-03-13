@@ -109,13 +109,13 @@ android {
 }
 
 // 添加复制脚本的任务
-task copyScripts(type: Copy) {
-    from '../server/scripts'
-    into 'src/main/assets/scripts'
-    include '**/*.py'
-}
+//task copyScripts(type: Copy) {
+//    from '../server/scripts'
+//    into 'src/main/assets/scripts'
+//    include '**/*.py'
+//}
 
-preBuild.dependsOn copyScripts
+//preBuild.dependsOn copyScripts
 
 dependencies {
     implementation fileTree(dir: "libs", include: ["*.jar"])
@@ -143,4 +143,6 @@ dependencies {
     implementation 'com.google.mlkit:text-recognition-chinese:16.0.1'
     implementation("androidx.lifecycle:lifecycle-extensions:2.2.0")
 
+    // Gson
+    implementation 'com.google.code.gson:gson:2.10.1'
 }

@@ -2,11 +2,73 @@
 全局状态管理模块 (兼容服务端和客户端)
 """
 import threading
+import os
+from typing import TYPE_CHECKING
 
-class G:
+if TYPE_CHECKING:
+    from CFileServer import CFileServer_
+    from CClient import CClient_
+    from _Log import _Log_
+    from _CmdMgr import _CmdMgr_
+    from CTools import CTools_
+    from CPageMgr import CPageMgr_
+
+g = {}
+
+class _G_:
     # 使用线程安全的存储
-    _store = {}
     _lock = threading.Lock()
+    _dir = None
+    _store = {}
+    _isServer = None    
+    @classmethod
+    def IsServer(cls):
+        """是否是服务器端"""    
+        return cls._isServer
+    
+    @classmethod
+    def setIsServer(cls, isServer):
+        """设置是否是服务器端"""
+        cls._isServer = isServer
+    
+    @classmethod
+    def Clone(cls, oldCls):
+        """克隆"""
+        cls._isServer = oldCls._isServer
+        cls._dir = oldCls._dir
+        cls._store = oldCls._store
+
+    @classmethod
+    def rootDir(cls):
+        if cls._dir:
+            return cls._dir
+        dir = None
+        if not cls._isServer:
+            import CTools
+            android = CTools.CTools_.android
+            if android:
+                # Android环境下使用应用私有目录
+                dir = android.getFilesDir(None, False)
+        if not dir:
+            # 开发环境使用当前目录
+            dir = os.path.dirname(
+                os.path.dirname(os.path.abspath(__file__)))
+        cls._dir = dir
+        return cls._dir
+
+    @classmethod
+    def scriptDir(cls):
+        dir = os.path.join(cls.rootDir(), 'scripts')
+        if not os.path.exists(dir):
+            os.makedirs(dir)
+        return dir
+
+    @classmethod
+    def configDir(cls):
+        dir = os.path.join(cls.rootDir(), 'config')
+        if not os.path.exists(dir):
+            os.makedirs(dir)
+        return dir
 
     @classmethod
     def save(cls, key, value):
@@ -19,12 +81,12 @@ class G:
         """恢复并删除状态"""
         with cls._lock:
             return cls._store.pop(key, default)
-        
+
     @classmethod
     def get(cls, key, default=None):
         """获取状态"""
         return cls._store.get(key, default)
-    
+
     @classmethod
     def clear(cls):
         """清空状态"""
@@ -32,48 +94,83 @@ class G:
             cls._store.clear()
 
     @classmethod
-    def Log(cls):
-        """获取 Log 实例"""
-        if 'Log' not in cls._store:
+    def getClassName(cls, module_name):
+        """获取类名"""
+        return f'{module_name}_'
+    
+    @classmethod
+    def CClient(cls) -> 'CClient_':
+        """获取客户端"""
+        return cls.getClass('CClient')
+
+    @classmethod
+    def Log(cls) -> '_Log_':
+        return cls.getClass('_Log')
+
+    @classmethod
+    def CTools(cls) -> 'CTools_':
+        return cls.getClass('CTools')
+
+    @classmethod
+    def PageMgr(cls) -> 'CPageMgr_':
+        return cls.getClass('CPageMgr')
+    
+    @classmethod
+    def CFileServer(cls) -> 'CFileServer_':
+        return cls.getClass('CFileServer')
+    
+    @classmethod
+    def CmdMgr(cls) -> '_CmdMgr_':
+        return cls.getClass('_CmdMgr')
+
+
+    @classmethod
+    def CallMethod(cls, module, methodName, *args, **kwargs):
+        try:
+            if module is None:
+                return
+            klass = cls.getClass(module.__name__)
+            if klass:
+                method = getattr(klass, methodName, None)
+                if method and callable(method):
+                    return method(*args, **kwargs)
+        except Exception as e:
+            cls.Log().ex(e, f"获取类方法失败: {methodName}")
+
+    @classmethod
+    def getClass(cls, moduleName):
+        """通用类获取方法
+        Args:
+            module_name: 模块名（如'_Log'）
+            class_name: 类名（如'Log_'）
+            store_key: 存储键（默认使用类名）
+        """
+        #一定不要使用cls.Log()，否则会陷入死循环
+        className = cls.getClassName(moduleName)
+        if className not in cls._store:
             import _Log
-            v = _Log.Log_
-            cls._store['Log'] = v
-        return cls._store['Log']
-    
-    @classmethod
-    def Tools(cls, key):
-        """获取状态"""
-        if key not in cls._store:
-            import _Tools
-            v = _Tools._Tools
-            cls._store['Tools'] = v
-        return cls._store['Tools']
-    
-    @classmethod
-    def CTools(cls):
-        """获取状态"""
-        if 'CTools' not in cls._store:
-            import CTools
-            v = CTools.CTools_
-            cls._store['CTools'] = v
-        return cls._store['CTools']
-    
-    @classmethod
-    def PageMgr(cls):
-        """获取 PageMgr 实例"""
-        if 'PageMgr' not in cls._store:
-            import CPageMgr
-            v = CPageMgr.CPageMgr_
-            cls._store['PageMgr'] = v
-        return cls._store['PageMgr']
-    
+            log = _Log._Log_
+            try:
+                module = __import__(moduleName, fromlist=[className])
+                klass = None
+                try:
+                    klass = getattr(module, className)
+                except Exception as e:
+                    log.w(e, f"获取类失败: {className}")
+                    return None
+                cls._store[className] = klass
+            except Exception as e:
+                log.ex(e, f"导入{moduleName}失败")
+                return None
+        return cls._store[className]
+
     @classmethod
     def logPerf(cls, key, timeCost):
         """记录性能数据"""
         if not hasattr(cls, '_perfData'):
             cls._perfData = {}
         cls._perfData.setdefault(key, []).append(timeCost)
-        
+
     @classmethod
     def getPerfStats(cls, key):
         """获取性能统计"""
@@ -82,4 +179,3 @@ class G:
             return "无数据"
         avg = sum(data)/len(data)
         return f"平均: {avg:.2f}ms 最大: {max(data):.2f}ms 最小: {min(data):.2f}ms"
-    

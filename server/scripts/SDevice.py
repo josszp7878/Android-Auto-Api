@@ -1,15 +1,15 @@
 from datetime import datetime
 from pathlib import Path
 from flask import current_app
-from models import db, DeviceModel, AppModel
+from SModels import db, DeviceModel, AppModel
 import _Log
 import base64
-from STaskMgr import STaskMgr
-from SEarningMgr import SEarningMgr
+from STaskMgr import STaskMgr_
+from SEarningMgr import SEarningMgr_
 import json
 from SAppMgr import appMgr  # 局部导入避免循环依赖
 
-class SDevice:
+class SDevice_:
     """设备类：管理设备状态和信息"""
     
     def __init__(self, device_id):
@@ -26,7 +26,7 @@ class SDevice:
         return self.device_id
         
     def init(self, model: DeviceModel = None):
-        # _Log.Log_.i(f'初始化设备&&&: {self.device_id}')
+        # _Log._Log_.i(f'初始化设备&&&: {self.device_id}')
         if model:
             self.device_id = model.device_id
             self._status = model.status
@@ -47,7 +47,7 @@ class SDevice:
             start_date = datetime(2000, 1, 1)  # 一个足够早的日期
             end_date = datetime.now()
             
-            return SEarningMgr().GetEarnings(
+            return SEarningMgr_().GetEarnings(
                 deviceId=self.device_id,
                 appName='',  # 空字符串表示所有应用
                 earnType='score',
@@ -55,14 +55,14 @@ class SDevice:
                 end_date=end_date
             )
         except Exception as e:
-            _Log.Log_.ex(e, '获取设备总分失败')
+            _Log._Log_.ex(e, '获取设备总分失败')
             return 0.0
 
     @property
-    def taskMgr(self)->STaskMgr:  # 改为小写，符合 Python 命名规范
+    def taskMgr(self)->STaskMgr_:  # 改为小写，符合 Python 命名规范
         """懒加载任务管理器"""
         if not hasattr(self, '_taskMgr'):
-            self._taskMgr = STaskMgr(self)  
+            self._taskMgr = STaskMgr_(self)  
         return self._taskMgr
     
     def _ensure_screenshot_dir(self):
@@ -93,38 +93,38 @@ class SDevice:
                     db.session.commit()
                     # print(f'设备 {self.device_id} 状态已同步到数据库')
         except Exception as e:
-            _Log.Log_.ex(e, '同步设备状态到数据库出错')
+            _Log._Log_.ex(e, '同步设备状态到数据库出错')
 
     
     def onConnect(self):
         """设备连接回调"""
         try:
             self.status = 'online'
-            _Log.Log_.i(f'设备 {self.device_id} 已连接')
+            _Log._Log_.i(f'设备 {self.device_id} 已连接')
             self._commit()
             
             # 将刷新操作放在单独的 try-except 块中
             try:
                 self.refresh()  # 统一刷新状态
             except Exception as e:
-                _Log.Log_.ex(e, f'设备 {self.device_id} 刷新状态失败，但连接已建立')
+                _Log._Log_.ex(e, f'设备 {self.device_id} 刷新状态失败，但连接已建立')
                 # 连接失败不影响设备连接状态
             
             return True
         except Exception as e:
-            _Log.Log_.ex(e, '设备连接处理失败')
+            _Log._Log_.ex(e, '设备连接处理失败')
             return False
     
     def onDisconnect(self):
         """设备断开连接回调"""
         try:
             self.status = 'offline'
-            _Log.Log_.i(f'设备 {self.device_id} 已断开连接')
+            _Log._Log_.i(f'设备 {self.device_id} 已断开连接')
             self._commit()
             self.refresh()  # 统一刷新状态
             return True
         except Exception as e:
-            _Log.Log_.ex(e, '设备断开连接处理失败')
+            _Log._Log_.ex(e, '设备断开连接处理失败')
             return False
 
     def login(self):
@@ -136,7 +136,7 @@ class SDevice:
             self.refresh()  # 统一刷新状态
             return True
         except Exception as e:
-            _Log.Log_.ex(e, '设备登录失败')
+            _Log._Log_.ex(e, '设备登录失败')
             return False
     
     def logout(self):
@@ -148,7 +148,7 @@ class SDevice:
             self.refresh()  # 统一刷新状态
             return True
         except Exception as e:
-            _Log.Log_.ex(e, '设备登出失败')
+            _Log._Log_.ex(e, '设备登出失败')
             return False    
         
     def refresh(self):
@@ -158,10 +158,10 @@ class SDevice:
             # 先获取设备信息，如果出错则记录日志
             device_info = self.to_dict()
             deviceMgr.emit2B('S2B_DeviceUpdate', device_info)
-            # _Log.Log_.i(f'设备 {self.device_id} 状态已刷新')
+            # _Log._Log_.i(f'设备 {self.device_id} 状态已刷新')
             self.taskMgr.currentTask = None
         except Exception as e:
-            _Log.Log_.ex(e, '刷新设备状态失败')
+            _Log._Log_.ex(e, '刷新设备状态失败')
 
     def to_dict(self):
         """返回设备信息字典"""
@@ -178,7 +178,7 @@ class SDevice:
                     if 'static' in screenshotFile:
                         screenshotFile = '/static' + screenshotFile.split('static')[1]
                 except Exception as e:
-                    _Log.Log_.ex(e, '获取截图时间失败')
+                    _Log._Log_.ex(e, '获取截图时间失败')
                     # 使用默认值
                     screenshotTime = datetime.now().strftime('%H:%M:%S')
             
@@ -189,14 +189,14 @@ class SDevice:
             try:
                 todayTaskScore = self.taskMgr.getTodayScore() if hasattr(self, '_taskMgr') else 0
             except Exception as e:
-                _Log.Log_.ex(e, '获取今日任务分数失败')
+                _Log._Log_.ex(e, '获取今日任务分数失败')
                 todayTaskScore = 0
             
             # 获取总分
             try:
                 totalScore = self.total_score
             except Exception as e:
-                _Log.Log_.ex(e, '获取总分失败')
+                _Log._Log_.ex(e, '获取总分失败')
                 totalScore = 0
             
             return {
@@ -208,7 +208,7 @@ class SDevice:
                 'totalScore': totalScore
             }
         except Exception as e:
-            _Log.Log_.ex(e, '生成设备信息字典失败')
+            _Log._Log_.ex(e, '生成设备信息字典失败')
             # 返回最小化的设备信息
             return {
                 'deviceId': self.device_id,
@@ -248,24 +248,24 @@ class SDevice:
                 return True
                 
         except Exception as e:
-            _Log.Log_.ex(e, "保存截图失败")
+            _Log._Log_.ex(e, "保存截图失败")
             return False
 
     def takeScreenshot(self):
         """向客户端发送截屏指令"""
         try:
             if self.status != 'login':
-                _Log.Log_.w(f'设备 {self.device_id} 未登录，无法截屏')
+                _Log._Log_.w(f'设备 {self.device_id} 未登录，无法截屏')
                 return False
             from SDeviceMgr import deviceMgr
             deviceMgr.sendClientCmd(
                 self.device_id, 
                 'takeScreenshot'
             )
-            _Log.Log_.i(f'向设备 {self.device_id} 发送截屏指令')
+            _Log._Log_.i(f'向设备 {self.device_id} 发送截屏指令')
             return True
         except Exception as e:
-            _Log.Log_.ex(e, f'向设备 {self.device_id} 发送截屏指令失败')
+            _Log._Log_.ex(e, f'向设备 {self.device_id} 发送截屏指令失败')
             return False
 
     def getAppOnScreen(self):
@@ -275,7 +275,7 @@ class SDevice:
                 try:
                     # 空数据检查
                     if not data:
-                        _Log.Log_.w("收到空屏幕数据")
+                        _Log._Log_.w("收到空屏幕数据")
                         return
 
                     # # 类型转换
@@ -302,7 +302,7 @@ class SDevice:
                         
                         # 使用应用管理器验证是否为已知应用
                         exist = appMgr.app_exists(text.strip())
-                        _Log.Log_.i(f'应用{text.strip()} 是否存在: {exist}')
+                        _Log._Log_.i(f'应用{text.strip()} 是否存在: {exist}')
                         if exist:
                             detected_apps.add(exist)
                     
@@ -328,16 +328,16 @@ class SDevice:
                         db.session.commit()
                         self.apps = AppModel.query.filter_by(deviceId=self.device_id).all()
                         
-                    _Log.Log_.i(f'成功更新{len(detected_apps)}个应用到数据库')
+                    _Log._Log_.i(f'成功更新{len(detected_apps)}个应用到数据库')
 
                 except Exception as e:
-                    _Log.Log_.ex(e, "处理应用分析结果失败")
+                    _Log._Log_.ex(e, "处理应用分析结果失败")
 
             from SDeviceMgr import deviceMgr
             deviceMgr.sendClientCmd(self.device_id, 'getScreen', None, 10, parseResult)
             return True
         except Exception as e:
-            _Log.Log_.ex(e, "分析屏幕应用失败")
+            _Log._Log_.ex(e, "分析屏幕应用失败")
             return False
 
    

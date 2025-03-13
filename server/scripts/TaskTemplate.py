@@ -1,7 +1,7 @@
 from typing import Dict, Callable, Tuple, Any
-from CTask import CTask
+from CTask import CTask_
 
-class TaskTemplate:
+class TaskTemplate_:
     """任务模板管理类"""
     
     @classmethod
@@ -14,7 +14,7 @@ class TaskTemplate:
     @classmethod
     def regTask(cls, alias: str):
         """注册任务模板装饰器"""
-        def decorator(func: Callable[[dict], Tuple[Callable[[CTask], None], ...]]):
+        def decorator(func: Callable[[dict], Tuple[Callable[[CTask_], None], ...]]):
             # 获取函数名作为模板ID
             templateId = func.__name__
             
@@ -41,7 +41,7 @@ class TaskTemplate:
             if templateId not in templates:
                 templates[templateId] = Template()
                 import _Log
-                # _Log.Log_.d(f"注册任务模板: {templateId}({alias})")
+                # _Log._Log_.d(f"注册任务模板: {templateId}({alias})")
             
             return func
         return decorator
@@ -64,4 +64,4 @@ class TaskTemplate:
 
 
 # 直接使用类方法作为装饰器
-regTask = TaskTemplate.regTask
+regTask = TaskTemplate_.regTask

@@ -4,44 +4,18 @@ import os
 from pathlib import Path
 import json
 import re
-
-TempKey = '_IsServer' 
-
+import _G
 class TAG(Enum):
     """标签"""
     CMD = "CMD"
     SCMD = "SCMD"
     Server = "@"
 
-class Log_:
+class _Log_:
     """统一的日志管理类"""
     _cache = []
     _visualLogs = []
-    _scriptDir = None
 
-    _isServer = None    
-    @classmethod
-    def IsServer(cls):
-        """是否是服务器端"""    
-        return cls._isServer
-    
-    @classmethod
-    def init_(cls):
-        if not hasattr(cls, '_init'):
-            from _G import G
-            cls._isServer = G.restore('_isServer')
-            cls._scriptDir = G.restore('_scriptDir')
-            print(f'日志系统初始化 log={G.get("Log_")}')
-            cls._init = True
-
-    @classmethod
-    def OnPreload(cls):
-        """热更新前的预处理，保存当前状态"""
-        from _G import G
-        G.save('_isServer', cls._isServer)
-        G.save('_scriptDir', cls._scriptDir)
-        cls.i(f'日志系统热更新前保存状态: isServer={cls._isServer}, scriptDir={cls._scriptDir}')
-        return True
     
 
     @classmethod
@@ -51,14 +25,7 @@ class Log_:
         cls._cache.clear()
         cls._visualLogs.clear()
 
-    @classmethod
-    def setIsServer(cls, is_server=True):
-        """设置是否是服务器端"""
-        cls._isServer = is_server
-        if is_server:
-            cls._load()
-        return cls
-    
+ 
     @classmethod
     def clientScriptDir(cls):
         dir = None
@@ -73,57 +40,7 @@ class Log_:
             print(f"脚本目录: {dir}")
         return dir 
     
-    @classmethod
-    def rootDir(cls):
-        dir = None
-        import CTools
-        android = CTools.CTools_.android
-        if android:
-            # Android环境下使用应用私有目录
-            dir = android.getFilesDir()
-        else:
-            # 开发环境使用当前目录
-            dir =  os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            print(f"根目录: {dir}")
-        return dir 
-    
-    @classmethod
-    def scriptDir(cls):
-        dir = os.path.join(cls.rootDir(), 'scripts')
-        if not os.path.exists(dir):
-            os.makedirs(dir)
-        return dir
-        # if cls._scriptDir:
-        #     return cls._scriptDir
-        # if cls._isServer:
-        #     cls._scriptDir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'app')
-        # else:
-        #     cls._scriptDir = cls.clientScriptDir()
-        # if not os.path.exists(cls._scriptDir):
-        #     cls._scriptDir = None
-        #     cls.ex(Exception('脚本目录不存在'), '脚本目录不存在')
-        # return cls._scriptDir
-
-    @classmethod
-    def ConfigDir(cls):
-        configDir = os.path.join(cls.rootDir(), 'config')
-        if not os.path.exists(configDir):
-            os.makedirs(configDir)
-        return configDir
-        # """获取配置文件目录"""
-        # if cls._configDir:
-        #     return cls._configDir
-        # if cls._isServer:
-        #     cls._configDir = "server/config"
-        # else:
-        #     import CTools
-        #     android = CTools.CTools_.android
-        #     if android is None:
-        #         cls._configDir = "server/config"
-        #     else:
-        #         cls._configDir = android.getFilesDir('config', True)
-        # return cls._configDir
-    
+   
     @classmethod
     def uninit(cls):
         """反初始化日志系统"""
@@ -139,7 +56,7 @@ class Log_:
         return Path(APP_LOGS) / f"{date}.log"
     
     @classmethod
-    def _load(cls, date=None):
+    def load(cls, date=None):
         """从JSON文件加载日志"""
         try:
             cls._cache = []
@@ -148,11 +65,14 @@ class Log_:
                 with open(log_path, 'r', encoding='utf-8') as f:
                     for line in f:
                         try:
-                            cls._cache.append(json.loads(line.strip()))
-                        except json.JSONDecodeError:
-                            continue
+                            # 逐行处理并忽略错误行
+                            log = json.loads(line.strip())
+                            if isinstance(log, dict):
+                                cls._cache.append(log)
+                        except Exception as e:
+                            continue  # 忽略错误行
                 
-                # 将加载的日志发送到前端
+                # 保留原有发送逻辑
                 try:
                     from app import socketio
                     socketio.emit('S2B_LoadLogs', {
@@ -175,6 +95,7 @@ class Log_:
             print(f'保存日志到文件: {log_path}')
             with open(log_path, 'w', encoding='utf-8') as f:
                 for log in cls._cache:
+                    # print(log)
                     json_line = json.dumps(log, ensure_ascii=False)
                     f.write(json_line + '\n')  # 每个JSON对象单独一行
         except Exception as e:
@@ -194,46 +115,46 @@ class Log_:
     def log(cls, content, tag=None, level=None):
         """记录日志"""
         timestamp = datetime.now()
-        if isinstance(content, dict):
+        
+        # 强制转换非字符串内容
+        if not isinstance(content, str):
             try:
-                import json
-                content = json.dumps(content, ensure_ascii=False)
-                level = level or 'i'
-            except Exception:
                 content = str(content)
-        if cls._isServer is not None:
-            if cls._isServer:
-                if level is None:
-                    level = 'i'
-                    match = re.match(r'(e|w|i|d)\s*->\*', content)
-                    if match:
-                        level = match.group(1)
-                        content = content.replace(match.group(0), '').strip()
-                logDict = {
-                    'time': timestamp.strftime('%Y-%m-%d %H:%M:%S'),
-                    'tag': tag or TAG.Server.value,
-                    'level': level or 'i',
-                    'message': content
-                }
-                cls.add(logDict)
-            else:
-                try:
-                    from CDevice import CDevice
-                    device = CDevice.instance()
-                    if device:
-                        tag = f'{device.deviceID}{tag}' if tag else device.deviceID
-                        if device.connected:
-                            device.sio.emit('C2S_Log', {
-                                'time': timestamp.strftime('%Y-%m-%d %H:%M:%S'),
-                                'tag': tag,
-                                'level': level or 'i',
-                                'message': content
-                            })
-                except Exception as e:
-                    print(f'发送日志到服务器失败: {e}')
+            except Exception as e:
+                content = f"无法转换日志内容: {type(content)}"
+
+        # 处理特殊字符
+        content = content.replace('"', "'") # 替换双引号
+        
+        # 构造日志字典
+        logDict = {
+            'time': timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+            'tag': tag or TAG.Server.value,
+            'level': level or 'i',
+            'message': content[:500]  # 限制消息长度
+        }
+        
+        # 保留原有发送逻辑
+        if _G._G_.IsServer():
+            cls.add(logDict)
+        else:
+            try:
+                from CDevice import CDevice_
+                device = CDevice_.instance()
+                if device:
+                    tag = f'{device.deviceID}{tag}' if tag else device.deviceID
+                    if device.connected:
+                        device.sio.emit('C2S_Log', {
+                            'time': timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+                            'tag': tag,
+                            'level': level or 'i',
+                            'message': content
+                        })
+            except Exception as e:
+                print(f'发送日志到服务器失败: {e}')
+        
         print(f"{timestamp.strftime('%H:%M:%S')} [{tag}] {level}: {content}")
-    
-       
+
     @classmethod
     def d(cls, message, tag=None):
         """输出调试级别日志"""
@@ -280,7 +201,5 @@ class Log_:
     @classmethod
     def isWarning(cls, message):
         return isinstance(message, str) and message.startswith('w->')
-
-Log_.init_()
 
 

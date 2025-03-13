@@ -15,7 +15,7 @@ class TaskState(Enum):
         return [state.value for state in TaskState]
     
 
-class _Tools:
+class _Tools_:
     @classmethod
     def toTaskId(cls, appName: str, templateId: str) -> str:
         """生成任务唯一标识"""
@@ -38,26 +38,4 @@ class _Tools:
             del sys.modules[moduleName]
         importlib.import_module(moduleName)
 
-    @classmethod
-    def GetClassMethod(cls, module, method_name):
-        """查找模块中包含指定方法的类，并返回该方法
-        
-        Args:
-            module: 模块对象
-            method_name: 方法名称
-            
-        Returns:
-            tuple: (类对象, 方法对象) 如果找到，否则返回 (None, None)
-        """
-        try:
-            # 遍历模块中的所有属性
-            for attr_name in dir(module):
-                attr = getattr(module, attr_name)
-                # 检查是否是类，并且是否有指定的方法
-                if isinstance(attr, type) and hasattr(attr, method_name) and callable(getattr(attr, method_name)):
-                    return attr, getattr(attr, method_name)
-            return None, None
-        except Exception as e:
-            _Log.Log_.ex(e, f"查找类方法失败: {method_name}")
-            return None, None
 
