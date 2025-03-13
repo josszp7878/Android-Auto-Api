@@ -164,10 +164,8 @@ class _CmdMgr_:
                 if not spec:
                     log.e(f"找不到模块: {moduleName}")
                     return False
-                # _Log._Log_.d(f'重新加载模块: {module_name}')
                 module = importlib.util.module_from_spec(spec)
                 sys.modules[moduleName] = module
-                # _Log._Log_.d(f'重新执行。。。模块: {module_name} module={module}')
                 spec.loader.exec_module(module)
                 # 更新引用
                 for referrer in referrers:
@@ -180,7 +178,6 @@ class _CmdMgr_:
                 log.d(f'清除全局引用: {moduleName}')    
                 g.CallMethod(module, 'Clone', oldCls)
                 g.CallMethod(module, 'OnReload')
-                # _Log._Log_.d(f"重新加载模块成功: onReload{module_name}")
             else:
                 # 首次加载直接使用import_module
                 try:
@@ -283,32 +280,6 @@ class _CmdMgr_:
        
 
     @classmethod
-    def _scanModules(cls, dir: str, modules: List[str], func: Callable[[str], bool] = None):
-        """扫描脚本目录，找到所有包含registerCommands方法的模块"""
-        g = _G._G_
-        log = g.Log()
-        try:
-            prefix = 'S' if g.IsServer() else 'C'
-            for file in os.listdir(dir):
-                if not file.endswith('.py'):
-                    continue
-                firstChar = file[0]
-                if firstChar != prefix and firstChar != '_':
-                    continue
-                if func is None or func(file):
-                    module = file[:-3]  # 去掉.py后缀
-                    modules.append(module)
-        except Exception as e:
-            log.ex(e, "扫描脚本目录失败")
-
-    @classmethod
-    def scanModules(cls, dir: str):
-        modules = []
-        cls._scanModules(dir, modules)
-        return modules
-
-
-    @classmethod
     def regAllCmds(cls):
         """清除已注册的命令并重新注册所有命令
         
@@ -327,32 +298,24 @@ class _CmdMgr_:
         try:
             # 1. 清除所有命令注册
             cls.clear()            
-            # 2. 首先注册自己的命令
-            cls.registerCommands()
-            
             # 3. 扫描脚本目录，找到所有包含registerCommands方法的模块
-            dir = _G._G_.scriptDir()
-            modules = cls.scanModules(dir)
+            modules = g.getFileNames('scripts', '.py')
             # 4. 加载这些模块并执行它们的命令注册函数
             # _Log._Log_.d(f"加载模块: {modules}")
             success_count = 0
             for module in modules:
                 try:
                     # 直接使用模块名，不添加前缀
-                    full_module_name = module
-                    
+                    full_module_name = module                    
                     # 加载模块
                     try:
-                        # 如果模块未加载，则首次加载
                         if full_module_name not in sys.modules:
                             module = importlib.import_module(full_module_name)
                         else:
-                            # 如果模块已加载，则重新加载
                             module = sys.modules[full_module_name]
                     except Exception as e:
                         log.ex(e, f"加载模块失败: {full_module_name}")
                         continue
-                    
                     # 查找模块中的registerCommands类方法
                     g.CallMethod(module, 'registerCommands')
                     success_count += 1
@@ -384,9 +347,12 @@ class _CmdMgr_:
             g = _G._G_
             log = g.Log()
             log.i(f"重新加载模块: {moduleName}")
+            moduleName = g.findFileName(moduleName, 'scripts')
+            if not moduleName:
+                return "e->找不到模块"
             # 检查是否需要下载最新版本
             moduleFile = f"scripts/{moduleName}.py"
-            if g.CFileServer():
+            if not g.IsServer():
                 # 先下载最新版本，然后在回调中重新加载
                 g.CFileServer().download(moduleFile, lambda success: cls._reloadModule(moduleName))
                 return f"i->正在下载并重载{moduleName}..."

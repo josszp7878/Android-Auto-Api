@@ -3,6 +3,9 @@ package cn.vove7.andro_accessibility_api.demo.script;
 import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
+import android.os.Handler;
+import android.os.Looper;
+import android.widget.Toast;
 import android.util.Log;
 
 import com.chaquo.python.PyObject;
@@ -33,6 +36,7 @@ import java.io.FileWriter;
 import java.io.InputStreamReader;
 import java.util.concurrent.ExecutionException;
 import java.lang.reflect.Type;
+import java.io.BufferedReader;
 
 public class ScriptEngine {
     private static final String TAG = "ScriptEngine";
@@ -58,7 +62,6 @@ public class ScriptEngine {
             synchronized (ScriptEngine.class) {
                 if (INSTANCE == null) {
                     INSTANCE = new ScriptEngine(context);
-                    // INSTANCE.initScripts();
                 }
             }
         }
@@ -114,22 +117,6 @@ public class ScriptEngine {
         }
     }
 
-    private void initScripts() {
-        try {
-            File scriptsDir = new File(context.getFilesDir(), SCRIPTS_DIR);
-            // 如果scripts目录不存在，创建并复制初始脚本
-            if (!scriptsDir.exists()) {
-                Log.i(TAG, "First run, initializing scripts directory");
-                if (!scriptsDir.mkdirs()) {
-                    Log.e(TAG, "Failed to create scripts directory");
-                }
-                Log.i(TAG, "安装后第一次运行，初始化脚本目录");
-                copyScriptsFromAssets(context, scriptsDir);
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to initialize script engine", e);
-        }
-    }
 
     private static void copyScriptsFromAssets(Context context, File scriptsDir) {
         try {
@@ -170,7 +157,10 @@ public class ScriptEngine {
         executor.execute(() -> {
             try {
                 String baseUrl = "http://" + serverIP + ":5000";
+                
+                // 获取远程版本信息，这里可能会抛出连接异常
                 Map<String, Long> remoteVersions = getRemoteVersions(baseUrl);
+                
                 Map<String, Long> localVersions = loadLocalVersions();
 
                 // 创建需要同步的文件列表
@@ -211,39 +201,58 @@ public class ScriptEngine {
 
                 // 保存新版本信息
                 saveLocalVersions(remoteVersions);
-                Timber.i("文件同步完成，共更新 %d 个文件", toUpdate.size());
-                Timber.d("更新文件列表: %s", toUpdate);
-
-                Timber.d("远程版本 vs 本地版本对比结果:");
-                for (Map.Entry<String, Long> entry : remoteVersions.entrySet()) {
-                    String status = entry.getValue() > localVersions.getOrDefault(entry.getKey(), 0L) 
-                        ? "需要更新" : "已是最新";
-                    Timber.d("文件 %-20s 远程版本:%-10d 本地版本:%-10d 状态:%s",
-                            entry.getKey(), entry.getValue(), 
-                            localVersions.getOrDefault(entry.getKey(), 0L), status);
-                }
-
+            } catch (java.net.ConnectException e) {
+                // 处理连接异常
+                Timber.e(e, "连接服务器失败: %s", serverIP);
+                // 在主线程中显示Toast
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    Toast.makeText(context, "连接服务器失败: " + serverIP, Toast.LENGTH_LONG).show();
+                });
             } catch (Exception e) {
-                Timber.e(e, "文件同步失败");
-            } finally {
-                Timber.d("文件同步线程结束");
+                Timber.e(e, "同步文件失败");
+                // 在主线程中显示Toast
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    Toast.makeText(context, "同步文件失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                });
             }
         });
     }
 
     private Map<String, Long> getRemoteVersions(String baseUrl) throws IOException {
-        Timber.d("正在获取远程版本信息...");
-        HttpURLConnection conn = (HttpURLConnection) new URL(baseUrl + "/timestamps").openConnection();
-        conn.setRequestMethod("GET");
+        String url = baseUrl + "/timestamps";
+        HttpURLConnection connection = null;
         
-        try (InputStream in = conn.getInputStream()) {
+        try {
+            // 创建连接
+            connection = (HttpURLConnection) new URL(url).openConnection();
+            connection.setConnectTimeout(5000); // 5秒连接超时
+            connection.setReadTimeout(5000);    // 5秒读取超时
+            connection.setRequestMethod("GET");
+            
+            // 检查响应码
+            int responseCode = connection.getResponseCode();
+            if (responseCode != HttpURLConnection.HTTP_OK) {
+                throw new IOException("服务器响应错误: " + responseCode);
+            }
+            
+            // 读取响应
+            StringBuilder response = new StringBuilder();
+            try (InputStreamReader reader = new InputStreamReader(connection.getInputStream());
+                 BufferedReader bufferedReader = new BufferedReader(reader)) {
+                
+                String line;
+                while ((line = bufferedReader.readLine()) != null) {
+                    response.append(line);
+                }
+            }
+            
+            // 解析JSON
             Type type = new TypeToken<Map<String, Long>>(){}.getType();
-            Map<String, Long> versions = new Gson().fromJson(new InputStreamReader(in), type);
-            Timber.d("获取到 %d 个文件的远程版本信息", versions.size());
-            return versions;
-        } catch (Exception e) {
-            Timber.e(e, "获取远程版本失败");
-            throw e;
+            return new Gson().fromJson(response.toString(), type);
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
         }
     }
 

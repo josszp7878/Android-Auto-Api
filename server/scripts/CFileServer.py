@@ -80,15 +80,13 @@ class CFileServer_:
             url = f"{cls.serverUrl}/file/{filename}"
             response = requests.get(url, timeout=8)
             response.raise_for_status()
-            scriptDir = g.scriptDir()
-            scriptFile = os.path.join(scriptDir, filename)
-            
+            scriptFile = os.path.join(g.rootDir(), filename)
             # 确保目录存在
             os.makedirs(os.path.dirname(scriptFile), exist_ok=True)
             
             with open(scriptFile, 'w', newline = '', encoding='utf-8') as f:
                 f.write(response.text)
-            log.d(f"下载文件完成d: {filename} (大小: {os.path.getsize(scriptFile)} bytes)")
+            log.d(f"下载文件完成d: {scriptFile} (大小: {os.path.getsize(scriptFile)} bytes)")
             if onComplete:
                 onComplete(True)
             return True

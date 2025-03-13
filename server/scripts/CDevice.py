@@ -232,7 +232,7 @@ class CDevice_:
         g = _G._G_
         log = g.Log()
         sid = self.sio.sid
-        log.i(f'已连接到服务器, SID: {sid}')
+        log.i(f'已连接到服务器, server: {self.server_url}')
         self.connected = True
         
         # 连接成功后在新线程中执行登录

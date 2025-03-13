@@ -3,7 +3,7 @@
 """
 import threading
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Callable
 
 if TYPE_CHECKING:
     from CFileServer import CFileServer_
@@ -164,18 +164,42 @@ class _G_:
                 return None
         return cls._store[className]
 
-    @classmethod
-    def logPerf(cls, key, timeCost):
-        """记录性能数据"""
-        if not hasattr(cls, '_perfData'):
-            cls._perfData = {}
-        cls._perfData.setdefault(key, []).append(timeCost)
 
     @classmethod
-    def getPerfStats(cls, key):
-        """获取性能统计"""
-        data = cls._perfData.get(key, [])
-        if not data:
-            return "无数据"
-        avg = sum(data)/len(data)
-        return f"平均: {avg:.2f}ms 最大: {max(data):.2f}ms 最小: {min(data):.2f}ms"
+    def getFileNames(cls, dir: str, ext: str = '.py', func: Callable[[str], bool] = None):
+        """扫描指定目录下的Python模块
+        
+        根据当前环境(服务器/客户端)扫描对应前缀的Python文件，
+        并将符合条件的模块名添加到modules列表中
+        
+        Args:
+            dir: 要扫描的目录路径
+            modules: 用于存储找到的模块名的列表
+            func: 可选的过滤函数，接受文件名并返回布尔值
+        """
+        fileNames: List[str] = []
+        log = cls.Log()
+        dir = f'{cls.rootDir()}/{dir}'
+        try:
+            prefix = 'S' if cls.IsServer() else 'C'
+            for file in os.listdir(dir):
+                if ext and not file.endswith(ext):
+                    continue
+                firstChar = file[0]
+                if firstChar != prefix and firstChar != '_':
+                    continue
+                if func is None or func(file):
+                    module = file[:-3]  # 去掉.py后缀
+                    fileNames.append(module)
+        except Exception as e:
+            log.ex(e, "扫描脚本目录失败")
+        return fileNames
+
+    @classmethod
+    def findFileName(cls, fileName: str, dir: str = None):
+        """查找文件名，保证忽略文件名的大小写，返回实际的文件名"""
+        fileNames = cls.getFileNames(dir)
+        for file in fileNames:
+            if file.lower() == fileName.lower():
+                return file
+        return None

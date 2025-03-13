@@ -106,7 +106,7 @@ class CPageMgr_:
 
         # 初始化根节点日志
         process_node(config_data)
-        log.i(f"拓扑关系: {cls.topology.get(cls.ROOT_PAGE, {})}")
+        # log.i(f"拓扑关系: {cls.topology.get(cls.ROOT_PAGE, {})}")
 
 
 

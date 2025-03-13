@@ -59,7 +59,7 @@ class CCmds_:
         def date():
             """获取当前时间""" 
             log = _G._G_.Log()
-            log.i("获取当前时间ddd")
+            log.i("获取当前时dffdd")
             return str(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         
         # 注册状态命令
@@ -382,40 +382,31 @@ class CCmds_:
                     return f"找到文字，但返回格式异常: {pos}"
             return "未找到匹配文字"
        
-        # 新增文件更新相关命令
-        @regCmd('更新')
-        def updateFiles():
-            """触发文件更新"""
-            g = _G._G_
-            log = g.Log()
-            try:
-                def callback(success):
-                    if success:
-                        log.i("文件更新成功")
-                    else:
-                        log.w("文件更新失败或无需更新")
-                g.getClass('CFileServer').update(callback)
-                return "i->开始检查文件更新..."
-            except Exception as e:
-                log.ex(e, '文件更新失败')
-                return f"e->{str(e)}"
 
-        @regCmd('下载', r"(?P<fileName>.+)")
+        @regCmd('下载', r"(?P<fileName>.+)?")
         def download(fileName):
             """下载指定文件"""
             g = _G._G_
             log = g.Log()
             try:
+                FS = g.CFileServer()
                 def callback(success):
                     if success:
                         log.i(f"文件[{fileName}]下载成功")
                     else:
                         log.w(f"文件[{fileName}]下载失败")
-                fileName = g.CFileServer().toRelativePath(fileName)
-                g.CFileServer().download(fileName, callback)
-                return f"i->开始下载文件:{fileName}"
+                if fileName:
+                    log.i(f"下载文件: {fileName}")
+                    existFileName = g.findFileName(fileName, 'scripts')
+                    if existFileName:
+                        fileName = existFileName
+                    FS.download(f'scripts/{fileName}.py', callback)    
+                else:
+                    log.i("下载所有文件")
+                    FS.update(callback)
+                return True
             except Exception as e:
                 log.ex(e, '下载操作异常')
-                return f"e->{str(e)}"
+                return False
 
 

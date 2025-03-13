@@ -30,6 +30,11 @@ import java.lang.ref.WeakReference
 import android.os.Handler
 import android.os.Looper
 import timber.log.Timber
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Future
+import java.util.concurrent.TimeoutException
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.Executors
 
 /**
  * @功能:应用外打开Service 有局限性 特殊界面无法显示
@@ -64,8 +69,22 @@ class ToolBarService : LifecycleService() {
             return _serverIP!!
         }
         set(value) {
-            _serverIP = value
-            getPrefs().edit().putString(SERVER_NAME_KEY, value).apply()
+            if(value != _serverIP){
+                _serverIP = value
+                getPrefs().edit().putString(SERVER_NAME_KEY, value).apply()
+                try {
+                    // 在后台线程中执行文件同步
+                    Thread {
+                        // 显示正在连接的提示
+                        Handler(Looper.getMainLooper()).post {
+                            Toast.makeText(this, "正在连接服务器: $value...", Toast.LENGTH_SHORT).show()
+                        }
+                        scriptEngine.syncFiles(value)
+                    }.start()
+                } catch (e: Exception) {
+                    Timber.e(e, "启动同步线程失败")
+                }
+            }
         }
 
     private var _deviceName: String? = null
@@ -77,29 +96,10 @@ class ToolBarService : LifecycleService() {
             return _deviceName!!
         }
         set(value) {
-            // 当设备名称更新时，尝试同步脚本文件
-            if (value != _deviceName && value.isNotEmpty()) {
-                try {
-                    // 在后台线程中执行文件同步
-                    Thread {
-                        try {
-                            scriptEngine.syncFiles(value)
-                            Handler(Looper.getMainLooper()).post {
-                                Toast.makeText(this, "脚本文件同步中...", Toast.LENGTH_SHORT).show()
-                            }
-                        } catch (e: Exception) {
-                            Timber.e(e, "同步脚本文件失败")
-                            Handler(Looper.getMainLooper()).post {
-                                Toast.makeText(this, "同步脚本文件失败: ${e.message}", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    }.start()
-                } catch (e: Exception) {
-                    Timber.e(e, "启动同步线程失败")
-                }
+            if(value != _deviceName){
+                _deviceName = value
+                getPrefs().edit().putString(DEVICE_NAME_KEY, value).apply()
             }
-            _deviceName = value
-            getPrefs().edit().putString(DEVICE_NAME_KEY, value).apply()
         }
 
     private fun getPrefs(): SharedPreferences {
@@ -108,6 +108,8 @@ class ToolBarService : LifecycleService() {
         }
         return prefs
     }
+
+    private val executor = Executors.newSingleThreadExecutor()
 
     override fun onCreate() {
         super.onCreate()
@@ -420,6 +422,7 @@ class ToolBarService : LifecycleService() {
         hideWindow() // 销毁服务时隐藏悬浮窗口
         super.onDestroy()
         cursorView?.let { windowManager.removeView(it) }
+        executor.shutdown() // 关闭线程池
     }
 
     // 新增方法：隐藏光标
