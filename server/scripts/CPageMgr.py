@@ -16,6 +16,15 @@ class CPageMgr_:
     # 新增返回跳转记录
     backTransitions = {}  # {pageName: {'fromPage': str, 'action': str}}
     ROOT_PAGE = "Top"
+    
+    # 动作类型枚举
+    from enum import Enum
+    class ActionType(Enum):
+        CLICK = 'C'
+        OPENAPP = 'O'
+        SWIPE = 'S'
+        BACK = 'B'
+        CODE = ''
 
     # @classmethod
     # def Clone(cls, oldCls):
@@ -47,15 +56,8 @@ class CPageMgr_:
         cls.topology[parent]['out'].add(child)
         # 逆向跳转（子->父）
         cls.topology[child]['in'].add(parent)
+        cls.pages[parent].transitions[child] = inAction
         
-        # 设置进入动作
-        if inAction:
-            cls.pages[parent].transitions[child] = inAction
-        else:
-            # 生成默认动作
-            default_action = f"click('{child}')" if parent != cls.ROOT_PAGE else f"打开应用('{child}')"
-            cls.pages[parent].transitions[child] = default_action
-
     @classmethod
     def _loadConfig(cls, configPath):
         """支持自动推断与显式配置的混合模式"""
@@ -293,40 +295,146 @@ class CPageMgr_:
     toPage:str = None
     @classmethod
     def go(cls, target):
-        """优化后的跳转逻辑"""
-        log = _G._G_.Log()
-        log.i(f"▄▄▄▄▄ 开始跳转到 [{target}] ▄▄▄▄▄")
-        log.d(f"当前页面: {cls.currentPage}")
-
-        # 路径查找阶段
-        path = cls.findPath(cls.currentPage, target)
+        """跳转到指定页面
+        
+        Args:
+            target: 目标页面名称
+            
+        Returns:
+            bool: 是否跳转成功
+        """
+        g = _G._G_
+        log = g.Log()
+        log.i(f"开始跳转到 [{target}]")
+        
+        # 获取当前页面
+        current = cls.currentPage
+        log.i(f"当前页面: {current}")
+        
+        # 如果已经在目标页面，直接返回成功
+        if current == target:
+            log.i(f"已经在目标页面 [{target}]，无需跳转")
+            return True
+        
+        # 查找从当前页面到目标页面的路径
+        log.i(f"开始路径查找 {current} → {target}")
+        path = cls.findPath(current, target)
         if not path:
-            log.e(f"未找到有效路径: {cls.currentPage} -> {target}")
+            log.e(f"找不到从 [{current}] 到 [{target}] 的路径")
             return False
-        log.i(f"导航路径: {' → '.join(path)}")
-
-        # 执行跳转阶段
-        for idx, page in enumerate(path):
-            if page == cls.currentPage:
-                continue
+        
+        # 打印完整路径
+        path_str = " → ".join(path)
+        log.i(f"导航路径: {path_str}")
+        
+        # 逐步执行路径
+        for i in range(len(path) - 1):
+            from_page = path[i]
+            to_page = path[i + 1]
+            log.i(f"步骤{i+1}: {from_page} → {to_page}")
             
-            log.i(f"步骤{idx+1}: {cls.currentPage} → {page}")
-            # 智能跳转类型判断（简化版）
-            if page in cls.topology[cls.currentPage]['out']:  # 正向跳转
-                action = cls.pages[cls.currentPage].transitions[page]
-                success = cls._goPage(action, 'in', page)
-            elif page == cls.pages[cls.currentPage].parent:  # 返回父级
-                action = cls.pages[cls.currentPage].backAction
-                success = cls._goPage(action, 'out', page)
-            else:
-                log.e(f"无效跳转: {cls.currentPage}->{page}")
+            # 获取从当前页面到下一个页面的动作
+            action = cls.getAction(from_page, to_page)
+            if not action:
+                log.e(f"找不到从 [{from_page}] 到 [{to_page}] 的动作")
+                log.i(f"跳转失败于步骤 {i+1}")
                 return False
+            
+            log.i(f"执行动作 [类型:{action.get('type')} 目标:{action.get('target')}]")
+            
+            # 执行动作
+            success = cls.doAction(action)
+            
+            # 添加详细的动作执行结果日志
             if not success:
-                log.e(f"跳转失败于步骤 {idx+1}")
+                log.e(f"执行动作失败: {action}")
+                log.i(f"跳转失败于步骤 {i+1}")
                 return False
             
-        log.i(f"▄▄▄▄▄ 成功到达 [{target}] ▄▄▄▄▄")
+            # 验证是否到达了预期页面
+            new_page = cls.currentPage
+            log.i(f"执行动作后当前页面: {new_page}")
+            
+            if new_page != to_page:
+                log.e(f"页面跳转失败: 期望 [{to_page}]，实际 [{new_page}]")
+                log.i(f"跳转失败于步骤 {i+1}")
+                return False
+            
+            log.i(f"成功到达 [{to_page}] 页面")
+        
+        log.i(f"成功跳转到 [{target}]")
         return True
+
+    @classmethod
+    def doAction(cls, action):
+        """执行动作
+        
+        Args:
+            action: 动作配置
+            
+        Returns:
+            bool: 是否执行成功
+        """
+        g = _G._G_
+        tools = CTools.CTools_
+        log = g.Log()
+        
+        action_type = action.get('type')
+        target = action.get('target')
+        code = action.get('code')
+        
+        try:
+            
+            # 根据动作类型执行相应操作
+            if action_type == cls.ActionType.CLICK:
+                # 点击操作
+                log.i(f"点击: {target}")
+                result = tools.click(target)
+                log.i(f"点击结果: {result}")
+                return result
+            
+            elif action_type == cls.ActionType.OPENAPP:
+                # 打开应用
+                # 检查是否在主屏幕
+                is_home = tools.isHome()
+                log.i(f"是否在主屏幕: {is_home}")
+                
+                if not is_home:
+                    log.e("不在主屏幕，无法打开应用")
+                    return False
+                
+                # 尝试点击应用图标
+                result = tools.click(target)
+                log.i(f"打开应用结果: {result}")
+                return result
+            
+            elif action_type == cls.ActionType.SWIPE:
+                # 滑动屏幕
+                log.i(f"滑动屏幕: {target}")
+                result = tools.swipe(target)
+                log.i(f"滑动结果: {result}")
+                return result
+            
+            elif action_type == cls.ActionType.BACK:
+                # 返回操作
+                log.i("执行返回操作")
+                result = tools.goBack()
+                log.i(f"返回结果: {result}")
+                return result
+            
+            elif code:
+                # 直接执行代码
+                log.i(f"执行代码：{code}")
+                result = cls._eval(code)
+                log.i(f"代码执行结果: {result}")
+                return bool(result)
+            else:
+                log.e(f"未知的动作类型: {action_type}")
+                return False
+            
+        except Exception as e:
+            log.ex(e, f"执行动作异常: {action}")
+            return False
 
     @classmethod
     def printTopology(cls):
@@ -338,5 +446,52 @@ class CPageMgr_:
             log.d(f"  in: {links['in']}")
             log.d(f"  out: {links['out']}")
 
+    @classmethod
+    def getAction(cls, fromPage, toPage):
+        """获取从一个页面到另一个页面的动作
+        
+        Args:
+            fromPage: 起始页面
+            toPage: 目标页面
+            
+        Returns:
+            dict: 包含动作信息的字典，如果没有找到动作则返回None
+        """
+        try:
+            log = _G._G_.Log()
+            
+            # 检查页面是否存在
+            if fromPage not in cls.pages or toPage not in cls.pages:
+                log.e(f"页面不存在: {fromPage} 或 {toPage}")
+                return None
+            
+            # 先检查是否有直接跳转关系
+            forward = toPage in cls.pages[fromPage].transitions
+            backward = cls.pages[toPage].name == cls.pages[fromPage].parent
+
+            if not forward and not backward:
+                log.e(f"页面 {fromPage} 和 {toPage} 之间没有直接跳转关系")
+                return None
+
+            # 获取动作字符串
+            action_str = cls.pages[fromPage].transitions.get(toPage) if forward else None
+            emptyAction = action_str is None or (isinstance(action_str, str) and action_str.strip() == '')
+
+            if emptyAction:
+                action = {"type": cls.ActionType.CLICK, "target": toPage} if forward else {"type": cls.ActionType.BACK, "target": toPage}
+            else:
+                # 解析动作字符串
+                # 如果是字符串，解析动, 检查是否是简写指令
+                if '-' in action_str:
+                    action_type_key, target = action_str.split('-', 1)
+                    actionType = next((at for at in cls.ActionType if at.value == action_type_key), cls.ActionType.CODE)
+                    action = {"type": actionType, "target": target}
+                else:
+                    # 当作普通代码执行
+                    action = {"type": cls.ActionType.CODE, "code": action_str, "target": toPage}
+            return action
+        except Exception as e:
+            log.ex(e, f"获取动作失败: {fromPage} → {toPage}")
+            return None
 
 CPageMgr_.init()

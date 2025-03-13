@@ -35,9 +35,23 @@ fun requireImpl(): AutoApi {
     return AutoApi.AutoImpl?.also {
         if (!it.isEnabled()) { // check
             AutoApi.clearImpl()
+            // 显示Toast提示用户设置权限
+            android.widget.Toast.makeText(
+                AutoApi.appCtx,
+                "无障碍服务未启用，请前重启应用并在提示下正常设置开启这个权限",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
             throw AutoServiceUnavailableException()
         }
-    } ?: throw AutoServiceUnavailableException()
+    } ?: run {
+        // 显示Toast提示用户设置权限
+        android.widget.Toast.makeText(
+            AutoApi.appCtx,
+            "无障碍服务未启用，请前往设置开启相关权限",
+            android.widget.Toast.LENGTH_LONG
+        ).show()
+        throw AutoServiceUnavailableException()
+    }
 }
 
 fun buildProxy(): AutoApi =

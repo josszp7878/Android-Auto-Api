@@ -547,7 +547,7 @@ class CTools_:
         cls.swipe("CD 800")  # 向下滑动
 
     @classmethod
-    def swipeTo(cls, direction, matchFunc, maxTry=10):
+    def swipeTo(cls, direction, matchFunc, maxTry=3):
         """智能滑动查找
         
         Args:
@@ -558,8 +558,7 @@ class CTools_:
         Returns:
             bool: 是否找到匹配内容
         """
-        log = _G._G_.Log()
-        
+        log = _G._G_.Log()        
         # 检查初始屏幕是否匹配
         if matchFunc():
             return True
@@ -593,6 +592,9 @@ class CTools_:
         while tries < maxTry:
             # 获取当前屏幕内容用于相似度比较
             currentScreen = cls.getScreenText()
+            if currentScreen is None:
+                return False
+            log.i(f"当前屏幕内容: {currentScreen}")
             
             # 检查是否已经到达边界(屏幕内容相似度高)
             if lastScreen and cls.isScreenSimilar(currentScreen, lastScreen):
@@ -610,8 +612,7 @@ class CTools_:
                     log.i("所有方向都已尝试，未找到匹配")
                     return False
             
-            lastScreen = currentScreen
-            
+            lastScreen = currentScreen            
             # 执行滑动
             cmd = dir_to_cmd.get(current_dir)
             if not cmd:
@@ -653,18 +654,15 @@ class CTools_:
         pos = cls._findText(text, searchDir, distance)
         if pos:
             return pos
-        
         # 如果没有指定搜索方向，只在当前屏幕查找
         if not searchDir:
             # log.i(f"未指定搜索方向，只在当前屏幕查找文本: {text}")
             return None
-        
         # 定义匹配函数
         def matchFunc():
             nonlocal pos
             pos = cls._findText(text, searchDir, distance)
             return pos is not None
-        
         # 使用swipeTo进行滑动查找
         found = cls.swipeTo(searchDir, matchFunc)
         return pos if found else None
@@ -751,17 +749,18 @@ class CTools_:
     @classmethod
     def getScreenText(cls):
         """获取当前屏幕上的所有文本
-        
         Returns:
             文本内容列表
         """
+        log = _G._G_.Log()
         try:
             if cls.android:
                 nodes = cls.android.findTextNodes()
-                return [node.getText() for node in nodes if node.getText()]
-            return []
+                if nodes is not None and len(nodes) > 0:
+                    return [node.getText() for node in nodes if node.getText()]
         except Exception as e:
-            _G._G_.Log().ex(e, "获取屏幕文本异常")
-            return []
+            log.ex(e, "获取屏幕文本异常")
+        log.i("获取屏幕文本失败")
+        return None
 
 CTools_.init()
