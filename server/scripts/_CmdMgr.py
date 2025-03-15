@@ -1,12 +1,48 @@
 import re
-from _Tools import _Tools_
 import _Log
 import _G
 import sys
 import importlib
-from typing import Dict, Tuple, Callable, Optional, List
-import os
-import json
+from typing import List
+
+class Cmd:
+    """命令类，存储命令信息"""
+    
+    def __init__(self, func, param=None, alias=None, doc=None):
+        self.func = func      # 命令函数
+        self.param = param    # 参数匹配模式
+        self.alias = alias or func.__name__  # 命令别名，默认为函数名
+        self.doc = doc or func.__doc__      # 命令文档
+        self.module = func.__module__       # 命令所属模块
+        self.name = func.__name__           # 函数名
+        
+        # 解析别名中的拼音首字母缩写（格式：别名-缩写）
+        self.sAlias = ""
+        if self.alias and "-" in self.alias:
+            parts = self.alias.split("-", 1)
+            if len(parts) == 2:
+                self.alias = parts[0]
+                self.sAlias = parts[1]
+        
+        # 生成函数名首字母+大写字母缩写
+        self.sName = self._getNameShortcut(self.name)
+    
+    def _getNameShortcut(self, name):
+        """获取函数名首字母+大写字母缩写"""
+        if not name:
+            return ""
+        
+        try:
+            # 获取首字母
+            shortcut = name[0]
+            # 添加其他大写字母
+            for char in name[1:]:
+                if char.isupper():
+                    shortcut += char.lower()
+            return shortcut
+        except Exception as e:
+            _Log._Log_.ex(e, f"获取函数名缩写失败: {name}")
+            return ""
 
 
 class _CmdMgr_:
@@ -14,123 +50,147 @@ class _CmdMgr_:
     
     _instance = None  # 单例实例
     
-    # 直接使用类属性
-    cmdRegistry: Dict[str, Tuple[Callable, Optional[str]]] = {}
+    # 使用列表存储命令
+    cmdRegistry: List[Cmd] = []
     
     @classmethod
-    def reg(cls, cmd_pattern=None, param_pattern=None):
+    def reg(cls, alias=None, param=None):
         """注册命令
         
         Args:
-            cmd_pattern: 命令模式或函数
-            param_pattern: 参数匹配模式，默认为None
+            alias: 命令别名，可以使用 "别名-缩写" 格式指定拼音首字母缩写
+            param: 参数匹配模式，默认为None
         """
         # 如果第一个参数是函数，说明装饰器没有参数
-        if callable(cmd_pattern):
-            func = cmd_pattern
+        if callable(alias):
+            func = alias
             # 清除同名或同模块同函数名的旧命令
             cls._clearOldCommand(func.__name__, func.__module__, func.__name__)
-            # 使用函数名作为命令名
-            cls.cmdRegistry[func.__name__] = (func, None, func.__doc__)
+            # 创建命令对象并添加到注册表
+            cmd = Cmd(func)
+            cls.cmdRegistry.append(cmd)
             return func
         
         # 如果第一个参数不是函数，说明装饰器有参数
         def decorator(func):
             # 清除同名或同模块同函数名的旧命令
-            cls._clearOldCommand(cmd_pattern, func.__module__, func.__name__)
-            # 使用命令模式作为键
-            cmd_tuple = (func, param_pattern, func.__doc__)
-            cls.cmdRegistry[cmd_pattern] = cmd_tuple
+            cls._clearOldCommand(alias, func.__module__, func.__name__)
+            # 创建命令对象并添加到注册表
+            cmd = Cmd(func, param, alias, func.__doc__)
+            cls.cmdRegistry.append(cmd)
             return func
         return decorator
     
     @classmethod
-    def _clearOldCommand(cls, pattern, module_name, func_name):
+    def _clearOldCommand(cls, alias, module_name, func_name):
         """清除旧命令
         
         Args:
-            pattern: 命令模式
+            alias: 命令别名
             module_name: 模块名
             func_name: 函数名
         """
-        # 清除同名命令
-        if pattern in cls.cmdRegistry:
-            del cls.cmdRegistry[pattern]
-        
-        # 清除同模块同函数名的命令
-        for p, (f, _, _) in list(cls.cmdRegistry.items()):
-            if f.__module__ == module_name and f.__name__ == func_name:
-                del cls.cmdRegistry[p]
+        # 处理别名中可能包含的缩写
+        if alias and "-" in alias:
+            alias = alias.split("-", 1)[0]
+            
+        # 使用列表推导式过滤掉要删除的命令
+        cls.cmdRegistry = [
+            cmd for cmd in cls.cmdRegistry 
+            if not (cmd.alias == alias or 
+                   (cmd.module == module_name and cmd.name == func_name))
+        ]
     
     @classmethod
     def clear(cls):
         """清除命令"""
-        _CmdMgr_.cmdRegistry.clear()
+        cls.cmdRegistry.clear()
+
+    @classmethod
+    def _findCommand(cls, cmdName):
+        """查找命令
+        
+        Args:
+            cmdName: 命令名称
+            
+        Returns:
+            Cmd: 找到的命令对象，如果未找到则返回None
+        """
+        # 1. 先按别名正则匹配
+        for cmd in cls.cmdRegistry:
+            if re.match(f"^{cmd.alias}$", cmdName):
+                return cmd
+        
+        # 2. 再按函数名精确匹配
+        for cmd in cls.cmdRegistry:
+            if cmd.name.lower() == cmdName.lower():
+                return cmd
+        
+        # 3. 按拼音首字母缩写匹配
+        for cmd in cls.cmdRegistry:
+            if cmd.sAlias and cmd.sAlias == cmdName:
+                return cmd
+        
+        # 4. 按函数名首字母+大写字母缩写匹配
+        for cmd in cls.cmdRegistry:
+            if cmd.sName and cmd.sName == cmdName:
+                return cmd
+                
+        return None
     
     @classmethod
     def do(cls, command, deviceID=None, data=None):
         """执行命令"""
-        cmd = command.strip()
-        if not cmd:
+        cmd_text = command.strip()
+        if not cmd_text:
             return "w->空命令", None
             
-        cmdParts = cmd.split(None, 1)
+        log = _G._G_.Log()            
+        cmdParts = cmd_text.split(None, 1)
         cmdName = cmdParts[0].lower()
         cmdArgs = cmdParts[1] if len(cmdParts) > 1 else None
         if cmdArgs and cmdArgs.strip() == '':
             cmdArgs = None
-    
-        # _Log._Log_.d(f'执行命令: {cmdName} {cmdArgs}')
+            
         try:
-            func = param_pattern = None
-            # 按正则表达式匹配命令别名
-            for pattern, (f, p, _) in cls.cmdRegistry.items():
-                if re.match(f"^{pattern}$", cmdName):
-                    func, param_pattern = f, p
-                    # _Log._Log_.d(f'按命令别名匹配到命令: {pattern} => {f.__name__}')
-                    break
-            # 再精确匹配函数名
-            if not func:
-                for _, (f, p, _) in cls.cmdRegistry.items():
-                    if f.__name__.lower() == cmdName:
-                        func, param_pattern = f, p
-                        # _Log._Log_.d(f'按命令名精确匹配到命令: {f.__name__}')
-                        break
-            # 3. 如果前两个都没匹配上，输出命令名匹配不成功
-            if not func:
+            # 查找匹配的命令
+            cmd = cls._findCommand(cmdName)
+            
+            # 如果没有找到匹配的命令，返回错误
+            if not cmd:
                 return "w->未知命令", None
-            
-            # _Log._Log_.d(f'执行函数: {func.__name__}, 参数模式: {param_pattern}, 参数: {cmdArgs}')
-            
-            # 4. 如果匹配成功，继续正则表达式匹配参数模式
+                
             # 如果命令不支持参数但提供了参数，返回错误
-            if not param_pattern:
-                return (func() if not cmdArgs else "w##该命令不支持参数"), func.__name__
+            if not cmd.param:
+                return (cmd.func() if not cmdArgs else "w##该命令不支持参数"), cmd.name
             
             # 如果没有参数，则使用空字符串
             if cmdArgs is None:
                 cmdArgs = ""
             
             # 匹配参数
-            match = re.match(f"^{param_pattern}$", cmdArgs)
+            match = re.match(f"^{cmd.param}$", cmdArgs, re.DOTALL)
             if not match:
-                _Log._Log_.e(f'参数格式错误: {cmdArgs} {param_pattern}')
-                return "w->参数格式错误", func.__name__
+                log.e(f'参数格式错误: {cmdArgs} {cmd.param}')
+                return "w->参数格式错误", cmd.name
             
             # 将 data 参数添加到 match.groupdict() 中
             params = match.groupdict()
             import inspect
-            sig = inspect.signature(func)
+            sig = inspect.signature(cmd.func)
             if 'data' in sig.parameters:
                 params['data'] = data
             if 'deviceID' in sig.parameters:
                 params['deviceID'] = deviceID
             
             # 执行命令并返回结果
-            _Log._Log_.d(f'执行函数: {func.__name__}, 参数: {params}')
-            return func(**params), func.__name__
+            log.d(f'执行函数: {cmd.name}, 参数: {params}')
+            ret = cmd.func(**params)
+            if not isinstance(ret, str):
+                ret = str(ret)
+            return ret, cmd.name
         except Exception as e:
-            _Log._Log_.ex(e, f'{cmd}命令执行错误')
+            log.ex(e, f'{cmd_text}命令执行错误')
             return f"e->{str(e)}", None
         
     @classmethod
@@ -153,9 +213,10 @@ class _CmdMgr_:
                 if hasattr(oldCls, 'OnPreload'):
                     oldCls.OnPreload()
                 # 获取所有引用了该模块的模块
-                referrers = [m for m in sys.modules.values() 
-                            if m and hasattr(m, '__dict__') and moduleName in m.__dict__]
-                # _Log._Log_.d(f'获取所有引用了该模块的模块: {referrers}')
+                referrers = [
+                    m for m in sys.modules.values() 
+                    if m and hasattr(m, '__dict__') and moduleName in m.__dict__
+                ]
                 # 重新加载模块
                 del sys.modules[moduleName]
                 
@@ -171,8 +232,6 @@ class _CmdMgr_:
                 for referrer in referrers:
                     if hasattr(referrer, '__dict__'):
                         referrer.__dict__[moduleName] = module
-                # 打印模块所有成员
-                # _Log._Log_.d(f'模块 {module_name} 的成员:::: {dir(module)}')
                 # 清除全局引用
                 g.clear()
                 log.d(f'清除全局引用: {moduleName}')    
@@ -182,14 +241,14 @@ class _CmdMgr_:
                 # 首次加载直接使用import_module
                 try:
                     module = importlib.import_module(moduleName)
-                    # _Log._Log_.d(f"首次加载模块成功: {module_name}")
                 except ImportError as e:
                     log.e(f"找不到模块: {moduleName}, 错误: {e}")
                     return False
             
+            # 6. 返回成功
             return True
         except Exception as e:
-            log.ex(e, "模块重载失败")
+            _Log._Log_.ex(e, f"重新加载模块 {moduleName} 失败")
             return False
 
     @classmethod
@@ -223,13 +282,6 @@ class _CmdMgr_:
             
             # 2. 清除Python中所有脚本模块并重新加载
             log.i("正在清除模块缓存...")
-            import sys
-            import importlib
-
-            client = _G._G_.getClass('CClient')()
-            # 缓存必要的状态
-            deviceID = client.deviceID if client else None
-            server = client.server if client else None
             # 保存需要重新加载的模块名
             modules_to_reload = []
             for module_name in list(sys.modules.keys()):
@@ -249,10 +301,9 @@ class _CmdMgr_:
                 if module_name in sys.modules:
                     del sys.modules[module_name]
             
-            # _Log._Log_.d(f"已清除{len(modules_to_reload)}个模块缓存")
             # 3. 重新执行入口函数，重启脚本
-            # _Log._Log_.i("正在重启脚本引擎...")
             # 先结束当前客户端
+            client = _G._G_.getClass('CClient')()
             if client:
                 try:
                     client.End()
@@ -261,13 +312,14 @@ class _CmdMgr_:
             
             # 重新导入CMain模块并执行Begin
             try:
-                import importlib
+                # 获取当前设备ID和服务器地址
+                deviceID = client.deviceID if client else None
+                server = client.server if client else None
+                
                 CMain = importlib.import_module("CMain")
                 importlib.reload(CMain)            
-                # 获取当前设备ID和服务器地址
-                from CClient import client
+                
                 if deviceID and server:
-                    # print(f"#################重新初始化客户端: deviceID={deviceID} server={server}")
                     # 重新初始化客户端
                     CMain.Begin(deviceID, server)
                     return "i->脚本全量重载完成"
@@ -283,14 +335,8 @@ class _CmdMgr_:
     def regAllCmds(cls):
         """清除已注册的命令并重新注册所有命令
         
-        这个方法会:
-        1. 清除所有命令注册
-        2. 首先注册自己的命令
-        3. 扫描脚本目录，找到所有包含registerCommands方法的模块
-        4. 加载这些模块并执行它们的命令注册函数
-        
         Returns:
-            bool: 是否成功重新注册
+            bool: 是否成功
         """
         g = _G._G_
         log = g.Log()
@@ -298,7 +344,6 @@ class _CmdMgr_:
         try:
             # 1. 清除所有命令注册
             cls.clear()            
-            # 3. 扫描脚本目录，找到所有包含registerCommands方法的模块
             modules = g.getScriptNames()
             success_count = 0
             for module in modules:
@@ -322,24 +367,22 @@ class _CmdMgr_:
             
             # 5. 输出重新注册结果
             cmd_count = len(cls.cmdRegistry)
-            log.i(f"命令重新注册完成，成功注册{success_count}/{len(modules)}个模块，共{cmd_count}个命令")
+            log.i(f"命令重新注册完成，成功注册{success_count}/{len(modules)}个模块，"
+                 f"共{cmd_count}个命令")
             return success_count == len(modules)
         except Exception as e:
             log.ex(e, "命令重新注册失败")
             return False
     
- 
-        
     @classmethod
     def registerCommands(cls):
         """注册命令管理器自身的命令"""
-        # _Log._Log_.i("注册CmdMgr模块命令...")
-        @cls.reg(r"重启")
+        @cls.reg(r"重启-cq")
         def reloadAll():
             """重新加载所有命令"""
             return cls._reset()
         
-        @cls.reg(r"加载", r"(?P<moduleName>\S+)")
+        @cls.reg(r"加载-jz", r"(?P<moduleName>\S+)")
         def reload(moduleName):
             """重新加载指定模块"""
             g = _G._G_
@@ -352,81 +395,39 @@ class _CmdMgr_:
             moduleFile = f"scripts/{moduleName}.py"
             if not g.IsServer():
                 # 先下载最新版本，然后在回调中重新加载
-                g.CFileServer().download(moduleFile, lambda success: cls._reloadModule(moduleName))
+                g.CFileServer().download(
+                    moduleFile, 
+                    lambda success: cls._reloadModule(moduleName)
+                )
                 return f"i->正在下载并重载{moduleName}..."
             else:
                 # 如果没有文件服务器，直接重载
                 ret = cls._reloadModule(moduleName)
                 return f"i->重载{moduleName}{ret}"
         
-        @cls.reg(r"命令列表")
+        @cls.reg(r"命令列表-mllb")
         def cmdList():
             """列出所有可用命令"""
             result = "可用命令:\n"
-            for pattern, (_, _, desc) in sorted(cls.cmdRegistry.items()):
-                result += f"{pattern}: {desc or '无描述'}\n"
+            for cmd in cls.cmdRegistry:
+                result += f"{cmd.name}: {cmd.alias}\n"
             return result
         
-
-        @cls.reg(r"帮助")
-        def help():
-            """显示所有可用命令的帮助信息"""
-            # 创建命令信息字典
-            commands_info = {
-                "commands": [],
-                "filters": [
-                    {"name": "@设备名", "description": "按设备名过滤日志"},
-                    {"name": ":TAG", "description": "按TAG标签过滤日志"},
-                    {"name": "*正则", "description": "使用正则表达式匹配日志"},
-                    {"name": "文本", "description": "按包含文本过滤日志"}
-                ]
-            }
-            
-            # 获取所有注册的命令
-            commands = cls.cmdRegistry.copy()
-            
-            # 按命令名称排序
-            sorted_commands = sorted(commands.items(), key=lambda x: x[0])
-            
-            # 命令别名映射
-            command_aliases = {}
-            
-            # 首先收集所有命令的别名
-            for cmd_name, cmd_info in sorted_commands:
-                _, func, _ = cmd_info
-                for alias, (_, alias_func, _) in sorted_commands:
-                    if alias != cmd_name and alias_func == func:
-                        if cmd_name not in command_aliases:
-                            command_aliases[cmd_name] = []
-                        command_aliases[cmd_name].append(alias)
-            
-            # 然后构建命令信息
-            for cmd_name, cmd_info in sorted_commands:
-                _, func, desc = cmd_info
-                
-                # 检查这个命令是否是其他命令的别名
-                is_alias = False
-                for main_cmd, aliases in command_aliases.items():
-                    if cmd_name in aliases:
-                        is_alias = True
-                        break
-                
-                # 如果是别名，跳过，避免重复
-                if is_alias:
-                    continue
-                
-                # 构建命令信息
-                cmd_data = {
-                    "name": cmd_name,
-                    "description": desc or ""
-                }
-                # 添加别名
-                if cmd_name in command_aliases:
-                    cmd_data["aliases"] = command_aliases[cmd_name]
-                commands_info["commands"].append(cmd_data)            
-            # 转换为JSON字符串，使用缩进美化输出
-            return json.dumps(commands_info, ensure_ascii=False, indent=2)
-        # _Log._Log_.d("CmdMgr模块命令注册完成")
+        @cls.reg(r"帮助-bz", r"(?P<command>\S+)?")
+        def help(command=None):
+            """显示命令帮助信息
+            用法: 帮助 [命令名]
+            不提供命令名时显示所有命令的帮助信息
+            """
+            if not command:
+                return "e->请指定要显示帮助的命令"
+            # 获取命令信息
+            cmd_info = cls._findCommand(command)
+            if not cmd_info:
+                return "e->找不到命令"
+            # 获取命令的描述
+            desc = cmd_info.doc
+            return desc
 
 
     @classmethod
@@ -434,6 +435,7 @@ class _CmdMgr_:
         _Log._Log_.i("CmdMgr模块热更新 重新注册命令")
         # 使用全局命令重新注册机制
         cls.regAllCmds()
+
 
 # 创建全局单例实例
 regCmd = _CmdMgr_.reg

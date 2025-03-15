@@ -10,12 +10,12 @@ import json
 class CPageMgr_:
     # 类成员
     pages = {}
-    currentPage = None
     pathCache = {}
     topology = {}  # {pageName: {'in': set(), 'out': set()}}
     # 新增返回跳转记录
     backTransitions = {}  # {pageName: {'fromPage': str, 'action': str}}
     ROOT_PAGE = "Top"
+    UNKNOWN_PAGE = 'unknown'
     
     # 动作类型枚举
     from enum import Enum
@@ -31,15 +31,102 @@ class CPageMgr_:
     #     """克隆当前实例"""
 
     @classmethod
+    def isShowing(cls, page)->bool:
+        """设置当前页面"""
+        log = _G._G_.Log()
+        # 特殊处理ROOT_PAGE
+        if page == cls.ROOT_PAGE:
+            ok = CTools.CTools_.isHome()
+            # log.i(f"检查是否在主屏幕: {ok}")
+        else:
+            # 只检查目标页面的规则
+            ok = cls._checkPageRules(page)
+            # log.i(f"检查页面 {page} 规则匹配结果: {ok}")
+        return ok
+                                    
+
+    _currentPage = None    
+    @classmethod
+    def _setCurPage(cls, page)->bool:
+        """设置当前页面"""
+        log = _G._G_.Log()
+        ok = cls.isShowing(page)
+        if ok:
+            log.i(f"成功设置当前页面: {page}")
+            cls._currentPage = page
+            return page
+        else:
+            log.e(f"设置当前页面失败: 期望={page}")
+            return None
+
+    @classmethod
+    def _checkPageRules(cls, pageName):
+        """检查特定页面的规则是否匹配当前屏幕
+        
+        Args:
+            pageName: 页面名称
+            
+        Returns:
+            bool: 是否匹配
+        """
+        g = _G._G_
+        log = g.Log()
+        
+        if pageName not in cls.pages:
+            log.e(f"页面不存在: {pageName}")
+            return False
+        
+        page = cls.pages[pageName]
+        if not page.rules:
+            log.w(f"页面 {pageName} 无有效规则")
+            return False
+        
+        # 刷新屏幕信息
+        CTools.CTools_.refreshScreenInfos()
+        
+        # 所有规则必须全部满足
+        log.i(f"检查页面 {pageName} 规则: {page.rules}")
+        all_passed = True
+        
+        for rule in page.rules:
+            try:
+                ret = g.Tools().evalStr(rule)
+                # log.i(f"规则 {rule} 执行结果: {ret}")
+                if ret == 'PASS':
+                    # 处理普通文本规则
+                    match = CTools.CTools_.matchScreenText(rule, True)
+                    if not match:
+                        log.i(f"文本规则不匹配: {rule}")
+                        all_passed = False
+                        break
+                if not ret:
+                    log.e(f"代码规则不匹配: {rule}")
+                    all_passed = False
+                    break
+            except Exception as e:
+                log.ex(e, f"规则处理失败: {rule}")
+                all_passed = False
+                break
+        
+        return all_passed
+
+    @classmethod
+    def CurPage(cls, refresh=False)->str:
+        """获取当前页面"""
+        if cls._currentPage is None or refresh:
+            page = cls.findCurPage() or cls.UNKNOWN_PAGE
+            cls._currentPage = page
+        return cls._currentPage
+    
+    @classmethod
     def init(cls):
         g = _G._G_
         log = g.Log()
         try:
             configDir = g.configDir()
-            log.i('初始化页面管理器', f"配置目录: {configDir}")
+            log.i(f"加载页面配置: {configDir}/pages.json")
             cls._loadConfig(f"{configDir}/pages.json")
-            cls.currentPage = cls.ROOT_PAGE
-            log.i(f"页面管理器初始化完成，当前页设为: {cls.ROOT_PAGE}")
+            cls._currentPage = None
         except Exception as e:
             log.ex(e, f"初始化失败")
       
@@ -112,27 +199,6 @@ class CPageMgr_:
 
 
 
-    @classmethod
-    def _eval(cls, s):
-        """执行代码（安全增强版）"""
-        log = _G._G_.Log()
-        try:
-            if not s:
-                log.w("执行空规则")
-                return False
-            
-            # 添加安全环境
-            safe_env = {
-                'CTools': CTools.CTools_,
-                'DoCmd': _CmdMgr._CmdMgr_.do,
-                'ToPage': cls.toPage
-            }
-            
-            log.i(f"执行代码：{s}")
-            return eval(s, {'__builtins__': None}, safe_env)
-        except Exception as e:
-            log.ex(e, f"执行规则失败: {s}")
-            return False
 
     @classmethod
     def _safeDoCmd(cls, cmd):
@@ -146,88 +212,26 @@ class CPageMgr_:
             log.ex(e, f"执行命令失败: {cmd}")
             return {}
     
-    @classmethod
-    def _evalStr(cls, s):
-        """执行规则（内部方法）"""
-        log = _G._G_.Log()
-        s = cls._replaceVars(s)
-        if re.match(r'^\s*\{.*\}\s*$', s):
-            code = re.search(r'\{(.*)\}', s).group(1)
-            try:
-                return cls._eval(code)
-            except Exception as e:
-                log.ex(e, f"执行代码失败: {s}")
-                return False
-        return 'PASS'
+
     
     @classmethod
     def findCurPage(cls):
         """检测当前页面（安全增强版）"""
         log = _G._G_.Log()
         try:
+            # 刷新屏幕信息
             CTools.CTools_.refreshScreenInfos()
-            for page in cls.pages.values():
-                if not page.rules:
-                    log.w(f"页面 {page.name} 无有效规则")
-                    continue
-                # 所有规则必须全部满足
-                all_passed = True
-                for rule in page.rules:
-                    try:
-                        ret = cls._evalStr(rule)
-                        if ret == 'PASS':
-                            # 处理普通文本规则
-                            match, _ = CTools.CTools_.matchScreenText(rule)
-                            if not match:
-                                all_passed = False
-                                break
-                        else:
-                            if not ret:
-                                all_passed = False
-                                break
-                    except Exception as e:
-                        log.ex(e, f"规则处理失败: {rule}")
-                        all_passed = False
-                        break
-                if all_passed:
-                    return page.name
+            
+            # 遍历所有页面，检查规则
+            for pageName in cls.pages:
+                if cls._checkPageRules(pageName):
+                    return pageName
+                
         except Exception as e:
             log.ex(e, "检测当前页面时发生严重错误")
+        
         return None
-
-    @classmethod
-    def _goPage(cls, action, dir, page):
-        """执行跳转动作（增强版）"""
-        log = _G._G_.Log()
-        try:
-            if page is None:
-                return False
-            log.i(f"执行动作 [方向:{dir} 目标:{page}]")
-            tools = CTools.CTools_
-            ok = True
-            # 处理默认动作
-            if action is None or action.strip() == '':
-                if dir == 'in':
-                    # 默认当成屏幕应用来点击
-                    ok = tools.click(page, 'LR')
-                else:
-                    log.i("执行默认返回动作")
-                    ok = tools.goBack()                    
-            else:
-                cls._evalStr(action)
-            if ok:
-                # 检查是否已到达目标页面
-                time.sleep(1)
-                curPage = cls.findCurPage()
-                if curPage == page:
-                    log.i(f"已成功到达目标页面: {page}")
-                    cls.currentPage = page
-                    return True
-            log.w(f"跳转失败")
-        except Exception as e:
-            log.ex(e, f"执行动作异常")
-        return False
-
+    
     @classmethod
     def findPath(cls, fromPage, toPage):
         """支持多向搜索的BFS（安全增强版）"""
@@ -245,6 +249,7 @@ class CPageMgr_:
         startTime = time.time()
         log.i(f"▄▄▄▄▄ 开始路径查找 {fromPage} → {toPage} ▄▄▄▄▄")
         
+        visited = set()
         visited = set()
         queue = deque([(fromPage, [fromPage])])
         
@@ -274,24 +279,7 @@ class CPageMgr_:
         # log.i(f"查找完成，耗时 {cost:.2f}ms")
         return path
 
-    @classmethod
-    def _replaceVars(cls, s: str) -> str:
-        """替换字符串中的$变量（安全增强版）"""
-        # 添加空值防御
-        if s is None:
-            return s
-        log = _G._G_.Log()
-        # 正则处理 
-        def replacer(match):
-            code = match.group(1)
-            try:
-                val = cls._eval(code)
-                return str(val)
-            except Exception as e:
-                log.ex(e, f"执行变量代码失败: {code}")
-                return match.group(0)        
-        return re.sub(r'\$\s*([\w\.\(\)]+)', replacer, s)
-
+   
     toPage:str = None
     @classmethod
     def go(cls, target):
@@ -308,7 +296,7 @@ class CPageMgr_:
         log.i(f"开始跳转到 [{target}]")
         
         # 获取当前页面
-        current = cls.currentPage
+        current = cls.CurPage(True)
         log.i(f"当前页面: {current}")
         
         # 如果已经在目标页面，直接返回成功
@@ -316,6 +304,16 @@ class CPageMgr_:
             log.i(f"已经在目标页面 [{target}]，无需跳转")
             return True
         
+        # 如果当前页面是unknown，先尝试回到Top页面
+        if current == cls.UNKNOWN_PAGE:
+            log.i("当前页面未知，尝试先回到主页面")
+            tools = CTools.CTools_
+            tools.goHome()
+            current = cls._setCurPage(cls.ROOT_PAGE)
+            if not current:
+                # log.e("无法设置当前页面为根页面，跳转失败")
+                return False
+
         # 查找从当前页面到目标页面的路径
         log.i(f"开始路径查找 {current} → {target}")
         path = cls.findPath(current, target)
@@ -350,18 +348,10 @@ class CPageMgr_:
                 log.e(f"执行动作失败: {action}")
                 log.i(f"跳转失败于步骤 {i+1}")
                 return False
-            
-            # 验证是否到达了预期页面
-            new_page = cls.currentPage
-            log.i(f"执行动作后当前页面: {new_page}")
-            
-            if new_page != to_page:
-                log.e(f"页面跳转失败: 期望 [{to_page}]，实际 [{new_page}]")
+            if not cls._setCurPage(to_page):
+                log.e(f"页面跳转失败: 期望 [{to_page}]，实际 [{cls._currentPage}]")
                 log.i(f"跳转失败于步骤 {i+1}")
                 return False
-            
-            log.i(f"成功到达 [{to_page}] 页面")
-        
         log.i(f"成功跳转到 [{target}]")
         return True
 
@@ -406,6 +396,12 @@ class CPageMgr_:
                 # 尝试点击应用图标
                 result = tools.click(target)
                 log.i(f"打开应用结果: {result}")
+                
+                # 添加延时，等待应用启动
+                if result:
+                    log.i("等待应用启动...")
+                    time.sleep(2)
+                    
                 return result
             
             elif action_type == cls.ActionType.SWIPE:
@@ -425,7 +421,7 @@ class CPageMgr_:
             elif code:
                 # 直接执行代码
                 log.i(f"执行代码：{code}")
-                result = cls._eval(code)
+                result = g.Tools().eval(code)
                 log.i(f"代码执行结果: {result}")
                 return bool(result)
             else:

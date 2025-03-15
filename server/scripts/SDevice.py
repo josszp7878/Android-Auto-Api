@@ -1,5 +1,7 @@
 from datetime import datetime
 from pathlib import Path
+import json
+import os
 from flask import current_app
 from SModels import db, DeviceModel, AppModel
 import _Log
@@ -8,6 +10,7 @@ from STaskMgr import STaskMgr_
 from SEarningMgr import SEarningMgr_
 import json
 from SAppMgr import appMgr  # 局部导入避免循环依赖
+import _G
 
 class SDevice_:
     """设备类：管理设备状态和信息"""
@@ -16,6 +19,7 @@ class SDevice_:
         self.device_id = device_id
         self.info = {}
         self._status = 'offline'
+        self._taskMgr = None  # 任务管理器
         self.last_seen = datetime.now()
         self._lastScreenshot = None
         self._ensure_screenshot_dir()
@@ -61,7 +65,7 @@ class SDevice_:
     @property
     def taskMgr(self)->STaskMgr_:  # 改为小写，符合 Python 命名规范
         """懒加载任务管理器"""
-        if not hasattr(self, '_taskMgr'):
+        if self._taskMgr is None:
             self._taskMgr = STaskMgr_(self)  
         return self._taskMgr
     
@@ -278,9 +282,6 @@ class SDevice_:
                         _Log._Log_.w("收到空屏幕数据")
                         return
 
-                    # # 类型转换
-                    # if isinstance(data, bytes):
-                    #     data = data.decode('utf-8')
                     # 移除可能存在的非法字符
                     data = data.strip().replace('\x00', '')
                     # 尝试多种解析方式
@@ -339,5 +340,74 @@ class SDevice_:
         except Exception as e:
             _Log._Log_.ex(e, "分析屏幕应用失败")
             return False
+
+
+    @classmethod
+    def _screenInfoFile(cls, pageName)->str:
+        from app import APP_DATA
+        return f"{APP_DATA}/{pageName}.json"
+    
+    _lastScreenInfo = None
+    @classmethod
+    def setScreenInfo(cls, pageName:str, screenInfo:str)->bool:
+        """将屏幕信息保存到文件
+        
+        Args:
+            pageName: 页面名称，用于构建文件名
+            screenInfo: 屏幕信息数据
+            
+        Returns:
+            bool: 是否保存成功
+        """
+        if not screenInfo:
+            return False
+        log = _G._G_.Log()
+        try:
+            # 构建文件名
+            fileName = cls._screenInfoFile(pageName)
+            # 确保目录存在
+            os.makedirs(os.path.dirname(fileName), exist_ok=True)
+            # 尝试解析JSON并重新格式化
+            try:
+                if screenInfo is None or screenInfo.strip() == '':
+                    return False
+                cls._lastScreenInfo = screenInfo
+                # 将屏幕信息保存到文件
+                with open(fileName, 'w', encoding='utf-8') as f:
+                    f.write(screenInfo)
+            except Exception as e:
+                log.ex(e, f"保存屏幕信息到文件失败: {pageName}")
+                return False
+            log.i(f"保存屏幕信息到文件成功: {fileName}")
+            return True
+        except Exception as e:
+            log.ex(e, f"保存屏幕信息到文件失败: {pageName}")
+            return False
+
+    @classmethod
+    def getScreenInfo(cls, pageName)->str:
+        """从文件加载屏幕信息
+        
+        Args:
+            pageName: 页面名称，用于构建文件名
+            
+        Returns:
+            bool: 是否加载成功
+        """
+        log = _G._G_.Log()
+        try:
+            if pageName == None:
+                return cls._lastScreenInfo
+            # 构建文件名
+            fileName = cls._screenInfoFile(pageName)            
+            # 检查文件是否存在
+            if not os.path.exists(fileName):
+                return None
+            # 从文件加载屏幕信息
+            with open(fileName, 'r', encoding='utf-8') as f:
+                return f.read()
+        except Exception as e:
+            log.ex(e, f"从文件加载屏幕信息失败: {pageName}")
+            return None
 
    

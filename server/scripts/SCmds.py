@@ -8,6 +8,7 @@ import json
 from SEarningMgr import SEarningMgr_
 from time import sleep
 import _G
+import os
 
 class SCmds_:
     @classmethod
@@ -25,7 +26,7 @@ class SCmds_:
         log = _G._G_.Log()
         log.i("注册SCmds模块命令...")
         
-        @regCmd(r"服务器信息")
+        @regCmd(r"服务器信息-fwqxx")
         def info():
             """获取服务器信息"""
             return {
@@ -34,7 +35,7 @@ class SCmds_:
                 "devices": len(deviceMgr.devices),
             }
         
-        @regCmd(r"日期", r"(?P<format>\S+)?")
+        @regCmd(r"日期-rq", r"(?P<format>\S+)?")
         def date(format=None):
             """获取当前日期和时间
             用法: 日期 [格式]
@@ -51,12 +52,12 @@ class SCmds_:
                 return f"e->获取日期时间失败: {str(e)}"
 
 
-        @regCmd('状态')
+        @regCmd('状态-zt')
         def status():
             """显示服务器状态"""
             return '服务器运行正常aa'
 
-        @regCmd('清除')
+        @regCmd('清除-qc')
         def clearLog():
             """清除日志缓存"""
             try:
@@ -71,7 +72,7 @@ class SCmds_:
                 _Log._Log_.ex(e, '清除日志缓存出错')
                 return '清除日志缓存失败'
 
-        @regCmd('设备列表')
+        @regCmd('设备列表-sblb')
         def list_devices():
             """列出所有设备"""
             device_manager = SDeviceMgr_()
@@ -81,7 +82,7 @@ class SCmds_:
                 for id, dev in devices.items()
             ])
 
-        @regCmd('进度', r"(?P<deviceId>[^ ]+)?(?P<appName>[^ ]+)?(?P<taskName>[^ ]+)?")
+        @regCmd('进度-jd', r"(?P<deviceId>[^ ]+)?(?P<appName>[^ ]+)?(?P<taskName>[^ ]+)?")
         def progress(deviceId, appName, taskName):
             """查询任务进度
             用法: 进度 <deviceId> <appName> <taskName>
@@ -131,7 +132,7 @@ class SCmds_:
                 _Log._Log_.ex(e, "查询任务进度失败")
                 return f"e->查询任务进度失败: {str(e)}"
 
-        @regCmd('继续')
+        @regCmd('继续-jx')
         def resume():
             """继续当前设备的暂停任务"""
             try:
@@ -152,7 +153,7 @@ class SCmds_:
                 _Log._Log_.ex(e, "继续任务失败")
                 return f"e->继续任务失败: {str(e)}"
 
-        @regCmd('调试')
+        @regCmd('调试-ts')
         def debug():
             """显示调试信息"""
             try:
@@ -196,7 +197,7 @@ class SCmds_:
                 _Log._Log_.ex(e, "获取调试信息失败")
                 return f"e->获取调试信息失败: {str(e)}"
 
-        @regCmd('任务列表', r"(?P<deviceId>[^ ]+)?(?P<state>[^ ]+)?")
+        @regCmd('任务列表-rwlb', r"(?P<deviceId>[^ ]+)?(?P<state>[^ ]+)?")
         def show_tasks(deviceId, state):
             """显示任务
             用法: 任务列表 [deviceId] [state]
@@ -239,7 +240,7 @@ class SCmds_:
                 _Log._Log_.ex(e, "获取任务列表失败")
                 return f"e->获取任务列表失败: {str(e)}"
 
-        @regCmd('设置日期', r"(?P<date>[^ ]+)")
+        @regCmd('设置日期-szrq', r"(?P<date>[^ ]+)")
         def set_date(date):
             """设置任务管理器日期
             用法: 设置日期 YY-M-D
@@ -275,7 +276,7 @@ class SCmds_:
                 _Log._Log_.ex(e, "设置日期失败")
                 return f"e->设置日期失败: {str(e)}"
 
-        @regCmd('停止')
+        @regCmd('停止-tz')
         def stop():
             """停止当前设备的当前任务"""
             try:
@@ -302,24 +303,45 @@ class SCmds_:
             
             return f"i->已发送停止命令: {task.appName} {task.taskName}"
 
-        @regCmd('保存结果')
+        @regCmd('保存结果-bcjg')
         def saveResult():
             """保存最近一次命令执行结果到result.json"""
             try:
-                result = deviceMgr.result
+                g = _G._G_
+                result = g.lastResult
                 if not result:
                     return "e->没有可保存的结果"
                     
+                # 尝试将结果转换为JSON格式
+                try:
+                    # 如果结果已经是字典或列表，直接使用
+                    if isinstance(result, (dict, list)):
+                        data = result
+                    else:
+                        # 尝试解析为JSON
+                        data = json.loads(result)
+                except (json.JSONDecodeError, TypeError):
+                    # 如果不是JSON，则将结果转换为字符串并包装在字典中
+                    data = {"result": str(result)}
+                    
+                # 使用漂亮的格式序列化
+                formatted_json = json.dumps(
+                    data, 
+                    ensure_ascii=False, 
+                    indent=4,
+                    sort_keys=True
+                )
+                
                 # 保存到文件
-                with open('result.json', 'w', encoding='utf-8') as f:
-                    f.write(result)
+                with open("result.json", "w", encoding="utf-8") as f:
+                    f.write(formatted_json)
                     
                 return f"i->结果已保存到 result.json"
             except Exception as e:
                 _Log._Log_.ex(e, "保存结果失败")
                 return f"e->保存结果失败: {str(e)}"
 
-        @regCmd('分析收益')
+        @regCmd('分析收益-fxsy')
         def analyzeEarnings():
             """分析收益"""
             try:
@@ -344,7 +366,7 @@ class SCmds_:
                 _Log._Log_.ex(e, "分析收益失败")
                 return f"e->分析收益失败: {str(e)}"
 
-        @regCmd('打开', r"(?P<appName>[^ ]+)")
+        @regCmd('打开-dk', r"(?P<appName>[^ ]+)")
         def openapp(appName):
             """打开指定应用
             用法: 打开 <应用名>
@@ -376,13 +398,13 @@ class SCmds_:
                 _Log._Log_.ex(e, "打开应用失败")
                 return f"e->打开应用失败: {str(e)}"
 
-        @regCmd('应用列表')
+        @regCmd('应用列表-yylb')
         def apps():
             """列出所有应用"""
             from SAppMgr import appMgr
             return "i->" + json.dumps(appMgr.get_app_names(), ensure_ascii=False, indent=2)
 
-        @regCmd('快照')
+        @regCmd('快照-kz')
         def takeScreenshot():
             """对当前设备进行快照"""
             try:
@@ -406,7 +428,7 @@ class SCmds_:
                 _Log._Log_.ex(e, "执行服务器命令失败")
                 return f"e->执行服务器命令失败: {str(e)}"
 
-        @regCmd('扫描应用')
+        @regCmd('扫描应用-smyy')
         def scanApp():
             """分析当前设备屏幕上的应用"""
             try:
@@ -419,3 +441,120 @@ class SCmds_:
             except Exception as e:
                 _Log._Log_.ex(e, "执行屏幕分析失败")
                 return f"e->{str(e)}"
+
+        @regCmd('截屏-jp', r"(?P<pageName>[^ ]+)?")
+        def getScreenInfo(pageName=None):
+            """获取当前客户端的屏幕信息
+            用法: 截屏 [页面名]
+            获取当前设备的屏幕信息并缓存到服务端
+            """
+            try:
+                log = _G._G_.Log()
+                device = deviceMgr.curDevice
+                if not device:
+                    return "e->请先选择设备"
+                pageName = pageName or 'Last'
+                
+                # 回调函数处理客户端返回的屏幕信息
+                def handleScreenInfo(result):
+                    try:
+                        if _Log._Log_.isError(result):
+                            log.e(f"获取屏幕信息失败: {result}")
+                            return
+                        
+                        # 检查结果是否为空
+                        if not result or result == "None" or result == "[]":
+                            log.e("获取到空的屏幕信息")
+                            return
+                            
+                        # # 解析JSON格式的屏幕信息
+                        # import json
+                        # try:
+                        #     screen_info = json.loads(result)
+                        # except json.JSONDecodeError:
+                        #     log.e(f"JSON解析错误: {result[:100]}...")
+                        #     return
+                        
+                        # # 检查格式是否正确
+                        # if not isinstance(screen_info, list):
+                        #     log.e("屏幕信息格式错误，应为JSON数组")
+                        #     return
+                        
+                        # log.i(f"屏幕信息ddd: {result}")
+                        # 保存到设备对象中
+                        device.setScreenInfo(pageName, result)
+                        # log.i(f"屏幕信息保存成功: {pageName}, 共{len(result)}个元素")
+                    except Exception as e:
+                        log.ex(e, "处理屏幕信息失败")
+                
+                # 发送客户端命令获取屏幕信息
+                deviceMgr.sendClientCmd(device.deviceID, "eval CTools.getScreenInfo(True)", None, 10, handleScreenInfo)
+                
+                return "i->正在获取屏幕信息..."
+            except Exception as e:
+                log.ex(e, "获取屏幕信息失败")
+                return f"e->获取屏幕信息失败: {str(e)}"
+
+        @regCmd('设置屏幕-szpm', r"(?P<pageName>[^ ]+)?")
+        def setScreenInfo(pageName=None):
+            """设置屏幕信息到客户端
+            用法: 设置屏幕 [页面名]
+            如果不提供参数，则使用最近一次获取的屏幕信息
+            """
+            try:
+                log = _G._G_.Log()
+                device = deviceMgr.curDevice
+                if not device:
+                    return "e->请先选择设备"
+                # 获取屏幕信息
+                screen_info = device.getScreenInfo(pageName)
+                if not screen_info:
+                    return f"e->屏幕信息为空"
+                    
+                # 使用三引号包裹多行JSON字符串
+                cmd = f"eval CTools.setScreenInfo('''{screen_info}''')"
+                deviceMgr.sendClientCmd(device.deviceID, cmd)
+                
+                return f"i->成功设置屏幕信息: {pageName}"
+            except Exception as e:
+                log.ex(e, "设置屏幕信息失败")
+                return f"e->设置屏幕信息失败: {str(e)}"
+
+        @regCmd('格式化JSON-gsjson', r"(?P<fileName>[^ ]+)")
+        def formatJsonFile(fileName):
+            """格式化JSON文件，使其更易读
+            用法: 格式化JSON <文件名>
+            """
+            try:
+                log = _G._G_.Log()
+                
+                # 检查文件是否存在
+                if not os.path.exists(fileName):
+                    return f"e->文件不存在: {fileName}"
+                    
+                # 读取文件内容
+                with open(fileName, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                    
+                # 解析JSON
+                try:
+                    data = json.loads(content)
+                except json.JSONDecodeError as e:
+                    return f"e->JSON解析错误: {str(e)}"
+                    
+                # 使用漂亮的格式重新序列化
+                formatted_json = json.dumps(
+                    data, 
+                    ensure_ascii=False, 
+                    indent=4,
+                    sort_keys=True
+                )
+                
+                # 保存回文件
+                with open(fileName, 'w', encoding='utf-8') as f:
+                    f.write(formatted_json)
+                    
+                return f"i->文件已格式化: {fileName}"
+            except Exception as e:
+                log.ex(e, f"格式化JSON文件失败: {fileName}")
+                return f"e->格式化失败: {str(e)}"

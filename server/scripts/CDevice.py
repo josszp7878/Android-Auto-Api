@@ -207,7 +207,7 @@ class CDevice_:
             
             # log.d(f'收到命令: {command} from {sender} data: {cmdData}')
             # 使用 CmdMgr 执行命令
-            result, cmdName = g.getClass('_CmdMgr').do(command, sender, cmdData)
+            result, cmdName = g.CmdMgr().do(command, sender, cmdData)
             
             self.sio.emit('C2S_CmdResult', {
                 'result': result,

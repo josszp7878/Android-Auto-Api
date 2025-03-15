@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from _Log import _Log_
     from _CmdMgr import _CmdMgr_
     from CTools import CTools_
+    from _Tools import _Tools_
     from CPageMgr import CPageMgr_
 
 g = {}
@@ -20,7 +21,7 @@ class _G_:
     _lock = threading.Lock()
     _dir = None
     _store = {}
-    _isServer = None    
+    _isServer = True    
     log = None
     _scriptNamesCache = None  # 添加脚本名称缓存
 
@@ -37,6 +38,7 @@ class _G_:
     @classmethod
     def setIsServer(cls, isServer):
         """设置是否是服务器端"""
+        # print(f"设置是否是服务器端YYYYYYYYf: {isServer}")
         cls._isServer = isServer
     
     @classmethod
@@ -118,7 +120,10 @@ class _G_:
     @classmethod
     def CTools(cls) -> 'CTools_':
         return cls.getClass('CTools')
-
+    @classmethod
+    def Tools(cls) -> '_Tools_':
+        return cls.getClass('_Tools')    
+    
     @classmethod
     def PageMgr(cls) -> 'CPageMgr_':
         return cls.getClass('CPageMgr')
@@ -206,6 +211,7 @@ class _G_:
         fileNames: List[str] = []
         try:
             prefix = 'S' if cls.IsServer() else 'C'
+            # print(f"prefix: {prefix}")
             for file in files:
                 if ext and not file.endswith(ext):
                     continue
@@ -218,6 +224,7 @@ class _G_:
             cls.log.ex(e, "扫描脚本目录失败")
         
         # 缓存结果
+        # print(f"缓存结果dddddddd: {fileNames}")
         cls._scriptNamesCache = fileNames
         
         return fileNames

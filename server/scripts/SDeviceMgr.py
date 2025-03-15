@@ -10,6 +10,7 @@ import threading
 import hashlib
 import time
 import _G
+
 class SDeviceMgr_:
     """设备管理器：管理所有设备"""
     
@@ -30,6 +31,7 @@ class SDeviceMgr_:
             self.onCmdResult: Callable[[str], None] = None
             self.cmdTimeout = 10  # 命令超时时间(秒)
             self.pendingCmds = {}  # 存储待处理的命令 {cmd_id: timer}
+
     @property
     def devices(self):
         if self._devices is None:

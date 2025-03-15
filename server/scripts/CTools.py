@@ -18,32 +18,44 @@ class RegionCheck:
         - 传统格式：[x1,x2,y1,y2]
         - Y轴简写：y<min>,<max> 或 y<value>
         - X轴简写：x<min>,<max> 或 x<value>
+        - 支持正负数值
         """
         check = RegionCheck()
         match = re.search(
-            r'([\s\S]*?)\s*\[([\d,x,X,y,Y,\s]+)\]',  # [\s\S]匹配包括换行符在内的任意字符
-            text.strip(),  # 去除首尾空白
-            re.DOTALL  # 使.匹配包括换行符在内的所有字符
+            r'([\s\S]*?)\s*\[([\d,\-\+，x,X,y,Y,\s]+)\]',  # 支持数字、负号、加号等
+            text.strip(),
+            re.DOTALL
         )
-        region_config = None
-        if match:
-            region_config = match.group(2)
-            text = match.group(1)
-        if not region_config:
+        
+        if not match:
             return None, text
-        # 解析特殊格式
-        if region_config.startswith(('y', 'Y')):
-            y_part = region_config[1:].replace('，', ',').split(',')
-            y_values = list(map(int, y_part))
-            check.region = check._toY(y_values)
-        elif region_config.startswith(('x', 'X')):
-            x_part = region_config[1:].replace('，', ',').split(',')
-            x_values = list(map(int, x_part))
-            check.region = check._toX(x_values)
-        else:
-            # 传统格式处理
-            nums = region_config.strip('[]').split(',')
-            check.region = list(map(int, nums)) + [0]*(4-len(nums))
+        
+        region_config = match.group(2)
+        text = match.group(1)
+        
+        try:
+            # 解析特殊格式
+            if region_config.startswith(('y', 'Y')):
+                # 处理Y轴简写
+                y_part = region_config[1:].replace('，', ',')
+                y_values = [int(v) for v in y_part.split(',') if v.strip()]
+                check.region = check._toY(y_values)
+            elif region_config.startswith(('x', 'X')):
+                # 处理X轴简写
+                x_part = region_config[1:].replace('，', ',')
+                x_values = [int(v) for v in x_part.split(',') if v.strip()]
+                check.region = check._toX(x_values)
+            else:
+                # 传统格式处理
+                nums = region_config.strip('[]').split(',')
+                values = [int(v) for v in nums if v.strip()]
+                check.region = values + [0]*(4-len(values))
+        except ValueError as e:
+            # 统一处理格式错误
+            log = _G._G_.Log()
+            log.e(f"区域格式错误: {region_config}, {str(e)}")
+            return None, text
+        
         return check, text
 
     def _toY(self, y_values):
@@ -66,8 +78,21 @@ class RegionCheck:
 
     def _getScreenSize(self):
         """获取屏幕尺寸"""
-        if CTools_.android:
-            return CTools_.android.getDisplayMetrics()
+        try:
+            if CTools_.android:
+                # 尝试通过Android Context获取屏幕尺寸
+                context = CTools_.android.getContext()
+                if context:
+                    resources = context.getResources()
+                    if resources:
+                        metrics = resources.getDisplayMetrics()
+                        if metrics:
+                            return (metrics.widthPixels, metrics.heightPixels)
+        except Exception as e:
+            log = _G._G_.Log()
+            log.e(f"获取屏幕尺寸失败: {e}")
+        
+        # 默认分辨率
         return (1080, 1920)  # 默认分辨率
 
     def _convertValue(self, value, isX=True):
@@ -85,7 +110,7 @@ class RegionCheck:
         x_max = self._convertValue(self.region[1], True)
         y_min = self._convertValue(self.region[2], False)
         y_max = self._convertValue(self.region[3], False)
-
+        log = _G._G_.Log()
         x_ok = True
         if x_min > 0:
             x_ok = x >= x_min
@@ -97,8 +122,11 @@ class RegionCheck:
             y_ok = y >= y_min
         if y_max > 0:
             y_ok = y_ok and y <= y_max
-
-        return x_ok and y_ok
+        if x_ok and y_ok:
+            return True
+        else:
+            log.w(f"判断坐标:{x},{y} 不在区域: {x_min},{x_max},{y_min},{y_max} 内")
+            return False
 
     def isRectIn(self, x1, y1, x2, y2):
         """判断矩形是否在区域内"""
@@ -109,7 +137,7 @@ class CTools_:
     Tag = "CTools"
     port = 5000
     android = None
-    _screenInfoCache = None
+    
 
     @classmethod
     def init(cls):
@@ -121,6 +149,58 @@ class CTools_:
         except Exception as e:
             return None
     
+    _screenInfoCache = None
+    @classmethod
+    def getScreenInfo(cls, refresh=False):
+        """获取屏幕信息
+        
+        Args:
+            refresh: 是否刷新缓存
+            
+        Returns:
+            list: 屏幕信息列表
+        """
+        try:
+            if cls._screenInfoCache is None or refresh:
+                cls._screenInfoCache = cls.refreshScreenInfos()
+            
+            # 确保返回有效的JSON数据
+            if not cls._screenInfoCache:
+                return []
+            
+            return cls._screenInfoCache
+        except Exception as e:
+            log = _G._G_.Log()
+            log.ex(e, "获取屏幕信息失败")
+            return []
+
+    @classmethod
+    def setScreenInfo(cls, screenInfo):
+        """设置屏幕信息缓存
+        
+        Args:
+            screenInfo: 屏幕信息，可以是JSON字符串或对象
+        """
+        try:
+            log = _G._G_.Log()
+            if screenInfo is None or screenInfo.strip() == '':
+                return False
+            # 如果是字符串，尝试解析为JSON
+            import json
+            try:
+                screenInfo = json.loads(screenInfo)
+            except json.JSONDecodeError as e:
+                log.e(f"JSON解析错误: {e} \n json={screenInfo}")
+                return False
+            
+            # 保存到缓存
+            cls._screenInfoCache = screenInfo
+            log.i(f"屏幕信息已设置，共{len(screenInfo)}个元素")
+            return True
+        except Exception as e:
+            log = _G._G_.Log()
+            log.ex(e, "设置屏幕信息失败")
+            return False
 
     @classmethod
     def Clone(cls, clone):
@@ -166,7 +246,7 @@ class CTools_:
                 info = cls.android.getScreenInfo()
                 # log.i(f"获取屏幕信息 info={info}")
                 if info is None:
-                    log.e("获取屏幕信息失败ss")
+                    log.e("获取屏幕信息失败")
                     return []
                 size = info.size()
                 result = []
@@ -190,34 +270,41 @@ class CTools_:
             return []
 
     @classmethod
-    def matchScreenText(cls, str: str):
+    def matchScreenText(cls, str: str, refresh=False):
         try:
             # 使用缓存的屏幕信息
-            screenInfo = cls._screenInfoCache
+            screenInfo = cls.getScreenInfo(refresh)
+            log = _G._G_.Log()
+            # log.i(f"匹配屏幕文本: {str} in {screenInfo}")
             if not screenInfo:
+                log.w("屏幕信息为空")
                 return None, None
             # 解析区域和文本（保持原有逻辑）
-            regioCheck, text = RegionCheck.parse(str)
+            region, text = RegionCheck.parse(str)
             # 生成正则表达式（添加.*通配）
             regex = re.compile(f".*{text}.*")
-
+            # log.i(f"正则表达式: {regex}, regioCheck={region}")
             # 遍历屏幕信息，查找匹配的文本
             for item in screenInfo:
-                # 解析当前文本的边界
-                if regioCheck:
-                    bounds = [int(x) for x in item['b'].split(',')]
-                    isIn = regioCheck.isRectIn(
-                        bounds[0], bounds[2], bounds[1], bounds[3])
-                    if not isIn:
-                        continue
                 # 执行正则匹配
-                if regex.search(item['t']):
-                    return True, item
-            return None, None
-
+                t = item['t']
+                b = item['b']
+                # log.i(f"匹配文本: {t} region={b}")
+                if not regex.search(t):
+                    # log.w(f"文本不匹配: {t}")
+                    continue
+                # 解析当前文本的边界
+                if region:
+                    bounds = [int(x) for x in b.split(',')]
+                    isIn = region.isRectIn(
+                        bounds[0], bounds[1], bounds[2], bounds[3])
+                    if not isIn:
+                        # log.w(f"区域不匹配: regioCheck={region}")
+                        continue
+                return item
         except Exception as e:
             log.ex(e, "FindUI 指令执行失败")
-            return None, None
+        return None
 
     @classmethod
     def _isHarmonyOS(cls) -> bool:
@@ -413,6 +500,7 @@ class CTools_:
         """统一返回桌面实现"""
         if cls.android:
             return cls.android.goHome()
+        time.sleep(1)
         return False
 
     @classmethod
@@ -533,7 +621,7 @@ class CTools_:
         while retry > 0:
             log.i(f"点击文本: {text}")
             pos = cls.findText(text, direction)
-            log.i(f"找到文本: {text}, 位置: {pos}")
+            # log.i(f"找到文本: {text}, 位置: {pos}")
             if pos:
                 x, y = pos
                 return cls.android.click(x, y)

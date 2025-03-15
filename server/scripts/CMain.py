@@ -3,6 +3,7 @@ import _G
 
 def Begin(deviceID=None, server=None, fromAndroid=None):
     """初始化客户端"""
+    _G._G_.setIsServer(False)
     import CClient
     client = CClient.CClient_()
     client.updateFiles()

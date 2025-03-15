@@ -425,4 +425,16 @@ class CCmds_:
                 log.ex(e, f'检查文件 {fileName} 是否存在时出错')
                 return f"e->{str(e)}"
 
-
+        @regCmd(r"执行-ZX", r"(?P<code>.+)")
+        def eval(code):
+            """执行代码并返回结果
+            用法: eval <代码>
+            """
+            g = _G._G_
+            log = g.Log()
+            try:
+                result = g.Tools().eval(code)
+                return g.Tools().toNetStr(result, format=True)
+            except Exception as e:
+                log.ex(e, f"执行代码失败: {code}")
+                return None

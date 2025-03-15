@@ -69,7 +69,6 @@ class CClient_:
         g = _G._G_
         log = g.Log()
         cls.fromAndroid = fromAndroid
-        g.setIsServer(False)
         log.d(f"初始化客户端: deviceID={deviceID}, server={server}, fromAndroid={fromAndroid}")      
         try:
             tools = g.CTools()
