@@ -197,8 +197,7 @@ class CPageMgr_:
         process_node(config_data)
         # log.i(f"拓扑关系: {cls.topology.get(cls.ROOT_PAGE, {})}")
 
-
-
+    
 
     @classmethod
     def _safeDoCmd(cls, cmd):
@@ -442,6 +441,7 @@ class CPageMgr_:
             log.d(f"  in: {links['in']}")
             log.d(f"  out: {links['out']}")
 
+    
     @classmethod
     def getAction(cls, fromPage, toPage):
         """获取从一个页面到另一个页面的动作

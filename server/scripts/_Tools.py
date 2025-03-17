@@ -127,23 +127,15 @@ class _Tools_:
         return 'PASS'
     
     @classmethod
-    def toNetStr(cls, result, format=False):
+    def toNetStr(cls, result):
         """将对象转换为字符串"""
         log = _G._G_.Log()
         if result is not None and not isinstance(result, str):
             try:
                 # 尝试将JSON对象转换为字符串
                 if isinstance(result, (dict, list)):
-                    if format:
-                        # 使用漂亮的格式重新序列化
-                        result = json.dumps(
-                            result, 
-                            ensure_ascii=False, 
-                            indent=4,
-                            sort_keys=True
-                        )
-                    else:
-                        result = json.dumps(result, ensure_ascii=False)
+                    result = json.dumps(result, ensure_ascii=False)
+                    # result = result.replace('\n', ' ').replace('\r', '')
                 else:
                     # 其他类型直接转字符串
                     result = str(result)

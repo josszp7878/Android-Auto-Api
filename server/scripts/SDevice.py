@@ -372,6 +372,14 @@ class SDevice_:
                 if screenInfo is None or screenInfo.strip() == '':
                     return False
                 cls._lastScreenInfo = screenInfo
+                json_data = json.loads(screenInfo)
+                #换成美观的json格式
+                screenInfo = json.dumps(
+                    json_data, 
+                    ensure_ascii=False, 
+                    indent=4,
+                    sort_keys=True
+                )
                 # 将屏幕信息保存到文件
                 with open(fileName, 'w', encoding='utf-8') as f:
                     f.write(screenInfo)

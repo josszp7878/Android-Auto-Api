@@ -190,7 +190,7 @@ class _G_:
     def clearScriptNamesCache(cls):
         """清除脚本名称缓存"""
         cls._scriptNamesCache = None
-        cls.log.d("脚本名称缓存已清除")
+        # cls.log.d("脚本名称缓存已清除")
 
     @classmethod
     def getScriptNames(cls):

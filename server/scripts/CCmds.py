@@ -434,7 +434,31 @@ class CCmds_:
             log = g.Log()
             try:
                 result = g.Tools().eval(code)
-                return g.Tools().toNetStr(result, format=True)
+                return g.Tools().toNetStr(result)
             except Exception as e:
                 log.ex(e, f"执行代码失败: {code}")
+                return None
+
+        @regCmd('匹配文字-ppwz', r"(?P<rule>.+)")
+        def matchText(rule):
+            """在当前屏幕上查找文字
+            用法: 匹配文字 <文字规则>
+            
+            文字规则支持以下格式:
+            - 普通文字: 直接查找包含该文字的元素
+            - 区域限制: [x1,y1,x2,y2]文字 - 在指定区域内查找文字
+            - Y轴限制: [y100,200]文字 - 在指定Y轴范围内查找文字
+            - X轴限制: [x100,200]文字 - 在指定X轴范围内查找文字
+            
+            返回找到的元素信息，包括文字内容和位置
+            """
+            g = _G._G_
+            log = g.Log()
+            try:
+                
+                # 调用CTools的matchScreenText方法查找文字
+                result = g.CTools().matchScreenText(rule, False)
+                return result
+            except Exception as e:
+                log.ex(e, "查找文字失败")
                 return None

@@ -160,19 +160,11 @@ class CTools_:
         Returns:
             list: 屏幕信息列表
         """
-        try:
-            if cls._screenInfoCache is None or refresh:
-                cls._screenInfoCache = cls.refreshScreenInfos()
-            
-            # 确保返回有效的JSON数据
-            if not cls._screenInfoCache:
-                return []
-            
+        if cls.android is None:
             return cls._screenInfoCache
-        except Exception as e:
-            log = _G._G_.Log()
-            log.ex(e, "获取屏幕信息失败")
-            return []
+        if cls._screenInfoCache is None or refresh:
+            cls._screenInfoCache = cls.refreshScreenInfos()
+        return cls._screenInfoCache
 
     @classmethod
     def setScreenInfo(cls, screenInfo):
@@ -190,7 +182,7 @@ class CTools_:
             try:
                 screenInfo = json.loads(screenInfo)
             except json.JSONDecodeError as e:
-                log.e(f"JSON解析错误: {e} \n json={screenInfo}")
+                log.e(f"JSON解析错误: {e} \n json=\n{screenInfo}")
                 return False
             
             # 保存到缓存
@@ -205,9 +197,9 @@ class CTools_:
     @classmethod
     def Clone(cls, clone):
         g = _G._G_
-        log = g.Log()
+        # log = g.Log()
         cls._screenInfoCache = clone._screenInfoCache
-        log.i(f'CTools克隆完成 android={cls.android}')
+        # log.i(f'CTools克隆完成 android={cls.android}')
         return True
 
     # @classmethod
@@ -244,7 +236,6 @@ class CTools_:
         try:
             if cls.android:
                 info = cls.android.getScreenInfo()
-                # log.i(f"获取屏幕信息 info={info}")
                 if info is None:
                     log.e("获取屏幕信息失败")
                     return []
@@ -254,10 +245,10 @@ class CTools_:
                 for i in range(size):
                     item = info.get(i)
                     result.append({
-                        't': item.get('t'),
+                        't': item.get('t').replace('\n', ' ').replace('\r', ''),
                         'b': item.get('b')
                     })
-
+                log.i(f"获取屏幕信息 info={result}")
                 # 更新缓存
                 cls._screenInfoCache = result
                 return result
@@ -278,30 +269,32 @@ class CTools_:
             # log.i(f"匹配屏幕文本: {str} in {screenInfo}")
             if not screenInfo:
                 log.w("屏幕信息为空")
-                return None, None
+                return None
             # 解析区域和文本（保持原有逻辑）
             region, text = RegionCheck.parse(str)
             # 生成正则表达式（添加.*通配）
             regex = re.compile(f".*{text}.*")
             # log.i(f"正则表达式: {regex}, regioCheck={region}")
             # 遍历屏幕信息，查找匹配的文本
+            # 先匹配文本，将匹配成功的项缓存
+            textMatchedItems = []
             for item in screenInfo:
-                # 执行正则匹配
                 t = item['t']
-                b = item['b']
-                # log.i(f"匹配文本: {t} region={b}")
-                if not regex.search(t):
-                    # log.w(f"文本不匹配: {t}")
-                    continue
-                # 解析当前文本的边界
-                if region:
+                if regex.search(t):
+                    textMatchedItems.append(item)
+            if len(textMatchedItems) == 0:
+                return None
+            if region:
+                # 再在匹配成功的项中检查区域
+                for item in textMatchedItems:
+                    b = item['b']
                     bounds = [int(x) for x in b.split(',')]
                     isIn = region.isRectIn(
                         bounds[0], bounds[1], bounds[2], bounds[3])
-                    if not isIn:
-                        # log.w(f"区域不匹配: regioCheck={region}")
-                        continue
-                return item
+                    if isIn:
+                        log.i(f"区域匹配: {item}")
+                        return item
+                return None
         except Exception as e:
             log.ex(e, "FindUI 指令执行失败")
         return None

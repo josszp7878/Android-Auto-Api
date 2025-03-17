@@ -467,20 +467,6 @@ class SCmds_:
                             log.e("获取到空的屏幕信息")
                             return
                             
-                        # # 解析JSON格式的屏幕信息
-                        # import json
-                        # try:
-                        #     screen_info = json.loads(result)
-                        # except json.JSONDecodeError:
-                        #     log.e(f"JSON解析错误: {result[:100]}...")
-                        #     return
-                        
-                        # # 检查格式是否正确
-                        # if not isinstance(screen_info, list):
-                        #     log.e("屏幕信息格式错误，应为JSON数组")
-                        #     return
-                        
-                        # log.i(f"屏幕信息ddd: {result}")
                         # 保存到设备对象中
                         device.setScreenInfo(pageName, result)
                         # log.i(f"屏幕信息保存成功: {pageName}, 共{len(result)}个元素")

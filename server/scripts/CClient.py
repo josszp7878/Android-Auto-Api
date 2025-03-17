@@ -19,7 +19,7 @@ class CClient_:
             cls.deviceID = clone.deviceID
             cls.server = clone.server
             cls.device = clone.device
-            g.Log().d("CClient克隆完成")
+            # g.Log().d("CClient克隆完成")
             return True
         except Exception as e:
             g.Log().ex(e, "克隆失败")

@@ -50,7 +50,7 @@ class CFileServer_:
         log = g.Log()
         try:
             url = f"{cls.serverUrl}/file/{filename}"
-            log.d(f"下载文件...: {url}")
+            # log.d(f"下载文件...: {url}")
             response = requests.get(url, timeout=8)
             response.raise_for_status()
             scriptFile = os.path.join(g.rootDir(), filename)
@@ -64,7 +64,7 @@ class CFileServer_:
             # 如果下载的是脚本文件，清除脚本名称缓存
             if filename.startswith('scripts/') and filename.endswith('.py'):
                 g.clearScriptNamesCache()
-                log.d(f"脚本文件已更新，清除脚本名称缓存")
+                # log.d(f"脚本文件已更新，清除脚本名称缓存")
             
             if onComplete:
                 onComplete(True)

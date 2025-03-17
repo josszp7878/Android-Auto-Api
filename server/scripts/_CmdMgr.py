@@ -21,11 +21,11 @@ class Cmd:
         if self.alias and "-" in self.alias:
             parts = self.alias.split("-", 1)
             if len(parts) == 2:
-                self.alias = parts[0]
-                self.sAlias = parts[1]
+                self.alias = parts[0].strip()
+                self.sAlias = parts[1].strip().lower()
         
         # 生成函数名首字母+大写字母缩写
-        self.sName = self._getNameShortcut(self.name)
+        self.sName = self._getNameShortcut(self.name).lower()
     
     def _getNameShortcut(self, name):
         """获取函数名首字母+大写字母缩写"""
@@ -116,6 +116,7 @@ class _CmdMgr_:
         Returns:
             Cmd: 找到的命令对象，如果未找到则返回None
         """
+        cmdName = cmdName.lower()
         # 1. 先按别名正则匹配
         for cmd in cls.cmdRegistry:
             if re.match(f"^{cmd.alias}$", cmdName):
@@ -123,7 +124,7 @@ class _CmdMgr_:
         
         # 2. 再按函数名精确匹配
         for cmd in cls.cmdRegistry:
-            if cmd.name.lower() == cmdName.lower():
+            if cmd.name.lower() == cmdName:
                 return cmd
         
         # 3. 按拼音首字母缩写匹配
@@ -204,7 +205,7 @@ class _CmdMgr_:
         g = _G._G_
         log = g.Log()
         try:
-            log.d(f'重新加载模块: {moduleName}')
+            # log.d(f'重新加载模块: {moduleName}')
             # 检查模块是否已加载
             if moduleName in sys.modules:
                 module = sys.modules[moduleName]
@@ -234,7 +235,7 @@ class _CmdMgr_:
                         referrer.__dict__[moduleName] = module
                 # 清除全局引用
                 g.clear()
-                log.d(f'清除全局引用: {moduleName}')    
+                # log.d(f'清除全局引用: {moduleName}')    
                 g.CallMethod(module, 'Clone', oldCls)
                 g.CallMethod(module, 'OnReload')
             else:
@@ -387,7 +388,7 @@ class _CmdMgr_:
             """重新加载指定模块"""
             g = _G._G_
             log = g.Log()
-            log.i(f"重新加载模块: {moduleName}")
+            # log.i(f"重新加载模块: {moduleName}")
             moduleName = g.getScriptName(moduleName)
             if not moduleName:
                 return "e->找不到模块"
@@ -403,7 +404,7 @@ class _CmdMgr_:
             else:
                 # 如果没有文件服务器，直接重载
                 ret = cls._reloadModule(moduleName)
-                return f"i->重载{moduleName}{ret}"
+                return f"重载{moduleName}{ret}"
         
         @cls.reg(r"命令列表-mllb")
         def cmdList():
