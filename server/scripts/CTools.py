@@ -2,7 +2,7 @@ from __future__ import annotations
 import time
 import _G
 import re
-
+from typing import Optional
 
 
 class RegionCheck:
@@ -300,7 +300,7 @@ class CTools_:
         return None
 
     @classmethod
-    def _isHarmonyOS(cls) -> bool:
+    def isHarmonyOS(cls) -> bool:
         """检查是否是鸿蒙系统"""
         log = _G._G_.Log()
         try:
@@ -312,35 +312,36 @@ class CTools_:
             log.ex(e, '检查系统类型失败')
             return False
 
-    lastAppName = None
 
     @classmethod
     def openApp(cls, appName):
         if not appName:
             return False
-        if cls.android is None:
-            return False
-        """打开应用"""
         log = _G._G_.Log()
+        if cls.android is None:
+            return True
+        if appName == _G.TOP:
+            return cls.goHome()
         try:
             # 检查应用是否已经打开
-            curApp = cls.getCurrentApp()
+            curApp = cls.getCurrentAppInfo()
+            print(f"当前应用: {curApp}")
             if curApp and curApp.get('appName') == appName:
                 return "i->应用已打开"
 
             opened = False
             # 根据系统类型选择打开方式
-            if cls._isHarmonyOS():
-                log.i(f"使用鸿蒙系统方式打开应用: {appName}")
-                cls.goHome()
-                opened = cls.click(appName, 'LR')
+            if cls.isHarmonyOS():
+                opened = cls._openAppByClick(appName)
             else:
                 # Android系统使用服务方式打开
-                log.i(f"使用Android系统服务打开应用: {appName}")
                 opened = cls.android.openApp(appName)
-            if opened:
-                cls.lastAppName = appName
-            return opened
+            if not opened:
+                return False
+            time.sleep(3)
+            if cls.isCurApp(appName):
+                return True
+            return False
         except Exception as e:
             log.ex(e, "打开应用失败")
             return False
@@ -349,8 +350,6 @@ class CTools_:
     def closeApp(cls, app_name: str = None) -> bool:
         log = _G._G_.Log()
         try:
-            if not app_name:
-                app_name = cls.lastAppName
             log.i(cls.Tag, f"Closing app: {app_name}")
             if cls.android:
                 return cls.android.closeApp(app_name)
@@ -362,23 +361,16 @@ class CTools_:
     @classmethod
     def _openAppByClick(cls, app_name: str) -> bool:
         """通过点击方式打开应用（适用于鸿蒙系统）"""
-        log = _G._G_.Log()
         try:
-            nodes = cls.android.findTextNodes()
-            targetNode = next(
-                (node for node in nodes if app_name in node.getText()), None)
-            if not targetNode:
-                log.e(cls.Tag, f"App icon not found: {app_name}")
+            log = _G._G_.Log()
+            print(f"点击打开应用: {app_name}")
+            if not cls.goHome():
+                log.e(cls.Tag, "返回桌面失败")
                 return False
-
-            bounds = targetNode.getBounds()
-            if not cls.android.click(bounds.centerX(), bounds.centerY()):
-                log.e(cls.Tag, "Failed to click app icon")
-            return True
-
+            return cls.click(app_name, 'LR')
         except Exception as e:
             log.ex(e, f"Failed to open app by click: {str(e)}")
-            return False
+            return True
 
     # 添加Toast常量
     TOAST_LENGTH_SHORT = 0  # Toast.LENGTH_SHORT
@@ -408,36 +400,40 @@ class CTools_:
         except Exception as e:
             print(f"显示Toast失败: {e}")
             print(msg)
+            
+    @classmethod
+    def isCurApp(cls, appName: str) -> bool:
+        """判断当前应用是否是目标应用"""
+        try:
+            curApp = cls.getCurrentAppInfo()
+            if not curApp:
+                return False
+            if '.' in appName:
+                return curApp.get('packageName') == appName
+            else:
+                return curApp.get('appName') == appName
+        except Exception as e:
+            _G._G_.Log().ex(e, "判断当前应用失败")
+            return False
 
     @classmethod
-    def getCurrentApp(cls, period=60):
-        """获取当前正在运行的应用信息
-
-        Args:
-            period: 查询最近使用应用的时间范围(秒)，默认60秒
-
+    def getCurrentAppInfo(cls) -> Optional[dict]:
+        """获取当前运行的应用信息
+        
         Returns:
-            dict: 包含包名(packageName)和应用名(appName)的字典，失败返回None
+            dict: 应用信息，包含包名等
         """
-        log = _G._G_.Log()
+        g = _G._G_
+        log = g.Log()
+        android = g.CTools().android    
+        if android is None:
+            return None
         try:
-            # _Log._Log_.i("获取当前应用222")
-            if not cls.android:
-                log.e("获取当前应用失败: 未找到Android实例")
-                return None
-
-            # 显式传递period参数
-            result = cls.android.getCurrentApp(period)
-            if result is None:
-                return None
-
-            return {
-                "packageName": result.get("packageName"),
-                "appName": result.get("appName"),
-                "lastUsed": result.get("lastUsed")
-            }
+            # 获取当前应用信息
+            appInfo = android.getCurrentApp(10)
+            return appInfo
         except Exception as e:
-            log.ex(e, "获取当前应用失败")
+            log.ex(e, "获取当前应用信息失败")
             return None
 
     @classmethod
@@ -465,7 +461,7 @@ class CTools_:
             }
 
             # 获取当前应用信息
-            app_info = cls.getCurrentApp()
+            app_info = cls.getCurrentAppInfo()
             if not app_info:
                 log.w("获取当前应用信息失败，无法判断是否在桌面")
                 return False
@@ -489,11 +485,15 @@ class CTools_:
             return False
 
     @classmethod
-    def goHome(cls):
+    def goHome(cls)->bool:
         """统一返回桌面实现"""
+        if cls.isHome():
+            return True
         if cls.android:
-            return cls.android.goHome()
+            return cls  .android.goHome()
         time.sleep(1)
+        if cls.isHome():
+            return True
         return False
 
     @classmethod
@@ -672,9 +672,10 @@ class CTools_:
         
         while tries < maxTry:
             # 获取当前屏幕内容用于相似度比较
-            currentScreen = cls.getScreenText()
+            currentScreen = cls.refreshScreenInfos()
             if currentScreen is None:
-                return False
+                tries += 1
+                continue
             log.i(f"当前屏幕内容: {currentScreen}")
             
             # 检查是否已经到达边界(屏幕内容相似度高)
@@ -702,13 +703,11 @@ class CTools_:
             
             log.i(f"第{tries+1}次滑动，方向: {cmd}")
             cls.swipe(f"{cmd} 500")
-            time.sleep(0.5)  # 等待滑动完成
-            
+            time.sleep(2)  # 等待滑动完成
             # 检查滑动后是否匹配
             if matchFunc():
                 log.i(f"在方向{current_dir}的第{tries+1}次滑动后找到匹配")
                 return True
-            
             tries += 1
         
         log.i(f"达到最大尝试次数({maxTry})，未找到匹配")
@@ -827,21 +826,21 @@ class CTools_:
         
         return similarity >= threshold
 
-    @classmethod
-    def getScreenText(cls):
-        """获取当前屏幕上的所有文本
-        Returns:
-            文本内容列表
-        """
-        log = _G._G_.Log()
-        try:
-            if cls.android:
-                nodes = cls.android.findTextNodes()
-                if nodes is not None and len(nodes) > 0:
-                    return [node.getText() for node in nodes if node.getText()]
-        except Exception as e:
-            log.ex(e, "获取屏幕文本异常")
-        log.i("获取屏幕文本失败")
-        return None
+    # @classmethod
+    # def getScreenText(cls):
+    #     """获取当前屏幕上的所有文本
+    #     Returns:
+    #         文本内容列表
+    #     """
+    #     log = _G._G_.Log()
+    #     try:
+    #         if cls.android:
+    #             nodes = cls.android.findTextNodes()
+    #             if nodes is not None and len(nodes) > 0:
+    #                 return [node.getText() for node in nodes if node.getText()]
+    #     except Exception as e:
+    #         log.ex(e, "获取屏幕文本异常")
+    #     log.i("获取屏幕文本失败")
+    #     return None
 
 CTools_.init()

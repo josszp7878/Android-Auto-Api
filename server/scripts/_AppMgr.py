@@ -3,7 +3,7 @@ from pathlib import Path
 import _Log
 
 
-class SAppMgr_:
+class _AppMgr_:
     """应用管理类"""
     _instance = None
     _apps = None
@@ -62,7 +62,7 @@ class SAppMgr_:
         """
         return list(self._apps.keys()) if self._apps else []
         
-    def app_exists(self, app_name: str) -> bool:
+    def exist(self, app_name: str) -> bool:
         """检查应用是否存在
         Args:
             app_name: 应用名称
@@ -104,4 +104,4 @@ class SAppMgr_:
 
 
 # 全局单例
-appMgr = SAppMgr_() 
+appMgr = _AppMgr_() 

@@ -14,6 +14,8 @@ if TYPE_CHECKING:
     from _Tools import _Tools_
     from CPageMgr import CPageMgr_
 
+TOP = "Top"
+UNKNOWN = 'unknown'
 g = {}
 
 class _G_:

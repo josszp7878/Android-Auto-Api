@@ -592,7 +592,7 @@ class PythonServices {
         @RequiresApi(Build.VERSION_CODES.LOLLIPOP_MR1)
         @JvmStatic
         fun getCurrentApp(period: Int = 60): Map<String, Any>? {
-            Timber.tag(TAG).i("Getting current running app info")
+            Timber.tag(TAG).i("获取当前运行应用信息")
             return try {
                 // 获取Android上下文
                 val appContext = context.applicationContext
@@ -600,7 +600,7 @@ class PythonServices {
                 // 获取UsageStatsManager
                 val usageStatsManager = appContext.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
                 if (usageStatsManager == null) {
-                    Timber.tag(TAG).e("Failed to get UsageStatsManager")
+                    Timber.tag(TAG).e("获取UsageStatsManager失败")
                     return null
                 }
                 
@@ -613,13 +613,13 @@ class PythonServices {
                     UsageStatsManager.INTERVAL_DAILY, startTime, endTime)
                 
                 if (usageStatsList.isNullOrEmpty()) {
-                    // 检查权限
+                    // 检查权限，但不在这里申请，而是提示用户
                     if (!checkPermission("android.permission.PACKAGE_USAGE_STATS")) {
-                        Timber.tag(TAG).w("Usage access permission required")
-                        requestPermission("android.permission.PACKAGE_USAGE_STATS")
+                        Timber.tag(TAG).w("需要使用情况访问权限")
+                        showToast("需要「使用情况访问」权限，请在设置中开启", TOAST_LENGTH_LONG)
                         return null
                     } else {
-                        Timber.tag(TAG).w("No recent app usage records")
+                        Timber.tag(TAG).w("无最近应用使用记录")
                         return null
                     }
                 }
@@ -636,7 +636,7 @@ class PythonServices {
                 }
                 
                 if (recentStats == null) {
-                    Timber.tag(TAG).w("No recent app found")
+                    Timber.tag(TAG).w("未找到最近使用的应用")
                     return null
                 }
                 
@@ -652,7 +652,7 @@ class PythonServices {
                     }
                     
                     val appName = pm.getApplicationLabel(appInfo).toString()
-                    Timber.tag(TAG).i("Current app: %s (%s)", appName, packageName)
+                    Timber.tag(TAG).i("当前应用: %s (%s)", appName, packageName)
                     
                     return mapOf(
                         "packageName" to packageName,
@@ -660,11 +660,11 @@ class PythonServices {
                         "lastUsed" to recentStats.lastTimeUsed
                     )
                 } catch (e: Exception) {
-                    Timber.tag(TAG).e(e, "Failed to get app info")
+                    Timber.tag(TAG).e(e, "获取应用信息失败")
                     return null
                 }
             } catch (e: Exception) {
-                Timber.tag(TAG).e(e, "Failed to get current app")
+                Timber.tag(TAG).e(e, "获取当前应用失败")
                 return null
             }
         }

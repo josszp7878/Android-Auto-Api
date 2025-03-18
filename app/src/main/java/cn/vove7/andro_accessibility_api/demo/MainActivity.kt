@@ -85,6 +85,22 @@ class MainActivity : AppCompatActivity() {
         val onGranted: () -> Unit
     )
 
+    private val requiredPermissions = arrayOf(
+        Manifest.permission.REQUEST_INSTALL_PACKAGES,
+        Manifest.permission.WRITE_EXTERNAL_STORAGE
+    )
+
+    private val specialPermissions = mapOf(
+        Settings.ACTION_MANAGE_OVERLAY_PERMISSION to { Settings.canDrawOverlays(this) },
+        Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS to {
+            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+            pm.isIgnoringBatteryOptimizations(packageName)
+        },
+        Settings.ACTION_USAGE_ACCESS_SETTINGS to {
+            PythonServices.checkPermission("android.permission.PACKAGE_USAGE_STATS")
+        }
+    )
+
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -117,25 +133,15 @@ class MainActivity : AppCompatActivity() {
         startAccessibilityService()
         // 检查并请求权限
         requestPermissions()
-        // 检查悬浮窗权限
-        requestSpecialPermission(
-            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-            { Settings.canDrawOverlays(this) },
-            {
-                startService(Intent(this, ToolBarService::class.java))
+        
+        // 请求特殊权限
+        specialPermissions.forEach { (action, checker) ->
+            requestSpecialPermission(action, checker) {
+                if (action == Settings.ACTION_MANAGE_OVERLAY_PERMISSION) {
+                    startService(Intent(this, ToolBarService::class.java))
+                }
             }
-        )
-        // 检查并请求忽略电池优化权限
-        requestSpecialPermission(
-            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-            {
-                val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-                pm.isIgnoringBatteryOptimizations(packageName)
-            },
-            {
-                // 忽略电池优化权限已授予，执行相关操作
-            }
-        )
+        }
     }
 
     private fun startAccessibilityService() {
@@ -225,10 +231,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-    private val requiredPermissions = arrayOf(
-        Manifest.permission.REQUEST_INSTALL_PACKAGES,
-        Manifest.permission.WRITE_EXTERNAL_STORAGE
-    )
     @SuppressLint("BatteryLife")
     @RequiresApi(Build.VERSION_CODES.M)
     private fun checkBatteryOptimization() {

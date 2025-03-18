@@ -9,7 +9,7 @@ import base64
 from STaskMgr import STaskMgr_
 from SEarningMgr import SEarningMgr_
 import json
-from SAppMgr import appMgr  # 局部导入避免循环依赖
+import _AppMgr as appMgr  # 局部导入避免循环依赖
 import _G
 
 class SDevice_:

@@ -3,6 +3,7 @@ import threading
 import time as time_module
 import json
 import _G
+import CPage
 
 # 添加缓存相关的变量
 _screenInfoCache = None
@@ -324,23 +325,22 @@ class CCmds_:
         @regCmd(r"当前应用")
         def curApp():
             """获取当前正在运行的应用信息"""
-            g = _G._G_
-            log = g.Log()
-            try:
-                log.i("获取当前应用111")
-                return _G._G_.CTools().getCurrentApp()
-            except Exception as e:
-                log.ex(e, "获取当前应用失败")
-                return None
+            from CApp import CApp_
+            appName = CApp_.getCurAppName(True)
+            if appName:
+                app = CApp_.getApp(appName)
+                if app and app.currentPage:
+                    return f"当前应用: {appName}\n当前页面: {app.currentPage.name}"
+                return f"当前应用: {appName}"
+            else:
+                return "未检测到应用"
 
-        @regCmd(r"当前页面")
-        def currentPage():
-            return _G._G_.PageMgr().findCurPage() or None
 
         @regCmd(r"跳转", r"(?P<target>.+)")
         def go(target):
             """页面跳转测试命令"""
-            return _G._G_.PageMgr().go(target)
+            from CApp import CApp_
+            return CApp_.go(target)
 
         @regCmd(r"桌面")
         def home():
@@ -348,18 +348,23 @@ class CCmds_:
             return _G._G_.CTools().goHome()
         
         @regCmd(r"返回")
-        def back():
+        def goBack():
             """返回上一页"""
-            return _G._G_.CTools().goBack()
+            from CApp import CApp_
+            appName = CApp_.getCurAppName()
+            if appName:
+                app = CApp_.getApp(appName)
+                if app:
+                    result = app.goBack()
+                    if result:
+                        return f"已返回到 {result.name}"
+            
+            # 如果没有当前应用或返回失败，使用通用返回
+            result = _G._G_.CTools().goBack()
+            if not result:
+                return "e-返回上一页失败"
+            return "已返回"
 
-        @regCmd(r"查找路径", r"(?P<fromPage>\S+)\s*->\s*(?P<toPage>\S+)")
-        def findPath(fromPage, toPage):
-            """测试路径查找功能"""
-            path = _G._G_.PageMgr().findPath(fromPage, toPage)
-            if path:
-                return f"找到路径: {' → '.join(path)}"
-            else:
-                return f"未找到 {fromPage} 到 {toPage} 的路径"
 
         @regCmd(r"查找", r"(?P<text>\S+)(?:\s+(?P<dir>[LRUDNONE]+))?(?:\s+(?P<distance>\d+))?")
         def findText(text, dir=None, distance=None):
@@ -439,7 +444,7 @@ class CCmds_:
                 log.ex(e, f"执行代码失败: {code}")
                 return None
 
-        @regCmd('匹配文字-ppwz', r"(?P<rule>.+)")
+        @regCmd('匹配文字-ppwz', r"(?P<rule>\S+)")
         def matchText(rule):
             """在当前屏幕上查找文字
             用法: 匹配文字 <文字规则>
@@ -455,10 +460,96 @@ class CCmds_:
             g = _G._G_
             log = g.Log()
             try:
-                
+                if rule.startswith('@'):
+                    pages = CPage.CPage_.getCurrent().findPageByPath(rule[1:])
+                    page = pages.last()
+                    return page.checkRules()
                 # 调用CTools的matchScreenText方法查找文字
                 result = g.CTools().matchScreenText(rule, False)
                 return result
             except Exception as e:
                 log.ex(e, "查找文字失败")
                 return None
+
+        @regCmd(r"应用页面列表")
+        def listAppPages():
+            """列出所有应用及其当前页面"""
+            from CApp import CApp_
+            apps = CApp_.getAllApps()
+            if not apps:
+                return "暂无应用页面记录"
+            
+            result = "应用页面列表:\n"
+            for appName in apps:
+                app = CApp_.getApp(appName)
+                if app and app.currentPage:
+                    result += f"- {appName}: {app.currentPage.name}\n"
+                else:
+                    result += f"- {appName}: 未知\n"
+            return result
+
+
+        @regCmd(r"打开应用", r"(?P<appName>\S+)")
+        def openApp(appName):
+            """打开指定应用
+            用法: 打开应用 <应用名>
+            """
+            from CApp import CApp_
+            result = CApp_.gotoApp(appName)
+            if result:
+                # 检查应用是否在配置中注册
+                app = CApp_.getApp(appName)
+                if app and app.currentPage:
+                    return f"成功打开应用 {appName}，当前页面: {app.currentPage.name}"
+                return f"成功打开应用 {appName}"
+            else:
+                return f"打开应用 {appName} 失败"
+
+        @regCmd(r"返回主屏幕")
+        def goHome():
+            """返回主屏幕"""
+            from CApp import CApp_
+            result = CApp_.goHome()
+            if result:
+                return "已返回主屏幕"
+            else:
+                return "返回主屏幕失败"
+
+
+        @regCmd(r"关闭应用", r"(?P<appName>\S+)?")
+        def closeApp(appName=None):
+            """关闭应用
+            用法: 关闭应用 [应用名]
+            如果不提供应用名，则关闭当前应用
+            """
+            from CApp import CApp_
+            
+            # 如果未指定应用名，使用当前应用
+            if not appName:
+                appName = CApp_.getCurAppName()
+                if not appName:
+                    return "未指定要关闭的应用"
+            
+            result = CApp_.closeApp(appName)
+            if result:
+                return f"已关闭应用 {appName}"
+            else:
+                return f"关闭应用 {appName} 失败"
+
+        @regCmd(r"返回上一页")
+        def goBack():
+            """返回上一页"""
+            from CApp import CApp_
+            appName = CApp_.getCurAppName()
+            if appName:
+                app = CApp_.getApp(appName)
+                if app:
+                    result = app.goBack()
+                    if result:
+                        return f"已返回到 {result.name}"
+            
+            # 如果没有当前应用或返回失败，使用通用返回
+            result = _G._G_.CTools().goBack()
+            if not result:
+                return "e-返回上一页失败"
+            return "已返回"

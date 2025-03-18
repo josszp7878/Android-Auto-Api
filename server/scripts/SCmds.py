@@ -372,7 +372,7 @@ class SCmds_:
             用法: 打开 <应用名>
             """
             try:
-                from SAppMgr import appMgr
+                from server.scripts._AppMgr import appMgr
                 _appName = appMgr.getApp(appName)
                 if not _appName:
                     return
@@ -401,7 +401,7 @@ class SCmds_:
         @regCmd('应用列表-yylb')
         def apps():
             """列出所有应用"""
-            from SAppMgr import appMgr
+            from server.scripts._AppMgr import appMgr
             return "i->" + json.dumps(appMgr.get_app_names(), ensure_ascii=False, indent=2)
 
         @regCmd('快照-kz')
