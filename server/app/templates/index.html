@@ -117,9 +117,12 @@
                 
                 <!-- 命令输入区域 -->
                 <div class="console-input">
-                    <input type="text" v-model="commandInput" @keyup.enter="sendCommand" 
-                           @keyup.up="prevCommand" @keyup.down="nextCommand" 
-                           placeholder="输入命令..." class="form-control">
+                    <input type="text" 
+                           v-model="commandInput"
+                           @keydown.up.prevent="handleKeydown"
+                           @keydown.down.prevent="handleKeydown"
+                           @keyup.enter="sendCommand"
+                           placeholder="输入命令...">
                     <button @click="sendCommand" class="btn btn-primary">发送</button>
                 </div>
             </div>

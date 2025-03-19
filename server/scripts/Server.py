@@ -6,9 +6,6 @@ from datetime import datetime
 import json
 import _Log
 from SDeviceMgr import deviceMgr
-import sys
-import os
-
 class DateTimeEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, datetime):
@@ -127,10 +124,11 @@ def handle_set_current_device(data):
 @socketio.on('C2S_Log')
 def handle_C2S_Log(data):
     """处理客户端日志"""
+    Log = _Log._Log_
     try:
-        _Log._Log_.add(data)
+        Log.add(data)
     except Exception as e:
-        _Log._Log_.ex(e, '处理客户端日志失败')
+        Log.ex(e, '处理客户端日志失败')
 
 
 @socketio.on('B2S_GetLogs')
@@ -233,26 +231,35 @@ def handle_cancel_task(data):
 
 
 @socketio.on('2S_Cmd')
-def handle_command(data):
+def handle_2S_Cmd(data):
     """处理2S命令请求"""
+    Log = _Log._Log_
     try:
-        device_id = data.get('device_id')
-        command = data.get('command')  
-        params = data.get('params', {})      
-        # _Log._Log_.d(f'执行命令: {device_id} {command} {params}')
-        if not command:
-            return {'error': '缺少必要参数'}
-            
-        # 检查命令是否以:或：开头
-        if re.match(r'^[：:].*', command):
-            # 去掉开头的:或：后发送给客户端
-            clientCmd = command[1:]
-            deviceMgr.sendClientCmd(device_id, clientCmd, params)
+        device_id = data.get('device_id') or '控制台'
+        command = data.get('command')
+        # 确定指令流向
+        m = re.match(r'^\s*[>》]\s*(.+)$', command)
+        serverCmd = False
+        if m:
+            serverCmd = True
+            command = m.group(1)
+        serverTag = _Log.TAG.Server.value
+        sender = serverTag
+        executor = device_id if serverCmd else serverTag
+        
+        log = Log.cmdLog(command, sender, executor)
+        # print(f'执行命令: {command} {serverCmd}')
+        if not serverCmd:
+            result = deviceMgr.doServerCmd(device_id, command, data.get('params', {}))
+            # 执行后更新结果
+            Log.setCmdResult(log, result)
+            return result
         else:
-            # 发送命令到设备或服务器
-            deviceMgr.doServerCmd(device_id, command, params)
+            return deviceMgr.sendClientCmd(device_id, command, data.get('params', {}))
+        
     except Exception as e:
-        _Log._Log_.ex(e, '执行命令失败')
+        _Log._Log_.cmdLog(command, sender, executor, f"执行异常: {str(e)}")
+        raise
 
 
 @socketio.on('C2S_CmdResult')

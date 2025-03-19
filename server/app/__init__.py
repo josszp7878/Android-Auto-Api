@@ -29,17 +29,16 @@ socketio_logger.setLevel(logging.WARNING)  # 将 Socket.IO 日志级别改为 WA
 werkzeug_logger = logging.getLogger('werkzeug')
 werkzeug_logger.setLevel(logging.INFO)  # 将 Werkzeug 日志级别改为 INFO
 
-socketio = SocketIO()
-app = None
+socketio = SocketIO(logger=False, engineio_logger=False, async_mode='eventlet')
 
 
 def create_app(config_name='development', debug=False):
     """创建 Flask 应用"""
-    global app
-    app = Flask(__name__,
-                static_folder='static',
-                static_url_path='/static',
-                template_folder='templates')
+    app = Flask(
+        __name__,
+        static_folder='static',
+        static_url_path='/static',
+        template_folder='templates')
     
     # 加载配置
     app.config.from_object(config[config_name])
@@ -48,16 +47,8 @@ def create_app(config_name='development', debug=False):
     # 初始化数据库
     db.init_app(app)
     
-    # 初始化 SocketIO
-    socketio.init_app(
-        app,
-        cors_allowed_origins="*",
-        async_mode='eventlet',
-        logger=False,
-        engineio_logger=False,
-        ping_timeout=60,
-        ping_interval=25
-    )
+    # 初始化 SocketIO（必须在蓝图注册前）
+    socketio.init_app(app, cors_allowed_origins="*")
     
     # 创建所有数据库表
     with app.app_context():

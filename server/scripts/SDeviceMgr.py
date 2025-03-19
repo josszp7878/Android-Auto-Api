@@ -229,10 +229,11 @@ class SDeviceMgr_:
     def handCmdResult(self, data):
         """处理命令响应"""
         try:
+            log = _G._G_.Log()
+            # log.i(f'收到命令响应dddddddd: {data}')
             result = data.get('result')
             result = str(result)
             device_id = data.get('device_id')
-            command = data.get('command')
             cmdName = data.get('cmdName')  # 获取命令方法名
             cmd_id = data.get('cmd_id')  # 获取命令ID
             
@@ -249,7 +250,7 @@ class SDeviceMgr_:
                 if isinstance(result, str) and result.startswith('data:image'):
                     device = self.get_device(device_id)
                     if device is None:
-                        _Log._Log_.e(f'设备 {device_id} 不存在')
+                        log.e(f'设备 {device_id} 不存在')
                         return
                     if device.saveScreenshot(result):
                         result = '截图已更新'
@@ -263,7 +264,7 @@ class SDeviceMgr_:
         if self.onCmdResult:
             self.onCmdResult(result)
         
-        _Log._Log_.log(result, device_id)
+        log.log(result, device_id)
 
     def genCmdId(self, device_id, command):
         """生成命令唯一ID"""
@@ -295,21 +296,20 @@ class SDeviceMgr_:
     
     def doServerCmd(self, deviceID, command, data):
         result, _ = _G._G_.getClass('_CmdMgr').do(command, deviceID, data=data)
-        _Log._Log_.log(result, _Log.TAG.SCMD.value)
         return result
     
     def sendClientCmd(self, device_id, command, data=None, timeout:int=10, callback:Callable[[str], None]=None):
         """执行设备命令"""
+        log = _G._G_.Log()
         try:
             self.onCmdResult = callback
             with current_app.app_context():
-                # _Log._Log_.d(f'发送客户端命令: {device_id} -> {command}, DATA: {data}')
                 device = self.get_device(device_id)
                 if device is None:
-                    _Log._Log_.e(f'设备 {device_id} 不存在')
+                    log.e(f'设备 {device_id} 不存在')
                     return '设备不存在'
                 if device.status != 'login':
-                    _Log._Log_.w('Server', f'设备 {device_id} 未登录')
+                    log.w('Server', f'设备 {device_id} 未登录')
                     return '设备未登录'
                 sid = device.info.get('sid')
                 # _Log._Log_.i('Server', f'设备 SID: {sid}， 命令: {command}， 数据: {data}')
@@ -326,14 +326,14 @@ class SDeviceMgr_:
                         # _Log._Log_.d('Server', f'命令已发送到设备 {device_id}')
                         return f'命令已发送到设备 {device_id}'
                     except Exception as e:
-                        _Log._Log_.ex(e, '发送命令时出错')
+                        log.ex(e, '发送命令时出错')
                         return f'发送命令失败: {e}'
                 else:
-                    _Log._Log_.e('Server', f'设备 {device_id} 会话无效')
+                    log.e('Server', f'设备 {device_id} 会话无效')
                     return '设备会话无效'
                 
         except Exception as e:
-            _Log._Log_.ex(e, '执行设备命令出错')
+            log.ex(e, '执行设备命令出错')
             return '执行命令失败'       
 ##########################################################
 

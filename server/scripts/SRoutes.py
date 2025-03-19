@@ -1,5 +1,4 @@
 from flask import Blueprint, send_file, render_template, jsonify, request, current_app, send_from_directory
-from app import app
 import _G
 from SDeviceMgr import deviceMgr
 import os

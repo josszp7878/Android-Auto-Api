@@ -327,14 +327,11 @@ class CCmds_:
             """获取当前正在运行的应用信息"""
             from CApp import CApp_
             appName = CApp_.getCurAppName(True)
-            if appName:
-                app = CApp_.getApp(appName)
-                if app and app.currentPage:
-                    return f"当前应用: {appName}\n当前页面: {app.currentPage.name}"
-                return f"当前应用: {appName}"
-            else:
-                return "未检测到应用"
-
+            pageName = ''
+            app = CApp_.getApp(appName)
+            if app and app.currentPage:
+                pageName = app.currentPage.name
+            return f"{appName}:{pageName}"
 
         @regCmd(r"跳转", r"(?P<target>.+)")
         def go(target):

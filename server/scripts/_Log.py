@@ -107,53 +107,60 @@ class _Log_:
         cls._cache.append(logDict)
         try:
             from app import socketio
-            socketio.emit('S2B_AddLog', logDict)
+            if socketio.server:
+                socketio.emit('S2B_AddLog', logDict)
         except Exception as e:
-            print(f'发送日志到控制台失败: {e}')
+            message = cls.formatEx('发送日志到控制台失败', e, '')
+            print(message)
 
     @classmethod
-    def log(cls, content, tag=None, level=None):
+    def log(cls, content, tag=None, level='i')->dict:
         """记录日志"""
-        timestamp = datetime.now()
-        
-        # 强制转换非字符串内容
-        if not isinstance(content, str):
-            try:
-                content = str(content)
-            except Exception as e:
-                content = f"无法转换日志内容: {type(content)}"
-
-        # 处理特殊字符
-        content = content.replace('"', "'") # 替换双引号
-        
-        # 构造日志字典
-        logDict = {
-            'time': timestamp.strftime('%Y-%m-%d %H:%M:%S'),
-            'tag': tag or TAG.Server.value,
-            'level': level or 'i',
-            'message': content[:500]  # 限制消息长度
-        }
-        
-        # 保留原有发送逻辑
-        if _G._G_.IsServer():
-            cls.add(logDict)
-        else:
-            try:
-                from CDevice import CDevice_
-                device = CDevice_.instance()
-                if device:
-                    tag = f'{device.deviceID}{tag}' if tag else device.deviceID
-                    if device.connected:
-                        device.sio.emit('C2S_Log', {
-                            'time': timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+        try:
+            timestamp = datetime.now()
+            # 强制转换非字符串内容
+            content = str(content)
+            # 处理content里面的level
+            # 检查content是否以特定格式开头，提取level
+            m = re.match(r'^\s*([diwec])[\#\-]\s*(.+)$', content)
+            if m:
+                level = m.group(1)  # 提取level字符
+                content = m.group(2)  # 提取剩余内容
+            
+            iserver = _G._G_.IsServer()
+            logData = None
+            time = timestamp.strftime('%Y-%m-%d %H:%M:%S')
+            tag = f'[{tag}]' if tag else ''
+            if iserver:
+                msg = content[:500] if len(content) > 500 else content
+                logData = {
+                    'time': time,
+                    'tag': tag,
+                    'level': level,
+                    'message': msg  # 限制消息长度
+                }
+                cls.add(logData)
+            else:
+                try:
+                    from CDevice import CDevice_
+                    device = CDevice_.instance()
+                    if device:
+                        tag = f'{device.deviceID}{tag}' if tag else device.deviceID
+                        logData = {
+                            'time': time,
                             'tag': tag,
-                            'level': level or 'i',
+                            'level': level,
                             'message': content
-                        })
-            except Exception as e:
-                print(f'发送日志到服务器失败: {e}')
-        
-        print(f"{timestamp.strftime('%H:%M:%S')} [{tag}] {level}: {content}")
+                        }
+                        if device.connected:
+                            # print(f'发送日志到服务器: {logData}')
+                            device.sio.emit('C2S_Log', logData)
+                except Exception as e:
+                    print(f'发送日志到服务器失败: {e}')
+            print(f"{time} {tag} {level}: {content}")
+            return logData
+        except Exception as e:
+            print(f'记录日志失败: {e}')
 
     @classmethod
     def d(cls, message, tag=None):
@@ -201,5 +208,22 @@ class _Log_:
     @classmethod
     def isWarning(cls, message):
         return isinstance(message, str) and message.startswith('w->')
+
+    @classmethod
+    def cmdLog(cls, command, sender, executor, result=None):
+        """记录指令日志（自动包含结果）"""
+        # 生成标准格式
+        message = f"{command}:{sender}→{executor}"
+        if result is not None:
+            message += f" => {result}"  # 结果截断
+        cls.log(message, TAG.CMD.value, 'c')
+    
+    @classmethod
+    def setCmdResult(cls, log, result=None):
+        """记录指令结果"""
+        if log is None:
+            return
+        res = str(result).replace('\n', ' ')[:50]
+        log['result'] = res
 
 

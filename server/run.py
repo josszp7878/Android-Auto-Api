@@ -17,19 +17,22 @@ def signal_handler(sig, frame):
 
 if __name__ == '__main__':
     try:
-        g = _G._G_
-        log = g.Log()
+
         # 创建应用实例
         app = create_app('development')
         cfg = config['development']
-        
+ 
+        print(f'app: {app}')
         # 注册信号处理器
         signal.signal(signal.SIGINT, signal_handler)
         
         # 初始化日志系统并打开服务器日志
-        g.setIsServer(True)        
-        # 启动服务器
+        g = _G._G_
+        log = g.Log()
+        g.setIsServer(True)      
+         # 启动服务器
         log.i(f'服务器启动在: http://{cfg.SERVER_HOST}:{cfg.SERVER_PORT}')
+        # print(f'ddd111')
         
         # 初始化数据库
         Database.init(app)

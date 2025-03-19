@@ -6,15 +6,30 @@ console.log('LogManager.js 已加载');
  * 负责日志的加载、过滤、显示和交互
  */
 class LogManager {
+  static LOG_TYPES = {
+    SYSTEM: 'SYSTEM',
+    ERROR: 'ERROR',
+    CMD: 'CMD',
+    SCREEN: 'SCREEN'
+  };
+
   constructor(socket) {
-    // 确保使用传入的 socket 实例
+    // 初始化存根方法
+    this.addLog = (level, tag, message) => {
+      console.error('LogManager未完成初始化时被调用');
+      return { level, tag, message };
+    };
+
+    // 确保socket存在
     if (!socket) {
-      console.error('LogManager: 没有提供 socket 实例');
+      console.error('LogManager: 必须传入有效的socket实例');
       return;
     }
-    
     this.socket = socket;
-    console.log('LogManager: 使用提供的 socket 实例');
+
+    // 重新绑定实际方法
+    this.addLog = this._addLog.bind(this);
+    this.handleScroll = this._handleScroll.bind(this);
     
     this.logs = []; // 所有日志的缓存
     this.filteredLogs = []; // 过滤后的日志
@@ -29,6 +44,7 @@ class LogManager {
     this.logsPanelWidth = '40%';
     this.isScrolling = false; // 添加滚动状态标记
     this.scrollTimeout = null; // 滚动超时处理
+    this.hasMoreLogs = false;
     
     // 回调函数
     this.onLogsUpdated = null;
@@ -39,10 +55,61 @@ class LogManager {
     // 添加滚动状态变化回调
     this.onScrollStateChanged = null;
     
-    // 初始化Socket.IO事件监听
+    // 新增命令历史缓存
+    this.cmdHistoryCache = [];
+    
+    // 新增系统日志存储
+    this._systemLogs = [];
+    
+    // 新增日志统计信息
+    this._logStats = {
+      start: 0,
+      end: 0,
+      total: 0
+    };
+    
+    // 新增回调配置
+    this.callbacks = {
+      onLogsUpdated: null,
+      onScrollToBottom: null,
+      onStatsUpdated: null
+    };
+    
+    // 初始化完成后才注册事件监听
+    this._initComplete = true;
     this.initSocketEvents();
     
+    // 新增指令历史请求
+    this.socket.emit('B2S_GetCommands');
+    
+    // 监听指令历史更新
+    this.socket.on('S2B_CommandHistory', (data) => {
+        this.commandHistory = [...new Set(data.commands)]; // 去重
+        this.currentHistoryIndex = -1;
+    });
+    
     console.log('LogManager 初始化完成');
+
+    // 绑定方法上下文
+    this.processCmdLog = this.processCmdLog.bind(this);
+  }
+  
+  // 实际addLog方法
+  _addLog(level, tag, message) {
+    const log = {
+      time: new Date().toLocaleTimeString(),
+      tag,
+      level,
+      message
+    };
+    this._systemLogs.push(log);
+    this.processCmdLog(log);
+    return log;
+  }
+  
+  // 实际滚动处理方法
+  _handleScroll(event) {
+    // ...滚动处理逻辑
   }
   
   // 初始化Socket.IO事件
@@ -61,8 +128,8 @@ class LogManager {
         return;
       }
 
-      // 直接使用服务器发送的结构化日志数据
-      this.logs = data.logs; 
+      this.logs = data.logs;
+      this.hasMoreLogs = data.hasMore;
       this.currentDate = data.date;
       this.parseAndFilterLogs();
     });
@@ -80,61 +147,54 @@ class LogManager {
         if (this.filteredLogs.length > this.perPage) {
           this.filteredLogs.shift();
         }
-
-        this.onLogsUpdated && this.onLogsUpdated(this.filteredLogs);
+        // 使用安全调用
+        this.onLogsUpdated?.(this.filteredLogs);
+      }
+      // 添加日志后调用addLog方法
+      if (typeof this.addLog === 'function') {
+        this.addLog(data.level, data.tag, data.message);
+      } else {
+        console.error('addLog方法不可用，检查初始化流程');
       }
     });
   }
   
-  // 解析日志条目
-  parseLogEntry(logEntry) {
-    if (!logEntry || typeof logEntry !== 'string') {
-      console.error('无效的日志条目:', logEntry);
-      return null;
-    }
-    
-    try {
-      // 使用正则表达式匹配新格式，所有部分都是可选的，但至少要有消息
-      // 格式: "[HH:MM:SS]@@[tag]##[level]->[message]"
-      const regex = /^(?:(\d{2}:\d{2}:\d{2}))?(?:@@([^#]*))?(?:##([^-]*))?(?:->)?(.+)$/;
-      const match = logEntry.match(regex);
-      
-      if (match && match[4]) { // 确保至少有消息部分
-        return {
-          time: match[1] || new Date().toLocaleTimeString(),
-          tag: match[2] || '@',
-          level: match[3] || 'i',
-          message: match[4]
-        };
+  // 修改后的处理CMD日志方法
+  processCmdLog(log) {
+    if (log.tag === '[CMD]') {
+        const cmdMatch = log.message.match(/(.*?)(?=[:→])/);
+        if (cmdMatch == null) {
+          return;
       }
+      const rawCommand = cmdMatch[1].trim();
+      const existingIndex = this.cmdHistoryCache.findIndex(c => c === rawCommand);
+      if (existingIndex > -1) {
+        this.cmdHistoryCache.splice(existingIndex, 1);
+      }
+      this.cmdHistoryCache.unshift(rawCommand);
       
-      // 如果没有匹配到消息部分，则整个日志作为消息
-      console.warn('无法解析日志格式，将整个日志作为消息:', logEntry);
-      return {
-        time: new Date().toLocaleTimeString(),
-        tag: '@',
-        level: 'i',
-        message: logEntry
-      };
-    } catch (error) {
-      console.error('解析日志时出错:', error, logEntry);
-      return {
-        time: new Date().toLocaleTimeString(),
-        tag: '@',
-        level: 'i',
-        message: `[解析错误] ${logEntry}`
-      };
+      // 限制最多100条
+      if (this.cmdHistoryCache.length > 100) {
+        this.cmdHistoryCache.pop();
+      }
     }
   }
-  
+
   // 解析并过滤所有日志
   parseAndFilterLogs() {
     this.loadingLogs = true;
     
+    // 重置命令缓存前保留现有命令
+    const prevCache = [...this.cmdHistoryCache];
+    this.cmdHistoryCache = [];
+    
+    this.logs.forEach(this.processCmdLog);
+    
+    // 合并新旧缓存（保留历史记录）
+    this.cmdHistoryCache = [...new Set([...this.cmdHistoryCache, ...prevCache])].slice(0, 100);
+    
     // 解析所有日志
-    const parsedLogs = this.logs
-      .map(log => this.parseLogEntry(log))
-      .filter(log => log !== null);
+    const parsedLogs = this.logs.filter(log => log !== null);
     
     console.log(`解析了 ${parsedLogs.length} 条日志`);
     
@@ -148,6 +208,9 @@ class LogManager {
     
     // 触发日志更新事件
     this.onLogsUpdated && this.onLogsUpdated(this.filteredLogs);
+    
+    // 更新统计信息
+    this._updateStats();
   }
   
   // 检查日志是否匹配当前过滤条件
@@ -319,16 +382,19 @@ class LogManager {
   loadLogs(date) {
     this.currentDate = date;
     this.loadingLogs = true;
-    this.onLogsUpdated && this.onLogsUpdated(this.filteredLogs);
+    this.logs = []; // 清空当前日志
+    this.callbacks.onLogsUpdated && this.callbacks.onLogsUpdated([]);
     this.socket.emit('B2S_GetLogs', { date });
   }
   
   // 清空日志
   clearLogs() {
+    this._systemLogs = [];
     this.logs = [];
     this.filteredLogs = [];
+    this._updateStats();
+    this.onLogsUpdated && this.onLogsUpdated([]);
     this.currentPage = 1;
-    this.onLogsUpdated && this.onLogsUpdated(this.filteredLogs);
     this.refreshDisplay();
   }
   
@@ -374,6 +440,9 @@ class LogManager {
     if (callbacks.onScrollStateChanged) {
         this.onScrollStateChanged = callbacks.onScrollStateChanged;
     }
+    if (callbacks.onStatsUpdated) {
+        this.callbacks.onStatsUpdated = callbacks.onStatsUpdated;
+    }
   }
   
   // 切换日志面板显示状态
@@ -396,5 +465,50 @@ class LogManager {
     this.logsPanelWidth = width;
     this.onWidthChanged && this.onWidthChanged(width);
     return width;
+  }
+  
+  // 新增获取命令历史方法
+  getCommandHistory() {
+    return [...this.cmdHistoryCache];  // 返回副本避免直接修改
+  }
+  
+  // 更新统计信息
+  _updateStats() {
+    if (this._systemLogs.length === 0) return;
+    
+    this._logStats = {
+      start: this._systemLogs[0].time,
+      end: this._systemLogs[this._systemLogs.length - 1].time,
+      total: this._systemLogs.length
+    };
+    this.callbacks.onStatsUpdated && this.callbacks.onStatsUpdated(this._logStats);
+  }
+  
+  // 完善分页加载
+  loadMoreLogs() {
+    if (this.loadingLogs || !this.hasMoreLogs) return;
+    
+    this.loadingLogs = true;
+    this.currentPage++;
+    this.socket.emit('B2S_GetLogs', {
+      date: this.currentDate,
+      page: this.currentPage
+    }, (response) => {
+      if (response.success) {
+        this.logs = [...this.logs, ...response.logs]; // 合并日志
+        this.hasMoreLogs = response.hasMore;
+        this.parseAndFilterLogs();
+      }
+      this.loadingLogs = false;
+    });
+  }
+  
+  // 新增统一接口
+  get systemLogs() {
+    return this._systemLogs; 
+  }
+  
+  get logStats() {
+    return this._logStats;
   }
 } 

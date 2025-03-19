@@ -15,7 +15,10 @@ class CApp_:
         """获取当前应用名称"""
         if refresh:
             cls._refreshCurApp()
+        if cls._curAppName is None:
+            return _G.TOP
         return cls._curAppName
+    
     @classmethod
     def _refreshCurApp(cls) -> Optional[str]:
         """检测当前运行的应用并设置为当前应用
