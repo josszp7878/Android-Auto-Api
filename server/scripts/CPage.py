@@ -1,6 +1,5 @@
 import time
 import _G
-import CTools
 from typing import List, Optional  # 添加typing模块导入
 
 # 动作类型枚举

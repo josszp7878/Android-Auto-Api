@@ -258,10 +258,10 @@ class _CmdMgr_:
         log = g.Log()
         """重新加载所有脚本并重启脚本引擎"""
         try:
-            log.i("开始全量重载脚本...")
             if g.IsServer():
-                return "e->当前是服务器，无法全量重载"
+                return "e->当前是服务器，无需重载脚本"
             # 创建一个事件来等待脚本更新完成
+            log.i("开始重载所有脚本...")
             import threading
             update_completed = threading.Event()
             
@@ -274,7 +274,7 @@ class _CmdMgr_:
             
             # 调用更新脚本方法
             log.i("正在更新脚本...")
-            g.getClass('CFileServer').update(onUpdateCompleted)
+            g.getClass('CFileServer').downAll(onUpdateCompleted)
             
             # 等待更新完成，最多等待30秒
             if not update_completed.wait(30):

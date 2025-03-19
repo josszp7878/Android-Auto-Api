@@ -64,11 +64,13 @@ class CClient_:
                     break
 
     @classmethod
-    def Begin(cls, deviceID=None, server=None, fromAndroid=False):  
+    def Begin(cls, deviceID=None, server=None, fromAndroid=None):  
         """初始化客户端"""
         g = _G._G_
         log = g.Log()
-        cls.fromAndroid = fromAndroid
+        # 如果fromAndroid为None，则用现成的。这个在reloadAll指令时会用到
+        if fromAndroid is not None:
+            cls.fromAndroid = fromAndroid
         log.d(f"初始化客户端: deviceID={deviceID}, server={server}, fromAndroid={fromAndroid}")      
         try:
             tools = g.CTools()

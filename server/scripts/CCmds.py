@@ -339,8 +339,8 @@ class CCmds_:
         @regCmd(r"跳转", r"(?P<target>.+)")
         def go(target):
             """页面跳转测试命令"""
-            from CApp import CApp_
-            return CApp_.go(target)
+            import CApp
+            return CApp.CApp_.go(target)
 
         @regCmd(r"桌面")
         def home():
@@ -388,27 +388,21 @@ class CCmds_:
             return "未找到匹配文字"
        
 
-        @regCmd('下载', r"(?P<fileName>.+)?")
+        @regCmd('下载-xz', r"(?P<fileName>.+)?")
         def download(fileName):
             """下载指定文件"""
             g = _G._G_
             log = g.Log()
             try:
                 FS = g.CFileServer()
-                def callback(success):
-                    if success:
-                        log.i(f"文件[{fileName}]下载成功")
-                    else:
-                        log.w(f"文件[{fileName}]下载失败")
                 if fileName:
                     existFileName = g.findFileName(fileName)
                     if existFileName:
                         fileName = existFileName
                     # log.i(f"下载文件: {fileName}")
-                    FS.download(fileName, callback)    
+                    FS.download(fileName)    
                 else:
-                    log.i("下载所有文件")
-                    FS.update(callback)
+                    FS.downAll()
                 return True
             except Exception as e:
                 log.ex(e, '下载操作异常')

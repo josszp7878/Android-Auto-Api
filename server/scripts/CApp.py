@@ -168,9 +168,8 @@ class CApp_:
         # 获取当前应用
         curAppName = cls.getCurAppName()
         if not curAppName:
-            log.e("无法确定当前应用")
-            return False
-        
+            if not cls.goHome():
+                return False        
         # 获取当前应用对象
         curApp = cls.getApp(curAppName)
         if not curApp:
@@ -429,3 +428,5 @@ class CApp_:
     def getAllRootPages(cls):
         """获取所有应用的根页面"""
         return [app.rootPage for app in cls.apps.values()] 
+
+__all__ = ['CApp_'] 
