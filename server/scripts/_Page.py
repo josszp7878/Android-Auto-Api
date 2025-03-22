@@ -11,44 +11,71 @@ class ActionType(Enum):
     BACK = 'B'
     CODE = ''
 
-class CPage_:
+class _Page_:
     # 类变量
     currentPage = None
     ROOT = None  # 根页面对象
-    UNKNOWN_PAGE = 'unknown'
     
     @classmethod
-    def setCurrent(cls, page) -> "CPage_":
+    def setCurrent(cls, page) -> "_Page_":
         """设置当前页面"""
         cls.currentPage = page
         return page
     
     @classmethod
-    def getCurrent(cls) -> "CPage_":
+    def getCurrent(cls) -> "_Page_":
         """获取当前页面"""
         return cls.currentPage
     
     @classmethod
-    def setRoot(cls, page) -> "CPage_":
+    def setRoot(cls, page) -> "_Page_":
         """设置根页面"""
         cls.ROOT = page
         return page
     
     @classmethod
-    def getRoot(cls) -> "CPage_":
+    def getRoot(cls) -> "_Page_":
         """获取根页面"""
         return cls.ROOT
     
-    def __init__(self, name, rules, parent=None):
+    @classmethod
+    def createPage(cls, pageName, parent=None)->"_Page_":
+        """创建页面对象
+        
+        Args:
+            pageName: 页面名称
+            parent: 父页面对象
+            
+        Returns:
+            CPage_: 创建的页面对象
+        """
+        # 检查页面是否已存在
+        if parent and pageName in parent.children:
+            return parent.children[pageName]
+            
+        # 创建新页面
+        page = _Page_(pageName)  # 提供空规则列表作为默认值
+        
+        # 设置父子关系
+        if parent:
+            page.parent = parent
+            parent.children[pageName] = page
+            
+        return page
+    
+    def __init__(self, name, parent=None):
         self.name = name
-        self.rules = rules  
+        self.rules = []  # 如果rules为None，则使用空列表
         self.parent = parent  # 父页面对象
         self.children = {}  # {name: CPage_对象}
         self.transitions = {}  # {actions}
         self.checkWaitTime = 1.0  # 默认检查等待时间
+        self.inAction = None
+        self.outAction = None
+        self.timeout = 30  # 默认超时时间
         
         # 如果有父页面，将自己添加为父页面的子页面
-        if parent and isinstance(parent, CPage_):
+        if parent and isinstance(parent, _Page_):
             parent.addChild(self)
     
     def addChild(self, child):
@@ -64,55 +91,144 @@ class CPage_:
         """获取所有子页面"""
         return list(self.children.values())    
 
-    def findPath(self, targetName, path=None, visited=None):
-        """查找路径（纯树形结构遍历）"""
-        if path is None:
-            path = []
+    def findPath(self, toPageName):
+        """查找从当前页面到目标页面的路径
+        
+        Args:
+            targetName: 目标页面名称
+            
+        Returns:
+            页面对象列表，表示从当前页面到目标页面的路径
+        """
+        # 先查找目标页面对象
+        target_page = self._findPageByName(toPageName)
+        if not target_page:
+            return None  # 目标页面不存在
+        
+        # 如果当前页面就是目标页面
+        if self.name == toPageName:
+            return [self]
+        
+        # 1. 获取从当前页面到根的路径
+        path_to_root_from_current = self._getPathToRoot()
+        
+        # 2. 获取从目标页面到根的路径
+        path_to_root_from_target = target_page._getPathToRoot()
+        
+        # 3. 找到最低公共祖先(LCA)
+        lca = None
+        lca_index_current = -1
+        lca_index_target = -1
+        
+        for i, page1 in enumerate(path_to_root_from_current):
+            for j, page2 in enumerate(path_to_root_from_target):
+                if page1 == page2:  # 找到共同祖先
+                    lca = page1
+                    lca_index_current = i
+                    lca_index_target = j
+                    break
+            if lca:
+                break
+        
+        if not lca:
+            return None  # 没有共同祖先，无法找到路径
+        
+        # 4. 构建完整路径: 当前页面 -> LCA -> 目标页面
+        
+        # 从当前页面到LCA的路径
+        path_to_lca = path_to_root_from_current[:lca_index_current+1]
+        
+        # 从LCA到目标页面的路径(需要反转)
+        path_from_lca = path_to_root_from_target[:lca_index_target]
+        path_from_lca.reverse()
+        
+        # 完整路径
+        complete_path = path_to_lca + path_from_lca
+        
+        return complete_path
+
+    @classmethod
+    def currentPathTo(cls, toPage):
+        """查找从当前页面到目标页面的路径"""
+        if not cls.currentPage:
+            cls.currentPage = cls.ROOT
+        path = cls.currentPage.findPath(toPage)
+        cls.currentPage = path[-1]
+        if path:
+            return " → ".join([p.name for p in path])
+        return None
+    
+    def findChild(self, pageName) -> Optional["_Page_"]:
+        """在整个页面树中查找指定名称的页面"""
+        for child in self.getAllChildren():
+            if child.name == pageName:
+                return child
+            result = child.findChild(pageName)
+            if result:
+                return result
+        return None
+    
+
+    def _findPageByName(self, name, visited=None):
+        """在整个页面树中查找指定名称的页面
+        
+        Args:
+            name: 页面名称
+            visited: 已访问页面集合(内部使用)
+            
+        Returns:
+            找到的页面对象，如果没找到则返回None
+        """
         if visited is None:
             visited = set()
-
-        # 防止循环
+        
         if self in visited:
             return None
         visited.add(self)
-
-        current_path = path + [self]
-
-        # 找到目标
-        if self.name == targetName:
-            return current_path
-
-        # 优先查找子节点
+        
+        # 检查当前页面
+        if self.name == name:
+            return self
+        
+        # 搜索子页面
         for child in self.getAllChildren():
-            result = child.findPath(targetName, current_path, visited.copy())
+            result = child._findPageByName(name, visited)
             if result:
                 return result
-
-        # 查找父节点和兄弟节点
-        if self.parent:
-            # 向上查找父节点的其他子节点（兄弟节点）
-            for sibling in self.parent.getAllChildren():
-                if sibling != self and sibling not in visited:
-                    result = sibling.findPath(targetName, current_path, visited.copy())
+        
+        # 搜索父页面
+        if self.parent and self.parent not in visited:
+            result = self.parent._findPageByName(name, visited)
+            if result:
+                return result
+        
+        # 如果这是根页面且没找到，尝试搜索其他应用
+        if not self.parent and name != "Top":
+            from CApp import CApp_
+            for app in CApp_.apps.values():
+                if app.rootPage != self and app.rootPage not in visited:
+                    result = app.rootPage._findPageByName(name, visited)
                     if result:
                         return result
-
-            # 继续向上查找父节点的路径
-            result = self.parent.findPath(targetName, current_path, visited.copy())
-            if result:
-                return result
-
-        # 全局查找其他应用的页面（通过CApp获取所有根页面）
-        from CApp import CApp_
-        for app in CApp_.apps.values():
-            if app.rootPage not in visited:
-                result = app.rootPage.findPath(targetName, current_path, visited.copy())
-                if result:
-                    return result
-
+        
         return None
-    
-    def findPagesByPath(self, path, visited=None, current_path=None) -> List["CPage_"]:
+
+    def _getPathToRoot(self):
+        """获取从当前页面到根页面的路径
+        
+        Returns:
+            页面对象列表，从当前页面到根页面
+        """
+        path = [self]
+        current = self
+        
+        while current.parent:
+            path.append(current.parent)
+            current = current.parent
+        
+        return path
+
+    def findPagesByPath(self, path, visited=None, current_path=None) -> List["_Page_"]:
         """从当前页面开始查找指定路径的页面
         
         Args:
@@ -314,12 +430,19 @@ class CPage_:
                 return False        
         return False
     
-    def go(self, targetPage, checkWaitTime=None) -> Optional["CPage_"]:
+    def go(self, targetPage, checkWaitTime=None) -> Optional["_Page_"]:
         """跳转到目标页面并验证结果"""
         try:
             g = _G._G_
             log = g.Log()
-            log.i(f'->{targetPage.name}')
+            # 判断跳转方向
+            pageName = targetPage.name
+            if pageName in self.children:
+                log.i(f'-> {pageName}')
+            elif self.parent and pageName == self.parent.name:
+                log.i(f'<- {pageName}')
+            else:
+                log.i(f'→ {pageName}')
             # 使用指定的等待时间或默认值
             wait_time = checkWaitTime if checkWaitTime is not None else self.checkWaitTime
             # 执行动作
@@ -337,7 +460,7 @@ class CPage_:
             if targetPage.checkRules():
                 # log.i(f"成功跳转到 {targetPage.name}")
                 # 更新当前页面
-                CPage_.setCurrent(targetPage)
+                _Page_.setCurrent(targetPage)
                 return targetPage
             else:
                 log.e(f"跳转失败: 未能验证目标页面 {targetPage.name}")
@@ -351,4 +474,57 @@ class CPage_:
     def toPath(cls, pages) -> str:
         """将页面列表转换为路径字符串"""
         return ' → '.join(page.name for page in pages)
+    
+    def setRules(self, rules):
+        """设置页面规则
+        
+        Args:
+            rules: 页面规则列表
+        """
+        self.rules = rules
+        return self
+    
+    def setTimeout(self, timeout):
+        """设置页面超时时间
+        
+        Args:
+            timeout: 超时时间（秒）
+        """
+        self.timeout = timeout
+        return self
+    
+    def setInAction(self, action):
+        """设置进入页面的动作
+        
+        Args:
+            action: 动作字符串
+        """
+        self.inAction = action
+        return self
+    
+    def setOutAction(self, action):
+        """设置离开页面的动作
+        
+        Args:
+            action: 动作字符串
+        """
+        self.outAction = action
+        return self
+    
+    @classmethod
+    def detectPage(cls, page, depth=0) -> Optional["_Page_"]:
+        """递归检测页面
+        Args:
+            page: 要检测的页面
+            depth: 当前递归深度
+        """
+        # 检查当前页面规则
+        if page.checkRules():
+            # 优先检查子页面
+            for child in page.getAllChildren():
+                result = cls.detectPage(child, depth + 1)
+                if result:
+                    return result
+            return page
+        return None
   

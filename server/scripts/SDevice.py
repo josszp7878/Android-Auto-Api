@@ -9,8 +9,8 @@ import base64
 from STaskMgr import STaskMgr_
 from SEarningMgr import SEarningMgr_
 import json
-import _AppMgr as appMgr  # 局部导入避免循环依赖
 import _G
+from _App import _App_
 
 class SDevice_:
     """设备类：管理设备状态和信息"""

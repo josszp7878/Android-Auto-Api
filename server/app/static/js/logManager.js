@@ -162,7 +162,7 @@ class LogManager {
   // 修改后的处理CMD日志方法
   processCmdLog(log) {
     if (log.tag === '[CMD]') {
-        const cmdMatch = log.message.match(/(.*?)(?=[:→])/);
+        const cmdMatch = log.message.match(/(.*?)(?=[:：])/);
         if (cmdMatch == null) {
           return;
       }

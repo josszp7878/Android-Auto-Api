@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from _CmdMgr import _CmdMgr_
     from CTools import CTools_
     from _Tools import _Tools_
-    from CPageMgr import CPageMgr_
+    from _App import _App_
 
 TOP = "Top"
 UNKNOWN = 'unknown'
@@ -30,10 +30,10 @@ class _G_:
     @classmethod
     def init(cls):
         import _Log
-        cls.log = _Log._Log_()
+        cls.log = _Log._Log_()     
 
     @classmethod
-    def IsServer(cls):
+    def isServer(cls):
         """是否是服务器端"""    
         return cls._isServer
     
@@ -42,6 +42,13 @@ class _G_:
         """设置是否是服务器端"""
         # print(f"设置是否是服务器端YYYYYYYYf: {isServer}")
         cls._isServer = isServer
+        from _App import _App_
+        if cls.isServer():
+            from SApp import SApp_
+            _App_.loadConfig(AppClass=SApp_)
+        else:
+            from CApp import CApp_
+            _App_.loadConfig(AppClass=CApp_)
     
     @classmethod
     def Clone(cls, oldCls):
@@ -127,8 +134,8 @@ class _G_:
         return cls.getClass('_Tools')    
     
     @classmethod
-    def PageMgr(cls) -> 'CPageMgr_':
-        return cls.getClass('CPageMgr')
+    def App(cls) -> '_App_':
+        return cls.getClass('_App')
     
     @classmethod
     def CFileServer(cls) -> 'CFileServer_':
@@ -212,7 +219,7 @@ class _G_:
         ext = '.py'
         fileNames: List[str] = []
         try:
-            prefix = 'S' if cls.IsServer() else 'C'
+            prefix = 'S' if cls.isServer() else 'C'
             # print(f"prefix: {prefix}")
             for file in files:
                 if ext and not file.endswith(ext):

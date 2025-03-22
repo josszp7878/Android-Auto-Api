@@ -83,11 +83,12 @@ class _Tools_:
 
             locals = {
                 'DoCmd': g.CmdMgr().do,
+                'App': g.App(),
+                'Tools': g.Tools(),
             }
-            if not g.IsServer():
+            if not g.isServer():
                 # 客户端环境，可以使用更多功能
                 locals['CTools'] = g.CTools()
-                locals['CPageMgr'] = g.PageMgr()
             result = eval(code, globals, locals)
             return result
         except Exception as e:

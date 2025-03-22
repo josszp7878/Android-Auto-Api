@@ -258,7 +258,7 @@ class _CmdMgr_:
         log = g.Log()
         """重新加载所有脚本并重启脚本引擎"""
         try:
-            if g.IsServer():
+            if g.isServer():
                 return "e->当前是服务器，无需重载脚本"
             # 创建一个事件来等待脚本更新完成
             log.i("开始重载所有脚本...")
@@ -394,7 +394,7 @@ class _CmdMgr_:
                 return "e->找不到模块"
             # 检查是否需要下载最新版本
             moduleFile = f"scripts/{moduleName}.py"
-            if not g.IsServer():
+            if not g.isServer():
                 # 先下载最新版本，然后在回调中重新加载
                 g.CFileServer().download(
                     moduleFile, 

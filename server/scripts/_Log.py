@@ -16,7 +16,12 @@ class _Log_:
     _cache = []
     _visualLogs = []
 
-    
+    @classmethod
+    def Clone(cls, oldCls):
+        """克隆"""
+        cls._cache = oldCls._cache
+        cls._visualLogs = oldCls._visualLogs
+
 
     @classmethod
     def clear(cls):
@@ -127,7 +132,7 @@ class _Log_:
                 level = m.group(1)  # 提取level字符
                 content = m.group(2)  # 提取剩余内容
             
-            iserver = _G._G_.IsServer()
+            iserver = _G._G_.isServer()
             logData = None
             time = timestamp.strftime('%Y-%m-%d %H:%M:%S')
             tag = f'[{tag}]' if tag else ''

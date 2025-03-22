@@ -3,7 +3,6 @@ import threading
 import time as time_module
 import json
 import _G
-import CPage
 
 # 添加缓存相关的变量
 _screenInfoCache = None
@@ -322,29 +321,48 @@ class CCmds_:
                 log.ex(e, '截图失败')
                 return f'e->截图异常: {str(e)}'
 
-        @regCmd(r"当前应用")
-        def curApp():
-            """获取当前正在运行的应用信息"""
-            from CApp import CApp_
-            appName = CApp_.getCurAppName(True)
+        @regCmd(r"当前页面-dqym", r"(?P<appName>\S+)?")
+        def curPage(appName=None):
+            """获取当前页面信息
+            用法: 当前页面 [应用名]
+            如果提供应用名，返回该应用的当前页面
+            如果不提供应用名，返回当前应用及其页面
+            """
             pageName = ''
-            app = CApp_.getApp(appName)
-            if app and app.currentPage:
-                pageName = app.currentPage.name
+            from CApp import CApp_
+            if appName:
+                # 获取指定应用的当前页面
+                app = CApp_.getApp(appName, True)
+                if app and app.currentPage:
+                    pageName = app.currentPage.name
+                else:
+                    return f"未找到应用 {appName} 或其页面信息"
+            else:
+                # 获取当前应用及其页面
+                appName = CApp_.getCurAppName(True)
+                app = CApp_.getApp(appName)
+                if app and app.currentPage:
+                    pageName = app.currentPage.name
             return f"{appName}:{pageName}"
 
-        @regCmd(r"跳转", r"(?P<target>.+)")
+        @regCmd(r"跳转-tz", r"(?P<target>.+)")
         def go(target):
             """页面跳转测试命令"""
             import CApp
             return CApp.CApp_.go(target)
-
-        @regCmd(r"桌面")
+        
+        @regCmd(r"路径-lj", r"(?P<target>.+)")
+        def pathTo(target):
+            """页面路径测试命令"""
+            import _Page
+            return _Page._Page_.currentPathTo(target)
+        
+        @regCmd(r"桌面-zm")
         def home():
             """返回手机桌面"""
             return _G._G_.CTools().goHome()
         
-        @regCmd(r"返回")
+        @regCmd(r"返回-fh")
         def goBack():
             """返回上一页"""
             from CApp import CApp_
@@ -363,7 +381,7 @@ class CCmds_:
             return "已返回"
 
 
-        @regCmd(r"查找", r"(?P<text>\S+)(?:\s+(?P<dir>[LRUDNONE]+))?(?:\s+(?P<distance>\d+))?")
+        @regCmd(r"查找-cz", r"(?P<text>\S+)(?:\s+(?P<dir>[LRUDNONE]+))?(?:\s+(?P<distance>\d+))?")
         def findText(text, dir=None, distance=None):
             """测试文字查找功能
             格式：测试查找 文字 [方向] [距离]
@@ -405,7 +423,7 @@ class CCmds_:
                 log.ex(e, '下载操作异常')
                 return False
 
-        @regCmd('获取文件', r"(?P<fileName>.+)")
+        @regCmd('获取文件-hqwj', r"(?P<fileName>.+)")
         def getFileName(fileName):
             """检查文件是否存在
             Args:
@@ -421,7 +439,7 @@ class CCmds_:
                 log.ex(e, f'检查文件 {fileName} 是否存在时出错')
                 return f"e->{str(e)}"
 
-        @regCmd(r"执行-ZX", r"(?P<code>.+)")
+        @regCmd(r"执行-zx", r"(?P<code>.+)")
         def eval(code):
             """执行代码并返回结果
             用法: eval <代码>
@@ -452,7 +470,8 @@ class CCmds_:
             log = g.Log()
             try:
                 if rule.startswith('@'):
-                    pages = CPage.CPage_.getCurrent().findPageByPath(rule[1:])
+                    import _Page
+                    pages = _Page._Page_.getCurrent().findPageByPath(rule[1:])
                     page = pages.last()
                     return page.checkRules()
                 # 调用CTools的matchScreenText方法查找文字
@@ -462,25 +481,8 @@ class CCmds_:
                 log.ex(e, "查找文字失败")
                 return None
 
-        @regCmd(r"应用页面列表")
-        def listAppPages():
-            """列出所有应用及其当前页面"""
-            from CApp import CApp_
-            apps = CApp_.getAllApps()
-            if not apps:
-                return "暂无应用页面记录"
-            
-            result = "应用页面列表:\n"
-            for appName in apps:
-                app = CApp_.getApp(appName)
-                if app and app.currentPage:
-                    result += f"- {appName}: {app.currentPage.name}\n"
-                else:
-                    result += f"- {appName}: 未知\n"
-            return result
 
-
-        @regCmd(r"打开应用", r"(?P<appName>\S+)")
+        @regCmd(r"打开-dk", r"(?P<appName>\S+)")
         def openApp(appName):
             """打开指定应用
             用法: 打开应用 <应用名>
@@ -496,7 +498,7 @@ class CCmds_:
             else:
                 return f"打开应用 {appName} 失败"
 
-        @regCmd(r"返回主屏幕")
+        @regCmd(r"返回桌面-fhzm")
         def goHome():
             """返回主屏幕"""
             from CApp import CApp_
@@ -507,7 +509,7 @@ class CCmds_:
                 return "返回主屏幕失败"
 
 
-        @regCmd(r"关闭应用", r"(?P<appName>\S+)?")
+        @regCmd(r"关闭-gb", r"(?P<appName>\S+)?")
         def closeApp(appName=None):
             """关闭应用
             用法: 关闭应用 [应用名]
@@ -527,7 +529,7 @@ class CCmds_:
             else:
                 return f"关闭应用 {appName} 失败"
 
-        @regCmd(r"返回上一页")
+        @regCmd(r"返回-fh")
         def goBack():
             """返回上一页"""
             from CApp import CApp_

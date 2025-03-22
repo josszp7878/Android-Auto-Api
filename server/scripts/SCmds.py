@@ -9,6 +9,7 @@ from SEarningMgr import SEarningMgr_
 from time import sleep
 import _G
 import os
+from _App import _App_
 
 class SCmds_:
     @classmethod
@@ -372,8 +373,8 @@ class SCmds_:
             用法: 打开 <应用名>
             """
             try:
-                from server.scripts._AppMgr import appMgr
-                _appName = appMgr.getApp(appName)
+                import _App
+                _appName = _App._App_.getApp(appName)
                 if not _appName:
                     return
                 # 获取当前设备
@@ -544,3 +545,13 @@ class SCmds_:
             except Exception as e:
                 log.ex(e, f"格式化JSON文件失败: {fileName}")
                 return f"e->格式化失败: {str(e)}"
+
+        @regCmd('打印拓扑-pt')
+        def printTopology():
+            """打印拓扑结构"""
+            try:
+                _App_.printTopology()
+                return "i->拓扑结构已打印"
+            except Exception as e:
+                _Log._Log_.ex(e, "打印拓扑结构失败")
+                return f"e->打印拓扑结构失败: {str(e)}"

@@ -4,7 +4,6 @@ import _G
 import re
 from typing import Optional
 
-
 class RegionCheck:
     """区域检查工具类"""
 
@@ -487,14 +486,15 @@ class CTools_:
     @classmethod
     def goHome(cls)->bool:
         """统一返回桌面实现"""
-        if cls.isHome():
-            return True
         if cls.android:
-            return cls  .android.goHome()
-        time.sleep(1)
-        if cls.isHome():
-            return True
-        return False
+            if not cls.android.goHome():
+                return False
+            time.sleep(1)
+            if not cls.isHome():
+                return False
+        import _Page
+        _Page._Page_.setCurrent(_Page._Page_.ROOT)
+        return True     
 
     @classmethod
     def goBack(cls):

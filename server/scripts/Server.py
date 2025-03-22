@@ -247,19 +247,21 @@ def handle_2S_Cmd(data):
         sender = serverTag
         executor = device_id if serverCmd else serverTag
         
-        log = Log.cmdLog(command, sender, executor)
+        result = None
         # print(f'执行命令: {command} {serverCmd}')
         if not serverCmd:
             result = deviceMgr.doServerCmd(device_id, command, data.get('params', {}))
+            log = Log.cmdLog(command, sender, executor)
             # 执行后更新结果
             Log.setCmdResult(log, result)
             return result
         else:
-            return deviceMgr.sendClientCmd(device_id, command, data.get('params', {}))
-        
+            result = deviceMgr.sendClientCmd(device_id, command, data.get('params', {}))
+            Log.cmdLog(f'>{command}', sender, executor)
+        return result        
     except Exception as e:
-        _Log._Log_.cmdLog(command, sender, executor, f"执行异常: {str(e)}")
-        raise
+        Log.ex(e, '执行命令失败')
+
 
 
 @socketio.on('C2S_CmdResult')
