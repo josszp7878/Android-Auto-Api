@@ -308,7 +308,7 @@ class CDevice_:
         """截取当前屏幕并发送到服务器"""
         g = _G._G_
         log = g.Log()
-        android = g.CTools().android   
+        android = g.Tools().android   
         if not android:
             log.e("Android环境未初始化")
             return False

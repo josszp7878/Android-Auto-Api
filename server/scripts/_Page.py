@@ -11,10 +11,20 @@ class ActionType(Enum):
     BACK = 'B'
     CODE = ''
 
+
 class _Page_:
     # 类变量
     currentPage = None
-    ROOT = None  # 根页面对象
+    _root = None  # 根页面对象
+
+    @classmethod
+    def Root(cls) -> "_Page_":
+        log = _G._G_.Log()
+        if cls._root is None:
+            # log.i('创建根页面++++++++')
+            cls._root = cls.createPage("Top", None)
+        # log.i(f'根页面########## {cls._root}')
+        return cls._root
     
     @classmethod
     def setCurrent(cls, page) -> "_Page_":
@@ -27,16 +37,6 @@ class _Page_:
         """获取当前页面"""
         return cls.currentPage
     
-    @classmethod
-    def setRoot(cls, page) -> "_Page_":
-        """设置根页面"""
-        cls.ROOT = page
-        return page
-    
-    @classmethod
-    def getRoot(cls) -> "_Page_":
-        """获取根页面"""
-        return cls.ROOT
     
     @classmethod
     def createPage(cls, pageName, parent=None)->"_Page_":
@@ -70,8 +70,8 @@ class _Page_:
         self.children = {}  # {name: CPage_对象}
         self.transitions = {}  # {actions}
         self.checkWaitTime = 1.0  # 默认检查等待时间
-        self.inAction = None
-        self.outAction = None
+        self.inAction = ''
+        self.outAction = ''
         self.timeout = 30  # 默认超时时间
         
         # 如果有父页面，将自己添加为父页面的子页面
@@ -150,8 +150,10 @@ class _Page_:
     @classmethod
     def currentPathTo(cls, toPage):
         """查找从当前页面到目标页面的路径"""
-        if not cls.currentPage:
-            cls.currentPage = cls.ROOT
+        if cls.currentPage is None:
+            cls.currentPage = cls.Root()
+        log = _G._G_.Log()
+        log.i(f'当前页面 {cls.currentPage}')
         path = cls.currentPage.findPath(toPage)
         cls.currentPage = path[-1]
         if path:
@@ -302,19 +304,19 @@ class _Page_:
         Returns:
             list: 从根节点到目标页面的路径列表，未找到则返回None
         """
-        if not path or not cls.ROOT:
+        if not path or not cls.Root():
             return None
         
         # 确保路径以"/"开头
         if not path.startswith('/'):
             path = '/' + path
         
-        return cls.ROOT.findPageByPath(path)
+        return cls.Root().findPageByPath(path)
     
     def checkRules(self):
         """检查页面规则是否匹配当前屏幕"""
         g = _G._G_
-        tools = g.CTools()
+        tools = g.Tools()
         log = g.Log()
         
         if not self.rules:
@@ -362,100 +364,95 @@ class _Page_:
             log.ex(e, f"检查页面规则失败: {self.name}")
             return False
     
-    def doAction(self, targetPage):
+    def doAction(self, actionStr) ->bool:
         """执行到目标页面的动作"""
+        if actionStr is None:
+            return False
+        actionStr = actionStr.strip()
+        if actionStr == '':
+            return False
         g = _G._G_
         log = g.Log()
         tools = g.CTools()
         
         # 获取动作信息
-        action_str = self.transitions.get(targetPage.name)
-        if tools.android is None:
-            #测试客户端，不执行动作，只打印。
-            # log.i(f"执行动作：{action_str}")
-            return True
-        # 判断动作类型
-        if action_str is None or action_str.strip() == '':
-            # 默认点击操作
-            log.i(f"点击: {targetPage.name}")
-            result = tools.click(targetPage.name)
-            log.i(f"点击结果: {result}")
-            return result
-        
-        # 解析动作字符串
-        if '-' in action_str:
-            action_type_key, target = action_str.split('-', 1)
-            # 获取动作类型枚举
-            actionType = next((at for at in ActionType if at.value == action_type_key), 
-                             ActionType.CODE)
-            
-            # 根据动作类型执行相应操作
-            if actionType == ActionType.CLICK:
-                log.i(f"点击: {target}")
-                result = tools.click(target)
-                log.i(f"点击结果: {result}")
+        log.i(f"执行动作@: {actionStr}")
+        # 检查动作字符串中是否包含代码块
+        import re
+        m = re.search(r'\{\s*(.*?)\s*\}', actionStr)
+        if m:
+            code = m.group(1)  # 获取花括号内的代码内容
+            log.i(f"执行代码块: {code}")
+            try:
+                result = g.Tools().eval(code)
                 return result
-            
-            elif actionType == ActionType.OPENAPP:
+            except Exception as e:
+                log.ex(e, f"执行代码块失败: {code}")
+                return False
+        # 判断动作类型        
+        m = re.search(r'(?P<action>[^-\s]+)\s*-\s*(?P<target>.*)', actionStr)
+        if m:
+            action = m.group('action')
+            target = m.group('target')
+            # 根据动作类型执行相应操作
+            if action == ActionType.CLICK.value:
+                return tools.click(target)
+            elif action == ActionType.OPENAPP.value:
                 # 打开应用
                 is_home = tools.isHome()
                 if not is_home:
                     log.e("不在主屏幕，无法打开应用")
-                    return False
-                
-                result = tools.click(target)
-                if result:
-                    log.i("等待应用启动...")
-                    time.sleep(2)
-                return result
-            
-            elif actionType == ActionType.SWIPE:
-                log.i(f"滑动屏幕: {target}")
-                result = tools.swipe(target)
-                return result
-            
-            elif actionType == ActionType.BACK:
-                log.i("执行返回操作")
-                result = tools.goBack()
-                return result
+                    return False                
+                return tools.click(target, waitTime=2)
+            elif action == ActionType.SWIPE.value:
+                return tools.swipe(target)
+            elif action == ActionType.BACK.value:
+                return tools.goBack()
         else:
-            # 执行代码
-            log.i(f"执行代码: {action_str}")
-            try:
-                result = g.Tools().eval(action_str)
-                log.i(f"代码执行结果: {result}")
-                return bool(result)
-            except Exception as e:
-                log.ex(e, f"执行代码失败: {action_str}")
-                return False        
-        return False
+            return tools.click(actionStr)
     
-    def go(self, targetPage, checkWaitTime=None) -> Optional["_Page_"]:
+    def go(self, targetPage: "_Page_", checkWaitTime=None) -> bool:
         """跳转到目标页面并验证结果"""
         try:
             g = _G._G_
             log = g.Log()
+            tools = g.CTools()
             # 判断跳转方向
             pageName = targetPage.name
+            success = False
             if pageName in self.children:
                 log.i(f'-> {pageName}')
+                act = targetPage.inAction.strip()
+                if act != '':
+                    success = self.doAction(act)
+                else:
+                    # 如果进入动作失败，执行默认动作，点击页名
+                    success = tools.click(pageName)
             elif self.parent and pageName == self.parent.name:
                 log.i(f'<- {pageName}')
+                act = self.outAction.strip()
+                if act != '':
+                    success = self.doAction(act)
+                else:
+                    success = tools.goBack()
+                if not success:
+                    # 如果离开动作失败，执行默认动作，返回
+                    success = tools.goBack()
             else:
-                log.i(f'→ {pageName}')
-            # 使用指定的等待时间或默认值
-            wait_time = checkWaitTime if checkWaitTime is not None else self.checkWaitTime
+                #先返回父页面，再执行进入目标兄弟页面
+                success = self.go(self.parent)
+                if not success:
+                    log.e(f"返回父页面失败: {self.name}")
+                    return False
+                return self.parent.go(targetPage)
             # 执行动作
-            # log.i(f"从 {self.name} 跳转到 {targetPage.name}")
-            success = self.doAction(targetPage)
             if not success:
-                log.e(f"执行动作失败: {self.name} → {targetPage.name}")
-                return None
+                return False
             # 等待指定时间
+            wait_time = checkWaitTime if checkWaitTime is not None else self.checkWaitTime
             if wait_time > 0:
                 # log.i(f"... {wait_time} 秒后检查页面")
                 time.sleep(wait_time)
-            
             # 验证目标页面
             if targetPage.checkRules():
                 # log.i(f"成功跳转到 {targetPage.name}")

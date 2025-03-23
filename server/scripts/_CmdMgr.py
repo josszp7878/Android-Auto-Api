@@ -400,11 +400,11 @@ class _CmdMgr_:
                     moduleFile, 
                     lambda success: cls._reloadModule(moduleName)
                 )
-                return f"i->正在下载并重载{moduleName}..."
+                ret = True
             else:
                 # 如果没有文件服务器，直接重载
                 ret = cls._reloadModule(moduleName)
-                return f"重载{moduleName}{ret}"
+            return ret
         
         @cls.reg(r"命令列表-mllb")
         def cmdList():

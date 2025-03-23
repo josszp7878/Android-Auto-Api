@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.os.Build
 import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.util.SparseArray
 import android.view.InputEvent
@@ -35,21 +36,25 @@ fun requireImpl(): AutoApi {
     return AutoApi.AutoImpl?.also {
         if (!it.isEnabled()) { // check
             AutoApi.clearImpl()
-            // 显示Toast提示用户设置权限
-            android.widget.Toast.makeText(
-                AutoApi.appCtx,
-                "无障碍服务未启用，请前重启应用并在提示下正常设置开启这个权限",
-                android.widget.Toast.LENGTH_LONG
-            ).show()
+            // 使用 Handler 在主线程上显示 Toast
+            Handler(Looper.getMainLooper()).post {
+                android.widget.Toast.makeText(
+                    AutoApi.appCtx,
+                    "无障碍服务未启用，请前重启应用并在提示下正常设置开启这个权限",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+            }
             throw AutoServiceUnavailableException()
         }
     } ?: run {
-        // 显示Toast提示用户设置权限
-        android.widget.Toast.makeText(
-            AutoApi.appCtx,
-            "无障碍服务未启用，请前往设置开启相关权限",
-            android.widget.Toast.LENGTH_LONG
-        ).show()
+        // 同样使用 Handler 在主线程上显示 Toast
+        Handler(Looper.getMainLooper()).post {
+            android.widget.Toast.makeText(
+                AutoApi.appCtx,
+                "无障碍服务未启用，请前往设置开启相关权限",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
         throw AutoServiceUnavailableException()
     }
 }

@@ -34,8 +34,9 @@ class _Log_:
     @classmethod
     def clientScriptDir(cls):
         dir = None
-        import CTools
-        android = CTools.CTools_.android
+        import _G
+        tools = _G._G_.Tools()
+        android = tools.android
         if android:
             # Android环境下使用应用私有目录
             dir = android.getFilesDir('scripts', True)

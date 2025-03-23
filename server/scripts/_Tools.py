@@ -58,42 +58,35 @@ class _Tools_:
         """
         g = _G._G_
         log = g.Log()
-        try:
-            # 检查代码是否为空
-            if not code or code.strip() == '':
-                return None
-            
-            # 处理引号不匹配的情况
-            quote_chars = ['"', "'", '`']
-            for char in quote_chars:
-                if code.count(char) % 2 != 0:
-                    return f"Error: 引号 {char} 不匹配"
-                
-            # 创建安全的执行环境
-            globals = {}
-            # 添加基本模块
-            import math, json, re, datetime, time
-            globals.update({
-                'math': math,
-                'json': json,
-                're': re,
-                'datetime': datetime,
-                'time': time,
-            })
-
-            locals = {
-                'DoCmd': g.CmdMgr().do,
-                'App': g.App(),
-                'Tools': g.Tools(),
-            }
-            if not g.isServer():
-                # 客户端环境，可以使用更多功能
-                locals['CTools'] = g.CTools()
-            result = eval(code, globals, locals)
-            return result
-        except Exception as e:
-            log.ex(e, f"执行代码失败: {code}")
+        # 检查代码是否为空
+        if not code or code.strip() == '':
             return None
+        
+        # 处理引号不匹配的情况
+        quote_chars = ['"', "'", '`']
+        for char in quote_chars:
+            if code.count(char) % 2 != 0:
+                return f"Error: 引号 {char} 不匹配"
+            
+        # 创建安全的执行环境
+        globals = {}
+        # 添加基本模块
+        import math, json, re, datetime, time
+        globals.update({
+            'math': math,
+            'json': json,
+            're': re,
+            'datetime': datetime,
+            'time': time,
+        })
+
+        locals = {
+            'DoCmd': g.CmdMgr().do,
+            'App': g.App(),
+            'Tools': g.Tools(),
+        }
+        result = eval(code, globals, locals)
+        return result
 
     @classmethod
     def _replaceVars(cls, s: str) -> str:
@@ -123,7 +116,6 @@ class _Tools_:
             try:
                 return cls.eval(code)
             except Exception as e:
-                log.ex(e, f"执行代码失败: {str}")
                 return False
         return 'PASS'
     

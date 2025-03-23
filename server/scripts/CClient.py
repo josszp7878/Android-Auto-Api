@@ -54,7 +54,7 @@ class CClient_:
             def onUpdated(ok):
                 nonlocal waitting
                 waitting = False
-            g.getClass('CFileServer').update(onUpdated)
+            g.getClass('CFileServer').downAll(onUpdated)
             # 等待脚本更新完成
             while waitting:
                 try:
@@ -73,7 +73,7 @@ class CClient_:
             cls.fromAndroid = fromAndroid
         log.d(f"初始化客户端: deviceID={deviceID}, server={server}, fromAndroid={fromAndroid}")      
         try:
-            tools = g.CTools()
+            tools = g.Tools()
             server = server or tools.getLocalIP()
             server_url = f"http://{server}:{tools.port}"
             
@@ -83,10 +83,24 @@ class CClient_:
             cls.device = CDevice_(cls.deviceID)
             g.CmdMgr().regAllCmds()
             cls._connectServer(server_url, tools)
-            g.CFileServer().serverUrl = server_url
-            if not cls.fromAndroid:
-                cls._runConsole()
-
+            g.CFileServer().serverUrl = server_url 
+            print("按Ctrl+C退出")    
+            while True:
+                try:
+                    cmd_input = input(f"{cls.deviceID}> ").strip()
+                    if cmd_input:
+                        result,_ = g.getClass('_CmdMgr').do(cmd_input)
+                        if result:
+                            print(result)
+                except EOFError:
+                    cls.fromAndroid = True
+                    break
+                except KeyboardInterrupt:
+                    log.i('\n正在退出...') 
+                    cls.End()
+                    break
+                except Exception as e:
+                    log.ex(e, '执行命令出错')
         except Exception as e:
             log.ex(e, '初始化失败')
 
@@ -112,25 +126,6 @@ class CClient_:
         if not cls.device.connected:
             tools.toast("无法连接到服务器")
 
-    @classmethod
-    def _runConsole(cls):
-        g = _G._G_
-        log = g.Log()
-        """运行命令行交互"""
-        print("客户端运行中... 按Ctrl+C退出")    
-        while True:
-            try:
-                cmd_input = input(f"{cls.deviceID}> ").strip()
-                if cmd_input:
-                    result,_ = g.getClass('_CmdMgr').do(cmd_input)
-                    if result:
-                        print(result)
-            except KeyboardInterrupt:
-                log.i('\n正在退出...') 
-                break  
-            except Exception as e:
-                log.ex(e, '执行命令出错')
-        cls.End()
 
     @classmethod
     def End(cls):

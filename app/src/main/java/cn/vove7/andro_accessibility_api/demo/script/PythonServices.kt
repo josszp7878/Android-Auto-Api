@@ -600,7 +600,7 @@ class PythonServices {
                 // 获取UsageStatsManager
                 val usageStatsManager = appContext.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
                 if (usageStatsManager == null) {
-                    Timber.tag(TAG).e("获取UsageStatsManager失败")
+                    Timber.tag(TAG).e("获取UsageStatsManager失败，请重新启动应用获取查看应用使用权限")
                     return null
                 }
                 
@@ -613,15 +613,7 @@ class PythonServices {
                     UsageStatsManager.INTERVAL_DAILY, startTime, endTime)
                 
                 if (usageStatsList.isNullOrEmpty()) {
-                    // 检查权限，但不在这里申请，而是提示用户
-                    if (!checkPermission("android.permission.PACKAGE_USAGE_STATS")) {
-                        Timber.tag(TAG).w("需要使用情况访问权限")
-                        showToast("需要「使用情况访问」权限，请在设置中开启", TOAST_LENGTH_LONG)
-                        return null
-                    } else {
-                        Timber.tag(TAG).w("无最近应用使用记录")
-                        return null
-                    }
+                    Timber.tag(TAG).w("${period}秒内无最近应用使用记录")
                 }
                 
                 // 找出最近使用的应用

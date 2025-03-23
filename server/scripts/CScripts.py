@@ -20,7 +20,7 @@ class CScripts_:
             from CApp import CApp_
             CApp_.goHome()
             time.sleep(1)
-            tools = _G._G_.CTools()
+            tools = _G._G_.Tools()
             if not tools.click("快手极速版"):
                 _Log._Log_.e("点击快手极速版失败")
                 return

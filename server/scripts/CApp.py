@@ -1,19 +1,14 @@
-import time
 import _G
-from typing import Optional, List
-
-from typing import TYPE_CHECKING
-
+from typing import Optional, cast
 import _App
 
 class CApp_(_App._App_):
     """客户端应用管理类"""
     
-    
     def getCurPage(self, refresh=False):
         """客户端实现：通过屏幕检测当前页面"""
         if refresh:
-            _G._G_.CTools().refreshScreenInfos()
+            _G._G_.Tools().refreshScreenInfos()
             import _Page
             self.currentPage = _Page._Page_.detectPage(self.rootPage)
         return self.currentPage
@@ -25,7 +20,7 @@ class CApp_(_App._App_):
     @classmethod
     def isHome(cls) -> bool:
         """检查是否在主屏幕"""
-        tools = _G._G_.CTools()
+        tools = _G._G_.Tools()
         if tools.android is None:
             return cls._curAppName == _G.TOP
         return tools.isHome()
@@ -33,7 +28,7 @@ class CApp_(_App._App_):
     @classmethod
     def goHome(cls):
         """返回主屏幕"""
-        tools = _G._G_.CTools()
+        tools = _G._G_.Tools()
         if tools.goHome():
             cls._curAppName = _G.TOP
             return True
@@ -56,7 +51,7 @@ class CApp_(_App._App_):
             return True
         log.i(f"=> {appName}")
         # 点击应用图标
-        tools = g.CTools()
+        tools = g.Tools()
         result = tools.openApp(appName)
         if not result:
             log.e(f"点击应用 {appName} 失败")
@@ -78,7 +73,7 @@ class CApp_(_App._App_):
         """
         g = _G._G_
         log = g.Log()
-        tools = g.CTools()
+        tools = g.Tools()
         
         # 如果未指定应用名，使用当前应用
         if not appName:
@@ -112,12 +107,20 @@ class CApp_(_App._App_):
         Returns:
             成功返回目标页面对象，失败返回None
         """
+        currentApp = cls.getApp(cls._curAppName)
+        if currentApp:
+            page = currentApp.rootPage.findChild(pageName)
+            if page:
+                return currentApp, page
+        
         for app in cls.apps.values():
+            if app == currentApp:
+                continue
             page = app.rootPage.findChild(pageName)
             if page:
                 return app, page
         return None, None   
-    
+       
     def _gotoPage(self, pageName, checkWaitTime=None):
         """跳转到目标页面
         Args:
@@ -128,13 +131,10 @@ class CApp_(_App._App_):
             成功返回目标页面对象，失败返回None
         """
         try:
-            g = _G._G_
-            log = g.Log()
-            # 如果已经在目标页面，直接返回成功
             if self.currentPage.name == pageName:
                 return self.currentPage
-            if pageName == _G.TOP:
-                return CApp_.gotoApp(pageName)
+            g = _G._G_
+            log = g.Log()
             # 查找路径
             pages = self.currentPage.findPath(pageName)
             if pages is None:
@@ -150,15 +150,17 @@ class CApp_(_App._App_):
                     log.e(f"跳转失败: {page.name} -> {nextPage.name}")
                     return None
                 page = nextPage
+                self.setCurrentPage(nextPage)
             # 更新当前页面
-            self.setCurrentPage(page)
             return page
         except Exception as e:
             log.ex(e,  f"跳转失败")
             return None
 
+    TopStr=["top", "主屏幕", "桌面"]
+    AppStr=["app", "应用", "root"]
     @classmethod
-    def go(cls, toPageName) -> Optional[str]:
+    def go(cls, pageName) -> bool:
         """跳转到指定页面
         
         Args:
@@ -171,33 +173,40 @@ class CApp_(_App._App_):
             g = _G._G_
             log = g.Log()
             # 1. 处理特殊情况
-            # 如果目标是Top(主屏幕)
-            if toPageName == _G.TOP:
+            pageName = pageName.lower()
+            # 如果已经在目标页面，直接返回成功
+            app = None
+            page = None
+            if pageName in cls.TopStr:
                 log.i("返回主屏幕")
-                if cls.goHome():
-                    return _G.TOP
-            
-            # 如果目标是应用名
-            if toPageName in cls.apps:
-                app = cls.gotoApp(toPageName)
-                if app:
-                    return app.name
-            
-            # 2. 目标是应用内页面，查找包含目标页面的应用
-            app, page = cls._findPage(toPageName, log)
-            if not app or not page:
-                log.e(f"找不到页面: {toPageName}")
+                return cls.goHome()
+            elif pageName in cls.AppStr:
+                log.i("返回当前应用的根页面")
+                app = cls.getApp(cls._curAppName)
+                page = app.rootPage
+            elif pageName in cls.apps:
+                return cls.gotoApp(pageName) is not None
+            else:
+                # 2. 目标是应用内页面，查找包含目标页面的应用
+                app, page = cls._findPage(pageName, log)
+                if not app or not page:
+                    log.e(f"找不到页面: {pageName}")
+                    return False
+                # 如果目标应用不是当前应用，则跳转到目标应用
+                if app.name != cls._curAppName:
+                    app = cls.gotoApp(app.name)
+                    if not app:
+                        log.e(f"跳转到应用 {app.name} 失败")
+                        return False
+            if app is None or page is None:
                 return False
-            # 如果目标应用不是当前应用，则跳转到目标应用
-            if app.name != cls._curAppName:
-                cls.gotoApp(app.name)
-            app = cls.getApp(cls._curAppName)
+            app = cast(CApp_, app)
             # 在目标应用内跳转到目标页面
             page = app._gotoPage(page.name)
             if page:
                 return page.name
         except Exception as e:
-            log.ex(e,  f"跳转失败")
+            log.ex(e,  "跳转失败")
         return None
 
     @classmethod
@@ -209,11 +218,11 @@ class CApp_(_App._App_):
         """
         g = _G._G_
         log = g.Log()
-        tools = g.CTools()
+        tools = g.Tools()
         try:
             if tools.android:
                 # 获取当前运行的应用信息
-                appInfo = g.CTools().getCurrentAppInfo()
+                appInfo = g.Tools().getCurrentAppInfo()
                 log.i(f"当前应用信息: {appInfo}")
                 if not appInfo:
                     log.w("无法获取当前运行的应用信息")

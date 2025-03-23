@@ -1,7 +1,6 @@
 import _Log
 from checker import check, GetMatchVal, GetPos
 from CTask import CTask_
-from CTools import CTools_
 
 # ["观看广告", "广告剩余(?P<seconds>\d+)秒"]
 class Check:    

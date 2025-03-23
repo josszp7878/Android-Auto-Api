@@ -126,13 +126,19 @@ class _G_:
     def Log(cls) -> '_Log_':
         return cls.getClass('_Log')
 
+        
     @classmethod
     def CTools(cls) -> 'CTools_':
-        return cls.getClass('CTools')
+        return cls.getClass('CTools')    
+    @classmethod
+    def STools(cls) -> '_Tools_':
+        return cls.getClass('_Tools')   
     @classmethod
     def Tools(cls) -> '_Tools_':
-        return cls.getClass('_Tools')    
-    
+        if cls.isServer():
+            return cls.getClass('_Tools')    
+        else:
+            return cls.getClass('CTools')
     @classmethod
     def App(cls) -> '_App_':
         return cls.getClass('_App')

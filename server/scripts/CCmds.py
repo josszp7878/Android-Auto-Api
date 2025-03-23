@@ -14,7 +14,7 @@ class CCmds_:
 
     @classmethod
     def android(cls):
-        return _G._G_.CTools().android
+        return _G._G_.Tools().android
     
     @classmethod
     def Clone(cls, oldCls):
@@ -127,7 +127,7 @@ class CCmds_:
         
         @regCmd(r"移到", r"(?P<text>.+)")
         def move(text):
-            position = _G._G_.CTools().findText(text)
+            position = _G._G_.Tools().findText(text)
             android = cls.android()
             if position and android:
                 return android.move(position[0], position[1])
@@ -145,7 +145,7 @@ class CCmds_:
             if not android:
                 log.e("点击失败:未找到Android实例")
                 return False
-            position = _G._G_.CTools().findText(param)   
+            position = _G._G_.Tools().findText(param)   
             if position:
                 # 应用偏移量
                 x, y = 0, 0
@@ -180,7 +180,7 @@ class CCmds_:
         @regCmd(r"启动|打开", r"(?P<appName>\S+)")
         def openApp(appName):
             """打开应用"""
-            return _G._G_.CTools().openApp(appName)
+            return _G._G_.Tools().openApp(appName)
 
         @regCmd(r"停止|关闭", r"(?P<pkgName>\S+)")
         def stopApp(pkgName):
@@ -203,7 +203,7 @@ class CCmds_:
             try:
                 g = _G._G_
                 log = g.Log()
-                screen_data = g.getClass('CTools').refreshScreenInfos()
+                screen_data = g.CTools().refreshScreenInfos()
                 # 确保返回标准JSON
                 return json.dumps([
                     {
@@ -306,7 +306,7 @@ class CCmds_:
 
         @regCmd(r"滑动", r"(?P<param>.+)")
         def swipe(param):
-            ret = _G._G_.CTools().swipe(param)
+            ret = _G._G_.Tools().swipe(param)
             return "i->滑动成功" if ret else "e->滑动失败"
 
         @regCmd('快照')
@@ -360,7 +360,7 @@ class CCmds_:
         @regCmd(r"桌面-zm")
         def home():
             """返回手机桌面"""
-            return _G._G_.CTools().goHome()
+            return _G._G_.Tools().goHome()
         
         @regCmd(r"返回-fh")
         def goBack():
@@ -375,7 +375,7 @@ class CCmds_:
                         return f"已返回到 {result.name}"
             
             # 如果没有当前应用或返回失败，使用通用返回
-            result = _G._G_.CTools().goBack()
+            result = _G._G_.Tools().goBack()
             if not result:
                 return "e-返回上一页失败"
             return "已返回"
@@ -390,7 +390,7 @@ class CCmds_:
             distance = int(distance) if distance else None
             g = _G._G_
             log = g.Log()
-            pos = g.CTools().findText(text, dir, distance)
+            pos = g.Tools().findText(text, dir, distance)
             log.i(f"找到文字位置: {pos}")
             
             if pos:
@@ -474,7 +474,6 @@ class CCmds_:
                     pages = _Page._Page_.getCurrent().findPageByPath(rule[1:])
                     page = pages.last()
                     return page.checkRules()
-                # 调用CTools的matchScreenText方法查找文字
                 result = g.CTools().matchScreenText(rule, False)
                 return result
             except Exception as e:
@@ -542,7 +541,7 @@ class CCmds_:
                         return f"已返回到 {result.name}"
             
             # 如果没有当前应用或返回失败，使用通用返回
-            result = _G._G_.CTools().goBack()
+            result = _G._G_.Tools().goBack()
             if not result:
                 return "e-返回上一页失败"
             return "已返回"

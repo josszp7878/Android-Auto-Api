@@ -3,6 +3,7 @@ import time
 import _G
 import re
 from typing import Optional
+import _Tools
 
 class RegionCheck:
     """区域检查工具类"""
@@ -132,19 +133,24 @@ class RegionCheck:
         return self.isIn(x1, y1) and self.isIn(x2, y2)
 
 
-class CTools_:
+class CTools_(_Tools._Tools_):
     Tag = "CTools"
     port = 5000
     android = None
     
-
+    @classmethod
+    def Clone(cls, clone):
+        cls._screenInfoCache = clone._screenInfoCache
+        return True
+    
     @classmethod
     def init(cls):
         try:
             if cls.android is None:
                 from java import jclass
-            cls.android = jclass(
-                "cn.vove7.andro_accessibility_api.demo.script.PythonServices")
+                cls.android = jclass(
+                    "cn.vove7.andro_accessibility_api.demo.script.PythonServices")
+            _G._G_.Log().i(f'初始化CTools模块 {cls.android}')
         except Exception as e:
             return None
     
@@ -152,7 +158,6 @@ class CTools_:
     @classmethod
     def getScreenInfo(cls, refresh=False):
         """获取屏幕信息
-        
         Args:
             refresh: 是否刷新缓存
             
@@ -193,27 +198,8 @@ class CTools_:
             log.ex(e, "设置屏幕信息失败")
             return False
 
-    @classmethod
-    def Clone(cls, clone):
-        g = _G._G_
-        # log = g.Log()
-        cls._screenInfoCache = clone._screenInfoCache
-        # log.i(f'CTools克隆完成 android={cls.android}')
-        return True
 
-    # @classmethod
-    # def init(cls):
-    #     if not hasattr(cls, '_init'):
-    #         log = _G._G_.Log()
-    #         log.i(f'初始化CTools模块')  # 最简洁的写法
-    #         try:
-    #             print(f'加载java模块成功 android={cls.android}')
-    #             cls._init = True
-    #         except ModuleNotFoundError:
-    #             log.e('java模块未找到')
-    #         except Exception as e:
-    #             log.ex(e, '初始化CTools模块失败')
-
+  
     @classmethod
     def getLocalIP(cls):
         """获取本机IP地址"""
@@ -424,12 +410,14 @@ class CTools_:
         """
         g = _G._G_
         log = g.Log()
-        android = g.CTools().android    
+        android = g.Tools().android    
+        log.i(f'获取当前应用信息 android={android}')
         if android is None:
             return None
         try:
             # 获取当前应用信息
-            appInfo = android.getCurrentApp(10)
+            appInfo = android.getCurrentApp(200)
+            log.i(f'获取当前应用信息 appInfo={appInfo}')
             return appInfo
         except Exception as e:
             log.ex(e, "获取当前应用信息失败")
@@ -465,19 +453,25 @@ class CTools_:
                 log.w("获取当前应用信息失败，无法判断是否在桌面")
                 return False
 
-            package_name = app_info.get("packageName", "")
-            # _Log._Log_.i(f"当前应用包名: {package_name}")
+            # 修复: 正确处理Java的LinkedHashMap
+            # 方法1: 使用Java的get方法，只传一个参数
+            package_name = app_info.get("packageName")
+            if package_name is None:
+                package_name = ""
+            
+            # 方法2: 将Java Map转换为Python字典
+            # from java.util import HashMap
+            # app_info_dict = dict(app_info)
+            # package_name = app_info_dict.get("packageName", "")
 
             # 检查是否在已知桌面包名列表中
             if package_name in LAUNCHER_PACKAGES:
-                # _Log._Log_.i(f"当前在桌面 (已知桌面包名)")
                 return True
 
             # 检查包名是否包含launcher或home关键词
             if "launcher" in package_name.lower() or "home" in package_name.lower():
-                # _Log._Log_.i(f"当前在桌面 (包名包含launcher或home)")
                 return True
-            # _Log._Log_.i(f"当前不在桌面")
+            
             return False
         except Exception as e:
             log.ex(e, "判断是否在桌面失败")
@@ -493,15 +487,18 @@ class CTools_:
             if not cls.isHome():
                 return False
         import _Page
-        _Page._Page_.setCurrent(_Page._Page_.ROOT)
+        _Page._Page_.setCurrent(_Page._Page_.Root())
         return True     
 
     @classmethod
-    def goBack(cls):
+    def goBack(cls)->bool:
         """统一返回上一页实现"""
+        log = _G._G_.Log()
+        log.i("<<")
         if cls.android:
             return cls.android.goBack()
-        return False
+        else:
+            return True
     _screenText = None
 
     @classmethod
@@ -522,6 +519,7 @@ class CTools_:
         ED - 从顶部向下滑动
         """
         log = _G._G_.Log()
+        log.i(f"<>: {param}")
         try:
             android = cls.android
             if not android:
@@ -607,18 +605,21 @@ class CTools_:
         return False
 
     @classmethod
-    def click(cls, text: str, direction: str = 'UD') -> bool:
+    def click(cls, text: str, direction: str = 'UD', waitTime: int = 1) -> bool:
         """点击文本（增加重试机制）"""
         log = _G._G_.Log()
+        log.i(f"click: {text}")
+        if cls.android is None:
+            return True
         retry = 2
         while retry > 0:
-            log.i(f"点击文本: {text}")
+            # log.i(f"点击文本: {text}")
             pos = cls.findText(text, direction)
             # log.i(f"找到文本: {text}, 位置: {pos}")
             if pos:
                 x, y = pos
                 return cls.android.click(x, y)
-            time.sleep(1)
+            time.sleep(waitTime)
             retry -= 1
         return False
 
@@ -804,27 +805,30 @@ class CTools_:
             return None
 
     @classmethod
-    def isScreenSimilar(cls, screen1, screen2, threshold=0.7):
-        """判断两个屏幕内容是否相似
-        
-        Args:
-            screen1: 第一个屏幕的文本内容列表
-            screen2: 第二个屏幕的文本内容列表
-            threshold: 相似度阈值(0-1)，默认0.7
-            
-        Returns:
-            布尔值，表示是否相似
+    def isScreenSimilar(cls, screen1, screen2):
+        """
+        比较两个屏幕文本是否相似，考虑文本内容和位置
         """
         if not screen1 or not screen2:
             return False
         
-        # 计算共同元素数量
-        common = set(screen1).intersection(set(screen2))
+        # 创建可哈希的元组表示每个文本项
+        def to_hashable(items):
+            return [tuple([item.get('t', ''), item.get('b', '')]) for item in items]
         
-        # 计算相似度(Jaccard相似度)
-        similarity = len(common) / len(set(screen1).union(set(screen2)))
+        hashable1 = to_hashable(screen1)
+        hashable2 = to_hashable(screen2)
         
-        return similarity >= threshold
+        # 使用可哈希的元组进行集合操作
+        common = set(hashable1).intersection(set(hashable2))
+        
+        # 计算相似度
+        total = len(set(hashable1).union(set(hashable2)))
+        if total == 0:
+            return False
+        
+        similarity = len(common) / total
+        return similarity > 0.7  # 相似度阈值
 
     # @classmethod
     # def getScreenText(cls):

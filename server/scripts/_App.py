@@ -40,21 +40,23 @@ class _App_:
                 configData = json.load(f)
 
             cls.apps.clear()
-
             import _Page
-            root = _Page._Page_.createPage("Top", None)
+            Page = _Page._Page_
+            root = Page.Root()
 
             def processNode(node, parentPage=None, parentName=None):
                 """统一处理节点：创建应用实例和页面树"""
                 for pageName, pageConfig in node.items():
                     # 创建页面对象
-                    currentPage = _Page._Page_.createPage(pageName, parentPage)
+                    currentPage = Page.createPage(pageName, parentPage)
                     
                     # 设置页面属性
                     if "check" in pageConfig:
                         currentPage.setRules(pageConfig["check"])
                     if "in" in pageConfig:
                         currentPage.setInAction(pageConfig["in"])
+                    if "out" in pageConfig:
+                        currentPage.setOutAction(pageConfig["out"])
                     
                     # 识别应用根节点（Top的直接子节点）
                     if parentName == "Top":
@@ -194,7 +196,7 @@ class _App_:
    
     
     @classmethod
-    def getApp(cls, appName, fuzzyMatch=False) -> Any:
+    def getApp(cls, appName, fuzzyMatch=False) -> "_App_":
         """获取指定应用对象
         
         Args:
@@ -220,3 +222,14 @@ class _App_:
     def getAllApps(cls) -> List[str]:
         """获取所有应用名称"""
         return list(cls.apps.keys())
+
+    def cast(self, cls):
+        """将当前实例转换为指定类型，仅用于类型提示
+        
+        Args:
+            cls: 目标类型
+            
+        Returns:
+            self: 返回自身实例，但类型会被IDE识别为目标类型
+        """
+        return self
