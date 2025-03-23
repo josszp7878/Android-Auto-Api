@@ -473,7 +473,7 @@ class CCmds_:
                     import _Page
                     pages = _Page._Page_.getCurrent().findPageByPath(rule[1:])
                     page = pages.last()
-                    return page.checkRules()
+                    return page.checkRules(page.rules)
                 result = g.CTools().matchScreenText(rule, False)
                 return result
             except Exception as e:
@@ -545,3 +545,11 @@ class CCmds_:
             if not result:
                 return "e-返回上一页失败"
             return "已返回"
+
+        @regCmd()
+        def load():
+            """加载环境配置
+            """
+            _G._G_.load()
+
+

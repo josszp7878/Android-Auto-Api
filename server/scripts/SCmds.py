@@ -555,3 +555,9 @@ class SCmds_:
             except Exception as e:
                 _Log._Log_.ex(e, "打印拓扑结构失败")
                 return f"e->打印拓扑结构失败: {str(e)}"
+
+        @regCmd()
+        def load():
+            """加载环境配置
+            """
+            _G._G_.load()

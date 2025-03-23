@@ -12,8 +12,8 @@ if TYPE_CHECKING:
     from _CmdMgr import _CmdMgr_
     from CTools import CTools_
     from _Tools import _Tools_
-    from _App import _App_
-
+    from _App import _App_  
+    from _Page import _Page_
 TOP = "Top"
 UNKNOWN = 'unknown'
 g = {}
@@ -38,10 +38,11 @@ class _G_:
         return cls._isServer
     
     @classmethod
-    def setIsServer(cls, isServer):
+    def load(cls, isServer:bool = None):
         """设置是否是服务器端"""
         # print(f"设置是否是服务器端YYYYYYYYf: {isServer}")
-        cls._isServer = isServer
+        if isServer is not None:
+            cls._isServer = isServer
         from _App import _App_
         if cls.isServer():
             from SApp import SApp_
@@ -142,6 +143,10 @@ class _G_:
     @classmethod
     def App(cls) -> '_App_':
         return cls.getClass('_App')
+    
+    @classmethod
+    def Page(cls) -> '_Page_':
+        return cls.getClass('_Page')
     
     @classmethod
     def CFileServer(cls) -> 'CFileServer_':

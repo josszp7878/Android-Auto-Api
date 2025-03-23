@@ -65,14 +65,14 @@ class _Page_:
     
     def __init__(self, name, parent=None):
         self.name = name
-        self.rules = []  # 如果rules为None，则使用空列表
-        self.parent = parent  # 父页面对象
-        self.children = {}  # {name: CPage_对象}
-        self.transitions = {}  # {actions}
-        self.checkWaitTime = 1.0  # 默认检查等待时间
-        self.inAction = ''
-        self.outAction = ''
-        self.timeout = 30  # 默认超时时间
+        self.rules: list[str] = []  # 如果rules为None，则使用空列表
+        self.parent: Optional["_Page_"] = parent  # 父页面对象
+        self.children: dict[str, "_Page_"] = {}  # {name: CPage_对象}
+        self.transitions: dict[str, str] = {}  # {actions}
+        self.checkWaitTime: float = 1.0  # 默认检查等待时间
+        self.inAction: str = ''
+        self.outAction: str = ''
+        self.timeout: int = 30  # 默认超时时间
         
         # 如果有父页面，将自己添加为父页面的子页面
         if parent and isinstance(parent, _Page_):
@@ -313,15 +313,14 @@ class _Page_:
         
         return cls.Root().findPageByPath(path)
     
-    def checkRules(self):
+    @classmethod
+    def checkRules(cls, rules): 
         """检查页面规则是否匹配当前屏幕"""
         g = _G._G_
         tools = g.Tools()
         log = g.Log()
-        
-        if not self.rules:
-            log.w(f"页面 {self.name} 无有效规则")
-            return False
+        if not rules:
+            return True
         if tools.android is None:
             #测试客户端，不执行动作，只打印。
             # log.i(f"检查页面规则：{self.rules}")
@@ -331,7 +330,7 @@ class _Page_:
             tools.refreshScreenInfos()        
             # 检查所有规则
             all_passed = True
-            for rule in self.rules:
+            for rule in rules:
                 try:
                     # 如果是代码规则
                     if rule.startswith('{') and rule.endswith('}'):
@@ -454,7 +453,7 @@ class _Page_:
                 # log.i(f"... {wait_time} 秒后检查页面")
                 time.sleep(wait_time)
             # 验证目标页面
-            if targetPage.checkRules():
+            if targetPage.checkRules(targetPage.rules):
                 # log.i(f"成功跳转到 {targetPage.name}")
                 # 更新当前页面
                 _Page_.setCurrent(targetPage)
@@ -516,7 +515,7 @@ class _Page_:
             depth: 当前递归深度
         """
         # 检查当前页面规则
-        if page.checkRules():
+        if page.checkRules(page.rules):
             # 优先检查子页面
             for child in page.getAllChildren():
                 result = cls.detectPage(child, depth + 1)

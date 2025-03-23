@@ -233,7 +233,7 @@ class CTools_(_Tools._Tools_):
                         't': item.get('t').replace('\n', ' ').replace('\r', ''),
                         'b': item.get('b')
                     })
-                log.i(f"获取屏幕信息 info={result}")
+                # log.i(f"获取屏幕信息 info={result}")
                 # 更新缓存
                 cls._screenInfoCache = result
                 return result
@@ -299,7 +299,7 @@ class CTools_(_Tools._Tools_):
 
 
     @classmethod
-    def openApp(cls, appName):
+    def openApp(cls, appName:str, waitTime=None):
         if not appName:
             return False
         log = _G._G_.Log()
@@ -310,7 +310,7 @@ class CTools_(_Tools._Tools_):
         try:
             # 检查应用是否已经打开
             curApp = cls.getCurrentAppInfo()
-            print(f"当前应用: {curApp}")
+            # print(f"当前应用: {curApp}")
             if curApp and curApp.get('appName') == appName:
                 return "i->应用已打开"
 
@@ -323,13 +323,14 @@ class CTools_(_Tools._Tools_):
                 opened = cls.android.openApp(appName)
             if not opened:
                 return False
-            time.sleep(3)
+            waitTime = waitTime or 6
+            time.sleep(waitTime)
             if cls.isCurApp(appName):
                 return True
-            return False
+            log.e(f"打开应用失败: {appName}, 等待时间: {waitTime}秒")
         except Exception as e:
             log.ex(e, "打开应用失败")
-            return False
+        return False
 
     @classmethod
     def closeApp(cls, app_name: str = None) -> bool:
@@ -411,13 +412,13 @@ class CTools_(_Tools._Tools_):
         g = _G._G_
         log = g.Log()
         android = g.Tools().android    
-        log.i(f'获取当前应用信息 android={android}')
+        # log.i(f'获取当前应用信息 android={android}')
         if android is None:
             return None
         try:
             # 获取当前应用信息
             appInfo = android.getCurrentApp(200)
-            log.i(f'获取当前应用信息 appInfo={appInfo}')
+            # log.i(f'获取当前应用信息 appInfo={appInfo}')
             return appInfo
         except Exception as e:
             log.ex(e, "获取当前应用信息失败")
@@ -677,7 +678,7 @@ class CTools_(_Tools._Tools_):
             if currentScreen is None:
                 tries += 1
                 continue
-            log.i(f"当前屏幕内容: {currentScreen}")
+            # log.i(f"当前屏幕内容: {currentScreen}")
             
             # 检查是否已经到达边界(屏幕内容相似度高)
             if lastScreen and cls.isScreenSimilar(currentScreen, lastScreen):

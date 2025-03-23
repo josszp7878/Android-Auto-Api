@@ -50,15 +50,27 @@ class CApp_(_App._App_):
         if cls._curAppName == appName:
             return True
         log.i(f"=> {appName}")
-        # 点击应用图标
-        tools = g.Tools()
-        result = tools.openApp(appName)
+        tools = g.CTools()
+        waitTime = None
+        app = cls.getApp(appName)
+        if app:
+            waitTime = app.info.get("waitTime", 6)
+        result = tools.openApp(appName, waitTime)
         if not result:
-            log.e(f"点击应用 {appName} 失败")
             return None
+        tipWin = app.info.get("tipWin", None)
+        if tipWin:
+            if g.Page().checkRules(tipWin.get("check")):
+                tools.evalStr(tipWin.get("click"))
         # 设置当前应用名称
         cls._curAppName = appName
         app = cls.getApp(appName)
+        #检测该应用当前在哪个页面
+        childPages = app.rootPage.children
+        for _, page in childPages.items():
+            if page.checkRules():
+                app.setCurrentPage(page)
+                break
         return app
     
     @classmethod
@@ -107,19 +119,38 @@ class CApp_(_App._App_):
         Returns:
             成功返回目标页面对象，失败返回None
         """
-        currentApp = cls.getApp(cls._curAppName)
-        if currentApp:
-            page = currentApp.rootPage.findChild(pageName)
-            if page:
-                return currentApp, page
-        
-        for app in cls.apps.values():
-            if app == currentApp:
-                continue
-            page = app.rootPage.findChild(pageName)
-            if page:
-                return app, page
-        return None, None   
+        try:
+            import re
+            # 使用正则表达式匹配 appName.pageName 格式
+            match = re.match(r"(?P<appName>[^.。]+)[\.。](?P<pageName>.+)", pageName)
+            if match:
+                appName = match.group("appName")
+                pageName = match.group("pageName")
+                app = cls.getApp(appName,True)
+                if app is None:
+                    log.i(f"应用 {appName} 没配置")
+                    return None, None
+                page = app.rootPage.findChild(pageName)
+                if page:
+                    return app, page
+            else:
+                currentApp = cls.getApp(cls._curAppName,True)
+                if currentApp:
+                    rootPage = currentApp.rootPage
+                    page = rootPage.findChild(pageName)
+                    if page:
+                        return currentApp, page                    
+                for app in cls.apps.values():
+                    if app == currentApp:
+                        continue
+                    rootPage = app.rootPage
+                    page = rootPage.findChild(pageName)
+                    if page:
+                        return app, page
+
+        except Exception as e:
+            log.ex(e, "查找目标页面失败")
+        return None, None
        
     def _gotoPage(self, pageName, checkWaitTime=None):
         """跳转到目标页面
@@ -180,18 +211,23 @@ class CApp_(_App._App_):
             if pageName in cls.TopStr:
                 log.i("返回主屏幕")
                 return cls.goHome()
-            elif pageName in cls.AppStr:
+            if pageName in cls.AppStr:
                 log.i("返回当前应用的根页面")
                 app = cls.getApp(cls._curAppName)
                 page = app.rootPage
             elif pageName in cls.apps:
                 return cls.gotoApp(pageName) is not None
             else:
-                # 2. 目标是应用内页面，查找包含目标页面的应用
-                app, page = cls._findPage(pageName, log)
-                if not app or not page:
-                    log.e(f"找不到页面: {pageName}")
-                    return False
+                app = cls.getApp(pageName, True)
+                if app:
+                    # 目标应用存在，返回应用的根页面
+                    page = app.rootPage
+                else:
+                    # 目标是应用内页面，查找包含目标页面的应用
+                    app, page = cls._findPage(pageName, log)
+                    if not app or not page:
+                        log.e(f"找不到页面: {pageName}")
+                        return False
                 # 如果目标应用不是当前应用，则跳转到目标应用
                 if app.name != cls._curAppName:
                     app = cls.gotoApp(app.name)

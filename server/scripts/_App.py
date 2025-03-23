@@ -2,14 +2,16 @@ import json
 from pathlib import Path
 import _Log
 import _G
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, TYPE_CHECKING
+if TYPE_CHECKING:
+    import _Page
 
 class _App_:
     """应用管理类：整合配置与实例"""
     _curAppName = _G.TOP  # 当前应用名称
     apps = {}  # 存储应用实例 {appName: _App_实例}
 
-    def __init__(self, name, rootPage, ratio=10000, description=None):
+    def __init__(self, name:str, rootPage: "_Page._Page_", ratio=10000, description:str=None):
         self.name = name
         self.rootPage = rootPage
         self.currentPage = rootPage
@@ -19,6 +21,8 @@ class _App_:
     def setCurrentPage(self, page):
         """设置应用当前页面"""
         self.currentPage = page
+        log = _G._G_.Log()
+        log.i(f"当前应用.页面：[{self.name}].[{page.name}]")
         return page
     
     def getCurPage(self, refresh=False):
@@ -28,7 +32,6 @@ class _App_:
     @classmethod
     def loadConfig(cls, AppClass=None):
         """加载配置并创建应用实例与页面树
-        
         Args:
             AppClass: 要创建的应用类，如果为None则根据环境自动选择
         """
@@ -127,16 +130,7 @@ class _App_:
         app = cls.apps.get(appName)
         return app.ratio if app else 0.01
     
-    @classmethod
-    def getAppInfo(cls, appName: str) -> dict:
-        """获取应用信息
-        Args:
-            appName: 应用名称
-        Returns:
-            dict: 应用信息，不存在返回None
-        """
-        return cls.apps.get(appName)
-        
+   
     @classmethod
     def getAppNames(cls) -> list:
         """获取所有应用名称列表

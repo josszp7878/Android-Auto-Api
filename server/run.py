@@ -29,7 +29,7 @@ if __name__ == '__main__':
         # 初始化日志系统并打开服务器日志
         g = _G._G_
         log = g.Log()
-        g.setIsServer(True)      
+        g.load(True)      
          # 启动服务器
         log.i(f'服务器启动在: http://{cfg.SERVER_HOST}:{cfg.SERVER_PORT}')
         # print(f'ddd111')
