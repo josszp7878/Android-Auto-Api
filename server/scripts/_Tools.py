@@ -136,3 +136,13 @@ class _Tools_:
                 log.ex(e, f"结果转换为字符串失败: {result}")
                 return None
         return result
+    @classmethod
+    def strToPos(cls, strPos: str) -> tuple:
+        """将位置字符串转换为坐标"""
+        if strPos is None:
+            return None
+        import re
+        match = re.match(r'(\d+)[\s,xX](\d+)', strPos)
+        if match:
+            return int(match.group(1)), int(match.group(2))
+        return None

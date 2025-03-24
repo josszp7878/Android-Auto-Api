@@ -137,24 +137,11 @@ class CCmds_:
         def click(param, offset=None):
             """点击指定位置，支持偏移"""
             g = _G._G_
-            log = g.Log()
-            log.i(f"点击指令: {param} {offset}")
-            if not param:
-                return False
-            android = cls.android()
-            if not android:
-                log.e("点击失败:未找到Android实例")
-                return False
-            position = _G._G_.Tools().findText(param)   
-            if position:
-                # 应用偏移量
-                x, y = 0, 0
-                if offset:
-                    offset = offset.split(',')
-                    x, y = int(offset[0]), int(offset[1])
-                x, y = position[0] + x, position[1] + y
-                return android.click(x, y)
-            return False
+            tools = g.CTools()
+            pos = tools.strToPos(param)
+            if pos:
+                return tools.clickPos(pos, offset)
+            return tools.click(param)
 
         @regCmd(r"检查安装\s+(?P<pkgName>\S+)")
         def isInstalled(pkgName):
@@ -197,7 +184,7 @@ class CCmds_:
                 return android.showRecentApps()
             return False
 
-        @regCmd(r"截屏")
+        @regCmd(r"截屏-jp")
         def getScreen():
             """获取屏幕结构化数据"""
             try:
@@ -215,24 +202,6 @@ class CCmds_:
                 log.ex(e, "获取屏幕信息失败")
                 return '[]'
 
-
-        @regCmd(r"查找应用", r"(?P<appName>[\w\s]+)")
-        def _toApp(appName: str) -> bool:
-            """查找应用"""
-            log = _G._G_.Log()
-            try:
-                android = cls.android()
-                if android:
-                    texts = android.getScreenText()
-                    if not texts:
-                        return False
-                    for text in texts:
-                        if appName in text:
-                            return True
-                return False
-            except Exception as e:
-                log.ex(e, "查找应用失败")
-                return False
 
         def clearScreenCache():
             """清除屏幕信息缓存"""
@@ -364,21 +333,9 @@ class CCmds_:
         
         @regCmd(r"返回-fh")
         def goBack():
-            """返回上一页"""
-            from CApp import CApp_
-            appName = CApp_.getCurAppName()
-            if appName:
-                app = CApp_.getApp(appName)
-                if app:
-                    result = app.goBack()
-                    if result:
-                        return f"已返回到 {result.name}"
-            
-            # 如果没有当前应用或返回失败，使用通用返回
-            result = _G._G_.Tools().goBack()
-            if not result:
-                return "e-返回上一页失败"
-            return "已返回"
+            """返回上一页"""           
+            return _G._G_.Tools().goBack()
+
 
 
         @regCmd(r"查找-cz", r"(?P<text>\S+)(?:\s+(?P<dir>[LRUDNONE]+))?(?:\s+(?P<distance>\d+))?")
@@ -527,27 +484,10 @@ class CCmds_:
                 return f"已关闭应用 {appName}"
             else:
                 return f"关闭应用 {appName} 失败"
+        
 
-        @regCmd(r"返回-fh")
-        def goBack():
-            """返回上一页"""
-            from CApp import CApp_
-            appName = CApp_.getCurAppName()
-            if appName:
-                app = CApp_.getApp(appName)
-                if app:
-                    result = app.goBack()
-                    if result:
-                        return f"已返回到 {result.name}"
-            
-            # 如果没有当前应用或返回失败，使用通用返回
-            result = _G._G_.Tools().goBack()
-            if not result:
-                return "e-返回上一页失败"
-            return "已返回"
-
-        @regCmd()
-        def load():
+        @regCmd(r"加载配置-jzpz")
+        def loadConfig():
             """加载环境配置
             """
             _G._G_.load()

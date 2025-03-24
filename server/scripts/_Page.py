@@ -22,7 +22,7 @@ class _Page_:
         log = _G._G_.Log()
         if cls._root is None:
             # log.i('创建根页面++++++++')
-            cls._root = cls.createPage("Top", None)
+            cls._root = cls.createPage("Top")
         # log.i(f'根页面########## {cls._root}')
         return cls._root
     
@@ -39,7 +39,7 @@ class _Page_:
     
     
     @classmethod
-    def createPage(cls, pageName, parent=None)->"_Page_":
+    def createPage(cls, name, parent=None, rules=None, inAction=None, outAction=None, alerts=None, timeout=30)->"_Page_":
         """创建页面对象
         
         Args:
@@ -50,29 +50,30 @@ class _Page_:
             CPage_: 创建的页面对象
         """
         # 检查页面是否已存在
-        if parent and pageName in parent.children:
-            return parent.children[pageName]
+        if parent and name in parent.children:
+            return parent.children[name]
             
         # 创建新页面
-        page = _Page_(pageName)  # 提供空规则列表作为默认值
+        page = _Page_(name, parent, rules, inAction, outAction, alerts, timeout)  # 提供空规则列表作为默认值
         
         # 设置父子关系
         if parent:
             page.parent = parent
-            parent.children[pageName] = page
+            parent.children[name] = page
             
         return page
     
-    def __init__(self, name, parent=None):
+    def __init__(self, name, parent=None, rules=None, inAction=None, outAction=None, alerts=None, timeout=30):
         self.name = name
-        self.rules: list[str] = []  # 如果rules为None，则使用空列表
+        self.rules: list[str] = rules if rules else []  # 如果rules为None，则使用空列表
         self.parent: Optional["_Page_"] = parent  # 父页面对象
         self.children: dict[str, "_Page_"] = {}  # {name: CPage_对象}
         self.transitions: dict[str, str] = {}  # {actions}
         self.checkWaitTime: float = 1.0  # 默认检查等待时间
-        self.inAction: str = ''
-        self.outAction: str = ''
-        self.timeout: int = 30  # 默认超时时间
+        self.inAction: str = inAction if inAction else ''
+        self.outAction: str = outAction if outAction else ''
+        self.alerts: list[dict] = alerts if alerts else []
+        self.timeout: int = timeout  # 默认超时时间
         
         # 如果有父页面，将自己添加为父页面的子页面
         if parent and isinstance(parent, _Page_):
@@ -314,7 +315,7 @@ class _Page_:
         return cls.Root().findPageByPath(path)
     
     @classmethod
-    def checkRules(cls, rules): 
+    def checkRules(cls, rules) -> bool: 
         """检查页面规则是否匹配当前屏幕"""
         g = _G._G_
         tools = g.Tools()
@@ -346,11 +347,11 @@ class _Page_:
                         log.d(f"检查文本规则: {rule}")
                         ret = tools.matchScreenText(rule)
                         if not ret:
-                            log.e(f"文本规则不匹配: {rule}")
+                            # log.e(f"文本规则不匹配: {rule}")
                             all_passed = False
                             break
                     if not ret:
-                        log.e(f"代码规则不匹配: {rule}")
+                        # log.e(f"代码规则不匹配: {rule}")
                         all_passed = False
                         break
                 except Exception as e:
@@ -363,6 +364,44 @@ class _Page_:
             log.ex(e, f"检查页面规则失败: {self.name}")
             return False
     
+    @classmethod
+    def checkAlerts(cls, alerts) -> bool:
+        """检查应用的弹窗"""
+        if alerts is None or len(alerts) == 0:
+            return True
+        g = _G._G_
+        tools = g.CTools()
+        log = g.Log()
+        alert = next((alert for alert in alerts if cls.checkRules(alert.get("check"))), None)
+        if not alert:
+            return True
+        timeout = alert.get("timeout", -1)
+        if timeout > 0:
+            #等待指定时间
+            time.sleep(timeout)
+        elif timeout == 0:
+            #等待，当时要读取屏幕上的倒计时信息，根据倒计时信息判断是否退出
+            while True:
+                time.sleep(1)
+                #读取屏幕上的倒计时信息
+                text = tools.getScreenText()
+                if text.find("倒计时") != -1:
+                    #倒计时信息
+                    time_str = text.split("倒计时")[1].strip()
+                    time_str = time_str.split("秒")[0].strip()
+                    time_int = int(time_str)
+                    if time_int == 0:
+                        break
+        tools.evalStr(alert.get("out"))
+        time.sleep(2)
+        #check是否退出ALERT,如果还没退出，报错，并强制退出
+        if cls.checkRules(alert.get("check")):
+            return True
+        else:
+            log.e(f"弹窗: {alert.get('name')} 未正常退出，强行退出")
+            tools.goBack()
+            return False
+
     def doAction(self, actionStr) ->bool:
         """执行到目标页面的动作"""
         if actionStr is None:
@@ -419,6 +458,7 @@ class _Page_:
             # 判断跳转方向
             pageName = targetPage.name
             success = False
+            log.i(f"跳转页面: {pageName}")
             if pageName in self.children:
                 log.i(f'-> {pageName}')
                 act = targetPage.inAction.strip()
@@ -447,6 +487,8 @@ class _Page_:
             # 执行动作
             if not success:
                 return False
+            log.i(f"检查弹窗: {targetPage.alerts}")
+            targetPage.checkAlerts(targetPage.alerts)
             # 等待指定时间
             wait_time = checkWaitTime if checkWaitTime is not None else self.checkWaitTime
             if wait_time > 0:

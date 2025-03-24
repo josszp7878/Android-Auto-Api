@@ -607,22 +607,55 @@ class CTools_(_Tools._Tools_):
 
     @classmethod
     def click(cls, text: str, direction: str = 'UD', waitTime: int = 1) -> bool:
-        """点击文本（增加重试机制）"""
+        """点击文本（支持偏移）
+        
+        支持格式：
+        - 普通文本: "按钮"
+        - 带偏移: "按钮x100" (向右偏移100像素)
+        - 带偏移: "按钮y-50" (向上偏移50像素)
+        - 带偏移: "按钮x100y-50" (向右偏移100像素，向上偏移50像素)
+        """
         log = _G._G_.Log()
         log.i(f"click: {text}")
-        if cls.android is None:
-            return True
-        retry = 2
-        while retry > 0:
-            # log.i(f"点击文本: {text}")
-            pos = cls.findText(text, direction)
-            # log.i(f"找到文本: {text}, 位置: {pos}")
-            if pos:
-                x, y = pos
-                return cls.android.click(x, y)
-            time.sleep(waitTime)
-            retry -= 1
+        # 解析文本和偏移量
+        offsetX, offsetY = 0, 0
+        # 使用正则表达式匹配偏移信息
+        import re
+        match = re.search(r'(.*?)(?:x([+-]?\d+))?(?:y([+-]?\d+))?$', text)
+        offsetX = 0
+        offsetY = 0
+        if match:
+            text = match.group(1)
+            x_offset = match.group(2)
+            y_offset = match.group(3)
+            if x_offset:
+                offsetX = int(x_offset)
+            if y_offset:
+                offsetY = int(y_offset)
+            log.i(f"点击文本: {text}，偏移: x={offsetX}, y={offsetY}")        
+        pos = cls.findTextPos(text, direction)
+        if pos:
+            return cls.clickPos(pos, (offsetX, offsetY))
         return False
+    
+    @classmethod
+    def clickPos(cls, pos, offset=None):
+        """点击文本（支持偏移）"""
+        log = _G._G_.Log()
+        try:
+            x, y = pos
+            # 应用偏移
+            x += offset[0] if offset else 0    
+            y += offset[1] if offset else 0
+            log.i(f"点击位置: {x},{y}")
+            android = cls.android
+            if android:
+                return android.click(x, y)
+            else:
+                return True
+        except Exception as e:
+            log.e(f"点击失败: {e}")
+            return False
 
     @classmethod
     def switchToProfile(cls):
@@ -718,7 +751,7 @@ class CTools_(_Tools._Tools_):
     # 增强版文本查找功能
     # return (x,y)
     @classmethod
-    def findText(cls, text, searchDir=None, distance=None):
+    def findTextPos(cls, text, searchDir=None, distance=None):
         """增强版文本查找功能
         支持在滑动屏幕过程中持续查找文字
         
@@ -730,10 +763,11 @@ class CTools_(_Tools._Tools_):
         Returns:
             找到文本的坐标元组(x,y)或None
         """
-        log = _G._G_.Log()
-        
+        android = cls.android
+        if android is None:
+            return None
         # 尝试在当前屏幕查找
-        pos = cls._findText(text, searchDir, distance)
+        pos = cls._findTextPos(text, searchDir, distance)
         if pos:
             return pos
         # 如果没有指定搜索方向，只在当前屏幕查找
@@ -743,14 +777,14 @@ class CTools_(_Tools._Tools_):
         # 定义匹配函数
         def matchFunc():
             nonlocal pos
-            pos = cls._findText(text, searchDir, distance)
+            pos = cls._findTextPos(text, searchDir, distance)
             return pos is not None
         # 使用swipeTo进行滑动查找
         found = cls.swipeTo(searchDir, matchFunc)
         return pos if found else None
 
     @classmethod
-    def _findText(cls, text, searchDir=None, distance=None):
+    def _findTextPos(cls, text, searchDir=None, distance=None):
         """在当前屏幕尝试查找文本
         
         Args:
@@ -763,22 +797,25 @@ class CTools_(_Tools._Tools_):
         """
         log = _G._G_.Log()
         try:
-            if cls.android:
-                nodes = cls.android.findTextNodes()
+            android = cls.android
+            if android:
+                nodes = android.findTextNodes()
                 if not nodes:
                     log.i("屏幕上未找到任何文本节点")
                     return None
                     
                 for node in nodes:
                     nodeText = node.getText()
+                    # 将 SpannableString 转换为普通字符串
+                    nodeText = str(nodeText) if nodeText is not None else ""
                     if text in nodeText:
                         bounds = node.getBounds()
                         x, y = bounds.centerX(), bounds.centerY()
                         
                         # 检查方向和距离限制
                         if searchDir and distance:
-                            screenWidth = cls.android.getScreenWidth()
-                            screenHeight = cls.android.getScreenHeight()
+                            screenWidth = android.getScreenWidth()
+                            screenHeight = android.getScreenHeight()
                             centerX, centerY = screenWidth // 2, screenHeight // 2
                             
                             # 检查是否在指定方向和距离内

@@ -475,7 +475,7 @@ class SCmds_:
                         log.ex(e, "处理屏幕信息失败")
                 
                 # 发送客户端命令获取屏幕信息
-                deviceMgr.sendClientCmd(device.deviceID, "eval CTools.getScreenInfo(True)", None, 10, handleScreenInfo)
+                deviceMgr.sendClientCmd(device.deviceID, "eval Tools.getScreenInfo(True)", None, 10, handleScreenInfo)
                 
                 return "i->正在获取屏幕信息..."
             except Exception as e:
@@ -499,7 +499,7 @@ class SCmds_:
                     return f"e->屏幕信息为空"
                     
                 # 使用三引号包裹多行JSON字符串
-                cmd = f"eval CTools.setScreenInfo('''{screen_info}''')"
+                cmd = f"eval Tools.setScreenInfo('''{screen_info}''')"
                 deviceMgr.sendClientCmd(device.deviceID, cmd)
                 
                 return f"i->成功设置屏幕信息: {pageName}"

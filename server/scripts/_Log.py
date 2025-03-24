@@ -138,7 +138,8 @@ class _Log_:
             time = timestamp.strftime('%Y-%m-%d %H:%M:%S')
             tag = f'[{tag}]' if tag else ''
             if iserver:
-                msg = content[:500] if len(content) > 500 else content
+                #msg = content[:500] if len(content) > 500 else content
+                msg = content
                 logData = {
                     'time': time,
                     'tag': tag,
@@ -229,7 +230,7 @@ class _Log_:
         """记录指令结果"""
         if log is None:
             return
-        res = str(result).replace('\n', ' ')[:50]
+        res = str(result).replace('\n', ' ')
         log['result'] = res
 
 

@@ -410,7 +410,7 @@ class _CmdMgr_:
         def cmdList():
             """列出所有可用命令"""
             result = "可用命令:\n"
-            for cmd in cls.cmdRegistry:
+            for cmd in sorted(cls.cmdRegistry, key=lambda x: x.name):
                 result += f"{cmd.name}: {cmd.alias}\n"
             return result
         

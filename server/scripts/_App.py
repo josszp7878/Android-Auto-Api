@@ -11,12 +11,14 @@ class _App_:
     _curAppName = _G.TOP  # 当前应用名称
     apps = {}  # 存储应用实例 {appName: _App_实例}
 
-    def __init__(self, name:str, rootPage: "_Page._Page_", ratio=10000, description:str=None):
+    def __init__(self, name:str, rootPage: "_Page._Page_", info:dict, alerts:list):
         self.name = name
         self.rootPage = rootPage
         self.currentPage = rootPage
-        self.ratio = ratio
-        self.description = description or f"{name}积分换算比例{ratio}:1"
+        self.ratio = info.get("ratio", 10000)
+        self.description = info.get("description", '')
+        self.timeout = info.get("timeout", 30)
+        self.alerts = alerts
 
     def setCurrentPage(self, page):
         """设置应用当前页面"""
@@ -50,17 +52,11 @@ class _App_:
             def processNode(node, parentPage=None, parentName=None):
                 """统一处理节点：创建应用实例和页面树"""
                 for pageName, pageConfig in node.items():
+                    if not isinstance(pageConfig, dict):
+                        log.e(f"页面配置错误,该节点不是字典: {pageConfig}")
+                        continue
                     # 创建页面对象
-                    currentPage = Page.createPage(pageName, parentPage)
-                    
-                    # 设置页面属性
-                    if "check" in pageConfig:
-                        currentPage.setRules(pageConfig["check"])
-                    if "in" in pageConfig:
-                        currentPage.setInAction(pageConfig["in"])
-                    if "out" in pageConfig:
-                        currentPage.setOutAction(pageConfig["out"])
-                    
+                    currentPage = Page.createPage(pageName, parentPage, pageConfig.get("check", []), pageConfig.get("in", None), pageConfig.get("out", None), pageConfig.get("alerts", None))
                     # 识别应用根节点（Top的直接子节点）
                     if parentName == "Top":
                         appInfo = pageConfig.get("app_info", {})
@@ -68,10 +64,10 @@ class _App_:
                         cls.apps[pageName] = AppClass(
                             name=appInfo.get("name", pageName),
                             rootPage=currentPage,
-                            ratio=appInfo.get("ratio", 10000),
-                            description=appInfo.get("description")
+                            info=appInfo,
+                            alerts=pageConfig.get("alerts", [])
                         )
-                        # log.d(f"创建应用 {pageName}，根页面 {currentPage.name}")
+                    # log.d(f"创建应用 {pageName}，根页面 {currentPage.name}")
 
                     # 递归处理子节点
                     children = pageConfig.get("children", {})

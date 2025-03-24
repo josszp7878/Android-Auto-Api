@@ -34,6 +34,7 @@ class CApp_(_App._App_):
             return True
         return False
     
+
     @classmethod
     def gotoApp(cls, appName) -> Optional["CApp_"]:
         """跳转到指定应用
@@ -54,21 +55,19 @@ class CApp_(_App._App_):
         waitTime = None
         app = cls.getApp(appName)
         if app:
-            waitTime = app.info.get("waitTime", 6)
+            waitTime = app.timeout
         result = tools.openApp(appName, waitTime)
         if not result:
             return None
-        tipWin = app.info.get("tipWin", None)
-        if tipWin:
-            if g.Page().checkRules(tipWin.get("check")):
-                tools.evalStr(tipWin.get("click"))
+        import _Page
+        _Page._Page_.checkAlerts(app.alerts)
         # 设置当前应用名称
         cls._curAppName = appName
         app = cls.getApp(appName)
         #检测该应用当前在哪个页面
         childPages = app.rootPage.children
         for _, page in childPages.items():
-            if page.checkRules():
+            if page.checkRules(page.rules):
                 app.setCurrentPage(page)
                 break
         return app
