@@ -39,6 +39,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.app.usage.UsageStats
 import android.app.usage.UsageStatsManager
 import androidx.annotation.RequiresApi
+import cn.vove7.andro_accessibility_api.demo.utils.UIUtils
 
 /**
  * Python服务接口的Kotlin实现
@@ -459,24 +460,24 @@ class PythonServices {
             return result
         }
 
+        /**
+         * 显示Toast消息
+         */
         @JvmStatic
-        fun showToast(message: String, duration: Int = Toast.LENGTH_LONG, gravity: Int = Gravity.BOTTOM, 
-                      xOffset: Int = 0, yOffset: Int = 100) {
-            val handler = Handler(Looper.getMainLooper())
-            handler.post {
-                try {
-                    val toast = Toast.makeText(context, message, duration)
-                    toast.setGravity(gravity, xOffset, yOffset)
-                    toast.show()
-                } catch (e: Exception) {
-                    Timber.e(e, "Show toast failed")
-                }
-            }
+        fun showToast(
+            msg: String, 
+            duration: Int = Toast.LENGTH_SHORT, 
+            gravity: Int = Gravity.BOTTOM, 
+            xOffset: Int = 0, 
+            yOffset: Int = 0
+        ) {
+            UIUtils.showToast(context, msg, duration, gravity, xOffset, yOffset)
         }
 
         // 添加Toast常量供Python使用
         @JvmStatic val TOAST_LENGTH_SHORT = Toast.LENGTH_SHORT
         @JvmStatic val TOAST_LENGTH_LONG = Toast.LENGTH_LONG
+        @JvmStatic val TOAST_LENGTH_VERY_LONG = 5000  // 自定义5秒显示时间
         @JvmStatic val TOAST_GRAVITY_TOP = Gravity.TOP
         @JvmStatic val TOAST_GRAVITY_CENTER = Gravity.CENTER
         @JvmStatic val TOAST_GRAVITY_BOTTOM = Gravity.BOTTOM

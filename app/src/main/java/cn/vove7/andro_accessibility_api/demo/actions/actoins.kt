@@ -350,22 +350,12 @@ class ClickTextAction : Action() {
         get() = "点击文本"
 
     override suspend fun run(act: ComponentActivity) {
-        val edit_text = act.findViewById<EditText>(R.id.edit_text)
-        var targetText = edit_text.text.toString().trim()
-        if (targetText == "123456") {
-            targetText = "文本匹配"
-            withContext(Dispatchers.Main) {
-                edit_text.setText("文本匹配")
-            }
-        }
-        if (targetText.isEmpty()) {
+        val text = "123456" // 使用之前EditText中的默认值
+        if (text.isEmpty()) {
             toast("请输入文本")
-            withContext(Dispatchers.Main) {
-                edit_text.requestFocus()
-            }
             return
         }
-        val node = SF.containsText(targetText).type("textview")
+        val node = SF.containsText(text).type("textview")
         val t = node.findFirst()
         toast("haveFound: $t")
         delay(1000)

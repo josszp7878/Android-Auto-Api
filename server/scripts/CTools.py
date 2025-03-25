@@ -325,6 +325,7 @@ class CTools_(_Tools._Tools_):
             if not opened:
                 return False
             waitTime = waitTime or 6
+            log.i(f"打开应用: {appName}, 等待时间: {waitTime}秒")
             time.sleep(waitTime)
             if cls.isCurApp(appName):
                 return True

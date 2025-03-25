@@ -1,8 +1,17 @@
 package cn.vove7.andro_accessibility_api.demo.service
 
+import android.accessibilityservice.AccessibilityService
+import android.graphics.Rect
+import android.view.accessibility.AccessibilityEvent
 import android.util.Log
+import android.widget.Toast
+import android.os.Handler
+import android.os.Looper
+import android.view.Gravity
 import cn.vove7.andro_accessibility_api.AccessibilityApi
+import cn.vove7.andro_accessibility_api.demo.script.PythonServices
 import cn.vove7.auto.AppScope
+import timber.log.Timber
 
 /**
  * # MyAccessibilityService
@@ -35,5 +44,4 @@ class AppAccessibilityService : AccessibilityApi() {
     companion object {
         private const val TAG = "MyAccessibilityService"
     }
-
 }

@@ -1,30 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/toolbarLayout"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:background="@android:drawable/alert_dark_frame"
-    android:gravity="end"
     android:orientation="horizontal"
-    android:padding="10dp">
-
-    <Button
-        android:id="@+id/startStopButton"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
-        android:background="@android:drawable/ic_media_play"
-        android:visibility="gone" />
-
-    <Button
-        android:id="@+id/settingsButton"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
-        android:background="@android:drawable/ic_menu_set_as"
-        android:visibility="gone" />
+    android:background="@drawable/rounded_background"
+    android:padding="4dp">
 
     <Button
         android:id="@+id/toggleButton"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
-        android:background="@drawable/googleg_standard_color_18" />
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:background="@drawable/common_google_signin_btn_icon_dark"
+        android:contentDescription="@string/toggle_toolbar" />
 
+    <LinearLayout
+        android:id="@+id/expandedButtons"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <Button
+            android:id="@+id/startStopButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="4dp"
+            android:background="@drawable/ic_play"
+            android:contentDescription="@string/start_stop_script" />
+
+        <Button
+            android:id="@+id/syncButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="4dp"
+            android:background="@drawable/ic_sync"
+            android:contentDescription="同步文件" />
+
+        <Button
+            android:id="@+id/settingsButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="4dp"
+            android:background="@drawable/ic_settings"
+            android:contentDescription="@string/settings" />
+    </LinearLayout>
 </LinearLayout> 

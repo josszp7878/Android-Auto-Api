@@ -39,7 +39,7 @@ class _Page_:
     
     
     @classmethod
-    def createPage(cls, name, parent=None, rules=None, inAction=None, outAction=None, alerts=None, timeout=30)->"_Page_":
+    def createPage(cls, name, parent=None, rules=None, inAction=None, outAction=None, alerts=None, timeout=2)->"_Page_":
         """创建页面对象
         
         Args:
@@ -318,7 +318,7 @@ class _Page_:
     def checkRules(cls, rules) -> bool: 
         """检查页面规则是否匹配当前屏幕"""
         g = _G._G_
-        tools = g.Tools()
+        tools = g.CTools()
         log = g.Log()
         if not rules:
             return True
@@ -345,7 +345,7 @@ class _Page_:
                     # 如果是文本规则
                     else:
                         log.d(f"检查文本规则: {rule}")
-                        ret = tools.matchScreenText(rule)
+                        ret = tools.matchText(rule)
                         if not ret:
                             # log.e(f"文本规则不匹配: {rule}")
                             all_passed = False

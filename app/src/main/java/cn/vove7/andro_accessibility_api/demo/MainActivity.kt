@@ -104,6 +104,7 @@ class MainActivity : AppCompatActivity() {
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setContentView(binding.root)
         instance = WeakReference(this)
         
         // 初始化状态栏高度
@@ -165,16 +166,10 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("SetTextI18n")
     override fun onResume() {
         super.onResume()
-        binding.acsCb.isChecked = AccessibilityApi.isServiceEnable
-        binding.acsCb.isEnabled = AutoApi.serviceType != AutoApi.SERVICE_TYPE_INSTRUMENTATION
-
-        binding.workMode.text = "工作模式：${
-            mapOf(
-                AutoApi.SERVICE_TYPE_NONE to "无",
-                AutoApi.SERVICE_TYPE_ACCESSIBILITY to "无障碍",
-                AutoApi.SERVICE_TYPE_INSTRUMENTATION to "Instrumentation",
-            )[AutoApi.serviceType]
-        } "
+        // 移除对UI控件的引用
+        // binding.acsCb.isChecked = AccessibilityApi.isServiceEnable
+        // binding.acsCb.isEnabled = AutoApi.serviceType != AutoApi.SERVICE_TYPE_INSTRUMENTATION
+        // binding.workMode.text = "工作模式：${...}"
     }
 
     var actionJob: Job? = null
@@ -302,4 +297,5 @@ class MainActivity : AppCompatActivity() {
 
 
 }
+
 

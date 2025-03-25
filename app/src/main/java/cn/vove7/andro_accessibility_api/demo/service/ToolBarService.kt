@@ -2,38 +2,40 @@ package cn.vove7.andro_accessibility_api.demo.service
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.SharedPreferences
 import android.graphics.PixelFormat
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.util.DisplayMetrics
 import android.util.Log
+import android.view.GestureDetector
+import android.view.GestureDetector.SimpleOnGestureListener
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.view.WindowManager
+import android.view.inputmethod.EditorInfo
 import android.widget.Button
+import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.TextView
+import android.widget.Toast
 import androidx.lifecycle.LifecycleService
+import cn.vove7.andro_accessibility_api.demo.MainActivity
 import cn.vove7.andro_accessibility_api.demo.R
 import cn.vove7.andro_accessibility_api.demo.databinding.DialogDeviceInfoBinding
 import cn.vove7.andro_accessibility_api.demo.script.ScriptEngine
-import android.content.SharedPreferences
-import android.widget.Toast
+import cn.vove7.andro_accessibility_api.demo.utils.UIUtils
+import cn.vove7.andro_accessibility_api.demo.view.CursorView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import cn.vove7.andro_accessibility_api.demo.MainActivity
-import android.view.inputmethod.EditorInfo
-import cn.vove7.andro_accessibility_api.demo.view.CursorView
-import java.lang.ref.WeakReference
-import android.os.Handler
-import android.os.Looper
 import timber.log.Timber
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Future
-import java.util.concurrent.TimeoutException
-import java.util.concurrent.TimeUnit
+import java.lang.ref.WeakReference
 import java.util.concurrent.Executors
 
 /**
@@ -71,19 +73,7 @@ class ToolBarService : LifecycleService() {
         set(value) {
             if(value != _serverIP){
                 _serverIP = value
-                getPrefs().edit().putString(SERVER_NAME_KEY, value).apply()
-                try {
-                    // 在后台线程中执行文件同步
-                    Thread {
-                        // 显示正在连接的提示
-                        Handler(Looper.getMainLooper()).post {
-                            Toast.makeText(this, "正在连接服务器: $value...", Toast.LENGTH_SHORT).show()
-                        }
-                        scriptEngine.syncFiles(value)
-                    }.start()
-                } catch (e: Exception) {
-                    Timber.e(e, "启动同步线程失败")
-                }
+                getPrefs().edit().putString(SERVER_NAME_KEY, value).apply()                
             }
         }
 
@@ -111,15 +101,48 @@ class ToolBarService : LifecycleService() {
 
     private val executor = Executors.newSingleThreadExecutor()
 
+    private lateinit var gestureDetector: GestureDetector
+    private var touchMonitorView: View? = null
+
+    private var isToolbarExpanded = false
+
+    // 添加自定义悬浮窗相关变量
+    private var positionToastView: View? = null
+    private var positionToastHideRunnable: Runnable? = null
+    private var lastPositionToastUpdateTime = 0L
+    private val POSITION_TOAST_AUTO_HIDE_DELAY = 5000L // 5秒后自动隐藏
+
     override fun onCreate() {
         super.onCreate()
-        instance = WeakReference(this) // 设置实例
+        instance = WeakReference(this)
+        
+        // 初始化手势检测器
+        gestureDetector = GestureDetector(this, object : SimpleOnGestureListener() {
+            override fun onSingleTapUp(e: MotionEvent): Boolean {
+                val x = e.rawX.toInt()
+                val y = e.rawY.toInt()
+                
+                // 显示点击坐标
+                showClickPosition(x, y)
+                
+                return false // 不消费事件，确保事件继续传递
+            }
+        })
+        
         Log.d("ToolBarService", "Service created")
+        
+        // 初始化windowManager
+        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        
+        // 先添加触摸监控覆盖层，确保它在z-index较低的位置
+        // 初始时不启用，等ToolBar展开时再启用
+        
+        // 显示ToolBar
         showWindow()
         if (serverIP.isEmpty() || deviceName.isEmpty()) {
             showSetting()
         }
-        addCursorView() // 添加光标视图
+        addCursorView()
     }
 
     /**
@@ -129,7 +152,6 @@ class ToolBarService : LifecycleService() {
     fun showWindow() {
         if (floatRootView != null) return
 
-        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         val outMetrics = DisplayMetrics()
         windowManager.defaultDisplay.getMetrics(outMetrics)
         val layoutParam = createLayoutParams(outMetrics)
@@ -147,6 +169,13 @@ class ToolBarService : LifecycleService() {
         layoutParam.format = PixelFormat.TRANSLUCENT
 
         windowManager.addView(floatRootView, layoutParam)
+        
+        // 延迟初始化，确保UI元素已经正确加载
+        Handler(Looper.getMainLooper()).postDelayed({
+            val expandedButtons = floatRootView?.findViewById<LinearLayout>(R.id.expandedButtons)
+            expandedButtons?.visibility = View.GONE
+            Log.d("ToolBarService", "Initial setup of expandedButtons: GONE")
+        }, 100)
     }
 
     private fun createLayoutParams(outMetrics: DisplayMetrics): WindowManager.LayoutParams {
@@ -171,9 +200,30 @@ class ToolBarService : LifecycleService() {
         val toggleButton = floatRootView?.findViewById<Button>(R.id.toggleButton)
         val startStopButton = floatRootView?.findViewById<Button>(R.id.startStopButton)
         val settingsButton = floatRootView?.findViewById<Button>(R.id.settingsButton)
+        val syncButton = floatRootView?.findViewById<Button>(R.id.syncButton)
+        val expandedButtons = floatRootView?.findViewById<LinearLayout>(R.id.expandedButtons)
         
+        toggleButton?.setOnClickListener(null) // 清除之前的点击监听器
         toggleButton?.setOnClickListener {
-            toggleVisibility(startStopButton, settingsButton)
+            val expandedButtons = floatRootView?.findViewById<LinearLayout>(R.id.expandedButtons)
+            if (expandedButtons != null) {
+                val newVisibility = if (expandedButtons.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+                expandedButtons.visibility = newVisibility
+                
+                // 更新ToolBar展开状态
+                isToolbarExpanded = newVisibility == View.VISIBLE
+                
+                // 根据展开状态启用或禁用点击坐标显示功能
+                if (isToolbarExpanded) {
+                    enableTouchMonitoring()
+                } else {
+                    disableTouchMonitoring()
+                }
+                
+                Log.d("ToolBarService", "Toggle button clicked, setting visibility to: ${if (newVisibility == View.VISIBLE) "VISIBLE" else "GONE"}")
+            } else {
+                Log.e("ToolBarService", "expandedButtons is null")
+            }
         }
 
         val touchListener = object : View.OnTouchListener {
@@ -235,15 +285,47 @@ class ToolBarService : LifecycleService() {
             showSetting()
             flashCursor() // 闪烁光标
         }
+
+        syncButton?.setOnClickListener {
+            if (serverIP.isEmpty()) {
+                Toast.makeText(this, "请先设置服务器IP", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            
+            Toast.makeText(this, "正在同步文件...", Toast.LENGTH_SHORT).show()
+            
+            // 在后台线程中执行文件同步
+            Thread {
+                try {
+                    scriptEngine.syncFiles(serverIP)
+                    Handler(Looper.getMainLooper()).post {
+                        Toast.makeText(this, "文件同步完成", Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    Handler(Looper.getMainLooper()).post {
+                        Toast.makeText(this, "文件同步失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                    Timber.e(e, "文件同步失败")
+                }
+            }.start()
+        }
     }
 
-    private fun toggleVisibility(vararg buttons: Button?) {
-        val isVisible = buttons.first()?.visibility == View.VISIBLE
-        val targetAlpha = if (isVisible) 0f else 1f
-        buttons.forEach { button ->
-            button?.animate()?.alpha(targetAlpha)?.setDuration(300)?.withEndAction {
-                button.visibility = if (isVisible) View.GONE else View.VISIBLE
-            }?.start()
+    // 添加一个辅助方法来切换可见性
+    private fun toggleVisibility(vararg views: View?) {
+        val expandedButtons = floatRootView?.findViewById<LinearLayout>(R.id.expandedButtons)
+        if (expandedButtons == null) {
+            Log.e("ToolBarService", "expandedButtons is null in toggleVisibility")
+            return
+        }
+        
+        // 切换可见性
+        if (expandedButtons.visibility == View.VISIBLE) {
+            expandedButtons.visibility = View.GONE
+            Log.d("ToolBarService", "Hiding expanded buttons (from toggleVisibility)")
+        } else {
+            expandedButtons.visibility = View.VISIBLE
+            Log.d("ToolBarService", "Showing expanded buttons (from toggleVisibility)")
         }
     }
 
@@ -419,10 +501,12 @@ class ToolBarService : LifecycleService() {
         if(isRunning){
             end()
         }
-        hideWindow() // 销毁服务时隐藏悬浮窗口
+        hideWindow()
         super.onDestroy()
         cursorView?.let { windowManager.removeView(it) }
-        executor.shutdown() // 关闭线程池
+        removeTouchMonitorView()
+        hidePositionToast() // 隐藏点击坐标悬浮窗
+        executor.shutdown()
     }
 
     // 新增方法：隐藏光标
@@ -493,6 +577,208 @@ class ToolBarService : LifecycleService() {
     fun flashCursor() {
         Handler(Looper.getMainLooper()).post {
             cursorView?.flash()
+        }
+    }
+
+    // 移除setupTouchEventListener方法，直接使用addTouchMonitorOverlay方法
+    private fun enableTouchMonitoring() {
+        Log.d("ToolBarService", "Enabling touch monitoring")
+        addTouchMonitorOverlay()
+    }
+
+    // 修改添加触摸监控覆盖层的方法
+    @SuppressLint("ClickableViewAccessibility")
+    private fun addTouchMonitorOverlay() {
+        // 如果已经添加过，先移除
+        removeTouchMonitorView()
+        
+        // 创建一个透明的全屏覆盖层
+        touchMonitorView = FrameLayout(this).apply {
+            // 设置为完全透明
+            setBackgroundColor(0x00000000)
+        }
+        
+        // 添加到窗口，确保在ToolBar之下
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, // 允许事件传递到下层窗口
+            PixelFormat.TRANSLUCENT
+        )
+        params.gravity = Gravity.START or Gravity.TOP
+        
+        // 设置触摸监听
+        touchMonitorView?.setOnTouchListener { _, event ->
+            // 将事件传递给手势检测器
+            gestureDetector.onTouchEvent(event)
+            
+            // 返回false让事件继续传递
+            false
+        }
+        
+        // 添加到窗口
+        windowManager.addView(touchMonitorView, params)
+        
+        // 确保ToolBar在覆盖层之上
+        if (floatRootView != null) {
+            try {
+                // 移除并重新添加ToolBar，确保它在覆盖层之上
+                windowManager.removeView(floatRootView)
+                val outMetrics = DisplayMetrics()
+                windowManager.defaultDisplay.getMetrics(outMetrics)
+                windowManager.addView(floatRootView, createLayoutParams(outMetrics))
+            } catch (e: Exception) {
+                Timber.e(e, "Failed to reorder views")
+            }
+        }
+    }
+
+    // 移除触摸监控视图
+    private fun removeTouchMonitorView() {
+        touchMonitorView?.let {
+            try {
+                windowManager.removeView(it)
+            } catch (e: Exception) {
+                Timber.e(e, "Failed to remove touch monitor view")
+            }
+            touchMonitorView = null
+        }
+    }
+
+    private fun disableTouchMonitoring() {
+        Log.d("ToolBarService", "Disabling touch monitoring")
+        // 移除触摸监控视图
+        removeTouchMonitorView()
+        // 不再需要释放InputEventReceiver
+        // inputEventReceiver?.dispose()
+        // inputEventReceiver = null
+    }
+
+    /**
+     * 显示点击坐标
+     */
+    private fun showClickPosition(x: Int, y: Int) {
+        try {
+            // 更新最后显示时间
+            lastPositionToastUpdateTime = System.currentTimeMillis()
+            
+            // 使用Handler确保在主线程上执行
+            Handler(Looper.getMainLooper()).post {
+                try {
+                    // 如果已经有视图，更新文本
+                    if (positionToastView != null) {
+                        // 使用安全的类型转换
+                        val textView = positionToastView?.findViewById<TextView>(R.id.position_toast_text)
+                        textView?.text = "点击坐标: ($x, $y)"
+                        
+                        // 重置自动隐藏定时器
+                        resetPositionToastAutoHideTimer()
+                        return@post
+                    }
+                    
+                    // 创建自定义Toast视图
+                    val frameLayout = FrameLayout(this).apply {
+                        // 设置背景为半透明黑色，圆角
+                        setBackgroundResource(R.drawable.position_toast_background)
+                        // 设置内边距
+                        setPadding(32, 16, 32, 16)
+                    }
+                    
+                    // 创建文本视图
+                    val textView = TextView(this).apply {
+                        text = "点击坐标: ($x, $y)"
+                        setTextColor(0xFFFFFFFF.toInt()) // 白色文本
+                        textSize = 14f // 14sp
+                        id = R.id.position_toast_text // 需要在values/ids.xml中定义
+                    }
+                    
+                    // 添加文本视图到布局
+                    frameLayout.addView(textView)
+                    
+                    // 保存视图引用
+                    positionToastView = frameLayout
+                    
+                    // 创建布局参数
+                    val params = WindowManager.LayoutParams(
+                        WindowManager.LayoutParams.WRAP_CONTENT,
+                        WindowManager.LayoutParams.WRAP_CONTENT,
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                        } else {
+                            WindowManager.LayoutParams.TYPE_PHONE
+                        },
+                        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                        PixelFormat.TRANSLUCENT
+                    )
+                    
+                    // 设置显示位置
+                    params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+                    params.y = 100 // 距离顶部100像素
+                    
+                    // 添加到窗口
+                    windowManager.addView(frameLayout, params)
+                    
+                    // 设置自动隐藏定时器
+                    resetPositionToastAutoHideTimer()
+                } catch (e: Exception) {
+                    Timber.e(e, "显示点击坐标悬浮窗失败")
+                }
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "准备点击坐标悬浮窗失败")
+        }
+    }
+
+    /**
+     * 重置自动隐藏定时器
+     */
+    private fun resetPositionToastAutoHideTimer() {
+        // 移除之前的定时器
+        if (positionToastHideRunnable != null) {
+            Handler(Looper.getMainLooper()).removeCallbacks(positionToastHideRunnable!!)
+        }
+        
+        // 创建新的定时器
+        positionToastHideRunnable = Runnable {
+            // 检查是否已经过了5秒没有更新
+            val currentTime = System.currentTimeMillis()
+            if (currentTime - lastPositionToastUpdateTime >= POSITION_TOAST_AUTO_HIDE_DELAY) {
+                hidePositionToast()
+            } else {
+                // 如果还没到5秒，继续等待
+                val remainingTime = POSITION_TOAST_AUTO_HIDE_DELAY - (currentTime - lastPositionToastUpdateTime)
+                Handler(Looper.getMainLooper()).postDelayed(positionToastHideRunnable!!, remainingTime)
+            }
+        }
+        
+        // 启动定时器
+        Handler(Looper.getMainLooper()).postDelayed(positionToastHideRunnable!!, POSITION_TOAST_AUTO_HIDE_DELAY)
+    }
+
+    /**
+     * 隐藏点击坐标悬浮窗
+     */
+    private fun hidePositionToast() {
+        Handler(Looper.getMainLooper()).post {
+            try {
+                // 移除定时器
+                if (positionToastHideRunnable != null) {
+                    Handler(Looper.getMainLooper()).removeCallbacks(positionToastHideRunnable!!)
+                    positionToastHideRunnable = null
+                }
+                
+                // 移除视图
+                if (positionToastView != null) {
+                    windowManager.removeView(positionToastView)
+                    positionToastView = null
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "隐藏点击坐标悬浮窗失败")
+            }
         }
     }
 

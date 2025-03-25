@@ -253,6 +253,8 @@ class CApp_(_App._App_):
                     return False
             # 如果目标应用不是当前应用，则跳转到目标应用
             appName = app.name
+            curAppName = cls.getCurAppName(True)
+            log.i(f"当前应用: {curAppName}, 目标应用: {appName}")
             if appName != cls._curAppName:
                 app = cls.gotoApp(appName)
                 if not app:
