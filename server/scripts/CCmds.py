@@ -133,15 +133,15 @@ class CCmds_:
                 return android.move(position[0], position[1])
             return "未找到"
 
-        @regCmd(r"点击", r"(?P<param>\S+)(?:\s+(?P<offset>\d+,\d+))?")
-        def click(param, offset=None):
+        @regCmd(r"点击", r"(?P<text>.+)")
+        def click(text):
             """点击指定位置，支持偏移"""
             g = _G._G_
             tools = g.CTools()
-            pos = tools.strToPos(param)
+            pos = tools.strToPos(text)
             if pos:
-                return tools.clickPos(pos, offset)
-            return tools.click(param)
+                return tools.clickPos(pos)
+            return tools.click(text)
 
         @regCmd(r"检查安装\s+(?P<pkgName>\S+)")
         def isInstalled(pkgName):
@@ -275,8 +275,7 @@ class CCmds_:
 
         @regCmd(r"滑动", r"(?P<param>.+)")
         def swipe(param):
-            ret = _G._G_.Tools().swipe(param)
-            return "i->滑动成功" if ret else "e->滑动失败"
+            return _G._G_.Tools().swipe(param)
 
         @regCmd('快照')
         def takeScreenshot():
@@ -431,7 +430,7 @@ class CCmds_:
                     pages = _Page._Page_.getCurrent().findPageByPath(rule[1:])
                     page = pages.last()
                     return page.checkRules(page.rules)
-                result = g.CTools().matchScreenText(rule, False)
+                result = g.CTools().matchText(rule, False)
                 return result
             except Exception as e:
                 log.ex(e, "查找文字失败")

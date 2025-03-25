@@ -48,7 +48,6 @@ class _App_:
             import _Page
             Page = _Page._Page_
             root = Page.Root()
-
             def processNode(node, parentPage=None, parentName=None):
                 """统一处理节点：创建应用实例和页面树"""
                 for pageName, pageConfig in node.items():
@@ -56,6 +55,7 @@ class _App_:
                         log.e(f"页面配置错误,该节点不是字典: {pageConfig}")
                         continue
                     # 创建页面对象
+                    pageName = pageName.lower()
                     currentPage = Page.createPage(pageName, parentPage, pageConfig.get("check", []), pageConfig.get("in", None), pageConfig.get("out", None), pageConfig.get("alerts", None))
                     # 识别应用根节点（Top的直接子节点）
                     if parentName == "Top":
@@ -196,6 +196,8 @@ class _App_:
         Returns:
             应用对象，如果未找到则返回None
         """
+        if appName is None:
+            return None
         app = cls.apps.get(appName.lower())
         if app:
             return app
@@ -212,14 +214,3 @@ class _App_:
     def getAllApps(cls) -> List[str]:
         """获取所有应用名称"""
         return list(cls.apps.keys())
-
-    def cast(self, cls):
-        """将当前实例转换为指定类型，仅用于类型提示
-        
-        Args:
-            cls: 目标类型
-            
-        Returns:
-            self: 返回自身实例，但类型会被IDE识别为目标类型
-        """
-        return self

@@ -219,34 +219,33 @@ class CTools_(_Tools._Tools_):
         log = _G._G_.Log()
         # log.i(f'获取屏幕信息 android={cls.android}')
         try:
-            if cls.android:
-                info = cls.android.getScreenInfo()
-                if info is None:
-                    log.e("获取屏幕信息失败")
-                    return []
-                size = info.size()
-                result = []
-                # print(f"获取屏幕信息 size={size}")
-                for i in range(size):
-                    item = info.get(i)
-                    result.append({
-                        't': item.get('t').replace('\n', ' ').replace('\r', ''),
-                        'b': item.get('b')
-                    })
-                # log.i(f"获取屏幕信息 info={result}")
-                # 更新缓存
-                cls._screenInfoCache = result
-                return result
-            else:
-                log.i("非Android环境，无法获取屏幕信息sss")
-                return []
+            android = cls.android
+            if not android:
+                return cls._screenInfoCache
 
+            info = cls.android.getScreenInfo()
+            if info is None:
+                log.e("获取屏幕信息失败")
+                return []
+            size = info.size()
+            result = []
+            # print(f"获取屏幕信息 size={size}")
+            for i in range(size):
+                item = info.get(i)
+                result.append({
+                    't': item.get('t').replace('\n', ' ').replace('\r', ''),
+                    'b': item.get('b')
+                })
+            # log.i(f"获取屏幕信息 info={result}")
+            # 更新缓存
+            cls._screenInfoCache = result
+            return result
         except Exception as e:
             log.ex(e, "获取屏幕信息失败")
             return []
 
     @classmethod
-    def matchScreenText(cls, str: str, refresh=False):
+    def matchText(cls, str: str, refresh=False):
         try:
             # 使用缓存的屏幕信息
             screenInfo = cls.getScreenInfo(refresh)
@@ -258,7 +257,7 @@ class CTools_(_Tools._Tools_):
             # 解析区域和文本（保持原有逻辑）
             region, text = RegionCheck.parse(str)
             # 生成正则表达式（添加.*通配）
-            regex = re.compile(f".*{text}.*")
+            regex = re.compile(text)
             # log.i(f"正则表达式: {regex}, regioCheck={region}")
             # 遍历屏幕信息，查找匹配的文本
             # 先匹配文本，将匹配成功的项缓存
@@ -269,6 +268,7 @@ class CTools_(_Tools._Tools_):
                     textMatchedItems.append(item)
             if len(textMatchedItems) == 0:
                 return None
+            ret = textMatchedItems[0]
             if region:
                 # 再在匹配成功的项中检查区域
                 for item in textMatchedItems:
@@ -277,12 +277,13 @@ class CTools_(_Tools._Tools_):
                     isIn = region.isRectIn(
                         bounds[0], bounds[1], bounds[2], bounds[3])
                     if isIn:
-                        log.i(f"区域匹配: {item}")
-                        return item
-                return None
+                        # log.i(f"区域匹配: {item}")
+                        ret = item
+                        break
+            return ret
         except Exception as e:
             log.ex(e, "FindUI 指令执行失败")
-        return None
+            return None
 
     @classmethod
     def isHarmonyOS(cls) -> bool:
@@ -423,7 +424,7 @@ class CTools_(_Tools._Tools_):
         except Exception as e:
             log.ex(e, "获取当前应用信息失败")
             return None
-
+        
     @classmethod
     def isHome(cls) -> bool:
         """判断当前是否在桌面
@@ -523,10 +524,6 @@ class CTools_(_Tools._Tools_):
         log.i(f"<>: {param}")
         try:
             android = cls.android
-            if not android:
-                log.e("滑动失败:未找到Android实例")
-                return False
-
             # 默认持续时间为0.5秒
             default_duration = 500
 
@@ -545,7 +542,10 @@ class CTools_(_Tools._Tools_):
                 startX, startY = map(int, start.split(','))
                 endX, endY = map(int, end.split(','))
                 # log.i(f"滑动指令: 开始位置({startX}, {startY}), 结束位置({endX}, {endY}), 持续时间: {duration} ms")
-                return android.swipe(startX, startY, endX, endY, duration)
+                if android:
+                    return android.swipe(startX, startY, endX, endY, duration)
+                else:
+                    return False
             else:
                 # 解析为枚举
                 parts = param.split()
@@ -553,7 +553,10 @@ class CTools_(_Tools._Tools_):
                 duration = int(parts[1]) if len(
                     parts) > 1 and parts[1].isdigit() else default_duration
                 # log.i(f"滑动指令: 方向({direction}), 持续时间: {duration} ms")
-                return android.sweep(direction, duration)
+                if android:
+                    return android.sweep(direction, duration)
+                else:
+                    return False
 
         except Exception as e:
             log.ex(e, "滑动失败")
@@ -621,9 +624,7 @@ class CTools_(_Tools._Tools_):
         offsetX, offsetY = 0, 0
         # 使用正则表达式匹配偏移信息
         import re
-        match = re.search(r'(.*?)(?:x([+-]?\d+))?(?:y([+-]?\d+))?$', text)
-        offsetX = 0
-        offsetY = 0
+        match = re.search(r'(.*?)(?:x([+-]?\d+))?(?:y([+-]?\d+))', text)
         if match:
             text = match.group(1)
             x_offset = match.group(2)
@@ -632,11 +633,11 @@ class CTools_(_Tools._Tools_):
                 offsetX = int(x_offset)
             if y_offset:
                 offsetY = int(y_offset)
-            log.i(f"点击文本: {text}，偏移: x={offsetX}, y={offsetY}")        
         pos = cls.findTextPos(text, direction)
         if pos:
+            log.i(f"点击文本: {text}，pos={pos}，偏移: x={offsetX}, y={offsetY}")        
             return cls.clickPos(pos, (offsetX, offsetY))
-        return False
+        return cls.android is None
     
     @classmethod
     def clickPos(cls, pos, offset=None):
@@ -763,11 +764,8 @@ class CTools_(_Tools._Tools_):
         Returns:
             找到文本的坐标元组(x,y)或None
         """
-        android = cls.android
-        if android is None:
-            return None
         # 尝试在当前屏幕查找
-        pos = cls._findTextPos(text, searchDir, distance)
+        pos = cls._findTextPos(text)
         if pos:
             return pos
         # 如果没有指定搜索方向，只在当前屏幕查找
@@ -777,66 +775,34 @@ class CTools_(_Tools._Tools_):
         # 定义匹配函数
         def matchFunc():
             nonlocal pos
-            pos = cls._findTextPos(text, searchDir, distance)
+            pos = cls._findTextPos(text)
             return pos is not None
         # 使用swipeTo进行滑动查找
         found = cls.swipeTo(searchDir, matchFunc)
         return pos if found else None
 
     @classmethod
-    def _findTextPos(cls, text, searchDir=None, distance=None):
+    def _findTextPos(cls, text):
         """在当前屏幕尝试查找文本
         
         Args:
             text: 要查找的文本
-            searchDir: 搜索方向限制
-            distance: 搜索距离限制
             
         Returns:
             找到文本的坐标元组(x,y)或None
         """
         log = _G._G_.Log()
         try:
-            android = cls.android
-            if android:
-                nodes = android.findTextNodes()
-                if not nodes:
-                    log.i("屏幕上未找到任何文本节点")
-                    return None
-                    
-                for node in nodes:
-                    nodeText = node.getText()
-                    # 将 SpannableString 转换为普通字符串
-                    nodeText = str(nodeText) if nodeText is not None else ""
-                    if text in nodeText:
-                        bounds = node.getBounds()
-                        x, y = bounds.centerX(), bounds.centerY()
-                        
-                        # 检查方向和距离限制
-                        if searchDir and distance:
-                            screenWidth = android.getScreenWidth()
-                            screenHeight = android.getScreenHeight()
-                            centerX, centerY = screenWidth // 2, screenHeight // 2
-                            
-                            # 检查是否在指定方向和距离内
-                            if 'L' in searchDir and x > centerX:
-                                continue
-                            if 'R' in searchDir and x < centerX:
-                                continue
-                            if 'U' in searchDir and y > centerY:
-                                continue
-                            if 'D' in searchDir and y < centerY:
-                                continue
-                            
-                            # 检查距离
-                            dist = ((x - centerX) ** 2 + (y - centerY) ** 2) ** 0.5
-                            if dist > distance:
-                                continue
-                        
-                        log.i(f"找到文本: {text}, 位置: {x},{y}")
-                        return (x, y)
-            
-            log.i(f"屏幕上未找到文本: {text}")
+            # 使用matchText查找文本
+            result = cls.matchText(text, True)
+            if result:
+                # 从匹配结果中获取坐标
+                bounds = [int(x) for x in result['b'].split(',')]
+                centerX = (bounds[0] + bounds[2]) // 2
+                centerY = (bounds[1] + bounds[3]) // 2
+                # log.i(f"找到文本: {text}, 位置: {centerX},{centerY}")
+                return (centerX, centerY)
+            # log.i(f"屏幕上未找到文本: {text}")
             return None
         except Exception as e:
             log.ex(e, f"查找文本异常")

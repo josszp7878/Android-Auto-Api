@@ -58,7 +58,7 @@
                     "ratio": 10000,
                     "description": "河马剧场积分换算比例10000:1"
                 },
-                "alerts": [
+                "checkers": [
                         {
                             "name": "签到",
                             "timeout": -1,

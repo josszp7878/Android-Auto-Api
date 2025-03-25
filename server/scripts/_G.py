@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from _Tools import _Tools_
     from _App import _App_  
     from _Page import _Page_
-TOP = "Top"
+TOP = "top"
 UNKNOWN = 'unknown'
 g = {}
 

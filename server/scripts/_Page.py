@@ -63,7 +63,7 @@ class _Page_:
             
         return page
     
-    def __init__(self, name, parent=None, rules=None, inAction=None, outAction=None, alerts=None, timeout=30):
+    def __init__(self, name, parent=None, rules=None, inAction=None, outAction=None, checkers=None, timeout=30):
         self.name = name
         self.rules: list[str] = rules if rules else []  # 如果rules为None，则使用空列表
         self.parent: Optional["_Page_"] = parent  # 父页面对象
@@ -72,7 +72,7 @@ class _Page_:
         self.checkWaitTime: float = 1.0  # 默认检查等待时间
         self.inAction: str = inAction if inAction else ''
         self.outAction: str = outAction if outAction else ''
-        self.alerts: list[dict] = alerts if alerts else []
+        self.checkers: list[dict] = checkers if checkers else []
         self.timeout: int = timeout  # 默认超时时间
         
         # 如果有父页面，将自己添加为父页面的子页面
@@ -364,18 +364,18 @@ class _Page_:
             log.ex(e, f"检查页面规则失败: {self.name}")
             return False
     
-    @classmethod
-    def checkAlerts(cls, alerts) -> bool:
-        """检查应用的弹窗"""
-        if alerts is None or len(alerts) == 0:
+    def checkCheckers(self) -> bool:
+        """检查应用的检查器"""
+        checkers = self.checkers
+        if checkers is None or len(checkers) == 0:
             return True
         g = _G._G_
         tools = g.CTools()
         log = g.Log()
-        alert = next((alert for alert in alerts if cls.checkRules(alert.get("check"))), None)
-        if not alert:
+        checker = next((checker for checker in checkers if self.checkRules(checker.get("check"))), None)
+        if not checker:
             return True
-        timeout = alert.get("timeout", -1)
+        timeout = checker.get("timeout", -1)
         if timeout > 0:
             #等待指定时间
             time.sleep(timeout)
@@ -392,13 +392,13 @@ class _Page_:
                     time_int = int(time_str)
                     if time_int == 0:
                         break
-        tools.evalStr(alert.get("out"))
+        tools.evalStr(checker.get("out"))
         time.sleep(2)
         #check是否退出ALERT,如果还没退出，报错，并强制退出
-        if cls.checkRules(alert.get("check")):
+        if _Page_.checkRules(checker.get("check")):
             return True
         else:
-            log.e(f"弹窗: {alert.get('name')} 未正常退出，强行退出")
+            log.e(f"检查器: {checker.get('name')} 未正常退出，强行退出")
             tools.goBack()
             return False
 
@@ -428,7 +428,7 @@ class _Page_:
                 log.ex(e, f"执行代码块失败: {code}")
                 return False
         # 判断动作类型        
-        m = re.search(r'(?P<action>[^-\s]+)\s*-\s*(?P<target>.*)', actionStr)
+        m = re.search(r'(?P<action>[^-\s]+)\s*[:：]\s*(?P<target>.*)', actionStr)
         if m:
             action = m.group('action')
             target = m.group('target')
@@ -447,9 +447,9 @@ class _Page_:
             elif action == ActionType.BACK.value:
                 return tools.goBack()
         else:
-            return tools.click(actionStr)
+            return tools.click(actionStr)     
     
-    def go(self, targetPage: "_Page_", checkWaitTime=None) -> bool:
+    def go(self, targetPage: "_Page_", waitTime=None) -> bool:
         """跳转到目标页面并验证结果"""
         try:
             g = _G._G_
@@ -458,7 +458,7 @@ class _Page_:
             # 判断跳转方向
             pageName = targetPage.name
             success = False
-            log.i(f"跳转页面: {pageName}")
+            # log.i(f"跳转页面: {pageName}")
             if pageName in self.children:
                 log.i(f'-> {pageName}')
                 act = targetPage.inAction.strip()
@@ -487,10 +487,10 @@ class _Page_:
             # 执行动作
             if not success:
                 return False
-            log.i(f"检查弹窗: {targetPage.alerts}")
-            targetPage.checkAlerts(targetPage.alerts)
+            # log.i(f"检查弹窗: {targetPage.alerts}")
+            targetPage.checkCheckers()
             # 等待指定时间
-            wait_time = checkWaitTime if checkWaitTime is not None else self.checkWaitTime
+            wait_time = waitTime if waitTime is not None else self.timeout
             if wait_time > 0:
                 # log.i(f"... {wait_time} 秒后检查页面")
                 time.sleep(wait_time)
@@ -501,7 +501,7 @@ class _Page_:
                 _Page_.setCurrent(targetPage)
                 return targetPage
             else:
-                log.e(f"跳转失败: 未能验证目标页面 {targetPage.name}")
+                log.e(f"未能验证目标页面 {targetPage.name}")
                 return None
         except Exception as e:
             log.ex(e, f"跳转失败: {self.name} → {targetPage.name}")
