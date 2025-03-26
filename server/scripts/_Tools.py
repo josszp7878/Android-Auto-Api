@@ -26,6 +26,14 @@ class _Tools_:
     def toTaskId(cls, appName: str, templateId: str) -> str:
         """生成任务唯一标识"""
         return f"{appName}_{templateId}"
+    
+    @classmethod
+    def getServerURL(cls, serverIP=None):
+        """获取服务器URL"""
+        if serverIP is None:
+            import socket
+            serverIP = socket.gethostbyname(socket.gethostname())
+        return f"http://{serverIP}:{cls.port}"
 
     @classmethod
     def printCallStack(cls):

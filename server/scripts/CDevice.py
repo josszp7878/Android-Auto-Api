@@ -29,7 +29,7 @@ class CDevice_:
         if not hasattr(self, 'initialized'):
             self._deviceID = deviceID
             self.connected = False
-            self.server_url = None
+            self.server = None
             # 配置 socketio 客户端
             self.sio = socketio.Client(
                 reconnection=True,
@@ -85,7 +85,7 @@ class CDevice_:
         except Exception as e:
             log.ex(e, '断开连接时发生错误')
 
-    def connect(self, server_url=None, callback=None):
+    def connect(self, server=None, callback=None):
         """连接到服务器（异步方式）"""
         g = _G._G_
         log = g.Log()
@@ -95,11 +95,11 @@ class CDevice_:
                 log.i('客户端已经连接')
                 return
             
-            if not server_url:
-                server_url = self.server_url
+            if not server:
+                server = self.server
             else:
-                self.server_url = server_url
-            connect_url = f"{server_url}?device_id={self.deviceID}"
+                self.server = server
+            connect_url = f"{g.Tools().getServerURL(server)}?device_id={self.deviceID}"
             # log.i(f"开始连接: {connect_url}")
             
             def connect_async():
@@ -232,7 +232,7 @@ class CDevice_:
         g = _G._G_
         log = g.Log()
         sid = self.sio.sid
-        log.i(f'已连接到服务器, server: {self.server_url}')
+        log.i(f'已连接到服务器, server: {self.server}')
         self.connected = True
         
         # 连接成功后在新线程中执行登录

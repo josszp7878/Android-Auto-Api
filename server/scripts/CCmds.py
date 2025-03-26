@@ -38,14 +38,19 @@ class CCmds_:
         # 导入 regCmd
         from _CmdMgr import regCmd
         
-        @regCmd(r"信息")
+        @regCmd(r"信息-xx")
         def info():
-            """获取设备信息"""
+            """
+            功能：获取设备基本信息
+            指令名: info-i
+            中文名: 信息-xx
+            参数: 无
+            示例: 信息
+            """
             try:
                 g = _G._G_
                 log = g.Log()
                 device = g.getClass('CDevice').instance()
-                # log.i(f"获取设备信息: {device}")
                 return {
                     "deviceID": device.deviceID if device else "未知",
                     "version": "1.0.0",
@@ -55,17 +60,27 @@ class CCmds_:
                 return f"e->获取设备信息失败: {str(e)}"
         
         # 注册时间命令
-        @regCmd(r"时间")
+        @regCmd(r"时间-sj")
         def date():
-            """获取当前时间""" 
-            # log = _G._G_.Log()
-            # log.i("获取当前时dffdd")
+            """
+            功能：获取当前时间
+            指令名: date-d
+            中文名: 时间-sj
+            参数: 无
+            示例: 时间
+            """ 
             return str(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         
         # 注册状态命令
-        @regCmd(r"状态")
+        @regCmd(r"状态-zt")
         def status():
-            """查看设备状态"""
+            """
+            功能：查看设备连接状态
+            指令名: status-s
+            中文名: 状态-zt
+            参数: 无
+            示例: 状态
+            """  
             g = _G._G_
             device = g.getClass('CDevice').instance()
             status = "已连接" if device.connected else "未连接"
@@ -75,10 +90,15 @@ class CCmds_:
         
         # _Log._Log_.d(f"CCmds模块命令注册完成")
 
-        @regCmd(r"断开")
+        @regCmd(r"断开-dk")
         def disconnect():
-            """断开连接"""
-            # 在函数内部导入 CDevice
+            """
+            功能：断开与服务器的连接
+            指令名: disconnect-d
+            中文名: 断开-dk
+            参数: 无
+            示例: 断开
+            """
             g = _G._G_
             device = g.getClass('CDevice').instance()
             if device:
@@ -86,56 +106,60 @@ class CCmds_:
                 return "已断开连接"
             return "设备未连接"
 
-        @regCmd(r"连接", r"(?P<server>\S+)")
+        @regCmd(r"连接-lj", r"(?P<server>\S+)?")
         def connect(server):
-            """连接到服务器
-            用法: 连接 <服务器地址>
+            """
+            功能：连接到指定的服务器地址
+            指令名: connect-c
+            中文名: 连接-lj
+            参数: server - 服务器地址(可选)，如IP或域名
+            示例: 连接 [192.168.1.100]
             """
             g = _G._G_
-            device = g.getClass('CDevice').instance()
+            device = g.Device()
             if device:
                 return device.connect(server)
             return "设备未初始化"
 
 
-        @regCmd(r"登录")
+        @regCmd(r"登录-dl")
         def login():
-            """登录设备"""
+            """
+            功能：登录设备
+            指令名: login-l
+            中文名: 登录-dl
+            参数: 无
+            示例: 登录
+            """
             g = _G._G_
             device = g.getClass('CDevice').instance()
             if device.login():
                 return "登录成功"
             return "登录失败"
 
-        @regCmd(r"登出")
+        @regCmd(r"登出-dc")
         def logout():
-            """登出设备"""
+            """
+            功能：登出当前设备
+            指令名: logout-l
+            中文名: 登出-dc
+            参数: 无
+            示例: 登出
+            """
             g = _G._G_
             device = g.getClass('CDevice').instance()
             device.logout()
             return "已登出"
 
-        @regCmd(r"连接状态")
-        def isConnect():
-            """检查连接状态"""
-            g = _G._G_
-            device = g.getClass('CDevice').instance()
-            if device.connected:
-                return f"已连接到服务器，设备ID: {device.deviceID}"
-            return "未连接到服务器"
-
-        
-        @regCmd(r"移到", r"(?P<text>.+)")
-        def move(text):
-            position = _G._G_.Tools().findText(text)
-            android = cls.android()
-            if position and android:
-                return android.move(position[0], position[1])
-            return "未找到"
-
-        @regCmd(r"点击", r"(?P<text>.+)")
+        @regCmd(r"点击-dj", r"(?P<text>.+)")
         def click(text):
-            """点击指定位置，支持偏移"""
+            """
+            功能：点击指定位置或文本
+            指令名: click-c
+            中文名: 点击-dj
+            参数: text - 要点击的文本或坐标
+            示例: 点击 确定
+            """
             g = _G._G_
             tools = g.CTools()
             pos = tools.strToPos(text)
@@ -143,50 +167,83 @@ class CCmds_:
                 return tools.clickPos(pos)
             return tools.click(text)
 
-        @regCmd(r"检查安装\s+(?P<pkgName>\S+)")
+        @regCmd(r"安装了-azl", r"(?P<pkgName>\S+)")
         def isInstalled(pkgName):
+            """
+            功能：检查应用是否已安装
+            指令名: isInstalled-iI
+            中文名: 安装了-azl
+            参数: pkgName - 应用包名
+            示例: 安装了 com.example.app
+            """
             android = cls.android()
             if android:
                 return android.isAppInstalled(pkgName)
             return False
 
-        @regCmd(r"安装\s+(?P<pkgName>\S+)")
+        @regCmd(r"安装-az", r"(?P<pkgName>\S+)")
         def install(pkgName):
+            """
+            功能：安装指定应用
+            指令名: install-i
+            中文名: 安装-az
+            参数: pkgName - 应用包名或APK路径
+            示例: 安装 com.example.app
+            """
             android = cls.android()
             if android:
                 return android.installApp(pkgName)
             return False
 
-        @regCmd(r"卸载\s+(?P<pkgName>\S+)")
+        @regCmd(r"卸载-xs", r"(?P<pkgName>\S+)")
         def uninstall(pkgName):
+            """
+            功能：卸载指定应用
+            指令名: uninstall-u
+            中文名: 卸载-xs
+            参数: pkgName - 应用包名
+            示例: 卸载 com.example.app
+            """
             android = cls.android()
             if android:
                 return android.uninstallApp(pkgName)
             return False
 
-        @regCmd(r"启动|打开", r"(?P<appName>\S+)")
+        @regCmd(r"打开-dk", r"(?P<appName>\S+)")
         def openApp(appName):
-            """打开应用"""
+            """
+            功能：打开指定应用
+            指令名: openApp-oA
+            中文名: 打开-dk
+            参数: appName - 应用名称
+            示例: 打开 微信
+            """
             return _G._G_.Tools().openApp(appName)
 
-        @regCmd(r"停止|关闭", r"(?P<pkgName>\S+)")
+        @regCmd(r"关闭-gb", r"(?P<pkgName>\S+)")
         def stopApp(pkgName):
+            """
+            功能：关闭指定应用
+            指令名: stopApp-s
+            中文名: 关闭-gb
+            参数: pkgName - 应用包名
+            示例: 关闭 com.example.app
+            """
             android = cls.android()
             if android:
                 return android.closeApp(pkgName)
             return False
 
-        @regCmd(r"切换应用|任务列表|最近任务")
-        def switchApp():
-            """显示最近任务列表"""
-            android = cls.android()
-            if android:
-                return android.showRecentApps()
-            return False
 
         @regCmd(r"截屏-jp")
         def getScreen():
-            """获取屏幕结构化数据"""
+            """
+            功能：获取屏幕结构化数据
+            指令名: getScreen-g
+            中文名: 截屏-jp
+            参数: 无
+            示例: 截屏
+            """
             try:
                 g = _G._G_
                 log = g.Log()
@@ -201,16 +258,16 @@ class CCmds_:
             except Exception as e:
                 log.ex(e, "获取屏幕信息失败")
                 return '[]'
-
-
-        def clearScreenCache():
-            """清除屏幕信息缓存"""
-            global _screenInfoCache
-            _screenInfoCache = None
         
-        @regCmd(r"监控", r"(?P<interval>\d+)?")
+        @regCmd(r"监控-jk", r"(?P<interval>\d+)?")
         def startScreenMonitor(interval=None):
-            """开始屏幕监控"""
+            """
+            功能：开始屏幕监控
+            指令名: startScreenMonitor-s
+            中文名: 监控-jk
+            参数: interval - 监控间隔秒数(可选)
+            示例: 监控 [5]
+            """
             global _screenMonitorTask
             g = _G._G_
             log = g.Log()
@@ -236,9 +293,15 @@ class CCmds_:
                 log.ex(e, "启动监控失败")
                 return f"e->启动监控失败: {str(e)}"
 
-        @regCmd(r"停止监控")
+        @regCmd(r"停止监控-tzjk")
         def stopScreenMonitor():
-            """停止屏幕监控"""
+            """
+            功能：停止屏幕监控
+            指令名: stopScreenMonitor-s
+            中文名: 停止监控-tzjk
+            参数: 无
+            示例: 停止监控
+            """
             global _screenMonitorTask
             g = _G._G_
             log = g.Log()
@@ -252,34 +315,26 @@ class CCmds_:
                 log.ex(e, "停止监控失败")
                 return f"e->停止监控失败: {str(e)}"
 
-
-        @regCmd(r"截图")
-        def captureScreen():
-            """截图指令"""
-            try:
-                g = _G._G_
-                log = g.Log()
-                log.i("截图指令")
-                android = cls.android()
-                if android:
-                    image = android.takeScreenshot()
-                    if not image:
-                        return "e->截图失败:未获取到图片数据"
-                if not image.startswith("data:image"):
-                    image = f"data:image/jpeg;base64,{image}"
-                return image
-            except Exception as e:
-                log.ex(e, "截图失败")
-                return f"e->截图失败:{str(e)}"
-
-
-        @regCmd(r"滑动", r"(?P<param>.+)")
+        @regCmd(r"滑动-hd", r"(?P<param>.+)")
         def swipe(param):
+            """
+            功能：在屏幕上滑动
+            指令名: swipe-s
+            中文名: 滑动-hd
+            参数: param - 滑动参数，格式为"起点x,起点y,终点x,终点y"或方向
+            示例: 滑动 100,200,300,400
+            """
             return _G._G_.Tools().swipe(param)
 
-        @regCmd('快照')
+        @regCmd('快照-kz')
         def takeScreenshot():
-            """截取当前屏幕并发送到服务器"""
+            """
+            功能：截取当前屏幕并发送到服务器
+            指令名: takeScreenshot-t
+            中文名: 快照-kz
+            参数: 无
+            示例: 快照
+            """
             g = _G._G_
             log = g.Log()
             try:
@@ -291,10 +346,12 @@ class CCmds_:
 
         @regCmd(r"当前页面-dqym", r"(?P<appName>\S+)?")
         def curPage(appName=None):
-            """获取当前页面信息
-            用法: 当前页面 [应用名]
-            如果提供应用名，返回该应用的当前页面
-            如果不提供应用名，返回当前应用及其页面
+            """
+            功能：获取当前页面信息
+            指令名: curPage-c
+            中文名: 当前页面-dqym
+            参数: appName - 应用名称(可选)
+            示例: 当前页面 [微信]
             """
             pageName = ''
             from CApp import CApp_
@@ -315,33 +372,63 @@ class CCmds_:
 
         @regCmd(r"跳转-tz", r"(?P<target>.+)")
         def go(target):
-            """页面跳转测试命令"""
+            """
+            功能：页面跳转
+            指令名: go-g
+            中文名: 跳转-tz
+            参数: target - 目标页面路径
+            示例: 跳转 首页
+            """
             import CApp
             return CApp.CApp_.go(target)
         
         @regCmd(r"路径-lj", r"(?P<target>.+)")
         def pathTo(target):
-            """页面路径测试命令"""
+            """
+            功能：获取到目标页面的路径
+            指令名: pathTo-p
+            中文名: 路径-lj
+            参数: target - 目标页面
+            示例: 路径 设置
+            """
             import _Page
             return _Page._Page_.currentPathTo(target)
         
         @regCmd(r"桌面-zm")
         def home():
-            """返回手机桌面"""
+            """
+            功能：返回手机桌面
+            指令名: home-h
+            中文名: 桌面-zm
+            参数: 无
+            示例: 桌面
+            """
             return _G._G_.Tools().goHome()
         
         @regCmd(r"返回-fh")
         def goBack():
-            """返回上一页"""           
+            """
+            功能：返回上一页
+            指令名: goBack-g
+            中文名: 返回-fh
+            参数: 无
+            示例: 返回
+            """           
             return _G._G_.Tools().goBack()
 
 
 
         @regCmd(r"查找-cz", r"(?P<text>\S+)(?:\s+(?P<dir>[LRUDNONE]+))?(?:\s+(?P<distance>\d+))?")
         def findText(text, dir=None, distance=None):
-            """测试文字查找功能
-            格式：测试查找 文字 [方向] [距离]
-            示例：测试查找 下一步 LR 500
+            """
+            功能：查找屏幕上的文字
+            指令名: findText-f
+            中文名: 查找-cz
+            参数: 
+              text - 要查找的文字
+              dir - 查找方向(可选)，如LR(左右)、UD(上下)等
+              distance - 查找距离(可选)
+            示例: 查找 下一步 [LR] [500]
             """
             distance = int(distance) if distance else None
             g = _G._G_
@@ -361,7 +448,13 @@ class CCmds_:
 
         @regCmd('下载-xz', r"(?P<fileName>.+)?")
         def download(fileName):
-            """下载指定文件"""
+            """
+            功能：下载指定文件
+            指令名: download-d
+            中文名: 下载-xz
+            参数: fileName - 文件名(可选)，不提供则下载所有文件
+            示例: 下载 [config.json]
+            """
             g = _G._G_
             log = g.Log()
             try:
@@ -370,7 +463,6 @@ class CCmds_:
                     existFileName = g.findFileName(fileName)
                     if existFileName:
                         fileName = existFileName
-                    # log.i(f"下载文件: {fileName}")
                     FS.download(fileName)    
                 else:
                     FS.downAll()
@@ -381,11 +473,12 @@ class CCmds_:
 
         @regCmd('获取文件-hqwj', r"(?P<fileName>.+)")
         def getFileName(fileName):
-            """检查文件是否存在
-            Args:
-                fileName: 要检查的文件名
-            Returns:
-                str: 文件是否存在的结果
+            """
+            功能：检查文件是否存在
+            指令名: getFileName-g
+            中文名: 获取文件-hqwj
+            参数: fileName - 要检查的文件名
+            示例: 获取文件 config.json
             """
             g = _G._G_
             log = g.Log()
@@ -397,8 +490,12 @@ class CCmds_:
 
         @regCmd(r"执行-zx", r"(?P<code>.+)")
         def eval(code):
-            """执行代码并返回结果
-            用法: eval <代码>
+            """
+            功能：执行代码并返回结果
+            指令名: eval-e
+            中文名: 执行-zx
+            参数: code - 要执行的代码
+            示例: 执行 print("Hello")
             """
             g = _G._G_
             log = g.Log()
@@ -411,16 +508,12 @@ class CCmds_:
 
         @regCmd('匹配文字-ppwz', r"(?P<rule>\S+)")
         def matchText(rule):
-            """在当前屏幕上查找文字
-            用法: 匹配文字 <文字规则>
-            
-            文字规则支持以下格式:
-            - 普通文字: 直接查找包含该文字的元素
-            - 区域限制: [x1,y1,x2,y2]文字 - 在指定区域内查找文字
-            - Y轴限制: [y100,200]文字 - 在指定Y轴范围内查找文字
-            - X轴限制: [x100,200]文字 - 在指定X轴范围内查找文字
-            
-            返回找到的元素信息，包括文字内容和位置
+            """
+            功能：在当前屏幕上查找文字
+            指令名: matchText-m
+            中文名: 匹配文字-ppwz
+            参数: rule - 文字规则
+            示例: 匹配文字 确定
             """
             g = _G._G_
             log = g.Log()
@@ -455,7 +548,13 @@ class CCmds_:
 
         @regCmd(r"返回桌面-fhzm")
         def goHome():
-            """返回主屏幕"""
+            """
+            功能：返回手机桌面
+            指令名: goHome-g
+            中文名: 返回桌面-fhzm
+            参数: 无
+            示例: 返回桌面
+            """
             from CApp import CApp_
             result = CApp_.goHome()
             if result:
@@ -466,9 +565,12 @@ class CCmds_:
 
         @regCmd(r"关闭-gb", r"(?P<appName>\S+)?")
         def closeApp(appName=None):
-            """关闭应用
-            用法: 关闭应用 [应用名]
-            如果不提供应用名，则关闭当前应用
+            """
+            功能：关闭应用
+            指令名: closeApp-c
+            中文名: 关闭-gb
+            参数: appName - 应用名称(可选)，不提供则关闭当前应用
+            示例: 关闭 [微信]
             """
             from CApp import CApp_
             
@@ -487,7 +589,12 @@ class CCmds_:
 
         @regCmd(r"加载配置-jzpz")
         def loadConfig():
-            """加载环境配置
+            """
+            功能：加载环境配置
+            指令名: loadConfig-l
+            中文名: 加载配置-jzpz
+            参数: 无
+            示例: 加载配置
             """
             _G._G_.load()
 

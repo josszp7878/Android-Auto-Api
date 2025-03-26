@@ -199,13 +199,6 @@ class CTools_(_Tools._Tools_):
             return False
 
 
-  
-    @classmethod
-    def getLocalIP(cls):
-        """获取本机IP地址"""
-        import socket
-        return socket.gethostbyname(socket.gethostname())
-
     @classmethod
     def toPos(cls, item: dict):
         bounds = [int(x) for x in item['b'].split(',')]

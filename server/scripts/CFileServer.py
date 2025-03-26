@@ -6,11 +6,11 @@ from threading import Thread
 import _G
 
 class CFileServer_:
-    serverUrl = None
+    serverIp = None
 
     @classmethod
     def Clone(cls, oldCls):
-        cls.serverUrl = oldCls.serverUrl
+        cls.serverIp = oldCls.serverIp
 
     @classmethod
     def downAll(cls, callback: Callable[[bool], None] = None):
@@ -53,7 +53,7 @@ class CFileServer_:
         log = g.Log()
         ok = False
         try:
-            url = f"{cls.serverUrl}/file/{filename}"
+            url = f"{g.Tools.getServerURL(cls.serverIp)}/file/{filename}"
             # log.d(f"下载文件...: {url}")
             response = requests.get(url, timeout=8)
             response.raise_for_status()
@@ -97,7 +97,7 @@ class CFileServer_:
     @classmethod
     def remoteVersions(cls):
         # 测试阶段使用的方法
-        url = f"{cls.serverUrl}/timestamps"
+        url = f"{cls.serverIp}/timestamps"
         try:
             response = requests.get(url, timeout=8)
             response.raise_for_status()

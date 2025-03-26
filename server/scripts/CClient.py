@@ -73,17 +73,15 @@ class CClient_:
             cls.fromAndroid = fromAndroid
         log.d(f"初始化客户端: deviceID={deviceID}, server={server}, fromAndroid={fromAndroid}")      
         try:
-            tools = g.Tools()
-            server = server or tools.getLocalIP()
-            server_url = f"http://{server}:{tools.port}"
+            tools = g.CTools()
             
             from CDevice import CDevice_
             cls.deviceID = deviceID or 'TEST1'
             cls.server = server
             cls.device = CDevice_(cls.deviceID)
             g.CmdMgr().regAllCmds()
-            cls._connectServer(server_url, tools)
-            g.CFileServer().serverUrl = server_url 
+            cls._connectServer(server, tools)
+            g.CFileServer().serverIp = server
             print("按Ctrl+C退出")    
             while True:
                 try:
@@ -105,7 +103,7 @@ class CClient_:
             log.ex(e, '初始化失败')
 
     @classmethod
-    def _connectServer(cls, server_url, tools):
+    def _connectServer(cls, server, tools):
         """连接服务器核心逻辑"""
         waitting = True
         def onConnected(ok):
@@ -113,7 +111,7 @@ class CClient_:
             waitting = False
             if not ok:
                 tools.toast("服务器连接失败")
-        cls.device.connect(server_url, onConnected)
+        cls.device.connect(server, onConnected)
         timeout = 30
         start_time = time.time()
         while waitting:

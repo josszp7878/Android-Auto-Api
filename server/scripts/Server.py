@@ -254,6 +254,7 @@ def handle_2S_Cmd(data):
             log = Log.cmdLog(command, sender, executor)
             # 执行后更新结果
             Log.setCmdResult(log, result)
+            Log.i(f'=>{result}')
             return result
         else:
             result = deviceMgr.sendClientCmd(device_id, command, data.get('params', {}))

@@ -29,7 +29,12 @@ class SCmds_:
         
         @regCmd(r"服务器信息-fwqxx")
         def info():
-            """获取服务器信息"""
+            """功能：获取服务器基本信息
+            指令名：info
+            中文名：服务器信息
+            参数：无
+            示例：服务器信息
+            """
             return {
                 "version": "1.0.0",
                 "timestamp": str(datetime.now()),
@@ -38,9 +43,12 @@ class SCmds_:
         
         @regCmd(r"日期-rq", r"(?P<format>\S+)?")
         def date(format=None):
-            """获取当前日期和时间
-            用法: 日期 [格式]
-            默认格式: %Y-%m-%d %H:%M:%S
+            """功能：获取当前日期和时间
+            指令名：date
+            中文名：日期
+            参数：
+              format - 日期格式字符串 (可选)
+            示例：日期 %Y年%m月%d日
             """
             try:
                 date_format = format or "%Y-%m-%d %H:%M:%S"
@@ -55,12 +63,22 @@ class SCmds_:
 
         @regCmd('状态-zt')
         def status():
-            """显示服务器状态"""
+            """功能：显示服务器运行状态
+            指令名：status
+            中文名：状态
+            参数：无
+            示例：状态
+            """
             return '服务器运行正常aa'
 
         @regCmd('清除-qc')
         def clearLog():
-            """清除日志缓存"""
+            """功能：清除控制台日志缓存
+            指令名：clearLog
+            中文名：清除
+            参数：无
+            示例：清除
+            """
             try:
                 # 清空日志缓存
                 log.clear()
@@ -75,7 +93,12 @@ class SCmds_:
 
         @regCmd('设备列表-sblb')
         def list_devices():
-            """列出所有设备"""
+            """功能：列出所有连接的设备及其状态
+            指令名：list_devices
+            中文名：设备列表
+            参数：无
+            示例：设备列表
+            """
             device_manager = SDeviceMgr_()
             devices = device_manager.to_dict()
             return '\n'.join([
@@ -85,13 +108,14 @@ class SCmds_:
 
         @regCmd('进度-jd', r"(?P<deviceId>[^ ]+)?(?P<appName>[^ ]+)?(?P<taskName>[^ ]+)?")
         def progress(deviceId, appName, taskName):
-            """查询任务进度
-            用法: 进度 <deviceId> <appName> <taskName>
-            
-            特殊参数:
-            - deviceId 为 '_' 时使用当前设备
-            - appName 为 '_' 时使用最近任务的应用名
-            - taskName 为 '_' 时使用最近任务的任务名
+            """功能：查询任务执行进度
+            指令名：progress
+            中文名：进度
+            参数：
+              deviceId - 设备ID (可选，使用'_'表示当前设备)
+              appName - 应用名称 (可选，使用'_'表示最近任务)
+              taskName - 任务名称 (可选，使用'_'表示最近任务)
+            示例：进度 _ 微信 签到
             """
             try:
                 # 处理当前设备ID
@@ -135,7 +159,12 @@ class SCmds_:
 
         @regCmd('继续-jx')
         def resume():
-            """继续当前设备的暂停任务"""
+            """功能：继续执行当前设备的暂停任务
+            指令名：resume
+            中文名：继续
+            参数：无
+            示例：继续
+            """
             try:
                 device = deviceMgr.curDevice
                 if not device:
@@ -156,7 +185,12 @@ class SCmds_:
 
         @regCmd('调试-ts')
         def debug():
-            """显示调试信息"""
+            """功能：显示当前设备的详细调试信息
+            指令名：debug
+            中文名：调试
+            参数：无
+            示例：调试
+            """
             try:
                 # 获取当前设备
                 device_id = deviceMgr.curDeviceID
@@ -200,13 +234,13 @@ class SCmds_:
 
         @regCmd('任务列表-rwlb', r"(?P<deviceId>[^ ]+)?(?P<state>[^ ]+)?")
         def show_tasks(deviceId, state):
-            """显示任务
-            用法: 任务列表 [deviceId] [state]
-            
-            参数:
-            - deviceId: 设备ID，默认为当前设备
-            - state: 任务状态，可选值: running, paused, completed, cancelled, all
-            默认为 all
+            """功能：显示设备的任务列表
+            指令名：show_tasks
+            中文名：任务列表
+            参数：
+               deviceId - 设备ID (可选，默认为当前设备)
+               state - 任务状态筛选 (可选，默认为all)
+            示例：任务列表 设备1 running
             """
             try:
                 # 解析参数
@@ -243,8 +277,12 @@ class SCmds_:
 
         @regCmd('设置日期-szrq', r"(?P<date>[^ ]+)")
         def set_date(date):
-            """设置任务管理器日期
-            用法: 设置日期 YY-M-D
+            """功能：设置任务管理器的执行日期
+            指令名：set_date
+            中文名：设置日期
+            参数：
+               date - 日期字符串，格式为YY-M-D
+            示例：设置日期 23-11-30
             """
             try:
                 parts = date.split('-')
@@ -279,7 +317,12 @@ class SCmds_:
 
         @regCmd('停止-tz')
         def stop():
-            """停止当前设备的当前任务"""
+            """功能：停止当前设备正在运行的任务
+            指令名：stop
+            中文名：停止
+            参数：无
+            示例：停止
+            """
             try:
                 device_id = deviceMgr.curDeviceID
                 if not device_id:
@@ -306,7 +349,12 @@ class SCmds_:
 
         @regCmd('保存结果-bcjg')
         def saveResult():
-            """保存最近一次命令执行结果到result.json"""
+            """功能：保存最近一次命令执行结果到JSON文件
+            指令名：saveResult
+            中文名：保存结果
+            参数：无
+            示例：保存结果
+            """
             try:
                 g = _G._G_
                 result = g.lastResult
@@ -344,7 +392,12 @@ class SCmds_:
 
         @regCmd('分析收益-fxsy')
         def analyzeEarnings():
-            """分析收益"""
+            """功能：分析当前设备屏幕上的收益信息
+            指令名：analyzeEarnings
+            中文名：分析收益
+            参数：无
+            示例：分析收益
+            """
             try:
                 # 等待截屏完成后的回调
                 def parseResult(data):
@@ -369,8 +422,12 @@ class SCmds_:
 
         @regCmd('打开-dk', r"(?P<appName>[^ ]+)")
         def openapp(appName):
-            """打开指定应用
-            用法: 打开 <应用名>
+            """功能：在当前设备上打开指定应用
+            指令名：openapp
+            中文名：打开
+            参数：
+               appName - 应用名称
+            示例：打开 微信
             """
             try:
                 import _App
@@ -401,13 +458,23 @@ class SCmds_:
 
         @regCmd('应用列表-yylb')
         def apps():
-            """列出所有应用"""
-            from server.scripts._AppMgr import appMgr
+            """功能：列出所有可用的应用
+            指令名：apps
+            中文名：应用列表
+            参数：无
+            示例：应用列表
+            """
+            from _AppMgr import appMgr
             return "i->" + json.dumps(appMgr.get_app_names(), ensure_ascii=False, indent=2)
 
         @regCmd('快照-kz')
         def takeScreenshot():
-            """对当前设备进行快照"""
+            """功能：对当前设备进行屏幕截图
+            指令名：takeScreenshot
+            中文名：快照
+            参数：无
+            示例：快照
+            """
             try:
                 device = deviceMgr.curDevice
                 if device is None:
@@ -419,8 +486,12 @@ class SCmds_:
 
         @regCmd('@', r"(?P<command>.+)")
         def serverCommand(command):
-            """执行服务器命令
-            用法: @ <命令>
+            """功能：在服务器端执行命令
+            指令名：serverCommand
+            中文名：@
+            参数：
+               command - 要执行的服务器命令
+            示例：@ 状态
             """
             try:
                 result, _ = _G._G_.getClass('_CmdMgr').do(command, sender=None, data=None)
@@ -431,7 +502,12 @@ class SCmds_:
 
         @regCmd('扫描应用-smyy')
         def scanApp():
-            """分析当前设备屏幕上的应用"""
+            """功能：分析当前设备屏幕上的应用信息
+            指令名：scanApp
+            中文名：扫描应用
+            参数：无
+            示例：扫描应用
+            """
             try:
                 device = deviceMgr.curDevice
                 if not device:
@@ -445,9 +521,12 @@ class SCmds_:
 
         @regCmd('截屏-jp', r"(?P<pageName>[^ ]+)?")
         def getScreenInfo(pageName=None):
-            """获取当前客户端的屏幕信息
-            用法: 截屏 [页面名]
-            获取当前设备的屏幕信息并缓存到服务端
+            """功能：获取当前设备的屏幕信息并缓存
+            指令名：getScreenInfo
+            中文名：截屏
+            参数：
+               pageName - 保存的页面名称 (可选，默认为'Last')
+            示例：截屏 登录页
             """
             try:
                 log = _G._G_.Log()
@@ -484,9 +563,12 @@ class SCmds_:
 
         @regCmd('设置屏幕-szpm', r"(?P<pageName>[^ ]+)?")
         def setScreenInfo(pageName=None):
-            """设置屏幕信息到客户端
-            用法: 设置屏幕 [页面名]
-            如果不提供参数，则使用最近一次获取的屏幕信息
+            """功能：将服务端缓存的屏幕信息发送到客户端
+            指令名：setScreenInfo
+            中文名：设置屏幕
+            参数：
+               pageName - 页面名称 (可选，默认使用最近获取的屏幕)
+            示例：设置屏幕 登录页
             """
             try:
                 log = _G._G_.Log()
@@ -509,8 +591,12 @@ class SCmds_:
 
         @regCmd('格式化JSON-gsjson', r"(?P<fileName>[^ ]+)")
         def formatJsonFile(fileName):
-            """格式化JSON文件，使其更易读
-            用法: 格式化JSON <文件名>
+            """功能：格式化指定的JSON文件使其更易读
+            指令名：formatJsonFile
+            中文名：格式化JSON
+            参数：
+               fileName - JSON文件名
+            示例：格式化JSON config.json
             """
             try:
                 log = _G._G_.Log()
@@ -548,7 +634,12 @@ class SCmds_:
 
         @regCmd('打印拓扑-pt')
         def printTopology():
-            """打印拓扑结构"""
+            """功能：打印系统拓扑结构
+            指令名：printTopology
+            中文名：打印拓扑
+            参数：无
+            示例：打印拓扑
+            """
             try:
                 _App_.printTopology()
                 return "i->拓扑结构已打印"
@@ -558,6 +649,10 @@ class SCmds_:
 
         @regCmd()
         def load():
-            """加载环境配置
+            """功能：加载环境配置
+            指令名：load
+            中文名：无 (使用函数名)
+            参数：无
+            示例：load
             """
             _G._G_.load()

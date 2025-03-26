@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from _Tools import _Tools_
     from _App import _App_  
     from _Page import _Page_
+    from CDevice import CDevice_ 
 TOP = "top"
 UNKNOWN = 'unknown'
 g = {}
@@ -155,6 +156,10 @@ class _G_:
     @classmethod
     def CmdMgr(cls) -> '_CmdMgr_':
         return cls.getClass('_CmdMgr')
+    
+    @classmethod
+    def Device(cls) -> 'CDevice_':
+        return cls.getClass('CDevice')
 
 
     @classmethod

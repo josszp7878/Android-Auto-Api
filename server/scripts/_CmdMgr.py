@@ -380,12 +380,23 @@ class _CmdMgr_:
         """注册命令管理器自身的命令"""
         @cls.reg(r"重启-cq")
         def reloadAll():
-            """重新加载所有命令"""
+            """功能：重新加载所有脚本并重启脚本引擎
+            指令名：reloadAll
+            中文名：重启
+            参数：无
+            示例：重启
+            """
             return cls._reset()
         
         @cls.reg(r"加载-jz", r"(?P<moduleName>\S+)")
         def reload(moduleName):
-            """重新加载指定模块"""
+            """功能：重新加载指定模块
+            指令名：reload
+            中文名：加载
+            参数：
+              moduleName - 要重载的模块名
+            示例：加载 _CmdMgr
+            """
             g = _G._G_
             log = g.Log()
             # log.i(f"重新加载模块: {moduleName}")
@@ -408,24 +419,50 @@ class _CmdMgr_:
         
         @cls.reg(r"命令列表-mllb")
         def cmdList():
-            """列出所有可用命令"""
+            """功能：列出所有可用命令
+            指令名：cmdList
+            中文名：命令列表
+            参数：无
+            示例：命令列表
+            """
             result = "可用命令:\n"
             for cmd in sorted(cls.cmdRegistry, key=lambda x: x.name):
-                result += f"{cmd.name}: {cmd.alias}\n"
+                result += f"{cmd.name}-{cmd.sName}\t\t: {cmd.alias}-{cmd.sAlias}\n"
             return result
         
         @cls.reg(r"帮助-bz", r"(?P<command>\S+)?")
         def help(command=None):
-            """显示命令帮助信息
-            用法: 帮助 [命令名]
-            不提供命令名时显示所有命令的帮助信息
+            """功能：显示命令帮助信息
+            指令名：help
+            中文名：帮助
+            参数：
+              command - 要查询的命令名称
+            示例：帮助 重启
             """
             if not command:
-                return "e->请指定要显示帮助的命令"
+                return """
+                指令使用说明：
+
+                格式：[设备ID][>]指令名 [参数] 
+                说明：
+                1. 指令名：可以是中文，英文和缩写，统一小写。
+                   可用命令列表见下文
+                2. 参数：空格于指令名隔开，不同指令有不同参数，
+                   具体请调用：help 命令 进行查看
+                3. 客户端指令格式：
+                   [设备ID]>命令 [参数]
+                   其中:设备ID为执行指令的目标设备ID或者分组ID,
+                   如果没提供，就表示当前设备
+                4. 服务端指令：
+                    命令 [参数]
+                5. 可用命令:
+                    客户端指令列表用：>cl 查询
+                    服务端指令列表用：cl 查询
+                """
             # 获取命令信息
             cmd_info = cls._findCommand(command)
             if not cmd_info:
-                return "e->找不到命令"
+                return "e->无效指令"
             # 获取命令的描述
             desc = cmd_info.doc
             return desc
