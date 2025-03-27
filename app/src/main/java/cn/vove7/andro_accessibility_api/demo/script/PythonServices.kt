@@ -661,5 +661,17 @@ class PythonServices {
                 return null
             }
         }
+
+        /**
+         * 控制点击坐标显示功能
+         * @param enable 是否启用点击坐标显示
+         * @return 操作是否成功
+         */
+        @JvmStatic
+        fun showClicker(enable: Boolean) {
+            Timber.tag(TAG).i("设置点击坐标显示: $enable")
+            val toolBarService = ToolBarService.getInstance()?.get()
+            toolBarService?.showClicker(enable)
+        }
     }
 } 

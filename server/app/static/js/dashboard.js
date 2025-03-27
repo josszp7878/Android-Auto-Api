@@ -23,18 +23,9 @@ class Dashboard {
         this.logManager.setCallbacks({
             onLogsUpdated: (logs) => {
                 this.systemLogs = logs;
-                this.$nextTick(() => {
-                    const container = this.$refs.consoleLogs;
-                    if (container && this.logManager.autoScroll) {
-                        container.scrollTop = container.scrollHeight;
-                    }
-                });
             },
             onStatsUpdated: (stats) => {
                 this.logStats = stats;
-            },
-            onScrollToBottom: () => {
-                this.scrollToBottom();
             }
         });
         
@@ -113,7 +104,6 @@ class Dashboard {
                     this.historyIndex = -1;
                     this._tempCommand = undefined;
                     this.commandInput = '';
-                    this.scrollToBottom();
                 },
                 handleOutsideClick() {
                     if (this.showLogs) {
@@ -423,29 +413,9 @@ class Dashboard {
                         e.preventDefault();
                     }
                 },
-                scrollToBottom() {
-                    this.$nextTick(() => {
-                        const container = this.$refs.consoleLogs;
-                        if (container) {
-                            container.scrollTop = container.scrollHeight;
-                            this.logManager.autoScroll = true;
-                        }
-                    });
-                },
                 handleSocketEvents() {
-                    this.socket = io();
-                    
-                    // 接收新日志
-                    this.socket.on('S2B_AddLog', (log) => {
-                        this.logManager.addLog(log.level, log.tag, log.message);
-                    });
-                    
-                    // 接收日志列表
-                    this.socket.on('S2B_LoadLogs', (data) => {
-                        this.logManager.parseAndFilterLogs();
-                    });
-                    
-                    // 其他事件处理...
+                    this.socket = io();                    
+
                 },
                 // 处理设备状态更新
                 handleDeviceUpdate(device) {
@@ -521,64 +491,16 @@ class Dashboard {
                     this.logManager.addLog('i', 'Console', '控制台已连接到服务器');
                     // 初始获取日志数据
                     this.logManager.socket.emit('B2S_GetLogs');
-                    // 初始化时滚动到底部
-                    this.$nextTick(this.scrollToBottom);
                 });
                 
-                // // 命令结果处理
-                // this.socket.on('S2B_CmdResult', (data) => {
-                //     const content = data.result || '';
-                //     let level = data.level || 'i';
-                    
-                //     // 添加到日志
-                //     this.addLog(level, 'Command', content);
-                    
-                //     this.updateLastActivity();
-                //     // 滚动到底部显示结果
-                //     this.$nextTick(this.scrollToBottom);
-                // });
-
+             
                 this.socket.on('error', (data) => {
                     this.updateLastActivity();
                     this.logManager.addLog('e', 'Error', data.message);
                 });
 
                 // 获取初始日志数据
-                this.socket.emit('B2S_GetLogs');
-                
-                // 修改日志数据处理
-                this.socket.on('S2B_RefreshLogs', (data) => {
-                    console.log('收到日志数据:', data);
-                    const logs = data.logs
-                        .map(line => this.parseLogLine(line.trim()))
-                        .filter(log => log !== null);
-                        
-                    if (this.logsPage > 1) {
-                        // 分页加载时，将新日志添加到开头
-                        this.systemLogs.unshift(...logs);
-                    } else {
-                        // 首次加载或刷新时，替换全部日志
-                        this.systemLogs = logs;
-                    }
-                    
-                    // 更新统计信息
-                    this.logStats = {
-                        start: data.start || 1,
-                        end: data.end || this.systemLogs.length,
-                        total: data.total || this.systemLogs.length
-                    };
-                    
-                    this.loadingLogs = false;
-                    this.hasMoreLogs = data.has_more;
-                    
-                    // 滚动到底部
-                    this.$nextTick(this.scrollToBottom);
-                });
-
-                // 添加滚动到底部的处理
-                this.socket.on('scroll_logs', () => {
-                    this.$nextTick(this.scrollToBottom);
-                });
+                this.socket.emit('B2S_GetLogs');             
 
                 // 设备状态变化处理
                 this.socket.on('S2B_DeviceUpdate', (data) => {

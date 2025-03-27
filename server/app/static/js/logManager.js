@@ -92,6 +92,7 @@ class LogManager {
 
     // 绑定方法上下文
     this.processCmdLog = this.processCmdLog.bind(this);
+    this.scrollToBottom = this.scrollToBottom.bind(this);
   }
   
   // 实际addLog方法
@@ -132,6 +133,7 @@ class LogManager {
       this.hasMoreLogs = data.hasMore;
       this.currentDate = data.date;
       this.parseAndFilterLogs();
+      this.scrollToBottom();
     });
     
     // 接收新增的日志
@@ -155,6 +157,14 @@ class LogManager {
         this.addLog(data.level, data.tag, data.message);
       } else {
         console.error('addLog方法不可用，检查初始化流程');
+      }
+      const sctb = this.callbacks.onScrollToBottom;
+      console.log('sctb:', sctb);
+      // sctb && sctb();
+      
+      // 添加日志后直接滚动到底部
+      if (this.autoScroll) {
+        this.scrollToBottom();
       }
     });
   }
@@ -510,5 +520,17 @@ class LogManager {
   
   get logStats() {
     return this._logStats;
+  }
+  
+  // 添加滚动到底部的方法
+  scrollToBottom() {
+    // 使用 setTimeout 确保在 DOM 更新后执行
+    setTimeout(() => {
+      const container = document.querySelector('.console-logs');
+      if (container) {
+        container.scrollTop = container.scrollHeight;
+        this.autoScroll = true;
+      }
+    }, 0);
   }
 } 

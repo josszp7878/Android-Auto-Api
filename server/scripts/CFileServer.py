@@ -6,8 +6,8 @@ from threading import Thread
 import _G
 
 class CFileServer_:
+    
     serverIp = None
-
     @classmethod
     def Clone(cls, oldCls):
         cls.serverIp = oldCls.serverIp
@@ -53,7 +53,7 @@ class CFileServer_:
         log = g.Log()
         ok = False
         try:
-            url = f"{g.Tools.getServerURL(cls.serverIp)}/file/{filename}"
+            url = f"{g.Tools().getServerURL(cls.serverIp)}/file/{filename}"
             # log.d(f"下载文件...: {url}")
             response = requests.get(url, timeout=8)
             response.raise_for_status()

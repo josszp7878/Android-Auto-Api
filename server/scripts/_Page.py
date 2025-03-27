@@ -1,15 +1,8 @@
 import time
 import _G
-from typing import List, Optional  # 添加typing模块导入
-
-# 动作类型枚举
-from enum import Enum
-class ActionType(Enum):
-    CLICK = 'C'
-    OPENAPP = 'O'
-    SWIPE = 'S'
-    BACK = 'B'
-    CODE = ''
+from typing import List, Optional, Dict, Any, Callable
+import CChecker
+import re
 
 
 class _Page_:
@@ -39,7 +32,7 @@ class _Page_:
     
     
     @classmethod
-    def createPage(cls, name, parent=None, rules=None, inAction=None, outAction=None, alerts=None, timeout=2)->"_Page_":
+    def createPage(cls, name, parent=None, matches=None, inAction=None, outAction=None, checkers=None, dialogs=None, timeout=2)->"_Page_":
         """创建页面对象
         
         Args:
@@ -54,7 +47,7 @@ class _Page_:
             return parent.children[name]
             
         # 创建新页面
-        page = _Page_(name, parent, rules, inAction, outAction, alerts, timeout)  # 提供空规则列表作为默认值
+        page = _Page_(name, parent, matches, inAction, outAction, checkers, dialogs, timeout)  # 提供空规则列表作为默认值
         
         # 设置父子关系
         if parent:
@@ -63,16 +56,16 @@ class _Page_:
             
         return page
     
-    def __init__(self, name, parent=None, rules=None, inAction=None, outAction=None, checkers=None, timeout=30):
+    def __init__(self, name, parent=None, matches=None, inAction=None, outAction=None, checkers=None, dialogs=None, timeout=30):
         self.name = name
-        self.rules: list[str] = rules if rules else []  # 如果rules为None，则使用空列表
+        self.matches: list[str] = matches if matches else [] 
         self.parent: Optional["_Page_"] = parent  # 父页面对象
         self.children: dict[str, "_Page_"] = {}  # {name: CPage_对象}
-        self.transitions: dict[str, str] = {}  # {actions}
-        self.checkWaitTime: float = 1.0  # 默认检查等待时间
         self.inAction: str = inAction if inAction else ''
         self.outAction: str = outAction if outAction else ''
-        self.checkers: list[dict] = checkers if checkers else []
+        # 从配置中创建检查器
+        self.checkers = {name: CChecker.CChecker_(name, config, self) for name, config in checkers.items()} if checkers else {}
+        self.dialogs: dict[str, dict] = dialogs if dialogs else {}
         self.timeout: int = timeout  # 默认超时时间
         
         # 如果有父页面，将自己添加为父页面的子页面
@@ -231,7 +224,7 @@ class _Page_:
         
         return path
 
-    def findPagesByPath(self, path, visited=None, current_path=None) -> List["_Page_"]:
+    def findPagesByPath(self, path, visited=None, curPath=None) -> List["_Page_"]:
         """从当前页面开始查找指定路径的页面
         
         Args:
@@ -245,8 +238,8 @@ class _Page_:
         """
         if visited is None:
             visited = set()
-        if current_path is None:
-            current_path = [self]
+        if curPath is None:
+            curPath = [self]
         
         # 如果以"/"开头，从根节点开始查找
         if path.startswith('/'):
@@ -258,7 +251,7 @@ class _Page_:
         
         # 如果路径为空，返回当前页面
         if not path:
-            return current_path
+            return curPath
         
         # 分解路径
         parts = path.split('/')
@@ -272,9 +265,9 @@ class _Page_:
         child = self.getChild(first_part)
         if child and child not in visited:
             if len(parts) == 1:  # 最后一级
-                return current_path + [child]
+                return curPath + [child]
             else:  # 继续查找下一级
-                return child.findPagesByPath(rest_path, visited, current_path + [child])
+                return child.findPagesByPath(rest_path, visited, curPath + [child])
         
         # 如果在子节点中未找到，尝试在兄弟节点中查找
         if self.parent:
@@ -282,62 +275,43 @@ class _Page_:
                 if sibling != self and sibling not in visited:
                     if sibling.name == first_part:
                         if len(parts) == 1:  # 最后一级
-                            return current_path + [sibling]
+                            return curPath + [sibling]
                         else:  # 继续查找下一级
                             return sibling.findPagesByPath(rest_path, visited, 
-                                                          current_path + [sibling])
+                                                          curPath + [sibling])
         
         # 如果在兄弟节点中也未找到，尝试在父节点中查找
         if self.parent not in visited:
             return self.parent.findPagesByPath(path, visited, 
-                                              current_path + [self.parent])
+                                              curPath + [self.parent])
         
         # 如果没有找到，返回None
         return None
 
-    @classmethod
-    def findPagePathFromRoot(cls, path):
-        """从根节点开始查找指定路径的页面（类方法）
-        
-        Args:
-            path: 页面的完整路径，如 "Top/Home/Settings"
-            
-        Returns:
-            list: 从根节点到目标页面的路径列表，未找到则返回None
-        """
-        if not path or not cls.Root():
-            return None
-        
-        # 确保路径以"/"开头
-        if not path.startswith('/'):
-            path = '/' + path
-        
-        return cls.Root().findPageByPath(path)
     
-    @classmethod
-    def checkRules(cls, rules) -> bool: 
+    def match(self, pattern) -> bool: 
         """检查页面规则是否匹配当前屏幕"""
         g = _G._G_
         tools = g.CTools()
         log = g.Log()
-        if not rules:
+        if not pattern:
             return True
         if tools.android is None:
             #测试客户端，不执行动作，只打印。
-            # log.i(f"检查页面规则：{self.rules}")
+            # log.i(f"检查页面规则：{self.matches}")
             return True
         try:
             # 刷新屏幕信息
             tools.refreshScreenInfos()        
             # 检查所有规则
             all_passed = True
-            for rule in rules:
+            for rule in pattern:
                 try:
                     # 如果是代码规则
                     if rule.startswith('{') and rule.endswith('}'):
                         code = rule[1:-1]  # 去掉花括号
                         log.d(f"执行代码规则: {code}")
-                        ret = g.Tools().eval(code)
+                        ret = g.Tools().eval(self, code)
                         if not ret:
                             log.e(f"代码规则不匹配: {rule}")
                             all_passed = False
@@ -364,90 +338,66 @@ class _Page_:
             log.ex(e, f"检查页面规则失败: {self.name}")
             return False
     
-    def checkCheckers(self) -> bool:
-        """检查应用的检查器"""
+    def checkCheckers(self, term='in') -> bool:
+        """检查页面的检查器
+        
+        Args:
+            term: 检查器类型，'in'表示进入页面时的检查器，'out'表示离开页面时的检查器
+            
+        Returns:
+            bool: 所有检查器是否都通过
+        """
         checkers = self.checkers
         if checkers is None or len(checkers) == 0:
             return True
+        
         g = _G._G_
-        tools = g.CTools()
         log = g.Log()
-        checker = next((checker for checker in checkers if self.checkRules(checker.get("check"))), None)
-        if not checker:
-            return True
-        timeout = checker.get("timeout", -1)
-        if timeout > 0:
-            #等待指定时间
-            time.sleep(timeout)
-        elif timeout == 0:
-            #等待，当时要读取屏幕上的倒计时信息，根据倒计时信息判断是否退出
-            while True:
-                time.sleep(1)
-                #读取屏幕上的倒计时信息
-                text = tools.getScreenText()
-                if text.find("倒计时") != -1:
-                    #倒计时信息
-                    time_str = text.split("倒计时")[1].strip()
-                    time_str = time_str.split("秒")[0].strip()
-                    time_int = int(time_str)
-                    if time_int == 0:
-                        break
-        tools.evalStr(checker.get("out"))
-        time.sleep(2)
-        #check是否退出ALERT,如果还没退出，报错，并强制退出
-        if _Page_.checkRules(checker.get("check")):
-            return True
-        else:
-            log.e(f"检查器: {checker.get('name')} 未正常退出，强行退出")
-            tools.goBack()
+        
+        log.i(f"执行页面 {self.name} 的检查器")
+        
+        # 遍历所有检查器
+        for checkName, checker in checkers.items():
+            try:
+                # 检查是否是指定类型的检查器
+                if checker.term != term:
+                    continue
+                log.i(f"执行检查器: {checkName}")
+                # 执行检查
+                if checker.check():
+                    if not checker.do():
+                        log.e(f"检查器 {checkName} 操作执行失败")
+                        return False
+            except Exception as e:
+                log.ex(e, f"执行检查器 {checkName} 失败")
+                continue
+            
+        return True
+             
+        
+    def onEnter(self) -> bool:
+        """进入页面"""
+        try:
+            g = _G._G_
+            log = g.Log()
+            # 等待指定时间
+            wait_time = self.timeout
+            if wait_time > 0:
+                time.sleep(wait_time)
+            # 验证目标页面
+            if not self.match(self.matches):
+                log.e(f"未能验证目标页面 {self.name}")
+                return False
+            else:
+                # 执行进入页面时的检查器
+                if not self.checkCheckers('in'):
+                    log.e(f"页面 {self.name} 的检查器失败")
+                    return False
+                return True
+        except Exception as e:
+            log.ex(e, f"进入页面 {self.name} 失败")
             return False
 
-    def doAction(self, actionStr) ->bool:
-        """执行到目标页面的动作"""
-        if actionStr is None:
-            return False
-        actionStr = actionStr.strip()
-        if actionStr == '':
-            return False
-        g = _G._G_
-        log = g.Log()
-        tools = g.CTools()
-        
-        # 获取动作信息
-        log.i(f"执行动作@: {actionStr}")
-        # 检查动作字符串中是否包含代码块
-        import re
-        m = re.search(r'\{\s*(.*?)\s*\}', actionStr)
-        if m:
-            code = m.group(1)  # 获取花括号内的代码内容
-            log.i(f"执行代码块: {code}")
-            try:
-                result = g.Tools().eval(code)
-                return result
-            except Exception as e:
-                log.ex(e, f"执行代码块失败: {code}")
-                return False
-        # 判断动作类型        
-        m = re.search(r'(?P<action>[^-\s]+)\s*[:：]\s*(?P<target>.*)', actionStr)
-        if m:
-            action = m.group('action')
-            target = m.group('target')
-            # 根据动作类型执行相应操作
-            if action == ActionType.CLICK.value:
-                return tools.click(target)
-            elif action == ActionType.OPENAPP.value:
-                # 打开应用
-                is_home = tools.isHome()
-                if not is_home:
-                    log.e("不在主屏幕，无法打开应用")
-                    return False                
-                return tools.click(target, waitTime=2)
-            elif action == ActionType.SWIPE.value:
-                return tools.swipe(target)
-            elif action == ActionType.BACK.value:
-                return tools.goBack()
-        else:
-            return tools.click(actionStr)     
     
     def go(self, targetPage: "_Page_", waitTime=None) -> bool:
         """跳转到目标页面并验证结果"""
@@ -463,7 +413,7 @@ class _Page_:
                 log.i(f'-> {pageName}')
                 act = targetPage.inAction.strip()
                 if act != '':
-                    success = self.doAction(act)
+                    success = tools.eval(self, act)
                 else:
                     # 如果进入动作失败，执行默认动作，点击页名
                     success = tools.click(pageName)
@@ -471,7 +421,7 @@ class _Page_:
                 log.i(f'<- {pageName}')
                 act = self.outAction.strip()
                 if act != '':
-                    success = self.doAction(act)
+                    success = tools.eval(self, act)
                 else:
                     success = tools.goBack()
                 if not success:
@@ -484,28 +434,10 @@ class _Page_:
                     log.e(f"返回父页面失败: {self.name}")
                     return False
                 return self.parent.go(targetPage)
-            # 执行动作
-            if not success:
-                return False
-            # log.i(f"检查弹窗: {targetPage.alerts}")
-            targetPage.checkCheckers()
-            # 等待指定时间
-            wait_time = waitTime if waitTime is not None else self.timeout
-            if wait_time > 0:
-                # log.i(f"... {wait_time} 秒后检查页面")
-                time.sleep(wait_time)
-            # 验证目标页面
-            if targetPage.checkRules(targetPage.rules):
-                # log.i(f"成功跳转到 {targetPage.name}")
-                # 更新当前页面
-                _Page_.setCurrent(targetPage)
-                return targetPage
-            else:
-                log.e(f"未能验证目标页面 {targetPage.name}")
-                return None
+            return success
         except Exception as e:
             log.ex(e, f"跳转失败: {self.name} → {targetPage.name}")
-            return None
+            return False
     
     
     @classmethod
@@ -513,41 +445,9 @@ class _Page_:
         """将页面列表转换为路径字符串"""
         return ' → '.join(page.name for page in pages)
     
-    def setRules(self, rules):
-        """设置页面规则
-        
-        Args:
-            rules: 页面规则列表
-        """
-        self.rules = rules
-        return self
+   
     
-    def setTimeout(self, timeout):
-        """设置页面超时时间
-        
-        Args:
-            timeout: 超时时间（秒）
-        """
-        self.timeout = timeout
-        return self
-    
-    def setInAction(self, action):
-        """设置进入页面的动作
-        
-        Args:
-            action: 动作字符串
-        """
-        self.inAction = action
-        return self
-    
-    def setOutAction(self, action):
-        """设置离开页面的动作
-        
-        Args:
-            action: 动作字符串
-        """
-        self.outAction = action
-        return self
+   
     
     @classmethod
     def detectPage(cls, page, depth=0) -> Optional["_Page_"]:
@@ -557,7 +457,7 @@ class _Page_:
             depth: 当前递归深度
         """
         # 检查当前页面规则
-        if page.checkRules(page.rules):
+        if page.match(page.matches):
             # 优先检查子页面
             for child in page.getAllChildren():
                 result = cls.detectPage(child, depth + 1)

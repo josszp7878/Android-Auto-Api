@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 import _Log
 import _G
+import time
 from typing import Optional, List, Dict, Any, TYPE_CHECKING
 if TYPE_CHECKING:
     import _Page
@@ -10,6 +11,12 @@ class _App_:
     """应用管理类：整合配置与实例"""
     _curAppName = _G.TOP  # 当前应用名称
     apps = {}  # 存储应用实例 {appName: _App_实例}
+    Top: "_App_" = None
+
+    @classmethod
+    def Clone(cls, oldCls):
+        """克隆"""
+        cls.apps = oldCls.apps
 
     def __init__(self, name:str, rootPage: "_Page._Page_", info:dict, alerts:list):
         self.name = name
@@ -17,20 +24,61 @@ class _App_:
         self.currentPage = rootPage
         self.ratio = info.get("ratio", 10000)
         self.description = info.get("description", '')
-        self.timeout = info.get("timeout", 30)
+        self.timeout = info.get("timeout",5)
         self.alerts = alerts
 
-    def setCurrentPage(self, page):
-        """设置应用当前页面"""
-        self.currentPage = page
-        log = _G._G_.Log()
-        log.i(f"当前应用.页面：[{self.name}].[{page.name}]")
-        return page
-    
-    def getCurPage(self, refresh=False):
-        """基类实现：基础页面获取逻辑"""
+    @property   
+    def curPage(self):
+        """应用当前页面"""
         return self.currentPage
     
+    @curPage.setter
+    def curPage(self, page: "_Page._Page_"):
+        """设置应用当前页面"""
+        if page == self.currentPage:
+            return
+        try:
+            log = _G._G_.Log()
+            if page.onEnter():
+                self.currentPage = page
+                return page
+            else:   
+                log.e(f"进入页面 {page.name} 失败")
+                return None
+        except Exception as e:
+            log.ex(e, f"进入页面 {page.name} 失败")
+            return None
+    
+        
+    def refreshCurPage(self):
+        """客户端实现：通过屏幕检测当前页面"""
+        tools = _G._G_.Tools()  
+        if tools.android is None:
+            return
+        tools.refreshScreenInfos()
+        import _Page
+        page = _Page._Page_.detectPage(self.rootPage)
+        if page:
+            self.curPage = page
+    
+    def onOpened(self)->bool:
+        """应用打开后回调"""
+        waitTime = self.timeout or 6
+        g = _G._G_
+        log = g.Log()
+        if g.CTools().android is not None:
+            time.sleep(waitTime)
+        else:
+            log.i(f"模拟等待时间: {waitTime}秒")
+        if not g.CTools().curAppIs(self.name):
+            log.e(f"打开应用失败: {self.name}")
+            return False
+        #检测应用当前页面
+        self.refreshCurPage()
+        return True
+    
+
+        
     @classmethod
     def loadConfig(cls, AppClass=None):
         """加载配置并创建应用实例与页面树
@@ -48,6 +96,7 @@ class _App_:
             import _Page
             Page = _Page._Page_
             root = Page.Root()
+            cls.Top = AppClass("Top", root, {}, [])
             def processNode(node, parentPage=None, parentName=None):
                 """统一处理节点：创建应用实例和页面树"""
                 for pageName, pageConfig in node.items():
@@ -56,7 +105,12 @@ class _App_:
                         continue
                     # 创建页面对象
                     pageName = pageName.lower()
-                    currentPage = Page.createPage(pageName, parentPage, pageConfig.get("check", []), pageConfig.get("in", None), pageConfig.get("out", None), pageConfig.get("alerts", None))
+                    match = pageConfig.get("match", [])
+                    inAction = pageConfig.get("in", None)
+                    outAction = pageConfig.get("out", None)
+                    checkers = pageConfig.get("checkers", None)
+                    dialogs = pageConfig.get("dialogs", None)
+                    currentPage = Page.createPage(pageName, parentPage, match, inAction, outAction, checkers, dialogs)
                     # 识别应用根节点（Top的直接子节点）
                     if parentName == "Top":
                         appInfo = pageConfig.get("app_info", {})
@@ -78,26 +132,25 @@ class _App_:
             processNode(configData.get("Top", {}).get("children", {}), root, "Top")
             
             log.i(f"加载完成：共{len(cls.apps)}个应用")
-            cls.printTopology()
+            # cls.printTopology()
 
         except Exception as e:
             log.ex(e, "配置加载失败")
             cls.apps.clear()
 
     @classmethod
-    def printTopology(cls):
+    def printTopology(cls, appName:str=None):
         """打印页面拓扑结构"""
         log = _G._G_.Log()
         log.i("页面拓扑结构:")
-        
-        # 获取所有应用的根页面
-        rootPages = []
+        if appName and appName.strip() != '':
+            app = cls.getApp(appName)
+            if app:
+                cls._printPageTree(app.rootPage)
+            return
         for app in cls.apps.values():
-            rootPages.append(app.rootPage)
-        
-        # 打印每个应用的页面树
-        for rootPage in rootPages:
-            cls._printPageTree(rootPage)
+            cls._printPageTree(app.rootPage)
+
     
     @classmethod
     def _printPageTree(cls, page, level=0):
@@ -175,6 +228,7 @@ class _App_:
         except Exception as e:
             log.ex(e, "应用模糊匹配失败")
         return None
+    
     
     @classmethod
     def getCurAppName(cls, refresh=False) -> Optional[str]:

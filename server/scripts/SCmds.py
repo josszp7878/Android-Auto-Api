@@ -420,53 +420,7 @@ class SCmds_:
                 _Log._Log_.ex(e, "分析收益失败")
                 return f"e->分析收益失败: {str(e)}"
 
-        @regCmd('打开-dk', r"(?P<appName>[^ ]+)")
-        def openapp(appName):
-            """功能：在当前设备上打开指定应用
-            指令名：openapp
-            中文名：打开
-            参数：
-               appName - 应用名称
-            示例：打开 微信
-            """
-            try:
-                import _App
-                _appName = _App._App_.getApp(appName)
-                if not _appName:
-                    return
-                # 获取当前设备
-                device = deviceMgr.CurDevice()
-                if device is None:
-                    return
-                def onOpenApp(x):
-                    if _Log._Log_.isError(x):
-                        _Log._Log_.e(x)
-                        return
-                    _Log._Log_.i(f"打开应用回调: {x}")
-                    # 设置当前应用名
-                    if device.taskMgr:
-                        device.taskMgr.currentApp = _appName
-                    sleep(5)
-                    device.takeScreenshot()
-                # 发送打开应用命令
-                deviceMgr.sendClientCmd(device.deviceID, f"openApp {_appName}", None, 10, onOpenApp)
-                return f"i->正在打开应用[{_appName}]"
-                
-            except Exception as e:
-                _Log._Log_.ex(e, "打开应用失败")
-                return f"e->打开应用失败: {str(e)}"
-
-        @regCmd('应用列表-yylb')
-        def apps():
-            """功能：列出所有可用的应用
-            指令名：apps
-            中文名：应用列表
-            参数：无
-            示例：应用列表
-            """
-            from _AppMgr import appMgr
-            return "i->" + json.dumps(appMgr.get_app_names(), ensure_ascii=False, indent=2)
-
+       
         @regCmd('快照-kz')
         def takeScreenshot():
             """功能：对当前设备进行屏幕截图
@@ -484,21 +438,6 @@ class SCmds_:
             except Exception as e:
                 _Log._Log_.ex(e, '执行快照命令失败')
 
-        @regCmd('@', r"(?P<command>.+)")
-        def serverCommand(command):
-            """功能：在服务器端执行命令
-            指令名：serverCommand
-            中文名：@
-            参数：
-               command - 要执行的服务器命令
-            示例：@ 状态
-            """
-            try:
-                result, _ = _G._G_.getClass('_CmdMgr').do(command, sender=None, data=None)
-                return result
-            except Exception as e:
-                _Log._Log_.ex(e, "执行服务器命令失败")
-                return f"e->执行服务器命令失败: {str(e)}"
 
         @regCmd('扫描应用-smyy')
         def scanApp():

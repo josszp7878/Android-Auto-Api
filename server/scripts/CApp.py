@@ -4,15 +4,6 @@ import _App
 
 class CApp_(_App._App_):
     """客户端应用管理类"""
-    
-    def getCurPage(self, refresh=False):
-        """客户端实现：通过屏幕检测当前页面"""
-        if refresh:
-            _G._G_.Tools().refreshScreenInfos()
-            import _Page
-            self.currentPage = _Page._Page_.detectPage(self.rootPage)
-        return self.currentPage
-    
     def recordBehavior(self):
         """客户端特有方法：记录用户行为"""
         # ... [客户端行为记录逻辑]
@@ -58,24 +49,13 @@ class CApp_(_App._App_):
             
         log.i(f"=> {appName}")
         tools = g.CTools()
-        waitTime = None
-        app = cls.getApp(appName)
-        if app:
-            waitTime = app.timeout
-        result = tools.openApp(appName, waitTime)
-        if not result:
+        app = tools.openApp(appName)
+        if app is None:
             return None
-        rootPage = app.rootPage
-        rootPage.checkCheckers()
+        if not app.onOpened():
+            return None
         # 设置当前应用名称
         cls._curAppName = appName
-        app = cls.getApp(appName)
-        # 检测该应用当前在哪个页面
-        childPages = app.rootPage.children
-        for _, page in childPages.items():
-            if page.checkRules(page.rules):
-                app.setCurrentPage(page)
-                break
         return app
     
     @classmethod
@@ -175,7 +155,8 @@ class CApp_(_App._App_):
                 return self.currentPage
             g = _G._G_
             log = g.Log()
-            if pageName in self.RootStr:
+            tools = g.CTools()
+            if tools.isRoot(pageName):
                 pageName = self.name   
             # 查找路径
             pages = self.currentPage.findPath(pageName)
@@ -193,15 +174,14 @@ class CApp_(_App._App_):
                     log.e(f"跳转失败: {page.name} -> {nextPage.name}")
                     return None
                 page = nextPage
-                self.setCurrentPage(nextPage)
+                self.curPage = nextPage
             # 更新当前页面
             return page
         except Exception as e:
             log.ex(e, "跳转失败")
             return None
 
-    TopStr = ["top", "主屏幕", "桌面"]
-    RootStr = ["app", "应用", "root"]
+
     @classmethod
     def go(cls, pageName) -> bool:
         """跳转到指定页面
@@ -218,10 +198,11 @@ class CApp_(_App._App_):
             # 1. 处理特殊情况
             ##############################################################    
             pageName = pageName.lower()
-            if pageName in cls.TopStr:
+            tools = g.CTools()
+            if tools.isTop(pageName):
                 # 返回主屏幕，使用Top应用
                 return cls.gotoApp(_G.TOP) is not None
-            elif pageName in cls.apps:
+            elif tools.isRoot(pageName):
                 return cls.gotoApp(pageName) is not None    
             ##############################################################    
             app = cls.getApp(cls._curAppName)

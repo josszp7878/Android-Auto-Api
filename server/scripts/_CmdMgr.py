@@ -277,7 +277,7 @@ class _CmdMgr_:
             g.getClass('CFileServer').downAll(onUpdateCompleted)
             
             # 等待更新完成，最多等待30秒
-            if not update_completed.wait(30):
+            if not update_completed.wait(20):
                 log.e("脚本更新超时")
                 return "e->脚本更新超时，重载失败"
             
@@ -407,15 +407,17 @@ class _CmdMgr_:
             moduleFile = f"scripts/{moduleName}.py"
             if not g.isServer():
                 # 先下载最新版本，然后在回调中重新加载
-                g.CFileServer().download(
-                    moduleFile, 
-                    lambda success: cls._reloadModule(moduleName)
-                )
-                ret = True
+                try:
+                    g.CFileServer().download(
+                        moduleFile, 
+                        lambda success: cls._reloadModule(moduleName)
+                    )
+                except Exception as e:
+                    log.ex(e, f"下载模块失败: {moduleFile}")
+                    cls._reloadModule(moduleName)
             else:
                 # 如果没有文件服务器，直接重载
-                ret = cls._reloadModule(moduleName)
-            return ret
+                cls._reloadModule(moduleName)
         
         @cls.reg(r"命令列表-mllb")
         def cmdList():

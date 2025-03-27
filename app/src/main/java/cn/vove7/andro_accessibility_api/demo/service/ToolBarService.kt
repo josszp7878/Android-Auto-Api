@@ -209,18 +209,6 @@ class ToolBarService : LifecycleService() {
             if (expandedButtons != null) {
                 val newVisibility = if (expandedButtons.visibility == View.VISIBLE) View.GONE else View.VISIBLE
                 expandedButtons.visibility = newVisibility
-                
-                // 更新ToolBar展开状态
-                isToolbarExpanded = newVisibility == View.VISIBLE
-                
-                // 根据展开状态启用或禁用点击坐标显示功能
-                if (isToolbarExpanded) {
-                    enableTouchMonitoring()
-                } else {
-                    disableTouchMonitoring()
-                }
-                
-                Log.d("ToolBarService", "Toggle button clicked, setting visibility to: ${if (newVisibility == View.VISIBLE) "VISIBLE" else "GONE"}")
             } else {
                 Log.e("ToolBarService", "expandedButtons is null")
             }
@@ -580,11 +568,7 @@ class ToolBarService : LifecycleService() {
         }
     }
 
-    // 移除setupTouchEventListener方法，直接使用addTouchMonitorOverlay方法
-    private fun enableTouchMonitoring() {
-        Log.d("ToolBarService", "Enabling touch monitoring")
-        addTouchMonitorOverlay()
-    }
+
 
     // 修改添加触摸监控覆盖层的方法
     @SuppressLint("ClickableViewAccessibility")
@@ -647,14 +631,16 @@ class ToolBarService : LifecycleService() {
         }
     }
 
-    private fun disableTouchMonitoring() {
-        Log.d("ToolBarService", "Disabling touch monitoring")
-        // 移除触摸监控视图
-        removeTouchMonitorView()
-        // 不再需要释放InputEventReceiver
-        // inputEventReceiver?.dispose()
-        // inputEventReceiver = null
-    }
+    fun showClicker(enable: Boolean) {
+        // 确保在主线程上执行UI操作
+        Handler(Looper.getMainLooper()).post {
+            if(enable) {
+                addTouchMonitorOverlay()
+            } else {
+                removeTouchMonitorView()
+            }
+        }
+    }   
 
     /**
      * 显示点击坐标

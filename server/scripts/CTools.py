@@ -2,8 +2,10 @@ from __future__ import annotations
 import time
 import _G
 import re
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 import _Tools
+if TYPE_CHECKING:
+    import _App
 
 class RegionCheck:
     """区域检查工具类"""
@@ -76,30 +78,15 @@ class RegionCheck:
         else:
             raise ValueError("X轴格式错误")
 
-    def _getScreenSize(self):
-        """获取屏幕尺寸"""
-        try:
-            if CTools_.android:
-                # 尝试通过Android Context获取屏幕尺寸
-                context = CTools_.android.getContext()
-                if context:
-                    resources = context.getResources()
-                    if resources:
-                        metrics = resources.getDisplayMetrics()
-                        if metrics:
-                            return (metrics.widthPixels, metrics.heightPixels)
-        except Exception as e:
-            log = _G._G_.Log()
-            log.e(f"获取屏幕尺寸失败: {e}")
-        
-        # 默认分辨率
-        return (1080, 1920)  # 默认分辨率
+    def __str__(self):
+        return f"RegionCheck(region={self.region})"
 
+   
     def _convertValue(self, value, isX=True):
         """转换负值为屏幕相对值"""
         if value >= 0:
             return value
-        screenW, screenH = self._getScreenSize()
+        screenW, screenH = CTools_.screenSize
         base = screenW if isX else screenH
         return base + value  # 负值相加等于减去绝对值
 
@@ -143,17 +130,52 @@ class CTools_(_Tools._Tools_):
         cls._screenInfoCache = clone._screenInfoCache
         return True
     
+
+    screenSize: tuple[int, int] = (1080, 1920)
+    # 坐标修正范围,不知道为什么，文字识别拷屏后的位置和实际位置有偏差，而且不是固定的
+    # 从屏幕上方到下发，偏差逐步增大，所以需要定义一个修正范围。获取坐标是根据y坐标来修正的
+    # 来线性修正范围从0到PoxFixScope
+    _fixFactor = 0
+    @classmethod
+    def setPosFixScope(cls, scope):
+        log = _G._G_.Log()
+        cls._fixFactor = scope/cls.screenSize[1]
+        log.i(f"@@@坐标修正范围: {scope}, 修正比例: {cls._fixFactor}")
+    @classmethod
+    def _initScreenSize(cls)->tuple[int, int]:
+        """获取屏幕尺寸"""
+        screenSize = (1080, 1920)
+        log = _G._G_.Log()
+        try:
+
+            if CTools_.android:
+                # 尝试通过Android Context获取屏幕尺寸
+                context = CTools_.android.getContext()
+                if context:
+                    resources = context.getResources()
+                    if resources:
+                        metrics = resources.getDisplayMetrics()
+                        if metrics:
+                            screenSize = (metrics.widthPixels, metrics.heightPixels)
+        except Exception as e:
+            log.e(f"获取屏幕尺寸失败: {e}")
+        cls.screenSize = screenSize
+        cls.setPosFixScope(140)
+        return screenSize
+        
     @classmethod
     def init(cls):
+        log = _G._G_.Log()
         try:
             if cls.android is None:
                 from java import jclass
                 cls.android = jclass(
                     "cn.vove7.andro_accessibility_api.demo.script.PythonServices")
-            _G._G_.Log().i(f'初始化CTools模块 {cls.android}')
-        except Exception as e:
-            return None
-    
+            log.i(f'初始化CTools模块 {cls.android}')
+            cls._initScreenSize()
+        except Exception as _:
+            pass
+        
     _screenInfoCache = None
     @classmethod
     def getScreenInfo(cls, refresh=False):
@@ -293,21 +315,28 @@ class CTools_(_Tools._Tools_):
 
 
     @classmethod
-    def openApp(cls, appName:str, waitTime=None):
+    def openApp(cls, appName:str) ->Optional["_App._App_"]:
         if not appName:
-            return False
-        log = _G._G_.Log()
+            return None, False
+        g = _G._G_
+        log = g.Log()
+        App = g.App()
         if cls.android is None:
-            return True
+            return App.Top
         if appName == _G.TOP:
-            return cls.goHome()
+            cls.goHome()
+            return App.Top
         try:
             # 检查应用是否已经打开
             curApp = cls.getCurrentAppInfo()
             # print(f"当前应用: {curApp}")
             if curApp and curApp.get('appName') == appName:
                 return "i->应用已打开"
-
+            app = App.getApp(appName, True)
+            if app is None:
+                log.e(f"尝试打开未知应用{appName}")
+            else:
+                appName = app.name
             opened = False
             # 根据系统类型选择打开方式
             if cls.isHarmonyOS():
@@ -315,17 +344,10 @@ class CTools_(_Tools._Tools_):
             else:
                 # Android系统使用服务方式打开
                 opened = cls.android.openApp(appName)
-            if not opened:
-                return False
-            waitTime = waitTime or 6
-            log.i(f"打开应用: {appName}, 等待时间: {waitTime}秒")
-            time.sleep(waitTime)
-            if cls.isCurApp(appName):
-                return True
-            log.e(f"打开应用失败: {appName}, 等待时间: {waitTime}秒")
+            return app if opened else None
         except Exception as e:
             log.ex(e, "打开应用失败")
-        return False
+            return None
 
     @classmethod
     def closeApp(cls, app_name: str = None) -> bool:
@@ -344,11 +366,11 @@ class CTools_(_Tools._Tools_):
         """通过点击方式打开应用（适用于鸿蒙系统）"""
         try:
             log = _G._G_.Log()
-            print(f"点击打开应用: {app_name}")
+            # print(f"点击打开应用: {app_name}")
             if not cls.goHome():
                 log.e(cls.Tag, "返回桌面失败")
                 return False
-            return cls.click(app_name, 'LR')
+            return cls.click(f'{app_name}y-150', 'LR')
         except Exception as e:
             log.ex(e, f"Failed to open app by click: {str(e)}")
             return True
@@ -382,20 +404,7 @@ class CTools_(_Tools._Tools_):
             print(f"显示Toast失败: {e}")
             print(msg)
             
-    @classmethod
-    def isCurApp(cls, appName: str) -> bool:
-        """判断当前应用是否是目标应用"""
-        try:
-            curApp = cls.getCurrentAppInfo()
-            if not curApp:
-                return False
-            if '.' in appName:
-                return curApp.get('packageName') == appName
-            else:
-                return curApp.get('appName') == appName
-        except Exception as e:
-            _G._G_.Log().ex(e, "判断当前应用失败")
-            return False
+
 
     @classmethod
     def getCurrentAppInfo(cls) -> Optional[dict]:
@@ -422,12 +431,12 @@ class CTools_(_Tools._Tools_):
     @classmethod
     def isHome(cls) -> bool:
         """判断当前是否在桌面
-
         通过当前应用包名判断是否在桌面，支持多种桌面应用
-
         Returns:
             bool: 是否在桌面
         """
+        if cls.android is None:
+            return True
         log = _G._G_.Log()
         try:
             # 常见桌面应用包名列表
@@ -455,10 +464,6 @@ class CTools_(_Tools._Tools_):
             if package_name is None:
                 package_name = ""
             
-            # 方法2: 将Java Map转换为Python字典
-            # from java.util import HashMap
-            # app_info_dict = dict(app_info)
-            # package_name = app_info_dict.get("packageName", "")
 
             # 检查是否在已知桌面包名列表中
             if package_name in LAUNCHER_PACKAGES:
@@ -473,6 +478,24 @@ class CTools_(_Tools._Tools_):
             log.ex(e, "判断是否在桌面失败")
             return False
 
+    @classmethod
+    def curAppIs(cls, appName: str) -> bool:
+        """判断当前应用是否是目标应用"""
+        try:
+            tools = _G._G_.CTools()
+            if tools.isTop(appName):
+                return cls.isHome()
+            curApp = cls.getCurrentAppInfo()
+            if not curApp:
+                return False
+            if '.' in appName:
+                return curApp.get('packageName') == appName
+            else:
+                return curApp.get('appName') == appName
+        except Exception as e:
+            _G._G_.Log().ex(e, "判断当前应用失败")
+            return False
+        
     @classmethod
     def goHome(cls)->bool:
         """统一返回桌面实现"""
@@ -614,10 +637,14 @@ class CTools_(_Tools._Tools_):
         """
         log = _G._G_.Log()
         log.i(f"click: {text}")
+        # 先解析text是否为坐标信息
+        isPos = re.match(r'(\d+)[\s,xX](\d+)', text)
+        if isPos:
+            x, y = int(isPos.group(1)), int(isPos.group(2))
+            return cls.clickPos((x, y))
         # 解析文本和偏移量
         offsetX, offsetY = 0, 0
         # 使用正则表达式匹配偏移信息
-        import re
         match = re.search(r'(.*?)(?:x([+-]?\d+))?(?:y([+-]?\d+))', text)
         if match:
             text = match.group(1)
@@ -743,7 +770,6 @@ class CTools_(_Tools._Tools_):
         log.i(f"达到最大尝试次数({maxTry})，未找到匹配")
         return False
 
-    # 增强版文本查找功能
     # return (x,y)
     @classmethod
     def findTextPos(cls, text, searchDir=None, distance=None):
@@ -760,7 +786,7 @@ class CTools_(_Tools._Tools_):
         """
         # 尝试在当前屏幕查找
         pos = cls._findTextPos(text)
-        if pos:
+        if pos or text[0] != '@':
             return pos
         # 如果没有指定搜索方向，只在当前屏幕查找
         if not searchDir:
@@ -774,14 +800,13 @@ class CTools_(_Tools._Tools_):
         # 使用swipeTo进行滑动查找
         found = cls.swipeTo(searchDir, matchFunc)
         return pos if found else None
-
+    
+    
     @classmethod
     def _findTextPos(cls, text):
         """在当前屏幕尝试查找文本
-        
         Args:
             text: 要查找的文本
-            
         Returns:
             找到文本的坐标元组(x,y)或None
         """
@@ -792,10 +817,12 @@ class CTools_(_Tools._Tools_):
             if result:
                 # 从匹配结果中获取坐标
                 bounds = [int(x) for x in result['b'].split(',')]
-                centerX = (bounds[0] + bounds[2]) // 2
-                centerY = (bounds[1] + bounds[3]) // 2
-                # log.i(f"找到文本: {text}, 位置: {centerX},{centerY}")
-                return (centerX, centerY)
+                x = (bounds[0] + bounds[2]) // 2
+                y = (bounds[1] + bounds[3]) // 2
+                log.i(f"修正比例: {cls._fixFactor}")
+                fixY = int(cls._fixFactor*y)
+                log.i(f"修正Y坐标: {fixY}")
+                return (x, y + fixY)
             # log.i(f"屏幕上未找到文本: {text}")
             return None
         except Exception as e:

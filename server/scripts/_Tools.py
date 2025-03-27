@@ -1,10 +1,7 @@
 import json
 from enum import Enum
 import re
-import time
-import datetime
-import random
-import math
+from typing import Any
 import _G
 
 class TaskState(Enum):
@@ -22,6 +19,19 @@ class TaskState(Enum):
     
 
 class _Tools_:
+
+    _TopStr = ["top", "主屏幕", "桌面"]
+    @classmethod
+    def isTop(cls, appName: str) -> bool:
+        """判断是否是主屏幕"""
+        return appName.lower() in cls._TopStr
+    
+    _RootStr = ["app", "应用", "root"]
+    @classmethod
+    def isRoot(cls, appName: str) -> bool:
+        """判断是否是应用"""
+        return appName.lower() in cls._RootStr
+
     @classmethod
     def toTaskId(cls, appName: str, templateId: str) -> str:
         """生成任务唯一标识"""
@@ -52,52 +62,18 @@ class _Tools_:
             del sys.modules[moduleName]
         importlib.import_module(moduleName)
 
-    @classmethod
-    def eval(cls, code):
-        """安全执行代码
-        
-        Args:
-            code: 要执行的代码，可以是多行
-            globals: 全局命名空间
-            locals: 局部命名空间
-            
-        Returns:
-            执行结果
-        """
-        g = _G._G_
-        log = g.Log()
-        # 检查代码是否为空
-        if not code or code.strip() == '':
-            return None
-        
-        # 处理引号不匹配的情况
-        quote_chars = ['"', "'", '`']
-        for char in quote_chars:
-            if code.count(char) % 2 != 0:
-                return f"Error: 引号 {char} 不匹配"
-            
-        # 创建安全的执行环境
-        globals = {}
-        # 添加基本模块
-        import math, json, re, datetime, time
-        globals.update({
-            'math': math,
-            'json': json,
-            're': re,
-            'datetime': datetime,
-            'time': time,
-        })
+    import math, json, re, datetime, time
+    gl = {
+        'math': math,
+        'json': json,
+        're': re,
+        'datetime': datetime,
+        'time': time,
+    }
 
-        locals = {
-            'DoCmd': g.CmdMgr().do,
-            'App': g.App(),
-            'Tools': g.Tools(),
-        }
-        result = eval(code, globals, locals)
-        return result
 
     @classmethod
-    def _replaceVars(cls, s: str) -> str:
+    def _replaceVars(cls, this, s: str) -> str:
         """替换字符串中的$变量（安全增强版）"""
         # 添加空值防御
         if s is None:
@@ -107,7 +83,7 @@ class _Tools_:
         def replacer(match):
             code = match.group(1)
             try:
-                val = cls.eval(code)
+                val = cls.eval(this, code)
                 return str(val)
             except Exception as e:
                 log.ex(e, f"执行变量代码失败: {code}")
@@ -115,17 +91,82 @@ class _Tools_:
         return re.sub(r'\$\s*([\w\.\(\)]+)', replacer, s)
 
     @classmethod
-    def evalStr(cls, str):
+    def doEval(cls, this, code:str) -> Any:
+        """安全执行代码
+        Args:
+            code: 要执行的代码，可以是多行
+            globals: 全局命名空间
+            locals: 局部命名空间
+            
+        Returns:
+            执行结果
+        """
+        g = _G._G_
+        # 检查代码是否为空
+        if not code or code.strip() == '':
+            return None
+        # 创建安全的执行环境
+        locals = {
+            'DoCmd': g.CmdMgr().do,
+            'App': g.App(),
+            'T': g.Tools(),
+            'CT': g.CTools(),
+            'Log': g.Log(),
+            'this': this,
+        }
+        result = eval(code, cls.gl, locals)
+        return result
+    
+    @classmethod
+    def eval(cls, this, str:str) -> Any:
         """执行规则（内部方法）"""
-        log = _G._G_.Log()
-        str = cls._replaceVars(str)
-        if re.match(r'^\s*\{.*\}\s*$', str):
-            code = re.search(r'\{(.*)\}', str).group(1)
-            try:
-                return cls.eval(code)
-            except Exception as e:
+        try:
+            if str is None:
                 return False
-        return 'PASS'
+            str = str.strip()
+            if str == '':
+                return False
+            log = _G._G_.Log()
+            str = cls._replaceVars(this, str)
+            match = re.match(r'^\s*\{(.*)\}\s*$', str)
+            if match:
+                code = match.group(1)
+                try:
+                    return cls.doEval(this, code)
+                except Exception as e:
+                    log.ex(e, f"执行规则失败: {str}")
+                    return False
+            else:
+                return cls._doAction(log, this, str)
+        except Exception as e:
+            log.ex(e, f"执行规则失败: {str}")
+            return False
+        
+    @classmethod
+    def _doAction(cls, log, this, str:str) -> Any:
+        """执行动作"""
+        # 判断动作类型   
+        cTools = _G._G_.CTools()       
+        m = re.search(r'(?P<action>[^-\s]+)\s*[:：]\s*(?P<target>.*)', str)
+        if m:
+            action = m.group('action')
+            target = m.group('target')
+            # 根据动作类型执行相应操作
+            if action == 'C':
+                return cTools.click(target)
+            elif action == 'O':
+                # 打开应用
+                is_home = cTools.isHome()
+                if not is_home:
+                    log.e("不在主屏幕，无法打开应用")
+                    return False                
+                return cTools.click(target, waitTime=2)
+            elif action == 'S':
+                return cTools.swipe(target)
+            elif action == 'B':
+                return cTools.goBack()
+        else:
+            return cTools.click(str)
     
     @classmethod
     def toNetStr(cls, result):
@@ -154,3 +195,9 @@ class _Tools_:
         if match:
             return int(match.group(1)), int(match.group(2))
         return None
+    @classmethod
+    def toBool(cls, value, default=False):
+        """将字符串转换为布尔值"""
+        if value is None:
+            return default
+        return value.lower() in ['true', '1', 'yes', 'y', 'on']

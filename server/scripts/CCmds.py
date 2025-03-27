@@ -16,10 +16,6 @@ class CCmds_:
     def android(cls):
         return _G._G_.Tools().android
     
-    @classmethod
-    def Clone(cls, oldCls):
-        log = _G._G_.Log()
-        log.i("CCmds模块克隆 ddddddd注册命令")
 
     
     @classmethod
@@ -151,6 +147,22 @@ class CCmds_:
             device.logout()
             return "已登出"
 
+        @regCmd(r"位置-wz", r"(?P<text>.+)")
+        def pos(text):
+            """
+            功能：获取指定位置或文本的位置
+            指令名: pos-w
+            中文名: 位置-wz
+            参数: text - 要获取位置的文本或坐标
+            示例: 位置 确定
+            """
+            g = _G._G_
+            tools = g.CTools()
+            pos = tools.findTextPos(text)
+            if pos:
+                return f"{pos}"
+            return "e->无效位置"
+
         @regCmd(r"点击-dj", r"(?P<text>.+)")
         def click(text):
             """
@@ -218,7 +230,7 @@ class CCmds_:
             参数: appName - 应用名称
             示例: 打开 微信
             """
-            return _G._G_.Tools().openApp(appName)
+            return _G._G_.CTools().openApp(appName)
 
         @regCmd(r"关闭-gb", r"(?P<pkgName>\S+)")
         def stopApp(pkgName):
@@ -500,7 +512,7 @@ class CCmds_:
             g = _G._G_
             log = g.Log()
             try:
-                result = g.Tools().eval(code)
+                result = g.Tools().eval(cls,code)
                 return g.Tools().toNetStr(result)
             except Exception as e:
                 log.ex(e, f"执行代码失败: {code}")
@@ -520,9 +532,8 @@ class CCmds_:
             try:
                 if rule.startswith('@'):
                     import _Page
-                    pages = _Page._Page_.getCurrent().findPageByPath(rule[1:])
-                    page = pages.last()
-                    return page.checkRules(page.rules)
+                    page = _Page._Page_.getCurrent().findPagesByPath(rule[1:])[-1]
+                    return page.match(page.matches)
                 result = g.CTools().matchText(rule, False)
                 return result
             except Exception as e:
@@ -598,4 +609,40 @@ class CCmds_:
             """
             _G._G_.load()
 
+        @regCmd(r"设置坐标修正范围-szzbxz", r"(?P<scope>\d+)")
+        def setPosFixScope(scope):
+            """
+            功能：设置坐标修正范围
+            指令名: setPosFixScope-spfs
+            中文名: 设置坐标修正范围-szzbxz
+            参数: scope - 修正范围
+            示例: 设置坐标修正范围 100
+            """
+            _G._G_.CTools().setPosFixScope(int(scope))
+
+        @regCmd(r"显示点击-xsdj", r"(?P<enable>\S+)?")
+        def showClicker(enable=None):
+            """
+            功能：显示点击
+            指令名: showClicker-s
+            中文名: 显示点击-xsdj
+            参数: enable - 是否显示
+            示例: 显示点击 true
+            """
+            g = _G._G_
+            android = g.CTools().android
+            if android:
+                android .showClicker(g.Tools().toBool(enable))
+
+        @regCmd(r"拓扑图-tpt", r"(?P<appName>\S+)?")
+        def appTopology(appName=None):
+            """
+            功能：打印应用页面拓扑结构图
+            指令名: appTopology-aT
+            中文名: 拓扑图-tpt
+            参数: appName - 应用名称(可选)，不提供则使用当前应用
+            示例: 拓扑图 [微信]
+            """
+            from _App import _App_
+            return _App_.printTopology(appName)
 

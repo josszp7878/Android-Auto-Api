@@ -233,4 +233,4 @@ class _Log_:
         res = str(result).replace('\n', ' ')
         log['result'] = res
 
-
+c = _Log_()

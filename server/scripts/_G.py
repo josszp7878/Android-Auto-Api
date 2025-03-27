@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from _App import _App_  
     from _Page import _Page_
     from CDevice import CDevice_ 
+    from CChecker import CChecker_
 TOP = "top"
 UNKNOWN = 'unknown'
 g = {}
@@ -127,7 +128,10 @@ class _G_:
     @classmethod
     def Log(cls) -> '_Log_':
         return cls.getClass('_Log')
-
+    
+    @classmethod
+    def Checker(cls) -> 'CChecker_':
+        return cls.getClass('CChecker')
         
     @classmethod
     def CTools(cls) -> 'CTools_':
