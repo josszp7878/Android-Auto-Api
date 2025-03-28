@@ -333,6 +333,23 @@ class _Page_:
             log.ex(e, f"检查页面规则失败: {self.name}")
             return False
     
+    def detectPage(self, depth=0) -> Optional["_Page_"]:
+        """递归检测页面
+        Args:   
+            page: 要检测的页面
+            depth: 当前递归深度
+        """
+        ret = None
+        # 检查当前页面规则
+        if self.match():
+            ret = self
+            # 优先检查子页面
+            for child in self.getAllChildren():
+                result = child.detectPage(depth + 1)
+                if result:
+                    ret = result
+                    break
+        return ret
     
     def go(self, targetPage: "_Page_") -> bool:
         """跳转到目标页面并验证结果"""
@@ -380,24 +397,6 @@ class _Page_:
         """将页面列表转换为路径字符串"""
         return ' → '.join(page.name for page in pages)
     
-   
     
-   
-    
-    @classmethod
-    def detectPage(cls, page, depth=0) -> Optional["_Page_"]:
-        """递归检测页面
-        Args:
-            page: 要检测的页面
-            depth: 当前递归深度
-        """
-        # 检查当前页面规则
-        if page.match(page.matches):
-            # 优先检查子页面
-            for child in page.getAllChildren():
-                result = cls.detectPage(child, depth + 1)
-                if result:
-                    return result
-            return page
-        return None
+ 
   

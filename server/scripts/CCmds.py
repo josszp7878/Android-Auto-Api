@@ -45,7 +45,6 @@ class CCmds_:
             """
             try:
                 g = _G._G_
-                log = g.Log()
                 device = g.getClass('CDevice').instance()
                 return {
                     "deviceID": device.deviceID if device else "未知",
@@ -230,7 +229,16 @@ class CCmds_:
             参数: appName - 应用名称
             示例: 打开 微信
             """
-            return _G._G_.CTools().openApp(appName)
+            App = _G._G_.App()
+            result = App.gotoApp(appName)
+            if result:
+                # 检查应用是否在配置中注册
+                app = App.getApp(appName)
+                if app and app.currentPage:
+                    return f"成功打开应用 {appName}，当前页面: {app.currentPage.name}"
+                return f"成功打开应用 {appName}"
+            else:
+                return f"打开应用 {appName} 失败"
 
         @regCmd(r"关闭-gb", r"(?P<pkgName>\S+)")
         def stopApp(pkgName):
@@ -367,18 +375,18 @@ class CCmds_:
             示例: 当前页面 [微信]
             """
             pageName = ''
-            from CApp import CApp_
+            App = _G._G_.App()
             if appName:
                 # 获取指定应用的当前页面
-                app = CApp_.getApp(appName, True)
+                app = App.getApp(appName, True)
                 if app and app.currentPage:
                     pageName = app.currentPage.name
                 else:
                     return f"未找到应用 {appName} 或其页面信息"
             else:
                 # 获取当前应用及其页面
-                appName = CApp_.getCurAppName(True)
-                app = CApp_.getApp(appName)
+                appName = App.getCurAppName(True)
+                app = App.getApp(appName)
                 if app and app.currentPage:
                     pageName = app.currentPage.name
             return f"{appName}:{pageName}"
@@ -542,22 +550,6 @@ class CCmds_:
                 return None
 
 
-        @regCmd(r"打开-dk", r"(?P<appName>\S+)")
-        def openApp(appName):
-            """打开指定应用
-            用法: 打开应用 <应用名>
-            """
-            from CApp import CApp_
-            result = CApp_.gotoApp(appName)
-            if result:
-                # 检查应用是否在配置中注册
-                app = CApp_.getApp(appName)
-                if app and app.currentPage:
-                    return f"成功打开应用 {appName}，当前页面: {app.currentPage.name}"
-                return f"成功打开应用 {appName}"
-            else:
-                return f"打开应用 {appName} 失败"
-
         @regCmd(r"返回桌面-fhzm")
         def goHome():
             """
@@ -567,8 +559,8 @@ class CCmds_:
             参数: 无
             示例: 返回桌面
             """
-            from CApp import CApp_
-            result = CApp_.goHome()
+            App = _G._G_.App()
+            result = App.goHome()
             if result:
                 return "已返回主屏幕"
             else:
@@ -584,15 +576,15 @@ class CCmds_:
             参数: appName - 应用名称(可选)，不提供则关闭当前应用
             示例: 关闭 [微信]
             """
-            from CApp import CApp_
+            App = _G._G_.App()
             
             # 如果未指定应用名，使用当前应用
             if not appName:
-                appName = CApp_.getCurAppName()
+                appName = App.getCurAppName()
                 if not appName:
                     return "未指定要关闭的应用"
             
-            result = CApp_.closeApp(appName)
+            result = App.closeApp(appName)
             if result:
                 return f"已关闭应用 {appName}"
             else:
@@ -730,4 +722,66 @@ class CCmds_:
             except Exception as e:
                 log.ex(e, "停止页面检测器失败")
                 return f"e->停止页面检测器失败: {str(e)}"
+
+        @regCmd(r"启动应用检测-qyyjc", r"(?P<interval>\d+)?")
+        def startAppChecker(interval=None):
+            """
+            功能：启动全局应用检测器
+            指令名: startAppChecker-sac
+            中文名: 启动应用检测-qyyjc
+            参数: interval - 检测间隔秒数(可选)，默认为3秒
+            示例: 启动应用检测 [5]
+            """
+            g = _G._G_
+            log = g.Log()
+            
+            try:
+                interval = int(interval) if interval else 3
+                if interval < 1:
+                    return "e->检测间隔不能小于1秒"
+                
+                # 启动检测线程
+                result = g.Checker().start(interval)
+                if result:
+                    return f"启动应用检测器成功，检测间隔: {interval}秒"
+                else:
+                    return "i->应用检测器已在运行中"
+            except Exception as e:
+                log.ex(e, "启动应用检测器失败")
+                return f"e->启动应用检测器失败: {str(e)}"
+
+        @regCmd(r"检测应用变化-jcyybh", r"(?P<timeout>\d+)?")
+        def checkAppChange(timeout=None):
+            """
+            功能：检测当前应用是否发生变化
+            指令名: checkAppChange-cac
+            中文名: 检测应用变化-jcyybh
+            参数: timeout - 超时时间(可选)，默认为3秒
+            示例: 检测应用变化 [5]
+            """
+            g = _G._G_
+            log = g.Log()
+            
+            try:
+                timeout = int(timeout) if timeout else 3
+                if timeout < 1:
+                    return "e->超时时间不能小于1秒"
+                
+                # 设置检测回调
+                result = False
+                def onAppCheckResult(checkResult: bool):
+                    nonlocal result
+                    result = checkResult
+                    if checkResult:
+                        log.i(f"应用已变化，当前应用: {g.App().getCurAppName()}")
+                    else:
+                        log.i("应用未变化或检测超时")
+                
+                # 设置应用检测
+                g.Checker().checkCurApp(onAppCheckResult, timeout)
+                
+                return f"i->正在检测应用变化，超时时间: {timeout}秒"
+            except Exception as e:
+                log.ex(e, "检测应用变化失败")
+                return f"e->检测应用变化失败: {str(e)}"
 

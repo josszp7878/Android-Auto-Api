@@ -324,7 +324,7 @@ class CTools_(_Tools._Tools_):
     @classmethod
     def openApp(cls, appName:str) ->Optional["_App._App_"]:
         if not appName:
-            return None, False
+            return None
         g = _G._G_
         log = g.Log()
         App = g.App()

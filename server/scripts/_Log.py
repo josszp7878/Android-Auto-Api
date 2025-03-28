@@ -106,65 +106,96 @@ class _Log_:
                     f.write(json_line + '\n')  # 每个JSON对象单独一行
         except Exception as e:
             cls.ex(e, '保存日志缓存失败')
-    
+
     @classmethod
     def add(cls, logDict):
-        """添加日志到缓存并发送到前端"""       
-        cls._cache.append(logDict)
+        """添加日志到缓存并发送到前端"""      
         try:
+            logs = cls._cache
             from app import socketio
+            # 检查是否与最后一条日志内容相同
+            lastLog = logs[-1] if len(logs) > 0 else None
+            if lastLog:
+                # 检查标签、级别和消息是否相同
+                tagEqual = lastLog.get('tag') == logDict.get('tag')
+                levelEqual = lastLog.get('level') == logDict.get('level')
+                msgEqual = lastLog.get('message') == logDict.get('message')
+                # print(f'msg: {lastLog.get("message")}, logmsg: {logDict.get("message")} msgEqual: {msgEqual}')
+                if (tagEqual and levelEqual and msgEqual):  # 去除可能的重复标记
+                    # 更新重复计数
+                    count = lastLog.get('count', 1) + 1
+                    print(f'更新重复计数: {count}')
+                    lastLog['count'] = count
+                    # 通知前端更新
+                    socketio.emit('S2B_EditLog', lastLog)
+                    return
+            logs.append(logDict)
             if socketio.server:
                 socketio.emit('S2B_AddLog', logDict)
         except Exception as e:
             message = cls.formatEx('发送日志到控制台失败', e, '')
             print(message)
 
+
     @classmethod
-    def log(cls, content, tag=None, level='i')->dict:
-        """记录日志"""
+    def _serverLog(cls, tag, level, content)->dict:
         try:
-            timestamp = datetime.now()
-            # 强制转换非字符串内容
-            content = str(content)
-            # 处理content里面的level
             # 检查content是否以特定格式开头，提取level
             m = re.match(r'^\s*([diwec])[\#\-]\s*(.+)$', content)
             if m:
                 level = m.group(1)  # 提取level字符
-                content = m.group(2)  # 提取剩余内容
-            
-            iserver = _G._G_.isServer()
-            logData = None
-            time = timestamp.strftime('%Y-%m-%d %H:%M:%S')
-            tag = f'[{tag}]' if tag else ''
-            if iserver:
-                #msg = content[:500] if len(content) > 500 else content
-                msg = content
+                content = m.group(2)  # 提取剩余内容            
+            time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')            
+            # 创建新日志
+            logData = {
+                'time': time,
+                'tag': tag,
+                'level': level,
+                'message': content,
+                'count': 1
+            }    
+            cls.add(logData)
+            return logData
+        except Exception as e:
+            print(f'发送日志到服务器失败: {e}')
+            return None
+
+    @classmethod
+    def _clientLog(cls, tag, level, content)->dict:
+        """发送日志到前端"""
+        try:
+            from CDevice import CDevice_
+            device = CDevice_.instance()
+            if device:
+                tag = f'{device.deviceID}{tag}' if tag else device.deviceID
                 logData = {
-                    'time': time,
+                    # 'time': time,
                     'tag': tag,
                     'level': level,
-                    'message': msg  # 限制消息长度
+                    'message': content
                 }
-                cls.add(logData)
+                if device.connected:
+                    # print(f'发送日志到服务器: {logData}')
+                    device.sio.emit('C2S_Log', logData)
+                return logData  
+        except Exception as e:
+            print(f'发送日志到服务器失败: {e}')
+            return None
+
+    @classmethod
+    def log(cls, content, tag=None, level='i')->dict:
+        """记录日志"""
+        try:
+            # 强制转换非字符串内容
+            content = str(content)
+            isServer = _G._G_.isServer()
+            logData = None
+            tag = f'[{tag}]' if tag else ''
+            if isServer:
+                logData = cls._serverLog(tag, level, content)
             else:
-                try:
-                    from CDevice import CDevice_
-                    device = CDevice_.instance()
-                    if device:
-                        tag = f'{device.deviceID}{tag}' if tag else device.deviceID
-                        logData = {
-                            'time': time,
-                            'tag': tag,
-                            'level': level,
-                            'message': content
-                        }
-                        if device.connected:
-                            # print(f'发送日志到服务器: {logData}')
-                            device.sio.emit('C2S_Log', logData)
-                except Exception as e:
-                    print(f'发送日志到服务器失败: {e}')
-            print(f"{time} {tag} {level}: {content}")
+                logData = cls._clientLog(tag, level, content)
+            print(f"{tag} {level}: {content}")
             return logData
         except Exception as e:
             print(f'记录日志失败: {e}')

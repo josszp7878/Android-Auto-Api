@@ -1,3 +1,4 @@
+from typing import Optional, cast, Callable
 import _G
 from typing import Optional, cast
 import _App
@@ -27,10 +28,11 @@ class CApp_(_App._App_):
         return False
 
     @classmethod
-    def gotoApp(cls, appName) -> Optional["CApp_"]:
+    def gotoApp(cls, appName, onOpened=None):
         """跳转到指定应用
         Args:
             appName: 应用名称
+            onOpened: 回调函数，当应用打开时调用，参数为 bool 类型
             
         Returns:
             CApp_: 应用对象
@@ -53,10 +55,7 @@ class CApp_(_App._App_):
         app = tools.openApp(appName)
         if app is None:
             return None
-        if not app.onOpened():
-            return None
-        # 设置当前应用名称
-        cls._curAppName = appName
+        g.Checker().checkCurApp(onOpened, app.timeout)
         return app
     
     @classmethod
@@ -183,27 +182,22 @@ class CApp_(_App._App_):
                     Checker.remove(checker)
                 # 将页面检测器添加到全局列表
                 for checker in nextPage.checkers.values():
-                    Checker.add(checker)                    
-                # 使用页面检测器等待页面跳转完成
-                checkerSuccess = False
-                def onPageCheckResult(result: bool):
-                    nonlocal checkerSuccess
-                    if result:
-                        checkerSuccess = True
-                        self.curPage = nextPage
-                        log.i(f"成功跳转到页面: {nextPage.name}")
-                # 设置页面检测
-                Checker.checkPage(nextPage, onPageCheckResult)
+                    Checker.add(checker)     
+                checkTrue = False
+                # 使用普通函数定义作为回调
+                def onPageCheckResult(result):
+                    nonlocal checkTrue
+                    checkTrue = result
+
+                Checker.checkCurPage(onPageCheckResult, nextPage.timeout)
                 # 等待页面跳转完成或超时
                 maxWaitTime = checkWaitTime or nextPage.timeout or 10
                 startTime = time.time()
-                while not checkerSuccess and time.time() - startTime < maxWaitTime:
-                    time.sleep(0.5)  # 短暂等待，让检测器有机会执行
-                
-                if not checkerSuccess:
-                    log.e(f"等待页面跳转超时: {page.name} -> {nextPage.name}")
-                    return None
-                    
+                while not checkTrue:
+                    if time.time() - startTime > maxWaitTime:
+                        log.e(f"等待页面跳转超时: {page.name} -> {nextPage.name}")
+                        return None 
+                    time.sleep(1)  # 短暂等待，让检测器有机会执行
                 page = nextPage
                 
             # 更新当前页面
@@ -268,54 +262,24 @@ class CApp_(_App._App_):
             curAppName = cls.getCurAppName(True)
             log.i(f"当前应用: {curAppName}, 目标应用: {appName}")
             if appName != cls._curAppName:
-                app = cls.gotoApp(appName)
-                if not app:
-                    log.e(f"跳转到应用 {appName} 失败")
-                    return False
-            app = cast(CApp_, app)
-            # 在目标应用内跳转到目标页面
-            return app._gotoPage(pageName) is not None
+                # 定义回调函数
+                def onAppOpened(result):
+                    log.i(f"跳转到应用 {appName} 结果: {result}")
+                    if result:
+                        app_obj = cast(CApp_, app)
+                        app_obj._gotoPage(pageName)
+                    else:
+                        log.e(f"跳转到应用 {appName} 失败")
+                
+                # 使用回调函数
+                app = cls.gotoApp(appName, onAppOpened)
+                return app is not None
+            else:
+                # 已经在目标应用中，直接跳转到目标页面
+                return app._gotoPage(pageName) is not None
         except Exception as e:
             log.ex(e, "跳转失败")
         return False
-
-    @classmethod
-    def _refreshCurApp(cls) -> Optional[str]:
-        """检测当前运行的应用并设置为当前应用
-        
-        Returns:
-            str: 应用名称，如果未检测到则返回None
-        """
-        g = _G._G_
-        log = g.Log()
-        tools = g.Tools()
-        try:
-            if tools.android:
-                # 获取当前运行的应用信息
-                appInfo = g.Tools().getCurrentAppInfo()
-                log.i(f"当前应用信息: {appInfo}")
-                if not appInfo:
-                    log.w("无法获取当前运行的应用信息")
-                    return None
-                # 检查是否在桌面
-                if tools.isHome():
-                    cls._curAppName = _G.TOP
-                    return _G.TOP
-                    
-                appName = appInfo.get("appName")
-                # 设置为当前应用
-                cls._curAppName = appName
-            return cls._curAppName
-        except Exception as e:
-            log.ex(e, "检测当前运行的应用失败")
-            return None
-   
-    @classmethod
-    def getCurAppName(cls, refresh=False) -> Optional[str]:
-        """获取当前应用名称"""
-        if refresh:
-            cls._refreshCurApp()
-        return super().getCurAppName(refresh)
 
 
 # 导出类

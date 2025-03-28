@@ -143,6 +143,12 @@ class LogManager {
         return;
       }
 
+      // 确保count属性存在
+      if (!data.count) {
+        data.count = 1;
+      }
+      
+      console.log('添加日志:', data);
       this.logs.push(data);
       if (this.matchesFilter(data)) {
         this.filteredLogs.push(data);
@@ -167,6 +173,60 @@ class LogManager {
         this.scrollToBottom();
       }
     });
+    
+    // 添加日志编辑事件监听
+    this.socket.on('S2B_EditLog', (data) => {
+      // 找到最后一条日志并更新
+      if (this.logs.length > 0) {
+        const lastLog = this.logs[this.logs.length - 1];
+        
+        // 如果是日志对象，更新整个日志
+        if (typeof data === 'object') {
+          Object.assign(lastLog, data);
+          
+          // 确保count属性存在
+          if (typeof lastLog.count === 'undefined') {
+            lastLog.count = 1;
+          }
+          
+          // 更新显示消息
+          if (lastLog.count > 1) {
+            lastLog.displayMessage = `${lastLog.message.split(' (+')[0]} (+${lastLog.count})`;
+          } else {
+            lastLog.displayMessage = lastLog.message;
+          }
+          
+          // 只更新这一条日志，而不是所有日志
+          this.updateSingleLog(lastLog);
+        }
+      }
+    });
+  }
+  
+  // 添加单条日志更新方法
+  updateSingleLog(log) {
+    // 由于DOM元素可能没有data-log-id属性，我们需要使用其他方式找到对应的日志元素
+    // 方法2: 如果没有Vue，尝试找到最后一个日志元素
+    const logElements = document.querySelectorAll('.log-entry');
+    if (logElements.length > 0) {
+      const lastLogElement = logElements[logElements.length - 1];
+      console.log('找到最后一个日志元素:', lastLogElement);
+      
+      const messageElement = lastLogElement.querySelector('.log-message');
+      if (messageElement) {
+        console.log('更新消息元素内容');
+        messageElement.textContent = log.displayMessage || log.message;
+        
+        // 如果有重复计数，添加视觉提示
+        if (log.count > 1) {
+          lastLogElement.classList.add('repeated-log');
+        }
+      }
+    } else {
+      console.log('未找到日志元素，可能需要完全刷新视图');
+      // 如果找不到任何日志元素，可能需要完全刷新视图
+      this.refreshDisplay();
+    }
   }
   
   // 修改后的处理CMD日志方法
@@ -328,22 +388,33 @@ class LogManager {
   }
   
   // 更新日志显示区域
-  updateLogDisplay(logs) {
-    const logContainer = document.getElementById('logs-container');
-    logContainer.innerHTML = '';
-
-    logs.forEach(log => {
-      const logElement = document.createElement('div');
-      logElement.className = `log-entry log-${log.level}`;
-      logElement.innerHTML = `
-        <span class="log-time">${log.time}</span>
-        <span class="log-tag">${log.tag}</span>
-        <span class="log-message">${log.message}</span>
-      `;
-      logContainer.appendChild(logElement);
-    });
-
-    logContainer.scrollTop = logContainer.scrollHeight;
+  updateLogDisplay() {
+    // 如果使用Vue或其他框架，可能只需要触发数据更新
+    // 例如：this.$forceUpdate();
+    
+    // 如果使用原生DOM操作，可能需要重新渲染日志列表
+    const logsContainer = document.querySelector('.console-logs');
+    if (logsContainer) {
+      // 处理日志显示，添加重复计数显示
+      this.filteredLogs.forEach(log => {
+        // 确保count属性存在
+        if (typeof log.count === 'undefined') {
+          log.count = 1;
+        }
+        
+        // 确保count属性存在且大于1
+        if (log.count && parseInt(log.count) > 1) {
+          console.log(`日志有重复: ${log.message}, 计数: ${log.count}`);
+          // 添加显示属性
+          log.displayMessage = `${log.message} (+${log.count})`;
+        } else {
+          log.displayMessage = log.message;
+        }
+      });
+    }
+    
+    // 通知Vue或其他框架更新视图
+    this.onLogsUpdated && this.onLogsUpdated(this.filteredLogs);
   }
   
   // 更新分页控件

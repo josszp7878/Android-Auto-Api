@@ -43,32 +43,18 @@ class _App_:
             return
         self.currentPage = page
         
-    def findCurPage(self):
+    def detectCurPage(self)->Optional["_Page._Page_"]:
         """客户端实现：通过屏幕检测当前页面"""
-        tools = _G._G_.Tools()  
-        if tools.android is None:
-            return
+        tools = _G._G_.CTools()  
         tools.refreshScreenInfos()
-        import _Page
-        page = _Page._Page_.detectPage(self.rootPage)
-        if page:
-            self.curPage = page
+        page = self.rootPage.detectPage()
+        if page is None:
+            return None
+        if page.name == self.curPage.name:
+            return None
+        self.curPage = page
+        return page
     
-    def onOpened(self)->bool:
-        """应用打开后回调"""
-        waitTime = self.timeout or 6
-        g = _G._G_
-        log = g.Log()
-        if g.CTools().android is not None:
-            time.sleep(waitTime)
-        else:
-            log.i(f"模拟等待时间: {waitTime}秒")
-        if not g.CTools().curAppIs(self.name):
-            log.e(f"打开应用失败: {self.name}")
-            return False
-        #检测应用当前页面
-        self.findCurPage()
-        return True
     
 
         
@@ -222,14 +208,58 @@ class _App_:
             log.ex(e, "应用模糊匹配失败")
         return None
     
+    @classmethod
+    def detectCurApp(cls) -> bool:
+        """检测当前运行的应用并设置为当前应用
+        Returns:
+            str: 应用名称，如果未检测到则返回None
+        """
+        g = _G._G_
+        log = g.Log()
+        tools = g.Tools()
+        try:
+            if tools.android is None:
+                return True
+            # 获取当前运行的应用信息
+            appInfo = g.Tools().getCurrentAppInfo()
+            # log.i(f"当前应用信息: {appInfo}")
+            if not appInfo:
+                # log.w("无法获取当前运行的应用信息")
+                return False
+            # 检查是否在桌面
+            if tools.isHome():
+                cls._curAppName = _G.TOP
+                return _G.TOP
+            appName = appInfo.get("appName")
+            cls._curAppName = appName
+            return True
+        except Exception as e:
+            log.ex(e, "检测当前运行的应用失败")
+            return False
+        
+    @classmethod
+    def getCurAppName(cls) -> Optional[str]:
+        """获取当前应用名称"""
+        appName = cls._curAppName
+        if appName is None:
+            return _G.TOP
+        return appName
     
     @classmethod
-    def getCurAppName(cls, refresh=False) -> Optional[str]:
-        """获取当前应用名称"""
-        if cls._curAppName is None:
-            return _G.TOP
-        return cls._curAppName
+    def getCurApp(cls, refresh=False) -> Optional["_App_"]:
+        """获取当前应用对象"""
+        appName = cls._curAppName
+        if appName == _G.TOP:
+            return cls.Top
+        if appName is None:
+            return None
+        return cls.apps.get(appName)
     
+
+    @classmethod
+    def setCurAppName(cls, appName: str):
+        """设置当前应用名称"""
+        cls._curAppName = appName
    
     
     @classmethod
