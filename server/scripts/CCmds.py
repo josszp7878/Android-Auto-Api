@@ -385,7 +385,7 @@ class CCmds_:
                     return f"未找到应用 {appName} 或其页面信息"
             else:
                 # 获取当前应用及其页面
-                appName = App.getCurAppName(True)
+                appName = App.getCurAppName()
                 app = App.getApp(appName)
                 if app and app.currentPage:
                     pageName = app.currentPage.name

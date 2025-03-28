@@ -34,6 +34,7 @@ class CChecker_:
         self.startTime = time.time()  # 初始化时设置开始时间
         self.lastCheckTime = 0  # 上次检查时间
         self.onResult = None  # 默认回调函数
+        self.enabled = True  # 是否启用
 
     @property
     def pastTime(self) -> int:
@@ -50,7 +51,8 @@ class CChecker_:
             if self.timeout > 0 and self.pastTime > self.timeout:
                 _Log.c.d(f"检查器 {self.name} 超时")
                 self.callResult(False)
-                return 'PASS'
+                self.enabled = False
+                return True
             g = _G._G_
             tools = g.Tools()
             # 当代码执行，返回结果为PASS时，表示执行成功·
@@ -130,7 +132,7 @@ class CChecker_:
                 i = 0  # 初始化i变量
                 while i < len(active_checkers):
                     checker = active_checkers[i]
-                    if not cls._running:
+                    if not cls._running or not checker.enabled:
                         break
                     # 检查是否到达检查间隔时间
                     deltaTime = current_time - checker.lastCheckTime
@@ -141,9 +143,7 @@ class CChecker_:
                         # 更新上次检查时间
                         checker.lastCheckTime = current_time
                         ret = checker.check()
-                        if ret == 'PASS':
-                            active_checkers.remove(checker)
-                        elif ret:
+                        if ret:
                             log.i(f"检查器 {checker.name} 匹配成功，执行操作")
                             checker.do()
                         i += 1  # 增加索引
@@ -212,9 +212,10 @@ class CChecker_:
                 'check': "{this._pageCheck()}",
                 'interval': 3
             }
-            checker = cls("检测器", config)
+            checker = cls("页面检测器", config)
             cls._pageChecker = checker
             cls.add(checker)
+            checker.enabled = False
             _Log.c.i("创建页面检测器")
     
     
@@ -254,15 +255,15 @@ class CChecker_:
                 'check': "{this._appCheck()}",
                 'interval': 3
             }
-            checker = cls("检测器", config)
+            checker = cls("应用检测器", config)
             cls._appChecker = checker
             cls.add(checker)
+            checker.enabled = False
             _Log.c.i("创建应用检测器")
    
     @classmethod
     def checkCurApp(cls, callback: Callable[[bool], None], timeout: int = None) -> bool:
         """设置要检测的当前应用
-        
         Args:
             callback: 检测结果回调函数
             timeout: 超时时间(秒)
