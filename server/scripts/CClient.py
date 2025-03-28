@@ -64,6 +64,28 @@ class CClient_:
                     break
 
     @classmethod
+    def _connectServer(cls, server, tools):
+        """连接服务器核心逻辑"""
+        waitting = True
+        def onConnected(ok):
+            nonlocal waitting
+            waitting = False
+            if not ok:
+                tools.toast("服务器连接失败")
+        cls.device.connect(server, onConnected)
+        timeout = 30
+        start_time = time.time()
+        while waitting:
+            if time.time() - start_time > timeout:
+                print("连接超时")
+                break
+            time.sleep(1)
+            print(".", end="", flush=True)
+
+        if not cls.device.connected:
+            tools.toast("无法连接到服务器")                
+
+    @classmethod
     def Begin(cls, deviceID=None, server=None, fromAndroid=None):  
         """初始化客户端"""
         g = _G._G_
@@ -82,6 +104,7 @@ class CClient_:
             g.CmdMgr().regAllCmds()
             cls._connectServer(server, tools)
             g.CFileServer().serverIp = server
+            g.Checker().start()
             print("按Ctrl+C退出")    
             while True:
                 try:
@@ -102,33 +125,13 @@ class CClient_:
         except Exception as e:
             log.ex(e, '初始化失败')
 
-    @classmethod
-    def _connectServer(cls, server, tools):
-        """连接服务器核心逻辑"""
-        waitting = True
-        def onConnected(ok):
-            nonlocal waitting
-            waitting = False
-            if not ok:
-                tools.toast("服务器连接失败")
-        cls.device.connect(server, onConnected)
-        timeout = 30
-        start_time = time.time()
-        while waitting:
-            if time.time() - start_time > timeout:
-                print("连接超时")
-                break
-            time.sleep(1)
-            print(".", end="", flush=True)
-
-        if not cls.device.connected:
-            tools.toast("无法连接到服务器")
-
-
+   
     @classmethod
     def End(cls):
         """清理函数"""
-        log = _G._G_.Log()
+        g = _G._G_
+        log = g.Log()
+        g.Checker().stop()
         if cls.device:
             cls.device.uninit()
         try:

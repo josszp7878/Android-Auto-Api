@@ -266,7 +266,8 @@ class CCmds_:
                         "t": item.get("t", ""),
                         "b": item.get("b", "")
                     } for item in screen_data
-                ], ensure_ascii=False)
+                ],  ensure_ascii=False)
+            
             except Exception as e:
                 log.ex(e, "获取屏幕信息失败")
                 return '[]'
@@ -645,4 +646,88 @@ class CCmds_:
             """
             from _App import _App_
             return _App_.printTopology(appName)
+
+        @regCmd(r"跳转页面-tzym", r"(?P<pageName>[^ ]+)(\s+(?P<appName>[^ ]+))?")
+        def gotoPage(pageName, appName=None):
+            """
+            功能：跳转到指定应用的指定页面
+            指令名: gotoPage-gp
+            中文名: 跳转页面-tzym
+            参数: 
+                pageName - 目标页面名称
+                appName - 应用名称(可选)，不提供则使用当前应用
+            示例: 跳转页面 设置 [微信]
+            """
+            g = _G._G_
+            log = g.Log()
+            
+            try:
+                # 获取应用对象
+                app = None
+                if appName:
+                    app = g.CApp().getApp(appName)
+                    if not app:
+                        return f"e->找不到应用: {appName}"
+                else:
+                    app = g.CApp().getCurrentApp()
+                    if not app:
+                        return "e->当前没有活跃的应用"
+                
+                # 执行页面跳转
+                result = app._gotoPage(pageName)
+                if result:
+                    return f"成功跳转到页面: {pageName}"
+                else:
+                    return f"e->跳转到页面 {pageName} 失败"
+            except Exception as e:
+                log.ex(e, "执行页面跳转命令失败")
+                return f"e->执行页面跳转命令失败: {str(e)}"
+
+        @regCmd(r"启动页面检测-qyymjc", r"(?P<interval>\d+)?")
+        def startPageChecker(interval=None):
+            """
+            功能：启动全局页面检测器
+            指令名: startPageChecker-spc
+            中文名: 启动页面检测-qyymjc
+            参数: interval - 检测间隔秒数(可选)，默认为3秒
+            示例: 启动页面检测 [5]
+            """
+            g = _G._G_
+            log = g.Log()
+            
+            try:
+                interval = int(interval) if interval else 3
+                if interval < 1:
+                    return "e->检测间隔不能小于1秒"
+                
+                # 启动检测线程
+                result = g.Checker().start(interval)
+                if result:
+                    return f"启动页面检测器成功，检测间隔: {interval}秒"
+                else:
+                    return "i->页面检测器已在运行中"
+            except Exception as e:
+                log.ex(e, "启动页面检测器失败")
+                return f"e->启动页面检测器失败: {str(e)}"
+
+        @regCmd(r"停止页面检测-tzyymjc")
+        def stopPageChecker():
+            """
+            功能：停止全局页面检测器
+            指令名: stopPageChecker-tpc
+            中文名: 停止页面检测-tzyymjc
+            示例: 停止页面检测
+            """
+            g = _G._G_
+            log = g.Log()
+            
+            try:
+                result = g.Checker().stop()
+                if result:
+                    return "停止页面检测器成功"
+                else:
+                    return "i->页面检测器未在运行"
+            except Exception as e:
+                log.ex(e, "停止页面检测器失败")
+                return f"e->停止页面检测器失败: {str(e)}"
 

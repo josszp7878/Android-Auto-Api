@@ -2,7 +2,7 @@ import time
 import _G
 from typing import List, Optional, Dict, Any, Callable
 import CChecker
-import re
+import _Log
 
 
 class _Page_:
@@ -289,23 +289,22 @@ class _Page_:
         return None
 
     
-    def match(self, pattern) -> bool: 
+    def match(self) -> bool: 
         """检查页面规则是否匹配当前屏幕"""
         g = _G._G_
         tools = g.CTools()
         log = g.Log()
-        if not pattern:
+        if not self.matches:
             return True
         if tools.android is None:
-            #测试客户端，不执行动作，只打印。
-            # log.i(f"检查页面规则：{self.matches}")
+            # 测试客户端，不执行动作，只打印。
             return True
         try:
             # 刷新屏幕信息
             tools.refreshScreenInfos()        
             # 检查所有规则
             all_passed = True
-            for rule in pattern:
+            for rule in self.matches:
                 try:
                     # 如果是代码规则
                     if rule.startswith('{') and rule.endswith('}'):
@@ -313,7 +312,7 @@ class _Page_:
                         log.d(f"执行代码规则: {code}")
                         ret = g.Tools().eval(self, code)
                         if not ret:
-                            log.e(f"代码规则不匹配: {rule}")
+                            log.d(f"代码规则不匹配: {rule}")
                             all_passed = False
                             break
                     # 如果是文本规则
@@ -321,13 +320,9 @@ class _Page_:
                         log.d(f"检查文本规则: {rule}")
                         ret = tools.matchText(rule)
                         if not ret:
-                            # log.e(f"文本规则不匹配: {rule}")
+                            log.d(f"文本规则不匹配: {rule}")
                             all_passed = False
                             break
-                    if not ret:
-                        # log.e(f"代码规则不匹配: {rule}")
-                        all_passed = False
-                        break
                 except Exception as e:
                     log.ex(e, f"规则处理失败: {rule}")
                     all_passed = False
@@ -338,68 +333,8 @@ class _Page_:
             log.ex(e, f"检查页面规则失败: {self.name}")
             return False
     
-    def checkCheckers(self, term='in') -> bool:
-        """检查页面的检查器
-        
-        Args:
-            term: 检查器类型，'in'表示进入页面时的检查器，'out'表示离开页面时的检查器
-            
-        Returns:
-            bool: 所有检查器是否都通过
-        """
-        checkers = self.checkers
-        if checkers is None or len(checkers) == 0:
-            return True
-        
-        g = _G._G_
-        log = g.Log()
-        
-        log.i(f"执行页面 {self.name} 的检查器")
-        
-        # 遍历所有检查器
-        for checkName, checker in checkers.items():
-            try:
-                # 检查是否是指定类型的检查器
-                if checker.term != term:
-                    continue
-                log.i(f"执行检查器: {checkName}")
-                # 执行检查
-                if checker.check():
-                    if not checker.do():
-                        log.e(f"检查器 {checkName} 操作执行失败")
-                        return False
-            except Exception as e:
-                log.ex(e, f"执行检查器 {checkName} 失败")
-                continue
-            
-        return True
-             
-        
-    def onEnter(self) -> bool:
-        """进入页面"""
-        try:
-            g = _G._G_
-            log = g.Log()
-            # 等待指定时间
-            wait_time = self.timeout
-            if wait_time > 0:
-                time.sleep(wait_time)
-            # 验证目标页面
-            if not self.match(self.matches):
-                log.e(f"未能验证目标页面 {self.name}")
-                return False
-            else:
-                # 执行进入页面时的检查器
-                if not self.checkCheckers('in'):
-                    log.e(f"页面 {self.name} 的检查器失败")
-                    return False
-                return True
-        except Exception as e:
-            log.ex(e, f"进入页面 {self.name} 失败")
-            return False
-
     
-    def go(self, targetPage: "_Page_", waitTime=None) -> bool:
+    def go(self, targetPage: "_Page_") -> bool:
         """跳转到目标页面并验证结果"""
         try:
             g = _G._G_

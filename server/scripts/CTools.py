@@ -4,6 +4,8 @@ import _G
 import re
 from typing import Optional, TYPE_CHECKING
 import _Tools
+import _Log
+
 if TYPE_CHECKING:
     import _App
 
@@ -178,7 +180,7 @@ class CTools_(_Tools._Tools_):
         
     _screenInfoCache = None
     @classmethod
-    def getScreenInfo(cls, refresh=False):
+    def getScreenInfo(cls, refresh=False)->list[dict]:
         """获取屏幕信息
         Args:
             refresh: 是否刷新缓存
@@ -262,26 +264,32 @@ class CTools_(_Tools._Tools_):
     @classmethod
     def matchText(cls, str: str, refresh=False):
         try:
+            wildMatch = not str.startswith('^')
+            if wildMatch:
+                str = str[1:]
             # 使用缓存的屏幕信息
-            screenInfo = cls.getScreenInfo(refresh)
+            screenInfos = cls.getScreenInfo(refresh)
             log = _G._G_.Log()
             # log.i(f"匹配屏幕文本: {str} in {screenInfo}")
-            if not screenInfo:
-                log.w("屏幕信息为空")
+            if not screenInfos:
+                # log.w("屏幕信息为空")
                 return None
             # 解析区域和文本（保持原有逻辑）
             region, text = RegionCheck.parse(str)
-            # 生成正则表达式（添加.*通配）
-            regex = re.compile(text)
-            # log.i(f"正则表达式: {regex}, regioCheck={region}")
-            # 遍历屏幕信息，查找匹配的文本
-            # 先匹配文本，将匹配成功的项缓存
+            item = None
+            log.i(f"匹配文本: {str} wildMatch={wildMatch}")
             textMatchedItems = []
-            for item in screenInfo:
-                t = item['t']
-                if regex.search(t):
-                    textMatchedItems.append(item)
+            if wildMatch:
+                regex = re.compile(text)
+                # 先匹配文本，将匹配成功的项缓存
+                for item in screenInfos:
+                    t = item['t']
+                    if regex.search(t):
+                        textMatchedItems.append(item)
+            else:
+                textMatchedItems = [item for item in screenInfos if item['t'] == text]
             if len(textMatchedItems) == 0:
+                log.w(f"未找到匹配的文本: {text}")
                 return None
             ret = textMatchedItems[0]
             if region:
@@ -292,7 +300,6 @@ class CTools_(_Tools._Tools_):
                     isIn = region.isRectIn(
                         bounds[0], bounds[1], bounds[2], bounds[3])
                     if isIn:
-                        # log.i(f"区域匹配: {item}")
                         ret = item
                         break
             return ret
@@ -626,7 +633,7 @@ class CTools_(_Tools._Tools_):
         return False
 
     @classmethod
-    def click(cls, text: str, direction: str = 'UD', waitTime: int = 1) -> bool:
+    def click(cls, text: str, direction: str = None, waitTime: int = 1) -> bool:
         """点击文本（支持偏移）
         
         支持格式：
@@ -646,6 +653,7 @@ class CTools_(_Tools._Tools_):
         offsetX, offsetY = 0, 0
         # 使用正则表达式匹配偏移信息
         match = re.search(r'(.*?)(?:x([+-]?\d+))?(?:y([+-]?\d+))', text)
+        # log.i(f"match: {match}")
         if match:
             text = match.group(1)
             x_offset = match.group(2)
@@ -654,7 +662,8 @@ class CTools_(_Tools._Tools_):
                 offsetX = int(x_offset)
             if y_offset:
                 offsetY = int(y_offset)
-        pos = cls.findTextPos(text, direction)
+        pos = cls.findTextPos(text, direction)  
+        # log.i(f"pos: {pos}")
         if pos:
             log.i(f"点击文本: {text}，pos={pos}，偏移: x={offsetX}, y={offsetY}")        
             return cls.clickPos(pos, (offsetX, offsetY))
@@ -786,12 +795,9 @@ class CTools_(_Tools._Tools_):
         """
         # 尝试在当前屏幕查找
         pos = cls._findTextPos(text)
-        if pos or text[0] != '@':
+        # _Log.c.i(f"findTextPos: {pos}")
+        if pos or not searchDir:
             return pos
-        # 如果没有指定搜索方向，只在当前屏幕查找
-        if not searchDir:
-            # log.i(f"未指定搜索方向，只在当前屏幕查找文本: {text}")
-            return None
         # 定义匹配函数
         def matchFunc():
             nonlocal pos
@@ -799,6 +805,7 @@ class CTools_(_Tools._Tools_):
             return pos is not None
         # 使用swipeTo进行滑动查找
         found = cls.swipeTo(searchDir, matchFunc)
+        # _Log.c.i(f"findTextPos: {pos}")
         return pos if found else None
     
     
@@ -819,9 +826,9 @@ class CTools_(_Tools._Tools_):
                 bounds = [int(x) for x in result['b'].split(',')]
                 x = (bounds[0] + bounds[2]) // 2
                 y = (bounds[1] + bounds[3]) // 2
-                log.i(f"修正比例: {cls._fixFactor}")
+                # log.i(f"修正比例: {cls._fixFactor}")
                 fixY = int(cls._fixFactor*y)
-                log.i(f"修正Y坐标: {fixY}")
+                # log.i(f"修正Y坐标: {fixY}")
                 return (x, y + fixY)
             # log.i(f"屏幕上未找到文本: {text}")
             return None

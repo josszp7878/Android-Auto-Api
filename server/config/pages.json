@@ -57,7 +57,12 @@
                     "ratio": 33000,
                     "description": "抖音火山版积分换算比例33000:1"
                 },
-                "match": ["首页[y-300,0]"],                
+                "match": ["首页[y-300,0]"],  
+                "checkers": {
+                    "每日签到": {
+                        "do": "立即签到"
+                    }
+                },            
                 "children": {
                     "我的火苗": {
                         "match": ["我的火苗[y0,300]"],
@@ -65,14 +70,13 @@
                         "children": {
                             "限时火山任务": {
                                 "match": ["广告[y0,300]"],
-                                "in": "@去领取",
+                                "in": "^去领取",
                                 "checkers": {  
                                     "领取成功": {
-                                        "term": "in",
+                                        "timeout": 10,
                                         "do" : "T.click(2)"},
                                     "倒计时": {
                                         "check": "{this.pastTime > 5}",
-                                        "term": "in",
                                         "do" : "T.goback()",
                                         "interval": 1
                                     }

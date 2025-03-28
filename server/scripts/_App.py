@@ -10,6 +10,10 @@ if TYPE_CHECKING:
 class _App_:
     """应用管理类：整合配置与实例"""
     _curAppName = _G.TOP  # 当前应用名称
+    @classmethod
+    def currentApp(cls):
+        """获取当前应用"""
+        return cls.getApp(cls._curAppName, True)
     apps = {}  # 存储应用实例 {appName: _App_实例}
     Top: "_App_" = None
 
@@ -37,20 +41,9 @@ class _App_:
         """设置应用当前页面"""
         if page == self.currentPage:
             return
-        try:
-            log = _G._G_.Log()
-            if page.onEnter():
-                self.currentPage = page
-                return page
-            else:   
-                log.e(f"进入页面 {page.name} 失败")
-                return None
-        except Exception as e:
-            log.ex(e, f"进入页面 {page.name} 失败")
-            return None
-    
+        self.currentPage = page
         
-    def refreshCurPage(self):
+    def findCurPage(self):
         """客户端实现：通过屏幕检测当前页面"""
         tools = _G._G_.Tools()  
         if tools.android is None:
@@ -74,7 +67,7 @@ class _App_:
             log.e(f"打开应用失败: {self.name}")
             return False
         #检测应用当前页面
-        self.refreshCurPage()
+        self.findCurPage()
         return True
     
 

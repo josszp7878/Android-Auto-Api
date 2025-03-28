@@ -1,6 +1,7 @@
 import _G
 from typing import Optional, cast
 import _App
+import time
 
 class CApp_(_App._App_):
     """客户端应用管理类"""
@@ -164,17 +165,47 @@ class CApp_(_App._App_):
                 log.e(f"找不到从 {self.currentPage.name} 到 {pageName} 的路径")
                 return None
             log.i(f"找到路径: {'->'.join([p.name for p in pages])}")
+            
             # 执行路径中的每一步跳转
             page = self.currentPage
             for i in range(1, len(pages)):  # 从1开始，因为0是当前页面
                 nextPage = pages[i]
+                
                 # 执行跳转动作
-                result = page.go(nextPage, checkWaitTime)
+                result = page.go(nextPage)
                 if not result:
                     log.e(f"跳转失败: {page.name} -> {nextPage.name}")
                     return None
+                
+                Checker = g.Checker()
+                #移除当前页面检测器
+                for checker in page.checkers.values():
+                    Checker.remove(checker)
+                # 将页面检测器添加到全局列表
+                for checker in nextPage.checkers.values():
+                    Checker.add(checker)                    
+                # 使用页面检测器等待页面跳转完成
+                checkerSuccess = False
+                def onPageCheckResult(result: bool):
+                    nonlocal checkerSuccess
+                    if result:
+                        checkerSuccess = True
+                        self.curPage = nextPage
+                        log.i(f"成功跳转到页面: {nextPage.name}")
+                # 设置页面检测
+                Checker.checkPage(nextPage, onPageCheckResult)
+                # 等待页面跳转完成或超时
+                maxWaitTime = checkWaitTime or nextPage.timeout or 10
+                startTime = time.time()
+                while not checkerSuccess and time.time() - startTime < maxWaitTime:
+                    time.sleep(0.5)  # 短暂等待，让检测器有机会执行
+                
+                if not checkerSuccess:
+                    log.e(f"等待页面跳转超时: {page.name} -> {nextPage.name}")
+                    return None
+                    
                 page = nextPage
-                self.curPage = nextPage
+                
             # 更新当前页面
             return page
         except Exception as e:
