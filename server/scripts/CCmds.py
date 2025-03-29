@@ -3,8 +3,10 @@ import threading
 import time as time_module
 import json
 import _G
-g = _G.g
+
+g = _G._G_
 log = g.Log()
+App = g.App()
 
 # 添加缓存相关的变量
 _screenInfoCache = None
@@ -711,4 +713,41 @@ class CCmds_:
             else:
                 g.Checker().enableAppCheck(None)
                 return "应用检测器已停止"
+       
+        @regCmd(r"检查-jcq", r"(?P<checkerName>\S+)")
+        def check(checkerName):
+            """
+            功能：测试指定名称的检查器，使用当前页面作为参数
+            指令名: check
+            中文名: 检查-jcq
+            参数: 
+                checkerName - 检查器名称
+            示例: 检查 每日签到
+            """
+            Checker = g.Checker()
+            # 获取当前应用和页面
+            curApp = App.getCurApp()
+            if not curApp:
+                return "当前没有检测到应用，无法测试检查器"
+            curPage = curApp.curPage
+            if not curPage:
+                return "当前没有检测到页面，无法测试检查器"
+            # 创建检查器
+            checker = Checker.add(checkerName, curPage, None)
+            if not checker:
+                return f"创建检查器 {checkerName} 失败，可能模板不存在"
+            # 设置回调函数
+            def onCheckResult(result):
+                log.i(f"检查器 {checkerName} 结果: {result}")
+            
+            checker.onResult = onCheckResult
+            checker.enabled = True
+            
+            # 执行检查
+            result = checker.check()
+            if result:
+                checker.do()
+                return f"检查器 {checkerName} 匹配成功，已执行操作"
+            else:
+                return f"检查器 {checkerName} 匹配失败"
        

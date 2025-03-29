@@ -63,21 +63,14 @@ class _G_:
 
     @classmethod
     def rootDir(cls):
-        if cls._dir:
-            return cls._dir
-        dir = None
-        if not cls._isServer:
-            import CTools
-            android = CTools.CTools_.android
-            if android:
-                # Android环境下使用应用私有目录
-                dir = android.getFilesDir(None, False)
-        if not dir:
-            # 开发环境使用当前目录
-            dir = os.path.dirname(
-                os.path.dirname(os.path.abspath(__file__)))
-        cls._dir = dir
-        return cls._dir
+        """获取根目录"""
+        try:
+            from java import PythonServices
+            return PythonServices.getFilesDir()
+        except Exception as e:
+            # 提供备选路径或返回默认值
+            cls.log.e(f"获取根目录失败: {e}")
+            return "/data/local/tmp"  # 提供一个可能可写的备选路径
 
     @classmethod
     def scriptDir(cls):

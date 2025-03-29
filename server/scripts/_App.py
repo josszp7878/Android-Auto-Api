@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 import _Log
 import _G
@@ -60,24 +59,52 @@ class _App_:
         
     @classmethod
     def loadConfig(cls, AppClass=None):
-        """加载配置并创建应用实例与页面树
-        Args:
-            AppClass: 要创建的应用类，如果为None则根据环境自动选择
-        """
-        g = _G._G_
-        log = g.Log()
+        """加载配置并创建应用实例与页面树"""
         try:
-            configPath = Path(__file__).parent.parent / 'config' / 'pages.json'
-            with open(configPath, 'r', encoding='utf-8') as f:
-                configData = json.load(f)
-
-            cls.apps.clear()
+            import json
+            import os
+            import _Log
+            import CChecker
             import _Page
+            
+            log = _Log._Log_()
+            
+            # 检查环境是否准备好
+            try:
+                from java import PythonServices
+                if not PythonServices.isInitialized():
+                    log.w("Python服务尚未初始化，跳过配置加载")
+                    return False
+            except Exception as e:
+                log.w(f"检查Python服务初始化状态失败: {e}")
+                return False
+            
+            # 清空现有应用
+            cls.apps = {}
             Page = _Page._Page_
             root = Page.Root()
             cls.Top = AppClass("Top", root, {}, [])
-            def processNode(node, parentPage=None, parentName=None):
-                """统一处理节点：创建应用实例和页面树"""
+            
+            # 尝试加载配置文件
+            try:
+                configFile = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config", "pages.json")
+                with open(configFile, 'r', encoding='utf-8') as f:
+                    configData = json.load(f)
+            except Exception as e:
+                log.e(f"加载配置文件失败: {e}")
+                return False
+            
+            # 首先读取TOP节点的checkers配置
+            topCheckers = configData.get("Top", {}).get("checkers", {})
+            if topCheckers:
+                CChecker.CChecker_.loadTemplates(topCheckers)
+                log.i(f"已加载{len(topCheckers)}个checker模板")
+            
+            # 创建根页面
+            root = Page.createPage("Top", None, [], None, None)
+            
+            # 递归处理配置树
+            def processNode(node, parentPage, parentName):
                 for pageName, pageConfig in node.items():
                     if not isinstance(pageConfig, dict):
                         log.e(f"页面配置错误,该节点不是字典: {pageConfig}")

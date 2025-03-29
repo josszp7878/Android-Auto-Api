@@ -172,19 +172,16 @@ class CApp_(_App._App_):
                     log.e(f"跳转失败: {page.name} -> {nextPage.name}")
                     return None
                 
-                Checker = g.Checker()
                 #移除当前页面检测器
-                for checker in page.checkers.values():
-                    Checker.remove(checker)
+                page.removeCheckers()
                 # 将页面检测器添加到全局列表
-                for checker in nextPage.checkers.values():
-                    Checker.add(checker)     
+                nextPage.addCheckers()
                 checkTrue = False
                 # 使用普通函数定义作为回调
                 def onPageCheckResult(result):
                     nonlocal checkTrue
                     checkTrue = result
-
+                Checker = g.Checker()
                 Checker.enablePageCheck(onPageCheckResult, nextPage.timeout)
                 # 等待页面跳转完成或超时
                 maxWaitTime = checkWaitTime or nextPage.timeout or 10

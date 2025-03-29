@@ -21,3 +21,4 @@ server/logs
 /server/__pycache__
 /app/src/main/assets/scripts
 server/scripts/__pycache__
+/venv

@@ -1,5 +1,18 @@
 {
     "Top": {
+        "checkers": {
+            "每日签到": {
+                "do": "立即签到"
+            },
+            "领取成功": {
+                "timeout": 10,
+                "do" : "T.click(2)"},
+            "倒计时": {
+                "check": "{this.pastTime > 5}",
+                "do" : "T.goback()",
+                "interval": 1
+            }
+        },
         "timeout": 5,
         "children": {
             "快手极速版": {
@@ -59,9 +72,7 @@
                 },
                 "match": ["首页[y-300,0]"],  
                 "checkers": {
-                    "每日签到": {
-                        "do": "立即签到"
-                    }
+                    "每日签到": {}
                 },            
                 "children": {
                     "我的火苗": {
@@ -72,14 +83,8 @@
                                 "match": ["广告[y0,300]"],
                                 "in": "^去领取",
                                 "checkers": {  
-                                    "领取成功": {
-                                        "timeout": 10,
-                                        "do" : "T.click(2)"},
-                                    "倒计时": {
-                                        "check": "{this.pastTime > 5}",
-                                        "do" : "T.goback()",
-                                        "interval": 1
-                                    }
+                                    "领取成功": {},
+                                    "倒计时": {}
                                 }
                             }
                         }

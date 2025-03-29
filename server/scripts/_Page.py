@@ -62,15 +62,36 @@ class _Page_:
         self.children: dict[str, "_Page_"] = {}  # {name: CPage_对象}
         self.inAction: str = inAction if inAction else ''
         self.outAction: str = outAction if outAction else ''
-        # 从配置中创建检查器
-        self.checkers = {name: CChecker.CChecker_(name, config, self) for name, config in checkers.items()} if checkers else {}
-        self.dialogs: dict[str, dict] = dialogs if dialogs else {}
+        
+        # 处理checkers配置
+        self.checkers = checkers      
+        self._checkerList = []
+        
         self.timeout: int = timeout  # 默认超时时间
         
         # 如果有父页面，将自己添加为父页面的子页面
         if parent and isinstance(parent, _Page_):
             parent.addChild(self)
+
+    def addCheckers(self):
+        """添加检查器"""
+        if self.checkers is None:
+            return
+        Checker = _G._G_.Checker()
+        for checkerName, checkerConfig in self.checkers.items():
+            config = checkerConfig if isinstance(checkerConfig, dict) else None
+            checker = Checker.add(checkerName, self, config)
+            if checker:
+                self._checkerList.append(checker)
     
+    def removeCheckers(self):
+        """移除检查器"""
+        Checker = _G._G_.Checker()
+        for checker in self._checkerList:
+            Checker.remove(checker)
+        self._checkerList = []
+    
+
     def addChild(self, child):
         """添加子页面"""
         self.children[child.name] = child

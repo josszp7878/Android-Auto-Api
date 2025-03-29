@@ -12,6 +12,7 @@ class CChecker_:
     """页面检查器类，用于验证页面状态并执行相应操作"""
     
     _checkers: List["CChecker_"] = []  # 存储所有活跃的检查器
+    _templates: Dict[str, Dict[str, Any]] = {}  # 存储所有checker模板配置
     _checkThread: Optional[threading.Thread] = None  # 检查线程
     _running: bool = False  # 线程运行状态
     _checkInterval: int = 3  # 默认检查间隔(秒)
@@ -26,7 +27,7 @@ class CChecker_:
         Args:
             name: 检查器名称
             config: 检查器配置字典
-            page: 所属页面
+            page: 所属页面(可选)
         """
         self.name = name
         self.page = page
@@ -85,6 +86,61 @@ class CChecker_:
         
     def do(self):
         _G._G_.Tools().eval(self, self._action)
+    
+    @classmethod
+    def loadTemplates(cls, templates: Dict[str, Dict[str, Any]]):
+        """加载checker模板配置
+        
+        Args:
+            templates: 包含所有模板配置的字典 {模板名: 配置}
+        """
+        for name, config in templates.items():
+            cls._templates[name] = config
+        log.i(f"已加载{len(templates)}个checker模板")
+    
+    @classmethod
+    def create(cls, name: str, config: Dict[str, Any] = None) -> Optional["CChecker_"]:
+        """基于模板创建checker实例
+        
+        Args:
+            name: 模板名称
+            config: 覆盖模板的配置参数(可选)
+            
+        Returns:
+            CChecker_: 创建的checker实例，如果创建失败则返回None
+        """
+        template = cls._templates.get(name, None)
+        actConfig = None
+        if template is None:
+            actConfig = config
+        else:
+            # 合并模板和自定义配置
+            actConfig = template.copy()
+            if config and config != {}:
+                actConfig.update(config)
+        
+        return cls(name, actConfig)
+    
+    @classmethod
+    def add(cls, checkerName: str, page=None, config: Dict[str, Any] = None) -> Optional["CChecker_"]:
+        """创建并注册checker到全局列表
+        
+        Args:
+            checkerName: checker模板名称
+            page: 关联的页面(可选)
+            config: 覆盖模板的配置参数(可选)
+            
+        Returns:
+            CChecker_: 创建的checker实例，如果创建失败则返回None
+        """
+        checker = cls.create(checkerName, config)
+        if not checker:
+            return None
+            
+        checker.page = page
+        with cls._lock:
+            cls._checkers.append(checker)
+        return checker
     
     @classmethod
     def start(cls, interval: int = None):
@@ -177,33 +233,6 @@ class CChecker_:
         log.i("检查线程已停止")
     
     @classmethod
-    def add(cls, checker):
-        """注册检查器到全局列表
-        Args:
-            checker: 要注册的检查器实例
-        """
-        with cls._lock:
-            if checker not in cls._checkers:
-                cls._checkers.append(checker)
-                return True
-            return False
-
-    
-    @classmethod
-    def remove(cls, checker):
-        """从全局列表中移除检查器
-        
-        Args:
-            checker: 要移除的检查器实例
-        """
-        with cls._lock:
-            if checker in cls._checkers:
-                cls._checkers.remove(checker)
-                return True
-            return False
-    
-    
-    @classmethod
     def _pageCheck(cls) -> bool:
         App = _G._G_.App()
         curApp = App.getCurApp()
@@ -220,9 +249,7 @@ class CChecker_:
             config = {
                 'check': "{this._pageCheck()}",
             }
-            checker = cls("页面检测器", config)
-            cls._pageChecker = checker
-            cls.add(checker)
+            cls._pageChecker = cls.add("页面检测器", None,config)
             _Log.c.i("创建页面检测器")
     
     
@@ -257,9 +284,7 @@ class CChecker_:
             config = {
                 'check': "{this._appCheck()}",
             }
-            checker = cls("应用检测器", config)
-            cls._appChecker = checker
-            cls.add(checker)
+            cls._appChecker = cls.add("应用检测器", None, config)
             _Log.c.i("创建应用检测器")
    
     @classmethod
