@@ -3,6 +3,8 @@ import threading
 import time as time_module
 import json
 import _G
+g = _G.g
+log = g.Log()
 
 # 添加缓存相关的变量
 _screenInfoCache = None
@@ -229,7 +231,7 @@ class CCmds_:
             参数: appName - 应用名称
             示例: 打开 微信
             """
-            App = _G._G_.App()
+            App = _G._G_.CApp()
             result = App.gotoApp(appName)
             if result:
                 # 检查应用是否在配置中注册
@@ -675,113 +677,38 @@ class CCmds_:
                 log.ex(e, "执行页面跳转命令失败")
                 return f"e->执行页面跳转命令失败: {str(e)}"
 
-        @regCmd(r"启动页面检测-qyymjc", r"(?P<interval>\d+)?")
-        def startPageChecker(interval=None):
+        @regCmd(r"启动页面检测-qyymjc", r"(?P<enable>\S+)?")
+        def enablePageChecker(enable=None):
             """
             功能：启动全局页面检测器
-            指令名: startPageChecker-spc
+            指令名: enablePageChecker
             中文名: 启动页面检测-qyymjc
-            参数: interval - 检测间隔秒数(可选)，默认为3秒
+            参数: enable - 是否启动(可选)，默认为True
             示例: 启动页面检测 [5]
             """
             g = _G._G_
             log = g.Log()
-            
-            try:
-                interval = int(interval) if interval else 3
-                if interval < 1:
-                    return "e->检测间隔不能小于1秒"
-                
-                # 启动检测线程
-                result = g.Checker().start(interval)
-                if result:
-                    return f"启动页面检测器成功，检测间隔: {interval}秒"
-                else:
-                    return "i->页面检测器已在运行中"
-            except Exception as e:
-                log.ex(e, "启动页面检测器失败")
-                return f"e->启动页面检测器失败: {str(e)}"
+            enable = g.Tools().toBool(enable)
+            if enable:
+                g.Checker().enablePageCheck(lambda result: log.i(f"页面检测器结果: {result}"))
+            else:
+                g.Checker().enablePageCheck(None)
+                return "页面检测器已停止"
 
-        @regCmd(r"停止页面检测-tzyymjc")
-        def stopPageChecker():
-            """
-            功能：停止全局页面检测器
-            指令名: stopPageChecker-tpc
-            中文名: 停止页面检测-tzyymjc
-            示例: 停止页面检测
-            """
-            g = _G._G_
-            log = g.Log()
-            
-            try:
-                result = g.Checker().stop()
-                if result:
-                    return "停止页面检测器成功"
-                else:
-                    return "i->页面检测器未在运行"
-            except Exception as e:
-                log.ex(e, "停止页面检测器失败")
-                return f"e->停止页面检测器失败: {str(e)}"
 
-        @regCmd(r"启动应用检测-qyyjc", r"(?P<interval>\d+)?")
-        def startAppChecker(interval=None):
+        @regCmd(r"应用检测-yyjc", r"(?P<enable>\S+)?")
+        def enableAppChecker(enable=None):
             """
             功能：启动全局应用检测器
-            指令名: startAppChecker-sac
-            中文名: 启动应用检测-qyyjc
-            参数: interval - 检测间隔秒数(可选)，默认为3秒
+            指令名: enableAppChecker
+            中文名: 应用检测-yyjc
+            参数: enable - 是否启动(可选)，默认为True
             示例: 启动应用检测 [5]
             """
-            g = _G._G_
-            log = g.Log()
-            
-            try:
-                interval = int(interval) if interval else 3
-                if interval < 1:
-                    return "e->检测间隔不能小于1秒"
-                
-                # 启动检测线程
-                result = g.Checker().start(interval)
-                if result:
-                    return f"启动应用检测器成功，检测间隔: {interval}秒"
-                else:
-                    return "i->应用检测器已在运行中"
-            except Exception as e:
-                log.ex(e, "启动应用检测器失败")
-                return f"e->启动应用检测器失败: {str(e)}"
-
-        @regCmd(r"检测应用变化-jcyybh", r"(?P<timeout>\d+)?")
-        def checkAppChange(timeout=None):
-            """
-            功能：检测当前应用是否发生变化
-            指令名: checkAppChange-cac
-            中文名: 检测应用变化-jcyybh
-            参数: timeout - 超时时间(可选)，默认为3秒
-            示例: 检测应用变化 [5]
-            """
-            g = _G._G_
-            log = g.Log()
-            
-            try:
-                timeout = int(timeout) if timeout else 3
-                if timeout < 1:
-                    return "e->超时时间不能小于1秒"
-                
-                # 设置检测回调
-                result = False
-                def onAppCheckResult(checkResult: bool):
-                    nonlocal result
-                    result = checkResult
-                    if checkResult:
-                        log.i(f"应用已变化，当前应用: {g.App().getCurAppName()}")
-                    else:
-                        log.i("应用未变化或检测超时")
-                
-                # 设置应用检测
-                g.Checker().checkCurApp(onAppCheckResult, timeout)
-                
-                return f"i->正在检测应用变化，超时时间: {timeout}秒"
-            except Exception as e:
-                log.ex(e, "检测应用变化失败")
-                return f"e->检测应用变化失败: {str(e)}"
-
+            enable = g.Tools().toBool(enable)
+            if enable:
+                g.Checker().enableAppCheck(lambda result: log.i(f"应用检测器结果: {result}"))
+            else:
+                g.Checker().enableAppCheck(None)
+                return "应用检测器已停止"
+       

@@ -2,9 +2,8 @@ import time
 import _G
 from typing import List, Optional, Dict, Any, Callable
 import CChecker
-import _Log
 
-
+log = _G._G_.Log()
 class _Page_:
     # 类变量
     currentPage = None
@@ -339,17 +338,16 @@ class _Page_:
             page: 要检测的页面
             depth: 当前递归深度
         """
-        ret = None
-        # 检查当前页面规则
-        if self.match():
-            ret = self
-            # 优先检查子页面
+        try:
+            if self.match():
+                return self
             for child in self.getAllChildren():
-                result = child.detectPage(depth + 1)
-                if result:
-                    ret = result
-                    break
-        return ret
+                page = child.detectPage(depth + 1)
+                if page:
+                    return page
+        except Exception as e:
+            log.ex(e, f"检测页面失败: {self.name}")
+        return None 
     
     def go(self, targetPage: "_Page_") -> bool:
         """跳转到目标页面并验证结果"""

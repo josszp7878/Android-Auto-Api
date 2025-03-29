@@ -1,14 +1,10 @@
-from typing import Optional, cast, Callable
-import _G
 from typing import Optional, cast
+import _G
 import _App
 import time
 
 class CApp_(_App._App_):
     """客户端应用管理类"""
-    def recordBehavior(self):
-        """客户端特有方法：记录用户行为"""
-        # ... [客户端行为记录逻辑]
 
     @classmethod
     def isHome(cls) -> bool:
@@ -55,7 +51,7 @@ class CApp_(_App._App_):
         app = tools.openApp(appName)
         if app is None:
             return None
-        g.Checker().checkCurApp(onOpened, app.timeout)
+        g.Checker().enableAppCheck(onOpened, app.timeout)
         return app
     
     @classmethod
@@ -189,7 +185,7 @@ class CApp_(_App._App_):
                     nonlocal checkTrue
                     checkTrue = result
 
-                Checker.checkCurPage(onPageCheckResult, nextPage.timeout)
+                Checker.enablePageCheck(onPageCheckResult, nextPage.timeout)
                 # 等待页面跳转完成或超时
                 maxWaitTime = checkWaitTime or nextPage.timeout or 10
                 startTime = time.time()

@@ -168,8 +168,9 @@ class _Log_:
             device = CDevice_.instance()
             if device:
                 tag = f'{device.deviceID}{tag}' if tag else device.deviceID
+                time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 logData = {
-                    # 'time': time,
+                    'time': time,
                     'tag': tag,
                     'level': level,
                     'message': content

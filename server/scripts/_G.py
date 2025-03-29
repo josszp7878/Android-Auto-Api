@@ -16,9 +16,10 @@ if TYPE_CHECKING:
     from _Page import _Page_
     from CDevice import CDevice_ 
     from CChecker import CChecker_
+    from CApp import CApp_
 TOP = "top"
 UNKNOWN = 'unknown'
-g = {}
+
 
 class _G_:
     # 使用线程安全的存储
@@ -148,6 +149,10 @@ class _G_:
     @classmethod
     def App(cls) -> '_App_':
         return cls.getClass('_App')
+    
+    @classmethod
+    def CApp(cls) -> 'CApp_':
+        return cls.getClass('CApp')
     
     @classmethod
     def Page(cls) -> '_Page_':
@@ -323,3 +328,6 @@ class _G_:
 
 
 _G_.init()
+
+g = _G_
+

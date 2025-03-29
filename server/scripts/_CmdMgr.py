@@ -185,7 +185,7 @@ class _CmdMgr_:
                 params['deviceID'] = deviceID
             
             # 执行命令并返回结果
-            log.d(f'执行函数: {cmd.name}, 参数: {params}')
+            # log.d(f'执行函数: {cmd.name}, 参数: {params}')
             ret = cmd.func(**params)
             if not isinstance(ret, str):
                 ret = str(ret)

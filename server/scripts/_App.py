@@ -218,6 +218,7 @@ class _App_:
         log = g.Log()
         tools = g.Tools()
         try:
+            log.d("检测当前运行的应用")
             if tools.android is None:
                 return True
             # 获取当前运行的应用信息
