@@ -1,7 +1,9 @@
 import time
 import _G
-from typing import List, Optional, Dict, Any, Callable
-import CChecker
+from typing import List, Optional, Dict, Any, Callable, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from CChecker import CChecker_
 
 log = _G._G_.Log()
 class _Page_:
@@ -73,20 +75,18 @@ class _Page_:
         if parent and isinstance(parent, _Page_):
             parent.addChild(self)
 
-    def addCheckers(self):
+    def addCheckers(self, Checker: "CChecker_"):
         """添加检查器"""
         if self.checkers is None:
             return
-        Checker = _G._G_.Checker()
         for checkerName, checkerConfig in self.checkers.items():
             config = checkerConfig if isinstance(checkerConfig, dict) else None
             checker = Checker.add(checkerName, self, config)
             if checker:
                 self._checkerList.append(checker)
     
-    def removeCheckers(self):
+    def removeCheckers(self, Checker: "CChecker_"):
         """移除检查器"""
-        Checker = _G._G_.Checker()
         for checker in self._checkerList:
             Checker.remove(checker)
         self._checkerList = []
@@ -326,23 +326,10 @@ class _Page_:
             all_passed = True
             for rule in self.matches:
                 try:
-                    # 如果是代码规则
-                    if rule.startswith('{') and rule.endswith('}'):
-                        code = rule[1:-1]  # 去掉花括号
-                        log.d(f"执行代码规则: {code}")
-                        ret = g.Tools().eval(self, code)
-                        if not ret:
-                            log.d(f"代码规则不匹配: {rule}")
-                            all_passed = False
-                            break
-                    # 如果是文本规则
-                    else:
-                        log.d(f"检查文本规则: {rule}")
-                        ret = tools.matchText(rule)
-                        if not ret:
-                            log.d(f"文本规则不匹配: {rule}")
-                            all_passed = False
-                            break
+                    _, result = tools.eval(self, rule)
+                    if not result:
+                        all_passed = False
+                        break
                 except Exception as e:
                     log.ex(e, f"规则处理失败: {rule}")
                     all_passed = False

@@ -16,6 +16,21 @@ class _Log_:
     _cache = []
     _visualLogs = []
 
+    # ANSI颜色代码
+    COLORS = {
+        'reset': '\033[0m',
+        'black': '\033[30m',
+        'red': '\033[31m',
+        'green': '\033[32m',
+        'yellow': '\033[33m',
+        'blue': '\033[34m',
+        'magenta': '\033[35m',
+        'cyan': '\033[36m',
+        'white': '\033[37m',
+        'bold': '\033[1m',
+        'underline': '\033[4m'
+    }
+
     @classmethod
     def Clone(cls, oldCls):
         """克隆"""
@@ -120,18 +135,31 @@ class _Log_:
                 tagEqual = lastLog.get('tag') == logDict.get('tag')
                 levelEqual = lastLog.get('level') == logDict.get('level')
                 msgEqual = lastLog.get('message') == logDict.get('message')
-                # print(f'msg: {lastLog.get("message")}, logmsg: {logDict.get("message")} msgEqual: {msgEqual}')
+                
                 if (tagEqual and levelEqual and msgEqual):  # 去除可能的重复标记
                     # 更新重复计数
                     count = lastLog.get('count', 1) + 1
-                    print(f'更新重复计数: {count}')
                     lastLog['count'] = count
+                    # 打印调试信息
+                    print(f'更新重复计数: {count}, 消息: {lastLog.get("message")}')
                     # 通知前端更新
-                    socketio.emit('S2B_EditLog', lastLog)
+                    try:
+                        # 确保发送完整的日志对象，包括时间戳
+                        socketio.emit('S2B_EditLog', lastLog)
+                    except Exception as e:
+                        print(f'发送EditLog事件失败: {e}')
                     return
+                
+            # 确保新日志有count字段
+            if 'count' not in logDict:
+                logDict['count'] = 1
+            
             logs.append(logDict)
             if socketio.server:
-                socketio.emit('S2B_AddLog', logDict)
+                try:
+                    socketio.emit('S2B_AddLog', logDict)
+                except Exception as e:
+                    print(f'发送AddLog事件失败: {e}')
         except Exception as e:
             message = cls.formatEx('发送日志到控制台失败', e, '')
             print(message)
@@ -153,7 +181,11 @@ class _Log_:
                 'level': level,
                 'message': content,
                 'count': 1
-            }    
+            }
+            
+            # 添加调试信息
+            print(f'创建新日志: {tag} {level} {content}')
+            
             cls.add(logData)
             return logData
         except Exception as e:
@@ -192,11 +224,27 @@ class _Log_:
             isServer = _G._G_.isServer()
             logData = None
             tag = f'[{tag}]' if tag else ''
+            
+            # 根据日志级别选择颜色
+            color = cls.COLORS['reset']
+            if level == 'e':
+                color = cls.COLORS['red']
+            elif level == 'w':
+                color = cls.COLORS['yellow']
+            elif level == 'i':
+                color = cls.COLORS['green']
+            elif level == 'd':
+                color = cls.COLORS['cyan']
+            
             if isServer:
                 logData = cls._serverLog(tag, level, content)
             else:
                 logData = cls._clientLog(tag, level, content)
-            print(f"{tag} {level}: {content}")
+            # 带颜色的终端输出，去掉日志级别标识
+            if tag:
+                print(f"{color}{tag}: {content}{cls.COLORS['reset']}")
+            else:
+                print(f"{color}{content}{cls.COLORS['reset']}")
             return logData
         except Exception as e:
             print(f'记录日志失败: {e}')

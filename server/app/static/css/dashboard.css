@@ -749,3 +749,22 @@
 .log-i { color: #f0f0f0; }
 .log-w { color: #ffcc00; }
 .log-e { color: #ff6666; }
+
+/* 添加重复日志的样式 */
+.repeated-log {
+    position: relative;
+}
+
+.repeated-log .log-message {
+    font-weight: bold;
+}
+
+.repeated-log::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 3px;
+    height: 100%;
+    background-color: #ffcc00;
+}

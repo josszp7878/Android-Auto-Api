@@ -1,8 +1,7 @@
 from pathlib import Path
 import _Log
 import _G
-import time
-from typing import Optional, List, Dict, Any, TYPE_CHECKING
+from typing import Optional, List, Tuple, TYPE_CHECKING
 if TYPE_CHECKING:
     import _Page
 
@@ -67,18 +66,7 @@ class _App_:
             import CChecker
             import _Page
             
-            log = _Log._Log_()
-            
-            # 检查环境是否准备好
-            try:
-                from java import PythonServices
-                if not PythonServices.isInitialized():
-                    log.w("Python服务尚未初始化，跳过配置加载")
-                    return False
-            except Exception as e:
-                log.w(f"检查Python服务初始化状态失败: {e}")
-                return False
-            
+            log = _Log._Log_()            
             # 清空现有应用
             cls.apps = {}
             Page = _Page._Page_
@@ -236,7 +224,7 @@ class _App_:
         return None
     
     @classmethod
-    def detectCurApp(cls) -> bool:
+    def detectCurApp(cls) -> str:
         """检测当前运行的应用并设置为当前应用
         Returns:
             str: 应用名称，如果未检测到则返回None
@@ -245,50 +233,125 @@ class _App_:
         log = g.Log()
         tools = g.Tools()
         try:
-            log.d("检测当前运行的应用")
+            # log.d("检测当前运行的应用")
             if tools.android is None:
-                return True
+                return cls.getCurAppName()
             # 获取当前运行的应用信息
             appInfo = g.Tools().getCurrentAppInfo()
             # log.i(f"当前应用信息: {appInfo}")
             if not appInfo:
                 # log.w("无法获取当前运行的应用信息")
-                return False
+                return None
             # 检查是否在桌面
             if tools.isHome():
-                cls._curAppName = _G.TOP
                 return _G.TOP
             appName = appInfo.get("appName")
-            cls._curAppName = appName
-            return True
+            return appName
         except Exception as e:
             log.ex(e, "检测当前运行的应用失败")
-            return False
+            return None
+
+    @classmethod
+    def getCurAppName(cls) -> str:
+        """获取当前应用名称"""
+        if _App_._curAppName is None:
+            return _G.TOP
+        return _App_._curAppName
         
     @classmethod
-    def getCurAppName(cls) -> Optional[str]:
-        """获取当前应用名称"""
-        appName = cls._curAppName
-        if appName is None:
-            return _G.TOP
-        return appName
+    def setCurAppName(cls, appName: str):
+        """设置当前应用名称"""
+        _App_._curAppName = appName
     
     @classmethod
     def getCurApp(cls, refresh=False) -> Optional["_App_"]:
         """获取当前应用对象"""
-        appName = cls._curAppName
-        if appName == _G.TOP:
+        appName = cls.getCurAppName()
+        if appName.lower() == _G.TOP:
             return cls.Top
-        if appName is None:
-            return None
         return cls.apps.get(appName)
     
+    @classmethod
+    def isHome(cls) -> bool:
+        """检查是否在主屏幕"""
+        tools = _G._G_.Tools()
+        if tools.android is None:
+            return cls.getCurAppName() == _G.TOP
+        return tools.isHome()
+    
+    @classmethod
+    def goHome(cls):
+        """返回主屏幕"""
+        ret, _ = cls.goApp(_G.TOP)
+        return ret
 
     @classmethod
-    def setCurAppName(cls, appName: str):
-        """设置当前应用名称"""
-        cls._curAppName = appName
+    def goApp(cls, appName, onOpened=None) -> "Tuple[bool, Optional[_App_]]":
+        """跳转到指定应用"""
+        try:
+            g = _G._G_
+            log = g.Log()
+            app = g.App().getApp(appName, True)
+            if app is None:
+                log.e(f"打开未知应用{appName}")
+            else:
+                appName = app.name
+            # 如果已经在目标应用，直接返回成功
+            if cls.getCurAppName() == appName:
+                return True, cls.getApp(appName)
+            tools = g.CTools()
+            ret = tools.openApp(appName)
+            result = False
+            if not ret:
+                log.e(f"打开应用 {appName} 失败")
+                return False, None
+            if tools.android is None:
+                #对应PC端，这里一定要设置当前应用名称，否则无法检测到当前应用
+                cls.setCurAppName(appName)
+            # 检查打开是否成功
+            result = g.Checker().checkApp(appName, app.timeout if app else None)
+            log.i(f"=>{appName} : {result}")
+            if result:
+                cls.setCurAppName(appName)
+            return result, app
+        except Exception as e:
+            log.ex(e, "切换应用失败")
+            return False, None
+    
    
+    @classmethod
+    def closeApp(cls, appName=None) -> bool:
+        """关闭应用
+        
+        Args:
+            appName: 应用名称，如果为None则关闭当前应用
+            
+        Returns:
+            bool: 是否成功关闭应用
+        """
+        g = _G._G_
+        log = g.Log()
+        tools = g.Tools()
+        
+        # 如果未指定应用名，使用当前应用
+        if not appName:
+            appName = cls.getCurAppName()        
+        if not appName:
+            log.e("未指定要关闭的应用")
+            return False
+        
+        # 如果是桌面应用，无需关闭
+        if appName == _G.TOP:
+            return True
+            
+        # 关闭应用
+        result = tools.closeApp(appName)
+        if result:
+            # 如果关闭的是当前应用，设置当前应用为主屏幕
+            if appName == cls.getCurAppName():
+                cls.setCurAppName(_G.TOP)
+            return True
+        return False
     
     @classmethod
     def getApp(cls, appName, fuzzyMatch=False) -> "_App_":
@@ -301,8 +364,8 @@ class _App_:
         Returns:
             应用对象，如果未找到则返回None
         """
-        if appName is None:
-            return None
+        if _G._G_.Tools().isTop(appName):
+            return cls.Top
         app = cls.apps.get(appName.lower())
         if app:
             return app

@@ -234,31 +234,28 @@ class CCmds_:
             示例: 打开 微信
             """
             App = _G._G_.CApp()
-            result = App.gotoApp(appName)
-            if result:
-                # 检查应用是否在配置中注册
-                app = App.getApp(appName)
-                if app and app.currentPage:
-                    return f"成功打开应用 {appName}，当前页面: {app.currentPage.name}"
-                return f"成功打开应用 {appName}"
-            else:
+            ret, app = App.goApp(appName)
+            if not ret:
                 return f"打开应用 {appName} 失败"
+            return f"成功打开应用 {appName}, 当前页面: {app.currentPage.name}"
 
-        @regCmd(r"关闭-gb", r"(?P<pkgName>\S+)")
-        def stopApp(pkgName):
+        @regCmd(r"关闭-gb", r"(?P<appName>\S+)?")
+        def closeApp(appName=None):
             """
-            功能：关闭指定应用
-            指令名: stopApp-s
+            功能：关闭应用
+            指令名: closeApp-cA
             中文名: 关闭-gb
-            参数: pkgName - 应用包名
-            示例: 关闭 com.example.app
+            参数: appName - 应用名称(可选)，不提供则关闭当前应用
+            示例: 关闭 [微信]
             """
-            android = cls.android()
-            if android:
-                return android.closeApp(pkgName)
-            return False
-
-
+            App = _G._G_.App()
+            # 如果未指定应用名，使用当前应用
+            if not appName:
+                appName = App.getCurAppName()
+                if not appName:
+                    return "未指定要关闭的应用"            
+            return App.closeApp(appName)
+            
         @regCmd(r"截屏-jp")
         def getScreen():
             """
@@ -389,11 +386,10 @@ class CCmds_:
                     return f"未找到应用 {appName} 或其页面信息"
             else:
                 # 获取当前应用及其页面
-                appName = App.getCurAppName()
-                app = App.getApp(appName)
+                app = App.getCurApp()
                 if app and app.currentPage:
                     pageName = app.currentPage.name
-            return f"{appName}:{pageName}"
+            return f"{app.name}:{pageName}"
 
         @regCmd(r"跳转-tz", r"(?P<target>.+)")
         def go(target):
@@ -525,7 +521,7 @@ class CCmds_:
             g = _G._G_
             log = g.Log()
             try:
-                result = g.Tools().eval(cls,code)
+                result = g.Tools().eval(g,code)
                 return g.Tools().toNetStr(result)
             except Exception as e:
                 log.ex(e, f"执行代码失败: {code}")
@@ -570,30 +566,6 @@ class CCmds_:
             else:
                 return "返回主屏幕失败"
 
-
-        @regCmd(r"关闭-gb", r"(?P<appName>\S+)?")
-        def closeApp(appName=None):
-            """
-            功能：关闭应用
-            指令名: closeApp-c
-            中文名: 关闭-gb
-            参数: appName - 应用名称(可选)，不提供则关闭当前应用
-            示例: 关闭 [微信]
-            """
-            App = _G._G_.App()
-            
-            # 如果未指定应用名，使用当前应用
-            if not appName:
-                appName = App.getCurAppName()
-                if not appName:
-                    return "未指定要关闭的应用"
-            
-            result = App.closeApp(appName)
-            if result:
-                return f"已关闭应用 {appName}"
-            else:
-                return f"关闭应用 {appName} 失败"
-        
 
         @regCmd(r"加载配置-jzpz")
         def loadConfig():
@@ -679,40 +651,18 @@ class CCmds_:
                 log.ex(e, "执行页面跳转命令失败")
                 return f"e->执行页面跳转命令失败: {str(e)}"
 
-        @regCmd(r"启动页面检测-qyymjc", r"(?P<enable>\S+)?")
-        def enablePageChecker(enable=None):
-            """
-            功能：启动全局页面检测器
-            指令名: enablePageChecker
-            中文名: 启动页面检测-qyymjc
-            参数: enable - 是否启动(可选)，默认为True
-            示例: 启动页面检测 [5]
-            """
-            g = _G._G_
-            log = g.Log()
-            enable = g.Tools().toBool(enable)
-            if enable:
-                g.Checker().enablePageCheck(lambda result: log.i(f"页面检测器结果: {result}"))
-            else:
-                g.Checker().enablePageCheck(None)
-                return "页面检测器已停止"
 
-
-        @regCmd(r"应用检测-yyjc", r"(?P<enable>\S+)?")
-        def enableAppChecker(enable=None):
+        @regCmd(r"应用为-yyw", r"(?P<appName>\S+)?")
+        def checkApp(appName=None):
             """
             功能：启动全局应用检测器
-            指令名: enableAppChecker
-            中文名: 应用检测-yyjc
-            参数: enable - 是否启动(可选)，默认为True
-            示例: 启动应用检测 [5]
+            指令名: checkApp
+            中文名: 应用为-yyw
+            参数: appName - 应用名称(可选)，默认为当前应用
+            示例: 应用为 [微信]
             """
-            enable = g.Tools().toBool(enable)
-            if enable:
-                g.Checker().enableAppCheck(lambda result: log.i(f"应用检测器结果: {result}"))
-            else:
-                g.Checker().enableAppCheck(None)
-                return "应用检测器已停止"
+            ret = g.Checker().checkApp(appName)
+            return ret
        
         @regCmd(r"检查-jcq", r"(?P<checkerName>\S+)")
         def check(checkerName):
@@ -735,7 +685,7 @@ class CCmds_:
             # 创建检查器
             checker = Checker.add(checkerName, curPage, None)
             if not checker:
-                return f"创建检查器 {checkerName} 失败，可能模板不存在"
+                return None
             # 设置回调函数
             def onCheckResult(result):
                 log.i(f"检查器 {checkerName} 结果: {result}")

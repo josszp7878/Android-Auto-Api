@@ -1,4 +1,5 @@
 @echo off
+chcp 65001 >nul
 echo 正在创建虚拟环境...
 
 :: 切换到项目根目录
@@ -18,9 +19,6 @@ python -m venv venv
 :: 激活虚拟环境并安装依赖
 echo 正在激活虚拟环境...
 call venv\Scripts\activate
-
-echo 正在安装依赖...
-pip install -r requirements.txt
 
 :: 检查安装结果
 if %ERRORLEVEL% NEQ 0 (

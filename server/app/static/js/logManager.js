@@ -196,8 +196,22 @@ class LogManager {
             lastLog.displayMessage = lastLog.message;
           }
           
-          // 只更新这一条日志，而不是所有日志
-          this.updateSingleLog(lastLog);
+          // 添加调试日志
+          console.log(`更新日志: ID=${lastLog.time}, 消息=${lastLog.message}, 计数=${lastLog.count}`);
+          
+          // 检查日志是否在当前视图中
+          const isInCurrentView = this.filteredLogs.includes(lastLog);
+          console.log(`日志是否在当前视图中: ${isInCurrentView}`);
+          
+          if (isInCurrentView) {
+            // 只更新这一条日志，而不是所有日志
+            this.updateSingleLog(lastLog);
+          } else {
+            // 如果不在当前视图中，可能需要更新过滤后的日志列表
+            console.log('日志不在当前视图中，尝试更新过滤后的日志列表');
+            // 重新应用过滤器
+            this.parseAndFilterLogs();
+          }
         }
       }
     });
@@ -209,17 +223,35 @@ class LogManager {
     // 方法2: 如果没有Vue，尝试找到最后一个日志元素
     const logElements = document.querySelectorAll('.log-entry');
     if (logElements.length > 0) {
-      const lastLogElement = logElements[logElements.length - 1];
-      console.log('找到最后一个日志元素:', lastLogElement);
+      // 尝试通过时间戳或其他唯一标识找到对应的日志元素
+      let targetElement = null;
       
-      const messageElement = lastLogElement.querySelector('.log-message');
+      // 首先尝试找到具有相同时间戳的日志元素
+      if (log.time) {
+        for (let i = logElements.length - 1; i >= 0; i--) {
+          const timeElement = logElements[i].querySelector('.log-time');
+          if (timeElement && timeElement.textContent.includes(log.time)) {
+            targetElement = logElements[i];
+            console.log('通过时间戳找到日志元素:', targetElement);
+            break;
+          }
+        }
+      }
+      
+      // 如果找不到，则使用最后一个元素
+      if (!targetElement) {
+        targetElement = logElements[logElements.length - 1];
+        console.log('使用最后一个日志元素:', targetElement);
+      }
+      
+      const messageElement = targetElement.querySelector('.log-message');
       if (messageElement) {
         console.log('更新消息元素内容');
         messageElement.textContent = log.displayMessage || log.message;
         
         // 如果有重复计数，添加视觉提示
         if (log.count > 1) {
-          lastLogElement.classList.add('repeated-log');
+          targetElement.classList.add('repeated-log');
         }
       }
     } else {
@@ -364,6 +396,20 @@ class LogManager {
     const logContainer = document.querySelector('.console-logs');
     const scrollTop = logContainer.scrollTop;
     const wasAtBottom = (logContainer.scrollHeight - logContainer.scrollTop) === logContainer.clientHeight;
+
+    // 确保所有日志都有正确的displayMessage属性
+    this.filteredLogs.forEach(log => {
+      if (log.count && log.count > 1) {
+        // 确保不重复添加计数信息
+        if (log.message.includes(' (+')) {
+          log.displayMessage = log.message; // 已经包含计数信息
+        } else {
+          log.displayMessage = `${log.message} (+${log.count})`;
+        }
+      } else {
+        log.displayMessage = log.message;
+      }
+    });
 
     // 更新日志显示
     this.onLogsUpdated && this.onLogsUpdated(this.filteredLogs);

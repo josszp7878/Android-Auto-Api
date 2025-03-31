@@ -1,7 +1,7 @@
 import json
 from enum import Enum
 import re
-from typing import Any
+from typing import Any, Tuple
 import _G
 
 class TaskState(Enum):
@@ -83,7 +83,7 @@ class _Tools_:
         def replacer(match):
             code = match.group(1)
             try:
-                val = cls.eval(this, code)
+                _,val = cls.eval(this, code)
                 return str(val)
             except Exception as e:
                 log.ex(e, f"执行变量代码失败: {code}")
@@ -117,8 +117,9 @@ class _Tools_:
         result = eval(code, cls.gl, locals)
         return result
     
+    #return (是否执行成功, 执行结果)
     @classmethod
-    def eval(cls, this, str:str) -> Any:
+    def eval(cls, this, str:str) -> Tuple[bool, Any]:
         """执行规则（内部方法）"""
         try:
             if str is None:
@@ -128,19 +129,20 @@ class _Tools_:
                 return False
             log = _G._G_.Log()
             str = cls._replaceVars(this, str)
-            match = re.match(r'^\s*\{(.*)\}\s*$', str)
-            if match:
-                code = match.group(1)
+            evaled = re.match(r'^\s*\{(.*)\}\s*$', str)
+            result = None
+            if evaled:
+                code = evaled.group(1)
                 try:
-                    return cls.doEval(this, code)
+                    result = cls.doEval(this, code)
                 except Exception as e:
                     log.ex(e, f"执行规则失败: {str}")
-                    return False
             else:
-                return cls._doAction(log, this, str)
+                result = cls._doAction(log, this, str)
+            return evaled, result
         except Exception as e:
             log.ex(e, f"执行规则失败: {str}")
-            return False
+            return False, None
         
     @classmethod
     def _doAction(cls, log, this, str:str) -> Any:

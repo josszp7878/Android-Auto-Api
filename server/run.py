@@ -1,5 +1,25 @@
-from app import create_app, socketio
+# 确保在导入其他模块前先执行monkey_patch
+import eventlet
+eventlet.monkey_patch()
+
+# 修复SSL递归错误
+import ssl
+try:
+    # 尝试设置SSL上下文
+    ssl._create_default_https_context = ssl._create_unverified_context
+    
+    # 添加以下代码来防止递归错误
+    if hasattr(ssl, '_create_default_https_context') and hasattr(ssl, 'TLSVersion'):
+        # 禁用TLSVersion的递归问题
+        import urllib3.util.ssl_
+        urllib3.util.ssl_.create_urllib3_context = lambda *args, **kwargs: ssl.create_default_context(*args, **kwargs)
+except (AttributeError, ImportError):
+    # 如果不支持，则跳过
+    pass
+
+# 其他导入
 import signal
+from app import create_app, socketio
 import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), 'scripts'))
@@ -17,7 +37,6 @@ def signal_handler(sig, frame):
 
 if __name__ == '__main__':
     try:
-
         # 创建应用实例
         app = create_app('development')
         cfg = config['development']
@@ -30,9 +49,8 @@ if __name__ == '__main__':
         g = _G._G_
         log = g.Log()
         g.load(True)      
-         # 启动服务器
+        # 启动服务器
         log.i(f'服务器启动在: http://{cfg.SERVER_HOST}:{cfg.SERVER_PORT}')
-        # print(f'ddd111')
         
         # 初始化数据库
         Database.init(app)
@@ -48,7 +66,7 @@ if __name__ == '__main__':
             log_output=False      # 启用日志输出
         )
     except Exception as e:
-        log.ex(e, f'服务器启动失败')
+        log.ex(e, '服务器启动失败')
         log.uninit()
     finally:
         log.i('服务器关闭')

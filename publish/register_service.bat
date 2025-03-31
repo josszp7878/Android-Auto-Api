@@ -1,4 +1,5 @@
 @echo off
+chcp 65001 >nul
 echo 正在注册Windows服务...
 
 :: 切换到项目根目录

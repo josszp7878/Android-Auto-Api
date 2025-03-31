@@ -321,49 +321,43 @@ class CTools_(_Tools._Tools_):
             return False
 
 
+    # 打开应用返回值
+    # 0: 打开失败
+    # 1: 打开成功
+    # 2: 打开未知应用
     @classmethod
-    def openApp(cls, appName:str) ->Optional["_App._App_"]:
+    def openApp(cls, appName:str) ->bool:
         if not appName:
-            return None
+            return False
         g = _G._G_
         log = g.Log()
-        App = g.App()
-        if cls.android is None:
-            return App.Top
-        if appName == _G.TOP:
-            cls.goHome()
-            return App.Top
         try:
-            # 检查应用是否已经打开
-            curApp = cls.getCurrentAppInfo()
-            # print(f"当前应用: {curApp}")
-            if curApp and curApp.get('appName') == appName:
-                return "i->应用已打开"
-            app = App.getApp(appName, True)
-            if app is None:
-                log.e(f"尝试打开未知应用{appName}")
+            if cls.android is None:
+                return True
+            if appName == _G.TOP:
+                if not cls.goHome():
+                    return False
             else:
-                appName = app.name
-            opened = False
-            # 根据系统类型选择打开方式
-            if cls.isHarmonyOS():
-                opened = cls._openAppByClick(appName)
-            else:
-                # Android系统使用服务方式打开
-                opened = cls.android.openApp(appName)
-            return app if opened else None
+                opened = False
+                # 根据系统类型选择打开方式
+                if cls.isHarmonyOS():
+                    opened = cls._openAppByClick(appName)
+                else:
+                    # Android系统使用服务方式打开
+                    opened = cls.android.openApp(appName)
+                return opened
         except Exception as e:
             log.ex(e, "打开应用失败")
-            return None
+            return False
 
     @classmethod
     def closeApp(cls, app_name: str = None) -> bool:
         log = _G._G_.Log()
         try:
-            log.i(cls.Tag, f"Closing app: {app_name}")
+            # log.i(cls.Tag, f"Closing app: {app_name}")
             if cls.android:
                 return cls.android.closeApp(app_name)
-            return False
+            return True
         except Exception as e:
             log.ex(e, '打开应用失败')
             return False
@@ -509,11 +503,6 @@ class CTools_(_Tools._Tools_):
         if cls.android:
             if not cls.android.goHome():
                 return False
-            time.sleep(1)
-            if not cls.isHome():
-                return False
-        import _Page
-        _Page._Page_.setCurrent(_Page._Page_.Root())
         return True     
 
     @classmethod

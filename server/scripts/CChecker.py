@@ -1,8 +1,10 @@
 import time
 import threading
-from typing import Dict, Any, List, Callable, Optional
+from typing import Dict, Any, List, Callable, Optional, TYPE_CHECKING
 import _G
 import _Log
+if TYPE_CHECKING:
+    from _Page import _Page_
 
 g = _G.g
 log = g.Log()
@@ -21,16 +23,16 @@ class CChecker_:
     _appChecker: Optional["CChecker_"] = None  # 应用检测器实例
 
     
-    def __init__(self, name: str, config: Dict[str, Any], page=None):
+    def __init__(self, name: str, config: Dict[str, Any], data=None):
         """初始化检查器
         
         Args:
             name: 检查器名称
             config: 检查器配置字典
-            page: 所属页面(可选)
+            data: 检查器数据(可选)
         """
         self.name = name
-        self.page = page
+        self.data = data
         self._action = config.get('do', '')
         self._check = config.get('check', name)
         self.interval = config.get('interval', 0)
@@ -58,31 +60,24 @@ class CChecker_:
         Returns:
             bool: 检查是否通过
         """
+        result = False
         try:
             if self._check == '': 
                 return True
             log.d(f"执行检查器: {self.name}")
-            # 当代码执行，返回结果为PASS时，表示执行成功·
-            ret = tools.eval(self, self._check)
-            if ret != 'PASS':
-                return ret
-            # 否则检查文本规则
-            # log.d(f"执行检查器文本规则: {rule}")
-            ret = tools.matchText(self._check)
-            if not ret:
-                log.d(f"检查器文本规则不匹配: {self._check}")
-                return False
-            self.callResult(True)
-            return True
+            evaled, result = tools.eval(self, self._check)
+            if not evaled:
+                # 否则检查文本规则
+                result = tools.matchText(self._check)
         except Exception as e:
             log.ex(e, f"执行检查器失败: {self._check}")
-            return False
-        
-    def callResult(self, result: bool):
-        cb = self.onResult
-        if cb:
-            cb(result)
+            result = False
+        if result and self.onResult:
+            # 如果检查器结果为True，则执行回调函数,否则继续check.直到TIMEOUT    
+            self.onResult(result)
             self.onResult = None
+        return result
+        
         
     def do(self):
         _G._G_.Tools().eval(self, self._action)
@@ -99,32 +94,26 @@ class CChecker_:
         log.i(f"已加载{len(templates)}个checker模板")
     
     @classmethod
-    def create(cls, name: str, config: Dict[str, Any] = None) -> Optional["CChecker_"]:
-        """基于模板创建checker实例
-        
+    def _add(cls, checkerName: str, config: Dict[str, Any], page=None) -> Optional["CChecker_"]:
+        """创建并注册checker到全局列表        
         Args:
-            name: 模板名称
+            checkerName: checker模板名称
             config: 覆盖模板的配置参数(可选)
+            page: 关联的页面(可选)
             
         Returns:
             CChecker_: 创建的checker实例，如果创建失败则返回None
         """
-        template = cls._templates.get(name, None)
-        actConfig = None
-        if template is None:
-            actConfig = config
-        else:
-            # 合并模板和自定义配置
-            actConfig = template.copy()
-            if config and config != {}:
-                actConfig.update(config)
-        
-        return cls(name, actConfig)
+        checker = cls(checkerName, config)
+        log.d(f"添加checker: {checkerName}")
+        checker.data = page
+        with cls._lock:
+            cls._checkers.append(checker)
+        return checker
     
     @classmethod
     def add(cls, checkerName: str, page=None, config: Dict[str, Any] = None) -> Optional["CChecker_"]:
-        """创建并注册checker到全局列表
-        
+        """创建并注册checker到全局列表        
         Args:
             checkerName: checker模板名称
             page: 关联的页面(可选)
@@ -133,15 +122,25 @@ class CChecker_:
         Returns:
             CChecker_: 创建的checker实例，如果创建失败则返回None
         """
-        checker = cls.create(checkerName, config)
-        if not checker:
+        template = cls._templates.get(checkerName, None)
+        actConfig = config
+        if template:
+            # 合并模板和自定义配置
+            actConfig = template.copy()
+            if config and config != {}:
+                actConfig.update(config)
+        if actConfig is None:
+            log.w(f"缺少checker配置: {checkerName}")
             return None
-            
-        checker.page = page
-        with cls._lock:
-            cls._checkers.append(checker)
-        return checker
+        return cls._add(checkerName, actConfig, page)
     
+    @classmethod
+    def remove(cls, checker: "CChecker_"):
+        """删除检查器"""
+        with cls._lock:
+            cls._checkers.remove(checker)
+    
+
     @classmethod
     def start(cls, interval: int = None):
         """启动定期检查线程
@@ -205,7 +204,7 @@ class CChecker_:
                         continue  # 未到达检查间隔，跳过此检查器
                     # 检查是否超时
                     pastTime = currentTime - checker.startTime 
-                    log.d(f"检查器 {checker.name} 超时: {pastTime} > {checker.timeout}")
+                    # log.d(f"检查器 {checker.name} 超时: {pastTime} > {checker.timeout}")
                     if checker.timeout > 0 and pastTime > checker.timeout:
                         log.d(f"检查器 {checker.name} 超时")
                         checker.enabled = False
@@ -225,85 +224,90 @@ class CChecker_:
                         log.ex(e, f"执行检查器 {checker.name} 出错")
                         i += 1  # 即使出错也要增加索引
                 
-                time.sleep(0.5)                    
+                time.sleep(1)                    
             except Exception as e:
                 log.ex(e, "检查线程异常")
-                time.sleep(1)  # 发生异常时短暂暂停
-        
+                time.sleep(1)  # 发生异常时短暂暂停        
         log.i("检查线程已停止")
-    
-    @classmethod
-    def _pageCheck(cls) -> bool:
-        App = _G._G_.App()
-        curApp = App.getCurApp()
-        if curApp is None:
-            return False
-        page = curApp.rootPage.detectPage()
-        return page is not None
-    
 
     @classmethod
-    def _addPageChecker(cls):
-        """确保页面检测器已创建"""
-        if cls._pageChecker is None:
-            config = {
-                'check': "{this._pageCheck()}",
-            }
-            cls._pageChecker = cls.add("页面检测器", None,config)
-            _Log.c.i("创建页面检测器")
-    
-    
-    @classmethod
-    def enablePageCheck(cls, callback: Callable[[bool], None], timeout: int = None) -> bool:
+    def waitCheck(cls, checker: "CChecker_", timeout: int = None) -> bool:
         """设置要检测的目标页面        
         Args:
-            callback: 检测结果回调函数
             timeout: 超时时间(秒)            
         Returns:
             bool: 是否成功设置检测
         """ 
-        checker = cls._pageChecker
-        if callback is None:
-            checker.enabled = False
+        if checker is None:
             return True
         checker.enabled = True
         # 设置目标页面和回调
-        checker.timeout = timeout or 3
-        checker.onResult = callback
-        return True
-        
+        if timeout is not None:
+            checker.timeout = timeout
+        #wait for result 
+        result = None
+        def onResult(res: bool):
+            nonlocal result
+            result = res
+        checker.onResult = onResult
+        while result is None:
+            time.sleep(0.5)
+        return result   
+
+    def _pageCheck(self) -> bool:
+        return self.data.match()
+
     @classmethod
-    def _appCheck(cls) -> bool:
+    def _addPageChecker(cls):
+        """确保页面检测器已创建"""
+        checkName = "页面"
+        if cls._pageChecker is None:
+            config = {
+                'check': "{this._pageCheck()}",
+                'timeout': 3,
+            }
+            cls._templates[checkName] = config
+            cls._pageChecker = cls._add(checkName, config)
+    
+    @classmethod
+    def checkPage(cls, page: "_Page_", timeout: int = None) -> bool:
+        """检查页面
+        Args:
+            page: 页面对象
+            timeout: 超时时间(秒)
+        Returns:
+            bool: 是否成功设置检测
+        """
+        if page is None:
+            return False
+        cls._pageChecker.data = page
+        return cls.waitCheck(cls._pageChecker, timeout)
+        
+    def _appCheck(self) -> bool:
         App = _G._G_.App()
-        return App.detectCurApp()
+        appName = App.detectCurApp()
+        return appName == self.data
 
     @classmethod
     def _addAppChecker(cls):
         """确保应用检测器已创建"""
+        checkName = "应用"
         if cls._appChecker is None:
             config = {
                 'check': "{this._appCheck()}",
+                'timeout': 5,
             }
-            cls._appChecker = cls.add("应用检测器", None, config)
-            _Log.c.i("创建应用检测器")
+            cls._templates[checkName] = config
+            cls._appChecker = cls._add(checkName, config)
    
     @classmethod
-    def enableAppCheck(cls, callback: Callable[[bool], None], timeout: int = None) -> bool:
-        """设置要检测的当前应用
+    def checkApp(cls, appName: str, timeout: int = None) -> bool:
+        """检查应用
         Args:
-            callback: 检测结果回调函数
+            appName: 应用名称
             timeout: 超时时间(秒)
-            
         Returns:
             bool: 是否成功设置检测
         """
-        checker = cls._appChecker
-        if callback is None:
-            checker.enabled = False
-            return True
-        checker.enabled = True
-        # 设置回调
-        checker.timeout = timeout or 6
-        checker.onResult = callback
-        return True
-   
+        cls._appChecker.data = appName
+        return cls.waitCheck(cls._appChecker, timeout)

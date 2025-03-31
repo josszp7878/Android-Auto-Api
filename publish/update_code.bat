@@ -1,57 +1,33 @@
 @echo off
-echo 正在更新代码...
+chcp 65001 >nul
+echo updating the code...
 
-:: 切换到项目根目录
+:: to the root directory
 cd ..
 
-:: 检查git是否安装
+:: check if git is installed
 git --version >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
-    echo 未检测到Git，请先安装Git
+    echo Git not detected, please install Git first
     pause
     exit /b
 )
 
-:: 保存当前目录
+:: save the current directory
 set CURRENT_DIR=%cd%
-:: 设置固定的仓库地址
+:: set the fixed repository address
 set REPO_URL=https://github.com/josszp7878/Android-Auto-Api.git
+echo detected Git repository, pulling the latest code...
+:: pull the latest code
+git pull
 
-:: 如果存在.git目录，直接拉取；否则初始化并添加远程仓库
-if exist .git (
-    echo 检测到Git仓库，正在拉取最新代码...
-    :: 拉取最新代码
-    git pull
-) else (
-    echo 当前目录不是Git仓库，正在初始化...
-    
-    :: 初始化Git仓库
-    git init
-    
-    :: 添加远程仓库
-    git remote add origin %REPO_URL%
-    
-    :: 拉取代码
-    echo 正在拉取代码...
-    git pull origin main
-    
-    :: 如果main分支拉取失败，尝试master分支
-    if %ERRORLEVEL% NEQ 0 (
-        echo main分支拉取失败，尝试master分支...
-        git pull origin master
-    )
-)
-
-:: 检查结果
+:: check the result
 if %ERRORLEVEL% NEQ 0 (
-    echo 代码更新失败，请检查网络连接或Git配置
+    echo update failed, please check the network connection or Git configuration
 ) else (
-    echo 代码更新成功！
+    echo update successfully!
 )
 
-:: 更新依赖
-echo 正在更新依赖...
-pip install -r requirements.txt
 
-echo 更新完成！
+echo update completed!
 pause 
