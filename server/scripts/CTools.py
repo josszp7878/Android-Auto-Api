@@ -651,7 +651,7 @@ class CTools_(_Tools._Tools_):
                 coords[0] if len(coords) > 0 else 0,
                 coords[1] if len(coords) > 1 else 0
             )
-        log.i(f"点击文本。。。  {parsed_text}，偏移:{offset}")
+        log.i(f"点击文本 {parsed_text}，{offset}")
         # 查找文本位置
         pos = cls.findTextPos(parsed_text, direction)
         if pos:

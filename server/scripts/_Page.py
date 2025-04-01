@@ -307,7 +307,6 @@ class _Page_:
         
         # 如果没有找到，返回None
         return None
-
     
     def match(self) -> bool: 
         """检查页面规则是否匹配当前屏幕"""

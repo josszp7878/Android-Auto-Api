@@ -7,14 +7,14 @@
             "看广告": {
                 "check": "广告&领取成功",
                 "timeout": 10,
-                "do" : "T.goback()"
+                "do" : "{T.goBack()}"
             },
             "领取成功": {
                 "timeout": 10,
-                "do" : "T.click(2)"},
+                "do" : "{T.click(2)}"},
             "倒计时": {
                 "check": "{this.pastTime > 5}",
-                "do" : "T.goback()",
+                "do" : "{T.goBack()}",
                 "interval": 1
             }
         },

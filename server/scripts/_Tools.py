@@ -116,10 +116,18 @@ class _Tools_:
         }
         result = eval(code, cls.gl, locals)
         return result
-    
-    #return (是否执行成功, 执行结果)
     @classmethod
-    def eval(cls, this, str:str, doAction:bool=True) -> Tuple[bool, Any]:
+    def check(cls, this, str:str) -> bool:
+        """检查规则"""
+        return cls._eval(this, str, False)
+
+    @classmethod
+    def eval(cls, this, str:str):
+        """执行规则"""
+        return cls._eval(this, str, True)
+    
+    @classmethod
+    def _eval(cls, this, str:str, doAction:bool=True):
         """执行规则（内部方法）"""
         try:
             if str is None:
@@ -146,10 +154,10 @@ class _Tools_:
                     #执行text检查
                     result = g.CTools().matchTexts(str)
                     result = True
-            return evaled, result
+            return result
         except Exception as e:
             log.ex(e, f"执行规则失败: {str}")
-            return False, None
+            return False
         
     
     @classmethod

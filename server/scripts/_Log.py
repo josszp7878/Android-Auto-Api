@@ -5,6 +5,7 @@ from pathlib import Path
 import json
 import re
 import _G
+
 class TAG(Enum):
     """标签"""
     CMD = "CMD"
@@ -194,10 +195,10 @@ class _Log_:
     def _clientLog(cls, tag, level, content, result=None)->dict:
         """发送日志到前端"""
         try:
-            from CDevice import CDevice_
-            device = CDevice_.instance()
-            if device:
-                tag = f'{device.deviceID}{tag}' if tag else device.deviceID
+            CDevice = _G._G_.CDevice()
+            if CDevice:
+                devID = CDevice.deviceID()
+                tag = f'{devID}{tag}' if tag else devID
                 time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 logData = {
                     'time': time,
@@ -207,13 +208,13 @@ class _Log_:
                     'result': result,  # 确保result字段被包含
                     'count': 1  # 添加count字段，与服务端日志保持一致
                 }
-                if device.connected:
-                    device.sio.emit('C2S_Log', logData)
+                if CDevice.connected:
+                    CDevice.sio.emit('C2S_Log', logData)
                 return logData  
         except Exception as e:
             print(f'发送日志到服务器失败: {e}')
             return None
-
+        
     @classmethod
     def log(cls, content, tag=None, level='i', result:str=None)->dict:
         """记录日志"""

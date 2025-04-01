@@ -41,8 +41,11 @@ class CChecker_:
         self.lastTime = 0  # 上次检查时间
         self.onResult: Optional[Callable[[bool], None]] = None  # 默认回调函数
         self._enabled = False
-        self.once = config.get('once', True)
+        self.type = config.get('type', 'temp')
     
+    def __str__(self):
+        return f"{self.name} {self._check}"
+
     @property
     def enabled(self) -> bool:
         return self._enabled
@@ -65,8 +68,8 @@ class CChecker_:
             if self._check == '': 
                 return True
             log.d(f"执行检查器: {self.name}")
-            evaled, result = tools.eval(self, self._check)
-            if not evaled:
+            result = tools.check(self, self._check)
+            if not result:
                 # 否则检查文本规则
                 result = tools.matchText(self._check)
         except Exception as e:
@@ -228,7 +231,9 @@ class CChecker_:
                         if ret:
                             # log.i(f"检查器 {checker.name} 匹配成功，执行操作")
                             checker.do()
-                            if checker.once:
+                            if checker.type == 'temp':
+                                checkers.remove(checker)
+                            elif checker.type == 'once':
                                 checker.enabled = False
                         i += 1  # 增加索引
                     except Exception as e:
@@ -276,6 +281,7 @@ class CChecker_:
             config = {
                 'check': "{this._pageCheck()}",
                 'timeout': 3,
+                'type': 'once',
             }
             cls._templates[checkName] = config
             cls._pageChecker = cls._add(checkName, config)
@@ -307,6 +313,7 @@ class CChecker_:
             config = {
                 'check': "{this._appCheck()}",
                 'timeout': 5,
+                'type': 'once',
             }
             cls._templates[checkName] = config
             cls._appChecker = cls._add(checkName, config)

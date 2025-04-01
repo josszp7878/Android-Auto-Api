@@ -304,18 +304,19 @@ class _CmdMgr_:
             
             # 3. 重新执行入口函数，重启脚本
             # 先结束当前客户端
-            client = _G._G_.getClass('CClient')()
-            if client:
+            Client = g.CClient()
+            if Client:
                 try:
-                    client.End()
+                    Client.End()
                 except Exception as e:
                     _Log._Log_.ex(e, "结束客户端失败")
             
             # 重新导入CMain模块并执行Begin
             try:
                 # 获取当前设备ID和服务器地址
-                deviceID = client.deviceID if client else None
-                server = client.server if client else None
+                CDevice = g.CDevice()
+                deviceID = CDevice.deviceID()
+                server = CDevice.server()
                 
                 CMain = importlib.import_module("CMain")
                 importlib.reload(CMain)            
@@ -379,7 +380,7 @@ class _CmdMgr_:
     def registerCommands(cls):
         """注册命令管理器自身的命令"""
         @cls.reg(r"重启-cq")
-        def reloadAll():
+        def reset():
             """功能：重新加载所有脚本并重启脚本引擎
             指令名：reloadAll
             中文名：重启

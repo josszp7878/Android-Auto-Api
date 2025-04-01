@@ -7,10 +7,15 @@ import _G
 
 class CFileServer_:
     
-    serverIp = None
+    _server = None
     @classmethod
     def Clone(cls, oldCls):
-        cls.serverIp = oldCls.serverIp
+        cls._server = oldCls.serverIp
+    
+    @classmethod
+    def init(cls, serverIp):
+        cls._server = serverIp
+
 
     @classmethod
     def downAll(cls, callback: Callable[[bool], None] = None):
@@ -53,7 +58,7 @@ class CFileServer_:
         log = g.Log()
         ok = False
         try:
-            url = f"{g.Tools().getServerURL(cls.serverIp)}/file/{filename}"
+            url = f"{g.Tools().getServerURL(cls._server)}/file/{filename}"
             # log.d(f"下载文件...: {url}")
             response = requests.get(url, timeout=8)
             response.raise_for_status()
@@ -97,7 +102,7 @@ class CFileServer_:
     @classmethod
     def remoteVersions(cls):
         # 测试阶段使用的方法
-        url = f"{cls.serverIp}/timestamps"
+        url = f"{cls._server}/timestamps"
         try:
             response = requests.get(url, timeout=8)
             response.raise_for_status()

@@ -171,7 +171,7 @@ class _G_:
         return cls.getClass('_CmdMgr')
     
     @classmethod
-    def Device(cls) -> 'CDevice_':
+    def CDevice(cls) -> 'CDevice_':
         return cls.getClass('CDevice')
 
 
@@ -232,14 +232,7 @@ class _G_:
 
     @classmethod
     def getScriptNames(cls):
-        """扫描指定目录下的Python模块
-        
-       根据当前环境(服务器/客户端)扫描对应前缀的Python文件，
-       并将符合条件的模块名添加到modules列表中
-       
-       Returns:
-           List[str]: 符合条件的模块名列表
-       """
+        """扫描指定目录下的Python模块"""
         # 如果有缓存，直接返回缓存
         if cls._scriptNamesCache is not None:
             return cls._scriptNamesCache
@@ -249,7 +242,6 @@ class _G_:
         fileNames: List[str] = []
         try:
             prefix = 'S' if cls.isServer() else 'C'
-            # print(f"prefix: {prefix}")
             for file in files:
                 if ext and not file.endswith(ext):
                     continue
@@ -259,10 +251,10 @@ class _G_:
                 module = file[:-3]  # 去掉.py后缀
                 fileNames.append(module)
         except Exception as e:
-            cls.log.ex(e, "扫描脚本目录失败")
+            # 避免使用日志，直接打印错误
+            print(f"扫描脚本目录失败: {e}")
         
         # 缓存结果
-        # print(f"缓存结果dddddddd: {fileNames}")
         cls._scriptNamesCache = fileNames
         
         return fileNames
@@ -317,7 +309,8 @@ class _G_:
         else:
             rootDir = cls.rootDir()
             
-        cls.log.d(f"获取目录 {rootDir} 下的所有文件")
+        # 不调用日志函数，避免循环依赖
+        # cls.log.d(f"获取目录 {rootDir} 下的所有文件")
         
         # 存储所有文件
         all_files = []        

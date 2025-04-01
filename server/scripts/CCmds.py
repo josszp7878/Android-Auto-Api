@@ -115,7 +115,7 @@ class CCmds_:
             示例: 连接 [192.168.1.100]
             """
             g = _G._G_
-            device = g.Device()
+            device = g.CDevice()
             if device:
                 return device.connect(server)
             return "设备未初始化"
@@ -527,14 +527,14 @@ class CCmds_:
                 log.ex(e, f"执行代码失败: {code}")
                 return None
 
-        @regCmd('匹配文字-ppwz', r"(?P<rule>\S+)")
-        def matchText(rule):
+        @regCmd('匹配-pp', r"(?P<rule>\S+)")
+        def match(rule):
             """
-            功能：在当前屏幕上查找文字
-            指令名: matchText-m
-            中文名: 匹配文字-ppwz
-            参数: rule - 文字规则
-            示例: 匹配文字 确定
+            功能：匹配当前屏幕上查找文字或者页面
+            指令名: match-m
+            中文名: 匹配-pp
+            参数: rule - 文字规则或者页面名
+            示例: 匹配 确定
             """
             g = _G._G_
             log = g.Log()
@@ -542,7 +542,9 @@ class CCmds_:
                 if rule.startswith('@'):
                     import _Page
                     page = _Page._Page_.getCurrent().findPagesByPath(rule[1:])[-1]
-                    return page.match(page.matches)
+                    if not page:
+                        return f"e->找不到页面: {rule[1:]}"
+                    return page.match()
                 result = g.CTools().matchTexts(rule, False)
                 return result
             except Exception as e:
