@@ -251,10 +251,7 @@ def handle_2S_Cmd(data):
         # print(f'执行命令: {command} {serverCmd}')
         if not serverCmd:
             result = deviceMgr.doServerCmd(device_id, command, data.get('params', {}))
-            log = Log.cmdLog(command, sender, executor)
-            # 执行后更新结果
-            Log.setCmdResult(log, result)
-            Log.i(f'=>{result}')
+            Log.cmdLog(command, sender, executor, result)
             return result
         else:
             result = deviceMgr.sendClientCmd(device_id, command, data.get('params', {}))

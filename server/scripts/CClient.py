@@ -131,7 +131,7 @@ class CClient_:
         """清理函数"""
         g = _G._G_
         log = g.Log()
-        g.Checker().stop()
+        g.Checker().end()
         if cls.device:
             cls.device.uninit()
         try:

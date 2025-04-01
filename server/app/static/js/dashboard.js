@@ -293,34 +293,37 @@ class Dashboard {
                     ctx.textBaseline = 'middle';
                     ctx.fillText(`${Math.round(progress * 100)}%`, centerX, centerY);
                 },
-                startResize(e) {
+                startResize(event) {
                     this.isResizing = true;
-                    this.startX = e.clientX;
-                    this.startWidth = parseFloat(this.logsPanelWidth);
+                    this.startX = event.clientX;
+                    this.startWidth = parseInt(this.logsPanelWidth);
                     
-                    // 添加事件监听
+                    // 添加鼠标移动和松开事件监听
                     document.addEventListener('mousemove', this.doResize);
                     document.addEventListener('mouseup', this.stopResize);
                     
-                    // 防止选中文本
-                    e.preventDefault();
+                    // 防止文本选择
+                    event.preventDefault();
                 },
-                doResize(e) {
+                doResize(event) {
                     if (!this.isResizing) return;
                     
                     // 计算新宽度
-                    const windowWidth = window.innerWidth;
-                    const dx = this.startX - e.clientX;
-                    let newWidth = this.startWidth + (dx / windowWidth * 100);
-                    
-                    // 限制最小和最大宽度
-                    newWidth = Math.max(20, Math.min(80, newWidth));
+                    const offsetX = event.clientX - this.startX;
+                    const newWidth = Math.max(20, Math.min(80, this.startWidth - offsetX / window.innerWidth * 100));
                     
                     // 更新宽度
                     this.logsPanelWidth = `${newWidth}%`;
+                    
+                    // 通知日志管理器宽度变化
+                    if (this.logManager) {
+                        this.logManager.setWidth(this.logsPanelWidth);
+                    }
                 },
                 stopResize() {
                     this.isResizing = false;
+                    
+                    // 移除事件监听
                     document.removeEventListener('mousemove', this.doResize);
                     document.removeEventListener('mouseup', this.stopResize);
                 },
@@ -577,6 +580,12 @@ class Dashboard {
                 // 验证实例是否创建成功
                 if (!this.logManager.addLog) {
                     console.error('LogManager实例创建失败，请检查socket连接');
+                }
+
+                // 获取日志容器元素
+                this.logsContainer = document.querySelector('.console-logs');
+                if (this.logManager && this.logsContainer) {
+                    this.logManager._logContainer = this.logsContainer;
                 }
             }
         });

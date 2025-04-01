@@ -82,12 +82,6 @@ class LogManager {
     // 新增指令历史请求
     this.socket.emit('B2S_GetCommands');
     
-    // 监听指令历史更新
-    this.socket.on('S2B_CommandHistory', (data) => {
-        this.commandHistory = [...new Set(data.commands)]; // 去重
-        this.currentHistoryIndex = -1;
-    });
-    
     console.log('LogManager 初始化完成');
 
     // 绑定方法上下文
@@ -96,16 +90,44 @@ class LogManager {
   }
   
   // 实际addLog方法
-  _addLog(level, tag, message) {
-    const log = {
-      time: new Date().toLocaleTimeString(),
-      tag,
-      level,
-      message
-    };
-    this._systemLogs.push(log);
-    this.processCmdLog(log);
-    return log;
+  _addLog(data) {
+    if (!data || !data.message) {
+        console.error('收到无效的日志数据:', data);
+        return;
+    }
+
+    // 确保count属性存在
+    if (!data.count) {
+        data.count = 1;
+    }
+    
+    console.log('添加日志:', data);
+    this.logs.push(data);
+    if (this.matchesFilter(data)) {
+        this.filteredLogs.push(data);
+        if (this.filteredLogs.length > this.perPage) {
+            this.filteredLogs.shift();
+        }
+        // 使用安全调用
+        this.onLogsUpdated?.(this.filteredLogs);
+    }
+    this.processCmdLog(data);
+    // 在日志面板中显示日志
+    const logElement = this._createLogElement(data);
+    this._logContainer.appendChild(logElement);
+    
+    // 如果日志有result字段，显示结果
+    if (data.result) {
+        const resultElement = document.createElement('div');
+        resultElement.className = `log-result log-${data.level}`;
+        resultElement.textContent = `结果: ${data.result}`;
+        this._logContainer.appendChild(resultElement);
+    }
+    
+    // 添加日志后直接滚动到底部
+    if (this.autoScroll) {
+        this.scrollToBottom();
+    }
   }
   
   // 实际滚动处理方法
@@ -138,40 +160,7 @@ class LogManager {
     
     // 接收新增的日志
     this.socket.on('S2B_AddLog', (data) => {
-      if (!data || !data.message) {
-        console.error('收到无效的日志数据:', data);
-        return;
-      }
-
-      // 确保count属性存在
-      if (!data.count) {
-        data.count = 1;
-      }
-      
-      console.log('添加日志:', data);
-      this.logs.push(data);
-      if (this.matchesFilter(data)) {
-        this.filteredLogs.push(data);
-        if (this.filteredLogs.length > this.perPage) {
-          this.filteredLogs.shift();
-        }
-        // 使用安全调用
-        this.onLogsUpdated?.(this.filteredLogs);
-      }
-      // 添加日志后调用addLog方法
-      if (typeof this.addLog === 'function') {
-        this.addLog(data.level, data.tag, data.message);
-      } else {
-        console.error('addLog方法不可用，检查初始化流程');
-      }
-      const sctb = this.callbacks.onScrollToBottom;
-      console.log('sctb:', sctb);
-      // sctb && sctb();
-      
-      // 添加日志后直接滚动到底部
-      if (this.autoScroll) {
-        this.scrollToBottom();
-      }
+      this._addLog(data);
     });
     
     // 添加日志编辑事件监听
@@ -263,21 +252,31 @@ class LogManager {
   
   // 修改后的处理CMD日志方法
   processCmdLog(log) {
-    if (log.tag === '[CMD]') {
-        const cmdMatch = log.message.match(/(.*?)(?=[:：])/);
-        if (cmdMatch == null) {
-          return;
-      }
-      const rawCommand = cmdMatch[1].trim();
-      const existingIndex = this.cmdHistoryCache.findIndex(c => c === rawCommand);
-      if (existingIndex > -1) {
-        this.cmdHistoryCache.splice(existingIndex, 1);
-      }
-      this.cmdHistoryCache.unshift(rawCommand);
+    // 只处理命令类型的日志
+    if (log.tag && log.tag.includes('CMD')) {
+      // 提取纯命令内容
+      let commandText = log.message;
       
-      // 限制最多100条
-      if (this.cmdHistoryCache.length > 100) {
-        this.cmdHistoryCache.pop();
+      // 处理格式为 "sender: command" 或 "sender→executor: command" 的消息
+      const colonIndex = commandText.indexOf(': ');
+      if (colonIndex > -1) {
+        // 提取冒号后面的部分作为纯命令内容
+        commandText = commandText.substring(colonIndex + 2);
+      }
+      
+      // 将纯命令内容添加到历史记录
+      if (commandText) {
+        // 如果命令已存在，先移除它
+        const existingIndex = this.cmdHistoryCache.indexOf(commandText);
+        if (existingIndex !== -1) {
+          this.cmdHistoryCache.splice(existingIndex, 1);
+        }
+        // 将命令添加到历史记录最前面
+        this.cmdHistoryCache.unshift(commandText);
+        // 限制历史记录数量
+        if (this.cmdHistoryCache.length > 50) {
+          this.cmdHistoryCache.pop();
+        }
       }
     }
   }
@@ -649,5 +648,33 @@ class LogManager {
         this.autoScroll = true;
       }
     }, 0);
+  }
+
+  // 添加_createLogElement方法
+  _createLogElement(log) {
+    const logElement = document.createElement('div');
+    logElement.className = `log-entry log-${log.level}`;
+    
+    // 创建时间元素
+    const timeElement = document.createElement('span');
+    timeElement.className = 'log-time';
+    timeElement.textContent = log.time;
+    
+    // 创建标签元素
+    const tagElement = document.createElement('span');
+    tagElement.className = 'log-tag';
+    tagElement.textContent = log.tag || '';
+    
+    // 创建消息元素
+    const messageElement = document.createElement('span');
+    messageElement.className = 'log-message';
+    messageElement.textContent = log.message;
+    
+    // 组装日志元素
+    logElement.appendChild(timeElement);
+    logElement.appendChild(tagElement);
+    logElement.appendChild(messageElement);
+    
+    return logElement;
   }
 } 

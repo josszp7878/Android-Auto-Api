@@ -768,3 +768,18 @@
     height: 100%;
     background-color: #ffcc00;
 }
+
+/* 添加日志结果样式 */
+.log-result {
+    padding-left: 20px;
+    font-style: italic;
+    margin-top: -5px;
+    margin-bottom: 5px;
+}
+
+/* 不同级别日志结果的颜色 */
+.log-result.log-i { color: #a0a0a0; }
+.log-result.log-w { color: #ffcc00; }
+.log-result.log-e { color: #ff6666; }
+.log-result.log-d { color: #88ccff; }
+.log-result.log-c { color: #4CAF50; }

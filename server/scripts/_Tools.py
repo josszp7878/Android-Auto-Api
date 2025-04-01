@@ -119,7 +119,7 @@ class _Tools_:
     
     #return (是否执行成功, 执行结果)
     @classmethod
-    def eval(cls, this, str:str) -> Tuple[bool, Any]:
+    def eval(cls, this, str:str, doAction:bool=True) -> Tuple[bool, Any]:
         """执行规则（内部方法）"""
         try:
             if str is None:
@@ -127,7 +127,8 @@ class _Tools_:
             str = str.strip()
             if str == '':
                 return False
-            log = _G._G_.Log()
+            g = _G._G_
+            log = g.Log()
             str = cls._replaceVars(this, str)
             evaled = re.match(r'^\s*\{(.*)\}\s*$', str)
             result = None
@@ -138,37 +139,18 @@ class _Tools_:
                 except Exception as e:
                     log.ex(e, f"执行规则失败: {str}")
             else:
-                result = cls._doAction(log, this, str)
+                #非代码规则
+                if doAction:
+                    result = g.CTools().click(str)
+                else:
+                    #执行text检查
+                    result = g.CTools().matchTexts(str)
+                    result = True
             return evaled, result
         except Exception as e:
             log.ex(e, f"执行规则失败: {str}")
             return False, None
         
-    @classmethod
-    def _doAction(cls, log, this, str:str) -> Any:
-        """执行动作"""
-        # 判断动作类型   
-        cTools = _G._G_.CTools()       
-        m = re.search(r'(?P<action>[^-\s]+)\s*[:：]\s*(?P<target>.*)', str)
-        if m:
-            action = m.group('action')
-            target = m.group('target')
-            # 根据动作类型执行相应操作
-            if action == 'C':
-                return cTools.click(target)
-            elif action == 'O':
-                # 打开应用
-                is_home = cTools.isHome()
-                if not is_home:
-                    log.e("不在主屏幕，无法打开应用")
-                    return False                
-                return cTools.click(target, waitTime=2)
-            elif action == 'S':
-                return cTools.swipe(target)
-            elif action == 'B':
-                return cTools.goBack()
-        else:
-            return cTools.click(str)
     
     @classmethod
     def toNetStr(cls, result):
@@ -203,3 +185,88 @@ class _Tools_:
         if value is None:
             return default
         return value.lower() in ['true', '1', 'yes', 'y', 'on']
+
+    @classmethod
+    def parsePos(cls, strPos: str) -> Tuple[str, tuple]:
+        """解析位置字符串
+        
+        支持多种配置：
+        1. 单轴坐标: text(axis100,-300) 其中axis是x或y, 坐标值分别对应x0,x1或y0,y1
+        2. 双轴坐标: text(100,-200,300,400) 坐标值分别对应x0,y0,x1,y1
+        3. 单值坐标: text(100) 单个值
+        4. 纯坐标: 100,200 直接作为坐标处理
+        
+        Args:
+            strPos: 位置字符串
+            
+        Returns:
+            (text, (x0,y0,x1,y1)): 文本和坐标元组，坐标可能是None
+        """
+        try:
+            if strPos is None:
+                return None, None
+            
+            import re
+            strPos = strPos.strip()
+            
+            # 检查是否是纯坐标形式 (如 "100,200,300,400")
+            pure_coords_match = re.match(r'^([\s,xX\d]+)$', strPos)
+            if pure_coords_match:
+                values = [v.strip() for v in pure_coords_match.group(1).split(',')]
+                values = [int(v) if v and re.match(r'[+-]?\d+', v) else None for v in values]
+                return None, tuple(values)
+            # 检查是否有括号
+            bracket_match = re.match(r'(.*?)\s*[\(（](.*?)[\)）]', strPos)
+            if not bracket_match:
+                # 没有括号，返回None
+                return None, None
+            
+            text = bracket_match.group(1).strip()
+            content = bracket_match.group(2).strip()
+            
+            # 处理括号内容
+            if not content:
+                return text, (None, None, None, None)
+            
+            # 检查是否有轴标识
+            axis_match = re.match(r'([xXyY])\s*(.*)', content)
+            axis = None
+            if axis_match:
+                axis = axis_match.group(1).upper()
+                content = axis_match.group(2)
+            
+            # 分割逗号分隔的值
+            values = [v.strip() for v in content.split(',')]
+            values = [int(v) if v and re.match(r'[+-]?\d+', v) else None for v in values]
+            
+            # 根据值的数量和轴标识处理不同情况
+            if len(values) == 1:
+                # 单个值
+                val = values[0]
+                if axis == 'X':
+                    return text, (val, None, None, None)
+                elif axis == 'Y':
+                    return text, (None, val, None, None)
+                else:
+                    return text, (val, None, None, None)  # 默认为X轴
+            
+            elif len(values) == 2:
+                # 两个值
+                val1, val2 = values
+                if axis == 'X':
+                    return text, (val1, None, val2, None)
+                elif axis == 'Y':
+                    return text, (None, val1, None, val2)
+                else:
+                    return text, (val1, val2, None, None)  # 默认为X,Y坐标
+            
+            elif len(values) == 4:
+                # 四个值 - 完整的矩形
+                return text, tuple(values)
+            
+            # 其他情况，返回尽可能多的值，其余为None
+            result = values + [None] * (4 - len(values))
+            return text, tuple(result[:4])
+        except Exception as e:
+            _G._G_.Log().ex(e, f"解析位置字符串失败: {strPos}")
+            return None, None

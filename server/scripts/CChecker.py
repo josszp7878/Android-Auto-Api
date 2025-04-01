@@ -31,12 +31,12 @@ class CChecker_:
             config: 检查器配置字典
             data: 检查器数据(可选)
         """
-        self.name = name
+        self.name = name.lower()
         self.data = data
         self._action = config.get('do', '')
         self._check = config.get('check', name)
         self.interval = config.get('interval', 0)
-        self.timeout = config.get('timeout', 0)
+        self.timeout = config.get('timeout', 5)
         self.startTime = 0  # 初始化时设置开始时间
         self.lastTime = 0  # 上次检查时间
         self.onResult: Optional[Callable[[bool], None]] = None  # 默认回调函数
@@ -121,7 +121,7 @@ class CChecker_:
             
         Returns:
             CChecker_: 创建的checker实例，如果创建失败则返回None
-        """
+        """        
         template = cls._templates.get(checkerName, None)
         actConfig = config
         if template:
@@ -166,7 +166,7 @@ class CChecker_:
             return False
     
     @classmethod
-    def stop(cls):
+    def end(cls):
         """停止定期检查线程"""
         try:
             with cls._lock:
@@ -178,6 +178,17 @@ class CChecker_:
         except Exception as e:
             _Log.c.ex(e, "停止检查线程失败")
             return False
+        
+    @classmethod
+    def stop(cls, checkerName: str) -> bool:
+        """获取指定名称的检查器"""
+        checkerName = checkerName.lower()
+        checkers = [checker for checker in cls._checkers if checker.name == checkerName]
+        if len(checkers) == 0:
+            return False
+        for checker in checkers:
+            checker.enabled = False
+        return True
     
     @classmethod
     def _loop(cls):

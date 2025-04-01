@@ -9,6 +9,8 @@ import _Log
 if TYPE_CHECKING:
     import _App
 
+    
+
 class RegionCheck:
     """区域检查工具类"""
 
@@ -25,60 +27,14 @@ class RegionCheck:
         - 支持正负数值
         """
         check = RegionCheck()
-        match = re.search(
-            r'([\s\S]*?)\s*\[([\d,\-\+，x,X,y,Y,\s]+)\]',  # 支持数字、负号、加号等
-            text.strip(),
-            re.DOTALL
-        )
-        
-        if not match:
+        text1, coords = _Tools._Tools_.parsePos(text)
+        if coords is None:
             return None, text
-        
-        region_config = match.group(2)
-        text = match.group(1)
-        
-        try:
-            # 解析特殊格式
-            if region_config.startswith(('y', 'Y')):
-                # 处理Y轴简写
-                y_part = region_config[1:].replace('，', ',')
-                y_values = [int(v) for v in y_part.split(',') if v.strip()]
-                check.region = check._toY(y_values)
-            elif region_config.startswith(('x', 'X')):
-                # 处理X轴简写
-                x_part = region_config[1:].replace('，', ',')
-                x_values = [int(v) for v in x_part.split(',') if v.strip()]
-                check.region = check._toX(x_values)
-            else:
-                # 传统格式处理
-                nums = region_config.strip('[]').split(',')
-                values = [int(v) for v in nums if v.strip()]
-                check.region = values + [0]*(4-len(values))
-        except ValueError as e:
-            # 统一处理格式错误
-            log = _G._G_.Log()
-            log.e(f"区域格式错误: {region_config}, {str(e)}")
-            return None, text
-        
-        return check, text
-
-    def _toY(self, y_values):
-        """处理Y轴简写格式"""
-        if len(y_values) == 1:  # y100 → y≥100
-            return [0, 0, y_values[0], 0]
-        elif len(y_values) == 2:  # y100,200 → 100≤y≤200
-            return [0, 0, y_values[0], y_values[1]]
-        else:
-            raise ValueError("Y轴格式错误")
-
-    def _toX(self, x_values):
-        """处理X轴简写格式"""
-        if len(x_values) == 1:  # x100 → x≥100
-            return [x_values[0], 0, 0, 0]
-        elif len(x_values) == 2:  # x100,200 → 100≤x≤200
-            return [x_values[0], x_values[1], 0, 0]
-        else:
-            raise ValueError("X轴格式错误")
+        check.region = (coords[0] if coords[0] is not None else 0,
+                        coords[1] if coords[1] is not None else 0,
+                        coords[2] if coords[2] is not None else 0,
+                        coords[3] if coords[3] is not None else 0)
+        return check, text1
 
     def __str__(self):
         return f"RegionCheck(region={self.region})"
@@ -262,24 +218,64 @@ class CTools_(_Tools._Tools_):
             return []
 
     @classmethod
+    def matchTexts(cls, str: str, refresh=False) -> bool:
+        """匹配多个文本条件
+        
+        Args:
+            str: 要匹配的文本条件，支持&(与)和|(或)连接符
+            refresh: 是否刷新屏幕信息
+            
+        Returns:
+            bool: 是否匹配成功
+        """
+        log = _G._G_.Log()
+        try:
+            # 如果没有连接符，直接调用matchText
+            if '&' not in str and '|' not in str:
+                return cls.matchText(str, refresh) is not None
+            
+            # 处理OR条件
+            orParts = str.split('|')
+            for orPart in orParts:
+                # 处理AND条件
+                andParts = orPart.split('&')
+                allMatch = True
+                
+                for andPart in andParts:
+                    part = andPart.strip()
+                    if not part:
+                        continue
+                    
+                    if not cls.matchText(part, refresh):
+                        allMatch = False
+                        break
+                
+                # 如果一个OR部分的所有AND条件都满足，则返回True
+                if allMatch:
+                    return True
+            
+            # 所有OR部分都不满足
+            return False
+        except Exception as e:
+            log.ex(e, f"匹配多个文本条件失败: {str}")
+            return False
+
+    @classmethod
     def matchText(cls, str: str, refresh=False):
         try:
-            wildMatch = not str.startswith('^')
-            if wildMatch:
+            matchExact = str.startswith('^')
+            if matchExact:
                 str = str[1:]
             # 使用缓存的屏幕信息
-            screenInfos = cls.getScreenInfo(refresh)
-            log = _G._G_.Log()
-            # log.i(f"匹配屏幕文本: {str} in {screenInfo}")
-            if not screenInfos:
-                # log.w("屏幕信息为空")
-                return None
-            # 解析区域和文本（保持原有逻辑）
-            region, text = RegionCheck.parse(str)
+            log = _G._G_.Log()            
+            region, text = RegionCheck.parse(str) 
             item = None
-            log.i(f"匹配文本: {str} wildMatch={wildMatch}")
+            # log.i(f"匹配文本: {text} region={region} matchExact={matchExact}")
+            screenInfos = cls.getScreenInfo(refresh)
+            if not screenInfos:
+                return None
             textMatchedItems = []
-            if wildMatch:
+            if not matchExact:
                 regex = re.compile(text)
                 # 先匹配文本，将匹配成功的项缓存
                 for item in screenInfos:
@@ -304,7 +300,7 @@ class CTools_(_Tools._Tools_):
                         break
             return ret
         except Exception as e:
-            log.ex(e, "FindUI 指令执行失败")
+            log.ex(e, f"匹配文本:{str}失败")
             return None
 
     @classmethod
@@ -341,7 +337,8 @@ class CTools_(_Tools._Tools_):
                 opened = False
                 # 根据系统类型选择打开方式
                 if cls.isHarmonyOS():
-                    opened = cls._openAppByClick(appName)
+                    #精确匹配，应用名前面加^
+                    opened = cls._openAppByClick(f'^{appName}')
                 else:
                     # Android系统使用服务方式打开
                     opened = cls.android.openApp(appName)
@@ -630,32 +627,36 @@ class CTools_(_Tools._Tools_):
         - 带偏移: "按钮x100" (向右偏移100像素)
         - 带偏移: "按钮y-50" (向上偏移50像素)
         - 带偏移: "按钮x100y-50" (向右偏移100像素，向上偏移50像素)
+        - 坐标格式: "100,200" (直接点击坐标)
+        - 新格式: "按钮(x100,-300)" (单轴坐标)
+        - 新格式: "按钮(100,-200,300,400)" (双轴坐标)
         """
+        
         log = _G._G_.Log()
-        log.i(f"click: {text}")
-        # 先解析text是否为坐标信息
-        isPos = re.match(r'(\d+)[\s,xX](\d+)', text)
-        if isPos:
-            x, y = int(isPos.group(1)), int(isPos.group(2))
-            return cls.clickPos((x, y))
-        # 解析文本和偏移量
-        offsetX, offsetY = 0, 0
-        # 使用正则表达式匹配偏移信息
-        match = re.search(r'(.*?)(?:x([+-]?\d+))?(?:y([+-]?\d+))', text)
-        # log.i(f"match: {match}")
-        if match:
-            text = match.group(1)
-            x_offset = match.group(2)
-            y_offset = match.group(3)
-            if x_offset:
-                offsetX = int(x_offset)
-            if y_offset:
-                offsetY = int(y_offset)
-        pos = cls.findTextPos(text, direction)  
-        # log.i(f"pos: {pos}")
+        # 尝试使用parsePos解析带括号的格式
+        parsed_text, coords = _Tools._Tools_.parsePos(text)
+        if parsed_text is None:
+            if coords is None:
+                parsed_text = text
+            else:
+                pos = (coords[0], coords[1])
+                log.i(f"click:  {pos}")
+                return cls.clickPos(pos)
+        if parsed_text is None:
+            log.i(f"click:{text} 解析失败")
+            return False
+        offset = None
+        if coords is not None:
+            offset = (
+                coords[0] if len(coords) > 0 else 0,
+                coords[1] if len(coords) > 1 else 0
+            )
+        log.i(f"点击文本。。。  {parsed_text}，偏移:{offset}")
+        # 查找文本位置
+        pos = cls.findTextPos(parsed_text, direction)
         if pos:
-            log.i(f"点击文本: {text}，pos={pos}，偏移: x={offsetX}, y={offsetY}")        
-            return cls.clickPos(pos, (offsetX, offsetY))
+            log.i(f"点击文本: {parsed_text}，pos={pos}，偏移:{offset}")
+            return cls.clickPos(pos, offset)
         return cls.android is None
     
     @classmethod
@@ -667,7 +668,7 @@ class CTools_(_Tools._Tools_):
             # 应用偏移
             x += offset[0] if offset else 0    
             y += offset[1] if offset else 0
-            log.i(f"点击位置: {x},{y}")
+            # log.i(f"点击位置: {x},{y}")
             android = cls.android
             if android:
                 return android.click(x, y)
@@ -756,7 +757,7 @@ class CTools_(_Tools._Tools_):
                 log.e(f"无效的滑动方向: {current_dir}")
                 return False
             
-            log.i(f"第{tries+1}次滑动，方向: {cmd}")
+            # log.i(f"第{tries+1}次滑动，方向: {cmd}")
             cls.swipe(f"{cmd} 500")
             time.sleep(2)  # 等待滑动完成
             # 检查滑动后是否匹配

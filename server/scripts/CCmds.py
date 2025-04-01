@@ -521,7 +521,7 @@ class CCmds_:
             g = _G._G_
             log = g.Log()
             try:
-                result = g.Tools().eval(g,code)
+                result = g.Tools().doEval(g,code)
                 return g.Tools().toNetStr(result)
             except Exception as e:
                 log.ex(e, f"执行代码失败: {code}")
@@ -543,7 +543,7 @@ class CCmds_:
                     import _Page
                     page = _Page._Page_.getCurrent().findPagesByPath(rule[1:])[-1]
                     return page.match(page.matches)
-                result = g.CTools().matchText(rule, False)
+                result = g.CTools().matchTexts(rule, False)
                 return result
             except Exception as e:
                 log.ex(e, "查找文字失败")
@@ -663,7 +663,18 @@ class CCmds_:
             """
             ret = g.Checker().checkApp(appName)
             return ret
-       
+        
+        @regCmd(r"停止检查-tzjc", r"(?P<checkerName>\S+)")
+        def stopCheck(checkerName):
+            """
+            功能：停止指定名称的检查器
+            指令名: stopCheck
+            中文名: 停止检查-tcq
+            参数: checkerName - 检查器名称
+            示例: 停止检查 每日签到
+            """ 
+            return g.Checker().stop(checkerName)
+
         @regCmd(r"检查-jcq", r"(?P<checkerName>\S+)")
         def check(checkerName):
             """

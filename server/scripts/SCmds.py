@@ -493,7 +493,7 @@ class SCmds_:
                         log.ex(e, "处理屏幕信息失败")
                 
                 # 发送客户端命令获取屏幕信息
-                deviceMgr.sendClientCmd(device.deviceID, "eval Tools.getScreenInfo(True)", None, 10, handleScreenInfo)
+                deviceMgr.sendClientCmd(device.deviceID, "eval T.getScreenInfo(True)", None, 10, handleScreenInfo)
                 
                 return "i->正在获取屏幕信息..."
             except Exception as e:
@@ -513,20 +513,20 @@ class SCmds_:
                 log = _G._G_.Log()
                 device = deviceMgr.curDevice
                 if not device:
-                    return "e->请先选择设备"
+                    return "e-请先选择设备"
                 # 获取屏幕信息
-                screen_info = device.getScreenInfo(pageName)
-                if not screen_info:
-                    return f"e->屏幕信息为空"
+                screenInfo = device.getScreenInfo(pageName)
+                if not screenInfo:
+                    return f"e-屏幕信息为空"
                     
                 # 使用三引号包裹多行JSON字符串
-                cmd = f"eval Tools.setScreenInfo('''{screen_info}''')"
+                cmd = f"eval T.setScreenInfo('''{screenInfo}''')"
                 deviceMgr.sendClientCmd(device.deviceID, cmd)
                 
-                return f"i->成功设置屏幕信息: {pageName}"
+                return f"i-成功设置屏幕信息: {pageName}"
             except Exception as e:
                 log.ex(e, "设置屏幕信息失败")
-                return f"e->设置屏幕信息失败: {str(e)}"
+                return f"e-设置屏幕信息失败: {str(e)}"
 
         @regCmd('格式化JSON-gsjson', r"(?P<fileName>[^ ]+)")
         def formatJsonFile(fileName):
@@ -542,7 +542,7 @@ class SCmds_:
                 
                 # 检查文件是否存在
                 if not os.path.exists(fileName):
-                    return f"e->文件不存在: {fileName}"
+                    return f"e-文件不存在: {fileName}"
                     
                 # 读取文件内容
                 with open(fileName, 'r', encoding='utf-8') as f:

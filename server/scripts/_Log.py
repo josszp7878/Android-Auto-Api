@@ -141,7 +141,7 @@ class _Log_:
                     count = lastLog.get('count', 1) + 1
                     lastLog['count'] = count
                     # 打印调试信息
-                    print(f'更新重复计数: {count}, 消息: {lastLog.get("message")}')
+                    # print(f'更新重复计数: {count}, 消息: {lastLog.get("message")}')
                     # 通知前端更新
                     try:
                         # 确保发送完整的日志对象，包括时间戳
@@ -166,10 +166,10 @@ class _Log_:
 
 
     @classmethod
-    def _serverLog(cls, tag, level, content)->dict:
+    def _serverLog(cls, tag, level, content, result=None)->dict:
         try:
             # 检查content是否以特定格式开头，提取level
-            m = re.match(r'^\s*([diwec])[\#\-]\s*(.+)$', content)
+            m = re.match(r'\s*([diwec])[\#\-]\s*(.+)$', content)
             if m:
                 level = m.group(1)  # 提取level字符
                 content = m.group(2)  # 提取剩余内容            
@@ -180,11 +180,9 @@ class _Log_:
                 'tag': tag,
                 'level': level,
                 'message': content,
+                'result': result,  # 确保result字段被包含
                 'count': 1
             }
-            
-            # 添加调试信息
-            print(f'创建新日志: {tag} {level} {content}')
             
             cls.add(logData)
             return logData
@@ -193,7 +191,7 @@ class _Log_:
             return None
 
     @classmethod
-    def _clientLog(cls, tag, level, content)->dict:
+    def _clientLog(cls, tag, level, content, result=None)->dict:
         """发送日志到前端"""
         try:
             from CDevice import CDevice_
@@ -205,10 +203,11 @@ class _Log_:
                     'time': time,
                     'tag': tag,
                     'level': level,
-                    'message': content
+                    'message': content,
+                    'result': result,  # 确保result字段被包含
+                    'count': 1  # 添加count字段，与服务端日志保持一致
                 }
                 if device.connected:
-                    # print(f'发送日志到服务器: {logData}')
                     device.sio.emit('C2S_Log', logData)
                 return logData  
         except Exception as e:
@@ -216,7 +215,7 @@ class _Log_:
             return None
 
     @classmethod
-    def log(cls, content, tag=None, level='i')->dict:
+    def log(cls, content, tag=None, level='i', result:str=None)->dict:
         """记录日志"""
         try:
             # 强制转换非字符串内容
@@ -225,6 +224,11 @@ class _Log_:
             logData = None
             tag = f'[{tag}]' if tag else ''
             
+            
+            if isServer:
+                logData = cls._serverLog(tag, level, content, result)
+            else:
+                logData = cls._clientLog(tag, level, content, result)
             # 根据日志级别选择颜色
             color = cls.COLORS['reset']
             if level == 'e':
@@ -235,16 +239,16 @@ class _Log_:
                 color = cls.COLORS['green']
             elif level == 'd':
                 color = cls.COLORS['cyan']
-            
-            if isServer:
-                logData = cls._serverLog(tag, level, content)
-            else:
-                logData = cls._clientLog(tag, level, content)
             # 带颜色的终端输出，去掉日志级别标识
             if tag:
                 print(f"{color}{tag}: {content}{cls.COLORS['reset']}")
             else:
                 print(f"{color}{content}{cls.COLORS['reset']}")
+            
+            # 如果有结果，也打印结果
+            if result:
+                print(f"{cls.COLORS['blue']}结果: {result}{cls.COLORS['reset']}")
+            
             return logData
         except Exception as e:
             print(f'记录日志失败: {e}')
@@ -300,17 +304,10 @@ class _Log_:
     def cmdLog(cls, command, sender, executor, result=None):
         """记录指令日志（自动包含结果）"""
         # 生成标准格式
-        message = f"{command}:{sender}→{executor}"
-        if result is not None:
-            message += f" => {result}"  # 结果截断
-        cls.log(message, TAG.CMD.value, 'c')
-    
-    @classmethod
-    def setCmdResult(cls, log, result=None):
-        """记录指令结果"""
-        if log is None:
-            return
-        res = str(result).replace('\n', ' ')
-        log['result'] = res
-
+        if sender == executor:
+            message = f"{sender}: {command}"
+        else:
+            message = f"{sender}→{executor}: {command}"
+        cls.log(message, TAG.CMD.value, 'c', result)
+   
 c = _Log_()
