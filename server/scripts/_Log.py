@@ -208,13 +208,44 @@ class _Log_:
                     'result': result,  # 确保result字段被包含
                     'count': 1  # 添加count字段，与服务端日志保持一致
                 }
-                if CDevice.connected:
-                    CDevice.sio.emit('C2S_Log', logData)
-                return logData  
+                if CDevice.connected():
+                    CDevice.emit('C2S_Log', logData)
+                return logData
         except Exception as e:
             print(f'发送日志到服务器失败: {e}')
             return None
         
+    @classmethod
+    def printException(cls, e, message=None):
+        """打印异常信息"""
+        import traceback
+        print(f'{cls.COLORS["red"]}异常: {e}:{message}{cls.COLORS["reset"]}')
+        print(f'{cls.COLORS["red"]}{traceback.format_exc()}{cls.COLORS["reset"]}')
+        
+    @classmethod
+    def printLog(cls, level, content, tag=None,  result=None):
+        """打印带颜色的日志到终端"""
+        # 根据日志级别选择颜色
+        color = cls.COLORS['reset']
+        if level == 'e':
+            color = cls.COLORS['red']
+        elif level == 'w':
+            color = cls.COLORS['yellow']
+        elif level == 'i':
+            color = cls.COLORS['green']
+        elif level == 'd':
+            color = cls.COLORS['cyan']  
+        # 打印带颜色的日志到终端，去掉日志级别标识
+        if tag:
+            print(f"{color}{tag}: {content}{cls.COLORS['reset']}")
+        else:
+            print(f"{color}{content}{cls.COLORS['reset']}")
+            
+        # 如果有结果，也打印结果
+        if result:
+            print(f"{cls.COLORS['blue']}结果: {result}{cls.COLORS['reset']}")
+
+            
     @classmethod
     def log(cls, content, tag=None, level='i', result:str=None)->dict:
         """记录日志"""
@@ -224,32 +255,12 @@ class _Log_:
             isServer = _G._G_.isServer()
             logData = None
             tag = f'[{tag}]' if tag else ''
-            
-            
             if isServer:
                 logData = cls._serverLog(tag, level, content, result)
             else:
                 logData = cls._clientLog(tag, level, content, result)
-            # 根据日志级别选择颜色
-            color = cls.COLORS['reset']
-            if level == 'e':
-                color = cls.COLORS['red']
-            elif level == 'w':
-                color = cls.COLORS['yellow']
-            elif level == 'i':
-                color = cls.COLORS['green']
-            elif level == 'd':
-                color = cls.COLORS['cyan']
-            # 带颜色的终端输出，去掉日志级别标识
-            if tag:
-                print(f"{color}{tag}: {content}{cls.COLORS['reset']}")
-            else:
-                print(f"{color}{content}{cls.COLORS['reset']}")
-            
-            # 如果有结果，也打印结果
-            if result:
-                print(f"{cls.COLORS['blue']}结果: {result}{cls.COLORS['reset']}")
-            
+            # 打印带颜色的日志到终端
+            cls.printLog(level, content, tag, result)
             return logData
         except Exception as e:
             print(f'记录日志失败: {e}')

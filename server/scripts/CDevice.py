@@ -10,6 +10,12 @@ class CDevice_:
     _instance = None  # 单例实例
     _server = None
     _deviceID = None
+    _connected = False
+    
+    @classmethod
+    def connected(cls):
+        return cls._connected
+    
     @classmethod
     def Clone(cls, oldCls):
         cls._server = oldCls._server
@@ -28,7 +34,7 @@ class CDevice_:
         if not hasattr(cls, 'initialized'):
             cls._deviceID = deviceID
             cls._server = server
-            cls.connected = False
+            cls._connected = False
             # 配置 socketio 客户端
             cls.sio = socketio.Client(
                 reconnection=True,
@@ -72,11 +78,11 @@ class CDevice_:
         g = _G._G_
         log = g.Log()
         try:
-            if cls.connected:
+            if cls._connected:
                 log.i(f'正在断开设备 {cls._deviceID} 的连接...')
                 cls.sio.disconnect()
                 log.i(f'设备 {cls._deviceID} 已断开连接')
-                cls.connected = False
+                cls._connected = False
             else:
                 log.i(f'设备 {cls._deviceID} 未连接，无需断开')
         except Exception as e:
@@ -102,7 +108,7 @@ class CDevice_:
             time.sleep(1)
             print(".", end="", flush=True)
 
-        if not cls.connected:
+        if not cls._connected:
             tools.toast("无法连接到服务器")            
 
     @classmethod
@@ -112,7 +118,7 @@ class CDevice_:
         log = g.Log()
         try:
             # 如果已连接，先断开
-            if cls.connected:
+            if cls._connected:
                 log.i('客户端已经连接')
                 return
             connect_url = f"{g.Tools().getServerURL(cls._server)}?device_id={cls._deviceID}"
@@ -173,7 +179,7 @@ class CDevice_:
         """登录设备（带重试）"""
         g = _G._G_
         log = g.Log()
-        if not cls.connected:
+        if not cls._connected:
             log.w(f"设备 {cls._deviceID} 未连接，无法登录")
             return False
         
@@ -254,7 +260,7 @@ class CDevice_:
         log = g.Log()
         sid = cls.sio.sid
         log.i(f'已连接到服务器, server: {cls._server}')
-        cls.connected = True
+        cls._connected = True
         
         # 连接成功后在新线程中执行登录
         def do_login():
@@ -289,7 +295,7 @@ class CDevice_:
         g = _G._G_
         log = g.Log()
         log.w(f'设备 {cls._deviceID} 断开连接，SID: {cls.sio.sid if hasattr(cls.sio, "sid") else "未知"}')
-        cls.connected = False
+        cls._connected = False
 
     @classmethod
     def send_command(cls, cmd):
@@ -312,22 +318,21 @@ class CDevice_:
         Returns:
             bool: 是否发送成功
         """
-        g = _G._G_
-        log = g.Log()
+        log = _G._G_.Log()
         try:
-            if not cls.connected:
-                log.e("未连接到服务器")
+            if not cls._connected:
+                log.printLog('e', "未连接到服务器")
                 return False
             
             if not cls.sio:
-                log.e("Socket未初始化")
+                log.printLog('e', "Socket未初始化")
                 return False
                 
             data['device_id'] = cls._deviceID
             cls.sio.emit(event, data)
             return True
         except Exception as e:
-            log.ex(e, "发送事件失败")
+            log.printException(e, f'发送事件失败: {event}')
             return False
 
     @classmethod
