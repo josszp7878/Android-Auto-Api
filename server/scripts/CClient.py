@@ -17,20 +17,11 @@ class CClient_:
         g = _G._G_
         # log = _G._G_.Log()
         if cls.fromAndroid:  # 使用全局变量判断
-            # 更新脚本
-            waitting = True
-            def onUpdated(ok):
-                nonlocal waitting
-                waitting = False
-            g.CFileServer().downAll(onUpdated)
-            # 等待脚本更新完成
-            while waitting:
-                try:
-                    time.sleep(1)
-                    print(".", end="", flush=True)
-                except Exception:
-                    break
-
+            log = g.Log()
+            log.i("开始更新脚本...")
+            downAll = g.CFileServer().downAll()
+            downAll.join()
+            log.i("脚本更新完成")
 
     @classmethod
     def Begin(cls, deviceID=None, server=None, fromAndroid=None):  
@@ -74,13 +65,19 @@ class CClient_:
         """清理函数"""
         g = _G._G_
         log = g.Log()
-        g.Checker().end()
-        CDevice = g.CDevice()
-        if CDevice:
-            CDevice.uninit()
         try:
-            from CTaskMgr import taskMgr
-            taskMgr.uninit()
-            log.i("所有任务已停止")
+            g.Checker().end()
+            CDevice = g.CDevice()
+            if CDevice:
+                CDevice.uninit()
+            try:
+                from CTaskMgr import taskMgr
+                taskMgr.uninit()
+                log.i("所有任务已停止")
+            except ImportError:
+                # 如果没有CTaskMgr模块，忽略错误
+                pass
+            except Exception as e:
+                log.ex(e, "停止任务失败")
         except Exception as e:
             log.ex(e, "客户端结束失败")

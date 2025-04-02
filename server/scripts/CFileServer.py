@@ -18,7 +18,7 @@ class CFileServer_:
 
 
     @classmethod
-    def downAll(cls, callback: Callable[[bool], None] = None):
+    def downAll(cls):
         # 定义一个内部函数run，用于执行更新脚本的操作
         log = _G._G_.Log()
         def run():
@@ -30,21 +30,34 @@ class CFileServer_:
                 # log.d(f"远程版本: {remoteVersions}")
                 # 遍历远程脚本的版本信息
                 count = 0
+                downloadTasks = []
+                
                 for filename, remoteVersion in remoteVersions.items():
                     currentVersion = curVersions.get(filename, "0")
                     if int(remoteVersion) > int(currentVersion):
                         # log.d(f"更新文件: {filename}")
-                        cls.download(filename)
+                        downloadTask = Thread(target=cls.download, args=(filename,))
+                        downloadTask.start()
+                        downloadTasks.append(downloadTask)
                         count += 1
+                
+                # 等待所有下载任务完成
+                for task in downloadTasks:
+                    task.join()
+                    
                 if count > 0:
                     cls.setCurrentVersions(remoteVersions)
                 log.d(f"更新了{count}个文件")
             except Exception as e:
                 log.ex(e, "脚本更新失败")
                 success = False
-            if callback:
-                callback(success)
-        Thread(target=run).start()
+            return success
+        
+        # 创建并启动线程，但返回线程对象以便调用者可以等待完成
+        downloadThread = Thread(target=run)
+        downloadThread.start()
+        return downloadThread
+        
 
         
     @classmethod
@@ -70,6 +83,7 @@ class CFileServer_:
             if CClient.CClient_.fromAndroid:
                 with open(scriptFile, 'w', newline = '', encoding='utf-8') as f:
                     f.write(response.text)
+                log.d(f"下载文件完成: {filename} => {scriptFile}")
                 # 如果下载的是脚本文件，清除脚本名称缓存
                 if filename.startswith('scripts/') and filename.endswith('.py'):
                     g.clearScriptNamesCache()

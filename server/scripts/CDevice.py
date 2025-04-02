@@ -207,7 +207,7 @@ class CDevice_:
         g = _G._G_
         log = g.Log()
         try:
-            if cls.sio and cls.sio.connected:
+            if cls.sio and hasattr(cls.sio, 'connected') and cls.sio.connected:
                 cls.sio.emit('device_logout', {
                     'device_id': cls._deviceID
                 })
@@ -232,26 +232,34 @@ class CDevice_:
             # log.d(f'收到命令: {command} from {sender} data: {cmdData}')
             # 使用 CmdMgr 执行命令
             result, cmdName = g.CmdMgr().do(command, sender, cmdData)
-            if cmdName.lower() != 'reset':
-                cls.sio.emit('C2S_CmdResult', {
-                    'result': result,
-                    'device_id': cls._deviceID,
-                    'command': command,
-                    'cmdName': cmdName,
-                    'cmd_id': cmd_id  # 返回命令ID
-                })
-            else:
-                log.i(f'收到重置命令: {command}')
+            
+            # 特殊处理reset命令
+            if cmdName and cmdName.lower() == 'reset':
+                log.i(f'收到重置命令: {command}，不发送结果')
+                # 不发送结果，但也不抛出异常
+                return
+            
+            # 发送命令执行结果
+            cls.sio.emit('C2S_CmdResult', {
+                'result': result,
+                'device_id': cls._deviceID,
+                'command': command,
+                'cmdName': cmdName,
+                'cmd_id': cmd_id  # 返回命令ID
+            })
         except Exception as e:
             log.ex(e, f'执行命令出错: {command}')
             # 发送错误结果
-            cls.sio.emit('C2S_CmdResult', {
-                'result': f'e->{str(e)}',
-                'device_id': cls._deviceID,
-                'command': command,
-                'cmdName': 'error',
-                'cmd_id': data.get('cmd_id')  # 返回命令ID
-            })
+            try:
+                cls.sio.emit('C2S_CmdResult', {
+                    'result': f'e->{str(e)}',
+                    'device_id': cls._deviceID,
+                    'command': command,
+                    'cmdName': 'error',
+                    'cmd_id': data.get('cmd_id')  # 返回命令ID
+                })
+            except Exception as ex:
+                log.ex(ex, f'发送错误结果失败: {command}')
 
     @classmethod
     def on_connect(cls):

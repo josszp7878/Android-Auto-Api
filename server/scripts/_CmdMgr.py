@@ -253,57 +253,25 @@ class _CmdMgr_:
             return False
 
     @classmethod
-    def _reset(cls):
+    def _reset(cls)->bool:
         g = _G._G_
         log = g.Log()
         """重新加载所有脚本并重启脚本引擎"""
         try:
             if g.isServer():
-                return "e->当前是服务器，无需重载脚本"
+                log.i("当前是服务器，不支持RESET")
+                return False
             # 创建一个事件来等待脚本更新完成
             log.i("开始重载所有脚本...")
-            import threading
-            update_completed = threading.Event()
-            
-            def onUpdateCompleted(success):
-                if success:
-                    _Log._Log_.i("脚本更新完成")
-                else:
-                    _Log._Log_.e("脚本更新失败")
-                update_completed.set()
             
             # 调用更新脚本方法
             log.i("正在更新脚本...")
-            g.getClass('CFileServer').downAll(onUpdateCompleted)
+            downAll = g.CFileServer().downAll()
+            downAll.join()
+            log.i("脚本更新完成")
             
-            # 等待更新完成，最多等待30秒
-            if not update_completed.wait(20):
-                log.e("脚本更新超时")
-                return "e->脚本更新超时，重载失败"
-            
-            # 2. 清除Python中所有脚本模块并重新加载
-            log.i("正在清除模块缓存...")
-            # 保存需要重新加载的模块名
-            modules_to_reload = []
-            for module_name in list(sys.modules.keys()):
-                # 只处理我们自己的脚本模块，不处理系统模块
-                if (not module_name.startswith('_') and 
-                    not module_name.startswith('sys') and 
-                    not module_name.startswith('builtins') and
-                    not module_name.startswith('java') and
-                    not module_name.startswith('importlib') and
-                    not module_name.startswith('threading')):
-                    
-                    # 记录模块名并从sys.modules中移除
-                    modules_to_reload.append(module_name)
-                    
-            # 从sys.modules中移除所有自定义模块
-            for module_name in modules_to_reload:
-                if module_name in sys.modules:
-                    del sys.modules[module_name]
-            
-            # 3. 重新执行入口函数，重启脚本
-            # 先结束当前客户端
+            log.i("正在结束客户端...")
+            CDevice = g.CDevice()
             Client = g.CClient()
             if Client:
                 try:
@@ -311,27 +279,47 @@ class _CmdMgr_:
                 except Exception as e:
                     _Log._Log_.ex(e, "结束客户端失败")
             
-            # 重新导入CMain模块并执行Begin
-            try:
-                # 获取当前设备ID和服务器地址
-                CDevice = g.CDevice()
-                deviceID = CDevice.deviceID()
-                server = CDevice.server()
-                
-                CMain = importlib.import_module("CMain")
-                importlib.reload(CMain)            
-                
-                if deviceID and server:
-                    # 重新初始化客户端
-                    CMain.Begin(deviceID, server)
-                    return "i->脚本全量重载完成"
-                else:
-                    _Log._Log_.e("无法获取设备ID或服务器地址")
-            except Exception as e:
-                _Log._Log_.ex(e, "重启脚本引擎失败")
+            # 获取当前设备ID和服务器地址
+            deviceID = CDevice.deviceID()
+            server = CDevice.server()
+            log.i(f"当前设备ID: {deviceID}, 服务器地址: {server}")
+
+            log.i("正在清除模块缓存...")
+            cls.clearModules()
+
+            CMain = importlib.import_module("CMain")
+            importlib.reload(CMain)            
+            log.i(f"222当前设备ID: {deviceID}, 服务器地址: {server}")
+            if deviceID:
+                # 重新初始化客户端
+                log.i("重启客户端...")
+                CMain.Begin(deviceID, server)
+            else:
+                _Log._Log_.e("无法获取设备ID或服务器地址")
         except Exception as e:
             _Log._Log_.ex(e, "脚本全量重载失败")
-       
+
+    @classmethod
+    def clearModules(cls):
+        try:
+            modules_to_reload = []
+            for module_name in list(sys.modules.keys()):
+                # 只处理我们自己的脚本模块，不处理系统模块
+                if (not module_name.startswith('_') and 
+                        not module_name.startswith('sys') and 
+                        not module_name.startswith('builtins') and
+                        not module_name.startswith('java') and
+                        not module_name.startswith('importlib') and
+                        not module_name.startswith('threading')):
+                        # 记录模块名并从sys.modules中移除
+                    modules_to_reload.append(module_name)
+                    
+            # 从sys.modules中移除所有自定义模块
+            for module_name in modules_to_reload:
+                if module_name in sys.modules:
+                    del sys.modules[module_name]
+        except Exception as e:
+            _Log._Log_.ex(e, "清除模块缓存失败")
 
     @classmethod
     def regAllCmds(cls):
