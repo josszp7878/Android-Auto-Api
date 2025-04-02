@@ -5,10 +5,10 @@ import _G
 import _Log
 if TYPE_CHECKING:
     from _Page import _Page_
-
+    from CTools import CTools_
 g = _G.g
 log = g.Log()
-tools = g.Tools()
+tools: "CTools_" = g.Tools()
 
 class CChecker_:
     """页面检查器类，用于验证页面状态并执行相应操作"""
@@ -21,8 +21,10 @@ class CChecker_:
     _lock = threading.Lock()  # 线程安全锁
     _pageChecker: Optional["CChecker_"] = None  # 页面检测器实例
     _appChecker: Optional["CChecker_"] = None  # 应用检测器实例
-
     
+    # 事件处理相关
+    _pageDetectListeners: List[Callable[["_Page_"], None]] = []  # 页面检测事件监听器列表
+
     def __init__(self, name: str, config: Dict[str, Any], data=None):
         """初始化检查器
         
@@ -33,7 +35,7 @@ class CChecker_:
         """
         self.name = name.lower()
         self.data = data
-        self._action = config.get('do', '')
+        self._actions:dict[str, str] = config.get('do', {})
         self._check = config.get('check', name)
         self.interval = config.get('interval', 0)
         self.timeout = config.get('timeout', 5)
@@ -82,8 +84,38 @@ class CChecker_:
         return result
         
         
-    def do(self):
-        _G._G_.Tools().eval(self, self._action)
+    # 执行操作 
+    # 返回True表示执行完成，可以退出，False表示执行失败，继续check.直到TIMEOUT
+    def do(self)->bool:
+        try:
+            for actionName, action in self._actions.items():
+                #以$结尾的DO操作，表示执行后退出
+                actionName = actionName.strip()
+                endDo = actionName.startswith('@')
+                if endDo:
+                    actionName = actionName[1:]
+                if actionName == '' or tools.matchText(actionName):
+                    action = action.strip()
+                    if action == '':
+                        tools.click(actionName)
+                    else:
+                        codes = action.split(';')
+                        for code in codes:
+                            code = code.strip()
+                            if code.lower() == 'exit':
+                                return True
+                            elif code.lower() == 'click':
+                                tools.click(actionName)
+                            else:
+                                if not code.startswith('{'):
+                                    code = f'{{ {code} }}'
+                                result = tools.eval(self, code)
+                                if str(result).lower() == 'exit':
+                                    return True
+                    return endDo
+        except Exception as e:
+            log.ex(e, f"执行操作失败: {self._actions}")
+        return False
     
     @classmethod
     def loadTemplates(cls, templates: Dict[str, Dict[str, Any]]):
@@ -230,11 +262,11 @@ class CChecker_:
                         ret = checker.check()
                         if ret:
                             # log.i(f"检查器 {checker.name} 匹配成功，执行操作")
-                            checker.do()
-                            if checker.type == 'temp':
-                                checkers.remove(checker)
-                            elif checker.type == 'once':
-                                checker.enabled = False
+                            if checker.do():
+                                if checker.type == 'temp':
+                                    checkers.remove(checker)
+                                elif checker.type == 'once':
+                                    checker.enabled = False
                         i += 1  # 增加索引
                     except Exception as e:
                         log.ex(e, f"执行检查器 {checker.name} 出错")
@@ -246,86 +278,70 @@ class CChecker_:
                 time.sleep(1)  # 发生异常时短暂暂停        
         log.i("检查线程已停止")
 
-    @classmethod
-    def waitCheck(cls, checker: "CChecker_", timeout: int = None) -> bool:
-        """设置要检测的目标页面        
-        Args:
-            timeout: 超时时间(秒)            
-        Returns:
-            bool: 是否成功设置检测
-        """ 
-        if checker is None:
-            return True
-        checker.enabled = True
-        # 设置目标页面和回调
-        if timeout is not None:
-            checker.timeout = timeout
-        #wait for result 
-        result = None
-        def onResult(res: bool):
-            nonlocal result
-            result = res
-        checker.onResult = onResult
-        while result is None:
-            time.sleep(0.5)
-        return result   
 
-    def _pageCheck(self) -> bool:
-        return self.data.match()
+    def _detectPage(self) -> bool:
+        page = self.data
+        App = _G._G_.App()
+        app = App.detectCurApp()
+        if app:
+            page = app.detectPage(page)
+            # 触发页面检测事件
+            self._onPageDetect(page)
 
-    @classmethod
-    def _addPageChecker(cls):
-        """确保页面检测器已创建"""
-        checkName = "页面"
-        if cls._pageChecker is None:
-            config = {
-                'check': "{this._pageCheck()}",
-                'timeout': 3,
-                'type': 'once',
-            }
-            cls._templates[checkName] = config
-            cls._pageChecker = cls._add(checkName, config)
+        return False
     
     @classmethod
-    def checkPage(cls, page: "_Page_", timeout: int = None) -> bool:
-        """检查页面
-        Args:
-            page: 页面对象
-            timeout: 超时时间(秒)
-        Returns:
-            bool: 是否成功设置检测
-        """
-        if page is None:
-            return False
-        cls._pageChecker.data = page
-        return cls.waitCheck(cls._pageChecker, timeout)
+    def _onPageDetect(cls, page):
+        """触发页面检测事件
         
-    def _appCheck(self) -> bool:
-        App = _G._G_.App()
-        appName = App.detectCurApp()
-        return appName == self.data
-
+        Args:
+            page: 检测到的页面对象
+        """
+        if page:
+            for listener in cls._pageDetectListeners:
+                try:
+                    listener(page)
+                except Exception as e:
+                    log.ex(e, "执行页面检测事件监听器出错")
+    
     @classmethod
-    def _addAppChecker(cls):
-        """确保应用检测器已创建"""
-        checkName = "应用"
-        if cls._appChecker is None:
+    def listenPageDetect(cls, listener: Callable[["_Page_"], None]):
+        """添加页面检测事件监听器
+        
+        Args:
+            listener: 页面检测事件监听器函数，接收检测到的页面对象作为参数
+        """
+        if listener not in cls._pageDetectListeners:
+            cls._pageDetectListeners.append(listener)
+            return True
+        return False
+    
+    @classmethod
+    def unListenPageDetect(cls, listener: Callable[["_Page_"], None]):
+        """移除页面检测事件监听器
+        
+        Args:
+            listener: 要移除的页面检测事件监听器函数
+        """
+        if listener in cls._pageDetectListeners:
+            cls._pageDetectListeners.remove(listener)
+            return True
+        return False
+
+    pageChackerInterval = 3
+    @classmethod
+    def _addPageChecker(cls)->"CChecker_":
+        """确保页面检测器已创建"""
+        checkName = "检测页面"
+        if cls._pageChecker is None:
             config = {
-                'check': "{this._appCheck()}",
-                'timeout': 5,
-                'type': 'once',
+                'do': {'' : '{this._detectPage()}'},
+                'type': 'always',
+                'interval': cls.pageChackerInterval,
             }
             cls._templates[checkName] = config
-            cls._appChecker = cls._add(checkName, config)
+            checker = cls._add(checkName, config)
+            checker.enabled = True
+            cls._pageChecker = checker
+        return checker
    
-    @classmethod
-    def checkApp(cls, appName: str, timeout: int = None) -> bool:
-        """检查应用
-        Args:
-            appName: 应用名称
-            timeout: 超时时间(秒)
-        Returns:
-            bool: 是否成功设置检测
-        """
-        cls._appChecker.data = appName
-        return cls.waitCheck(cls._appChecker, timeout)

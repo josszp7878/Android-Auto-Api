@@ -107,12 +107,14 @@ class _Tools_:
             return None
         # 创建安全的执行环境
         locals = {
-            'DoCmd': g.CmdMgr().do,
-            'App': g.App(),
+            'doCmd': g.CmdMgr().do,
+            'app': g.App(),
             'T': g.Tools(),
-            'CT': g.CTools(),
-            'Log': g.Log(),
+            'ct': g.CTools(),
+            'log': g.Log(),
             'this': this,
+            'g': g,
+            'click': g.CTools().click,
         }
         result = eval(code, cls.gl, locals)
         return result
@@ -124,6 +126,8 @@ class _Tools_:
     @classmethod
     def eval(cls, this, str:str):
         """执行规则"""
+        log = _G._G_.Log()
+        log.i(f"执行代码: {str}")
         return cls._eval(this, str, True)
     
     @classmethod
@@ -278,3 +282,83 @@ class _Tools_:
         except Exception as e:
             _G._G_.Log().ex(e, f"解析位置字符串失败: {strPos}")
             return None, None
+
+    @classmethod
+    def getSimilarity(cls, tarText, text) -> float:
+        """获取两个文本的相似度
+        
+        按字符顺序比较两个字符串，计算它们的相似程度。
+        对于不匹配的字符会跳过，继续寻找后续可能匹配的部分。
+        
+        Args:
+            tarText: 目标文本
+            text: 待比较文本
+            
+        Returns:
+            float: 相似度，范围0.0-1.0，1.0表示完全匹配
+        """
+        if not tarText or not text:
+            return 0.0
+        
+        # 如果两个字符串完全相同，直接返回1.0
+        if tarText == text:
+            return 1.0
+        
+        # 最长公共子序列算法
+        len1, len2 = len(tarText), len(text)
+        
+        # 创建动态规划表
+        dp = [[0] * (len2 + 1) for _ in range(len1 + 1)]
+        
+        # 填充动态规划表
+        for i in range(1, len1 + 1):
+            for j in range(1, len2 + 1):
+                if tarText[i-1] == text[j-1]:
+                    dp[i][j] = dp[i-1][j-1] + 1
+                else:
+                    dp[i][j] = max(dp[i-1][j], dp[i][j-1])
+        
+        # 计算最长公共子序列的长度
+        lcs_length = dp[len1][len2]
+        
+        # 计算相似度：最长公共子序列长度 / 较长字符串的长度
+        similarity = lcs_length / max(len1, len2)
+        
+        return similarity
+    
+
+    @classmethod
+    def similarMatch(cls, tarText, items, threshold=0)->Tuple[Any, float]:
+        log = _G._G_.Log()
+        log.i(f"wildMatch: {tarText}, threshold={threshold}")
+        retItem = None
+        maxSim = 0
+        for item in items:
+            if isinstance(item, str):
+                text = item
+            else:
+                text = item['t']
+            sim = cls.getSimilarity(tarText, text)
+            if sim < threshold:
+                continue
+            if retItem is None:
+                retItem = item
+                maxSim = sim
+            else:
+                if sim > maxSim:
+                    retItem = item
+                    maxSim = sim
+        return retItem, maxSim
+    
+    @classmethod
+    def regexMatch(cls, pattern, items):
+        log = _G._G_.Log()
+        log.i(f"regexMatch: {pattern}")
+        for item in items:
+            if isinstance(item, str):
+                text = item
+            else:
+                text = item['t']
+            if re.search(pattern, text):
+                return item
+        return None

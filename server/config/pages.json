@@ -2,19 +2,29 @@
     "Top": {
         "checkers": {
             "每日签到": {
-                "do": "立即签到"
+                "timeout": 5,
+                "do": {
+                    "立即签到\\+": ""
+                }
+            },
+            "明日签到": {
+                "timeout": 5,
+                "do": {
+                    "@看视频再": "click;{app.getCurApp().detectPage()}"
+                }
             },
             "看广告": {
                 "check": "广告&领取成功",
                 "timeout": 10,
-                "do" : "{T.goBack()}"
+                "do" : {
+                    "": "${T.goBack()}"
+                }
             },
-            "领取成功": {
-                "timeout": 10,
-                "do" : "{T.click(2)}"},
             "倒计时": {
                 "check": "{this.pastTime > 5}",
-                "do" : "{T.goBack()}",
+                "do" : {
+                    "": "${T.goBack()}"
+                },
                 "interval": 1
             }
         },
@@ -115,7 +125,7 @@
                 "children": {                    
                     "福利": {
                         "match": ["福利中心"],
-                        "in": "福利y-50"
+                        "in": "福利(y-50)"
                     },
                     "剧场": {
                         "match": ["推荐","新剧","VIP抢先","排行榜"]

@@ -2,7 +2,7 @@ from __future__ import annotations
 import time
 import _G
 import re
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, Any
 import _Tools
 import _Log
 
@@ -263,45 +263,40 @@ class CTools_(_Tools._Tools_):
     @classmethod
     def matchText(cls, str: str, refresh=False):
         try:
-            matchExact = str.startswith('^')
-            if matchExact:
-                str = str[1:]
             # 使用缓存的屏幕信息
             log = _G._G_.Log()            
+            # log.i(f"aaa匹配文本: {str} matchExact={matchExact}")
             region, text = RegionCheck.parse(str) 
             item = None
             # log.i(f"匹配文本: {text} region={region} matchExact={matchExact}")
-            screenInfos = cls.getScreenInfo(refresh)
-            if not screenInfos:
+            items = cls.getScreenInfo(refresh)
+            if not items or len(items) == 0:
+                log.w(f"屏幕信息空空如也")
                 return None
             textMatchedItems = []
-            if not matchExact:
-                regex = re.compile(text)
-                # 先匹配文本，将匹配成功的项缓存
-                for item in screenInfos:
-                    t = item['t']
-                    if regex.search(t):
-                        textMatchedItems.append(item)
-            else:
-                textMatchedItems = [item for item in screenInfos if item['t'] == text]
-            if len(textMatchedItems) == 0:
-                log.w(f"未找到匹配的文本: {text}")
-                return None
-            ret = textMatchedItems[0]
             if region:
-                # 再在匹配成功的项中检查区域
-                for item in textMatchedItems:
+                # 检查区域
+                for item in items:
                     b = item['b']
                     bounds = [int(x) for x in b.split(',')]
                     isIn = region.isRectIn(
                         bounds[0], bounds[1], bounds[2], bounds[3])
                     if isIn:
-                        ret = item
-                        break
-            return ret
+                        textMatchedItems.append(item)
+            else:
+                textMatchedItems = items
+            item = cls.regexMatch(text, textMatchedItems)
+            if item is None:
+                log.w(f"匹配文本失败: {text}")
+                return None
+            log.i(f"匹配文本: {text} 结果为: {item.get('t')}")
+            return item
         except Exception as e:
             log.ex(e, f"匹配文本:{str}失败")
             return None
+
+    
+
 
     @classmethod
     def isHarmonyOS(cls) -> bool:
@@ -327,22 +322,21 @@ class CTools_(_Tools._Tools_):
             return False
         g = _G._G_
         log = g.Log()
+        opened = False
+        appName = appName.strip().lower()
         try:
-            if cls.android is None:
-                return True
             if appName == _G.TOP:
-                if not cls.goHome():
-                    return False
+                return cls.goHome()
+            if cls.android is None:
+                opened = cls.click(appName)
             else:
-                opened = False
                 # 根据系统类型选择打开方式
                 if cls.isHarmonyOS():
-                    #精确匹配，应用名前面加^
-                    opened = cls._openAppByClick(f'^{appName}')
+                    opened = cls.click(f'{appName}(y-150)', 'LR')
                 else:
                     # Android系统使用服务方式打开
                     opened = cls.android.openApp(appName)
-                return opened
+            return opened
         except Exception as e:
             log.ex(e, "打开应用失败")
             return False
@@ -359,20 +353,7 @@ class CTools_(_Tools._Tools_):
             log.ex(e, '打开应用失败')
             return False
 
-    @classmethod
-    def _openAppByClick(cls, app_name: str) -> bool:
-        """通过点击方式打开应用（适用于鸿蒙系统）"""
-        try:
-            log = _G._G_.Log()
-            # print(f"点击打开应用: {app_name}")
-            if not cls.goHome():
-                log.e(cls.Tag, "返回桌面失败")
-                return False
-            return cls.click(f'{app_name}y-150', 'LR')
-        except Exception as e:
-            log.ex(e, f"Failed to open app by click: {str(e)}")
-            return True
-
+   
     # 添加Toast常量
     TOAST_LENGTH_SHORT = 0  # Toast.LENGTH_SHORT
     TOAST_LENGTH_LONG = 1   # Toast.LENGTH_LONG
@@ -645,13 +626,13 @@ class CTools_(_Tools._Tools_):
         if parsed_text is None:
             log.i(f"click:{text} 解析失败")
             return False
-        offset = None
+        offset = (0, 0)
         if coords is not None:
             offset = (
                 coords[0] if len(coords) > 0 else 0,
                 coords[1] if len(coords) > 1 else 0
             )
-        log.i(f"点击文本 {parsed_text}，{offset}")
+        # log.i(f"点击文本 {parsed_text}，{offset}")
         # 查找文本位置
         pos = cls.findTextPos(parsed_text, direction)
         if pos:
@@ -664,18 +645,20 @@ class CTools_(_Tools._Tools_):
         """点击文本（支持偏移）"""
         log = _G._G_.Log()
         try:
-            x, y = pos
-            # 应用偏移
-            x += offset[0] if offset else 0    
-            y += offset[1] if offset else 0
-            # log.i(f"点击位置: {x},{y}")
+            # log.i(f"点击位置: {pos}，偏移:{offset}")
+            offsetX= offset[0] if offset else 0
+            offsetX= offsetX if offsetX else 0
+            offsetY= offset[1] if offset else 0
+            offsetY= offsetY if offsetY else 0
+            x = pos[0] + offsetX 
+            y = pos[1] + offsetY
             android = cls.android
             if android:
                 return android.click(x, y)
             else:
                 return True
         except Exception as e:
-            log.e(f"点击失败: {e}")
+            log.ex(e,f"点击失败")
             return False
 
     @classmethod
@@ -771,15 +754,13 @@ class CTools_(_Tools._Tools_):
 
     # return (x,y)
     @classmethod
-    def findTextPos(cls, text, searchDir=None, distance=None):
+    def findTextPos(cls, text, searchDir=None):
         """增强版文本查找功能
         支持在滑动屏幕过程中持续查找文字
         
         Args:
             text: 要查找的文本
             searchDir: 搜索方向，如 L/R/U/D(单向) 或 LR/UD(双向)
-            distance: 搜索距离限制
-            
         Returns:
             找到文本的坐标元组(x,y)或None
         """

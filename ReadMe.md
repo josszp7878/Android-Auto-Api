@@ -992,3 +992,10 @@ CTools.check_region(800, 1000, "[x-300,-100 y500,-50]")
 
 ## 2024-06-20
 - 修改了 CFileServer.py 中的 downAll 方法，使其返回线程对象，允许调用者等待下载任务完成而不阻塞其他线程
+
+## 2024-06-10 更新
+### 添加页面检测事件机制
+- 在 `CChecker_` 类中添加了页面检测事件机制
+- 新增 `addPageDetectListener` 和 `removePageDetectListener` 方法用于添加和移除事件监听器
+- 在 `_detectPage` 方法中触发页面检测事件
+- 支持多个监听器同时订阅页面检测事件

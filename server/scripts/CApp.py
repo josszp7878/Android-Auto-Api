@@ -1,3 +1,4 @@
+import time
 from typing import Optional, cast, TYPE_CHECKING
 import _G
 import _App
@@ -95,8 +96,10 @@ class CApp_(_App._App_):
                 page.removeCheckers(Checker)
                 # 将页面检测器添加到全局列表
                 nextPage.addCheckers(Checker)
-                # 检查页面跳转是否成功
-                result = Checker.checkPage(nextPage, nextPage.timeout)
+                # 等待检查页面跳转检查
+                time.sleep(Checker.pageChackerInterval)
+                # 检查页面跳转是否是目标页面
+                result = self._curAppName == self.name and nextPage.name == self.currentPage.name
                 log.i(f"->{nextPage.name} : {result}")
                 if not result:
                     return False
@@ -162,7 +165,7 @@ class CApp_(_App._App_):
                 curAppName = cls.getCurAppName()
                 # log.i(f"当前应用: {curAppName}, 目标应用: {appName}")
                 if appName.lower() != curAppName.lower():
-                    ret, app = cls.goApp(appName)
+                    ret = cls.goApp(appName)
                     if not ret:
                         return False
                     if app is None:

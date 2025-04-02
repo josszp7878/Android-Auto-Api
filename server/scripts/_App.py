@@ -1,4 +1,5 @@
 from pathlib import Path
+import time
 import _Log
 import _G
 from typing import Optional, List, Tuple, TYPE_CHECKING
@@ -8,26 +9,26 @@ if TYPE_CHECKING:
 class _App_:
     """应用管理类：整合配置与实例"""
     _curAppName = _G.TOP  # 当前应用名称
-    @classmethod
-    def currentApp(cls):
-        """获取当前应用"""
-        return cls.getApp(cls._curAppName, True)
     apps = {}  # 存储应用实例 {appName: _App_实例}
     Top: "_App_" = None
 
     @classmethod
+    def currentApp(cls):
+        """获取当前应用"""
+        return cls.getApp(cls._curAppName, True)
+
+    @classmethod
     def Clone(cls, oldCls):
         """克隆"""
-        cls.apps = oldCls.apps
+        cls.loadConfig()
 
-    def __init__(self, name:str, rootPage: "_Page._Page_", info:dict, alerts:list):
+    def __init__(self, name:str, rootPage: "_Page._Page_", info:dict):
         self.name = name
         self.rootPage = rootPage
         self.currentPage = rootPage
         self.ratio = info.get("ratio", 10000)
         self.description = info.get("description", '')
         self.timeout = info.get("timeout",5)
-        self.alerts = alerts
 
     @property   
     def curPage(self):
@@ -41,38 +42,44 @@ class _App_:
             return
         self.currentPage = page
         
-    def detectCurPage(self)->Optional["_Page._Page_"]:
+    def detectPage(self, page: "_Page._Page_"=None)->Optional["_Page._Page_"]:
         """客户端实现：通过屏幕检测当前页面"""
+        if page is not None:
+            #先自接检测目标页面
+            if page.match():
+                self.curPage = page
+                return page
+        #检测当前页面
         tools = _G._G_.CTools()  
         tools.refreshScreenInfos()
         page = self.rootPage.detectPage()
         if page is None:
             return None
-        if page.name == self.curPage.name:
-            return None
         self.curPage = page
         return page
     
     
-
-        
     @classmethod
-    def loadConfig(cls, AppClass=None):
+    def loadConfig(cls):
         """加载配置并创建应用实例与页面树"""
+        g = _G._G_
+        log = g.Log()      
         try:
             import json
             import os
-            import _Log
             import CChecker
             import _Page
-            
-            log = _Log._Log_()            
             # 清空现有应用
             cls.apps = {}
             Page = _Page._Page_
             root = Page.Root()
-            cls.Top = AppClass("Top", root, {}, [])
-            
+            if g.isServer():
+                from SApp import SApp_
+                AppClass = SApp_
+            else:
+                from CApp import CApp_
+                AppClass = CApp_
+            cls.Top = AppClass("Top", root, {})
             # 尝试加载配置文件
             try:
                 configFile = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config", "pages.json")
@@ -112,8 +119,7 @@ class _App_:
                         cls.apps[pageName] = AppClass(
                             name=appInfo.get("name", pageName),
                             rootPage=currentPage,
-                            info=appInfo,
-                            alerts=pageConfig.get("alerts", [])
+                            info=appInfo
                         )
                     # log.d(f"创建应用 {pageName}，根页面 {currentPage.name}")
 
@@ -206,28 +212,22 @@ class _App_:
             appName = appName.lower()
             if appName in cls.apps:
                 return appName
+            
             # 模糊匹配：检查输入是否是某个应用名的子串
-            matches = []
-            for name in cls.apps.keys():
-                # 计算相似度：如果输入是应用名的子串，或应用名是输入的子串
-                if appName in name or name in appName:
-                    # 计算匹配度：子串在全串中的比例
-                    similarity = len(appName) / len(name) if len(name) > 0 else 0
-                    matches.append((name, similarity))
-            # 按相似度排序，取最匹配的
-            if matches:
-                matches.sort(key=lambda x: x[1], reverse=True)
-                log.i(f"应用[{appName}]模糊匹配到[{matches[0][0]}]")
-                return matches[0][0]
+            # ret, sim = _G._G_.CTools().similarMatch(appName, cls.apps.keys(),0)
+            ret = _G._G_.Tools().regexMatch(appName, cls.apps.keys())
+            log.i(f"模糊匹配: {appName} 结果为: {ret}")
+            if ret:
+                return ret
         except Exception as e:
             log.ex(e, "应用模糊匹配失败")
         return None
     
     @classmethod
-    def detectCurApp(cls) -> str:
+    def detectCurApp(cls) -> "_App_":
         """检测当前运行的应用并设置为当前应用
         Returns:
-            str: 应用名称，如果未检测到则返回None
+            _App_: 应用实例，如果未检测到则返回None
         """
         g = _G._G_
         log = g.Log()
@@ -244,9 +244,11 @@ class _App_:
                 return None
             # 检查是否在桌面
             if tools.isHome():
-                return _G.TOP
+                return cls.Top
             appName = appInfo.get("appName")
-            return appName
+            cls._curAppName = appName
+            app = cls.apps.get(appName)
+            return app
         except Exception as e:
             log.ex(e, "检测当前运行的应用失败")
             return None
@@ -282,11 +284,10 @@ class _App_:
     @classmethod
     def goHome(cls):
         """返回主屏幕"""
-        ret, _ = cls.goApp(_G.TOP)
-        return ret
+        return cls.goApp(_G.TOP)    
 
     @classmethod
-    def goApp(cls, appName, onOpened=None) -> "Tuple[bool, Optional[_App_]]":
+    def goApp(cls, appName, onOpened=None) -> bool:
         """跳转到指定应用"""
         try:
             g = _G._G_
@@ -298,25 +299,25 @@ class _App_:
                 appName = app.name
             # 如果已经在目标应用，直接返回成功
             if cls.getCurAppName() == appName:
-                return True, cls.getApp(appName)
+                return True
             tools = g.CTools()
             ret = tools.openApp(appName)
             result = False
             if not ret:
                 log.e(f"打开应用 {appName} 失败")
-                return False, None
+                return False
             if tools.android is None:
                 #对应PC端，这里一定要设置当前应用名称，否则无法检测到当前应用
                 cls.setCurAppName(appName)
-            # 检查打开是否成功
-            result = g.Checker().checkApp(appName, app.timeout if app else None)
+            # 等待应用打开检查
+            time.sleep(g.Checker().pageChackerInterval)
+            # 检查应用是否打开
+            result = appName == cls.getCurAppName()
             log.i(f"=>{appName} : {result}")
-            if result:
-                cls.setCurAppName(appName)
-            return result, app
+            return result
         except Exception as e:
             log.ex(e, "切换应用失败")
-            return False, None
+            return False
     
    
     @classmethod

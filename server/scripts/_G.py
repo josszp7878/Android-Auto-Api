@@ -47,12 +47,7 @@ class _G_:
         if isServer is not None:
             cls._isServer = isServer
         from _App import _App_
-        if cls.isServer():
-            from SApp import SApp_
-            _App_.loadConfig(AppClass=SApp_)
-        else:
-            from CApp import CApp_
-            _App_.loadConfig(AppClass=CApp_)
+        _App_.loadConfig()
     
     @classmethod
     def Clone(cls, oldCls):

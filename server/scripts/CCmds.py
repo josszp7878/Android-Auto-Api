@@ -234,10 +234,10 @@ class CCmds_:
             示例: 打开 微信
             """
             App = _G._G_.CApp()
-            ret, app = App.goApp(appName)
+            ret = App.goApp(appName)
             if not ret:
                 return f"打开应用 {appName} 失败"
-            return f"成功打开应用 {appName}, 当前页面: {app.currentPage.name}"
+            return f"成功打开应用 {appName}"
 
         @regCmd(r"关闭-gb", r"(?P<appName>\S+)?")
         def closeApp(appName=None):
@@ -389,7 +389,7 @@ class CCmds_:
                 app = App.getCurApp()
                 if app and app.currentPage:
                     pageName = app.currentPage.name
-            return f"{app.name}:{pageName}"
+            return f"{app.name if app else '':}:{pageName}"
 
         @regCmd(r"跳转-tz", r"(?P<target>.+)")
         def go(target):
@@ -545,7 +545,7 @@ class CCmds_:
                     if not page:
                         return f"e->找不到页面: {rule[1:]}"
                     return page.match()
-                result = g.CTools().matchTexts(rule, False)
+                result = g.CTools().matchTexts(rule, True)
                 return result
             except Exception as e:
                 log.ex(e, "查找文字失败")
@@ -578,7 +578,8 @@ class CCmds_:
             参数: 无
             示例: 加载配置
             """
-            _G._G_.load()
+            g = _G._G_
+            g.CFileServer().download('config/pages.json', lambda result: g.App().loadConfig())
 
         @regCmd(r"设置坐标修正范围-szzbxz", r"(?P<scope>\d+)")
         def setPosFixScope(scope):
@@ -653,18 +654,6 @@ class CCmds_:
                 log.ex(e, "执行页面跳转命令失败")
                 return f"e->执行页面跳转命令失败: {str(e)}"
 
-
-        @regCmd(r"应用为-yyw", r"(?P<appName>\S+)?")
-        def checkApp(appName=None):
-            """
-            功能：启动全局应用检测器
-            指令名: checkApp
-            中文名: 应用为-yyw
-            参数: appName - 应用名称(可选)，默认为当前应用
-            示例: 应用为 [微信]
-            """
-            ret = g.Checker().checkApp(appName)
-            return ret
         
         @regCmd(r"停止检查-tzjc", r"(?P<checkerName>\S+)")
         def stopCheck(checkerName):
@@ -702,15 +691,8 @@ class CCmds_:
             # 设置回调函数
             def onCheckResult(result):
                 log.i(f"检查器 {checkerName} 结果: {result}")
-            
             checker.onResult = onCheckResult
             checker.enabled = True
             
-            # 执行检查
-            result = checker.check()
-            if result:
-                checker.do()
-                return f"检查器 {checkerName} 匹配成功，已执行操作"
-            else:
-                return f"检查器 {checkerName} 匹配失败"
+           
        
