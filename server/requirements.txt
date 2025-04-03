@@ -11,3 +11,4 @@ websocket-client==1.2.1
 watchdog==2.1.6
 PyMySQL==1.1.0
 mysqlclient==2.2.1
+requests>=2.25.0
