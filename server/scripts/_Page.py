@@ -13,11 +13,8 @@ class _Page_:
 
     @classmethod
     def Root(cls) -> "_Page_":
-        log = _G._G_.Log()
         if cls._root is None:
-            # log.i('创建根页面++++++++')
             cls._root = cls.createPage("Top")
-        # log.i(f'根页面########## {cls._root}')
         return cls._root
     
     @classmethod
@@ -67,30 +64,12 @@ class _Page_:
         
         # 处理checkers配置
         self.checkers = checkers      
-        self._checkerList = []
-        
         self.timeout: int = timeout  # 默认超时时间
         
         # 如果有父页面，将自己添加为父页面的子页面
         if parent and isinstance(parent, _Page_):
             parent.addChild(self)
 
-    def addCheckers(self, Checker: "CChecker_"):
-        """添加检查器"""
-        if self.checkers is None:
-            return
-        for checkerName, checkerConfig in self.checkers.items():
-            config = checkerConfig if isinstance(checkerConfig, dict) else None
-            checker = Checker.add(checkerName, self, config)
-            if checker:
-                self._checkerList.append(checker)
-    
-    def removeCheckers(self, Checker: "CChecker_"):
-        """移除检查器"""
-        for checker in self._checkerList:
-            Checker.remove(checker)
-        self._checkerList = []
-    
 
     def addChild(self, child):
         """添加子页面"""
@@ -100,10 +79,6 @@ class _Page_:
     def getChild(self, name):
         """获取子页面"""
         return self.children.get(name)
-    
-    def getAllChildren(self):
-        """获取所有子页面"""
-        return list(self.children.values())    
 
     def findPath(self, toPageName):
         """查找从当前页面到目标页面的路径
@@ -176,7 +151,7 @@ class _Page_:
     
     def findChild(self, pageName) -> Optional["_Page_"]:
         """在整个页面树中查找指定名称的页面"""
-        for child in self.getAllChildren():
+        for child in self.children.values():
             if child.name == pageName:
                 return child
             result = child.findChild(pageName)
@@ -207,7 +182,7 @@ class _Page_:
             return self
         
         # 搜索子页面
-        for child in self.getAllChildren():
+        for child in self.children.values():
             result = child._findPageByName(name, visited)
             if result:
                 return result
@@ -291,7 +266,7 @@ class _Page_:
         
         # 如果在子节点中未找到，尝试在兄弟节点中查找
         if self.parent:
-            for sibling in self.parent.getAllChildren():
+            for sibling in self.parent.children.values():
                 if sibling != self and sibling not in visited:
                     if sibling.name == first_part:
                         if len(parts) == 1:  # 最后一级
@@ -325,7 +300,7 @@ class _Page_:
             all_passed = True
             for rule in self.matches:
                 try:
-                    _, result = tools.eval(self, rule)
+                    result = tools.eval(self, rule)
                     if not result:
                         all_passed = False
                         break
@@ -348,7 +323,7 @@ class _Page_:
         try:
             if self.match():
                 return self
-            for child in self.getAllChildren():
+            for child in self.children.values():
                 page = child.detectPage(depth + 1)
                 if page:
                     return page

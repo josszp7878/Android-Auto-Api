@@ -1,4 +1,3 @@
-from typing import TYPE_CHECKING
 import _App
 
 class SApp_(_App._App_):

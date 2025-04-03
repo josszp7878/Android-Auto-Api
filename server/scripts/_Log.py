@@ -127,6 +127,7 @@ class _Log_:
     def add(cls, logDict):
         """添加日志到缓存并发送到前端"""      
         try:
+            cls.printLog(logDict.get('level'), logDict.get('message'), logDict.get('tag'), logDict.get('result'))          
             logs = cls._cache
             from app import socketio
             # 检查是否与最后一条日志内容相同
@@ -150,7 +151,7 @@ class _Log_:
                     except Exception as e:
                         print(f'发送EditLog事件失败: {e}')
                     return
-                
+                  # 打印带颜色的日志到终端
             # 确保新日志有count字段
             if 'count' not in logDict:
                 logDict['count'] = 1
@@ -210,6 +211,7 @@ class _Log_:
                 }
                 if CDevice.connected():
                     CDevice.emit('C2S_Log', logData)
+                cls.printLog(level, content, tag, result)
                 return logData
         except Exception as e:
             print(f'发送日志到服务器失败: {e}')
@@ -259,8 +261,6 @@ class _Log_:
                 logData = cls._serverLog(tag, level, content, result)
             else:
                 logData = cls._clientLog(tag, level, content, result)
-            # 打印带颜色的日志到终端
-            cls.printLog(level, content, tag, result)
             return logData
         except Exception as e:
             print(f'记录日志失败: {e}')

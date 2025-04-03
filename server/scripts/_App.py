@@ -16,6 +16,7 @@ class _App_:
     def currentApp(cls):
         """获取当前应用"""
         return cls.getApp(cls._curAppName, True)
+    
 
     @classmethod
     def Clone(cls, oldCls):
@@ -25,38 +26,169 @@ class _App_:
     def __init__(self, name:str, rootPage: "_Page._Page_", info:dict):
         self.name = name
         self.rootPage = rootPage
-        self.currentPage = rootPage
+        self._currentPage = rootPage
         self.ratio = info.get("ratio", 10000)
         self.description = info.get("description", '')
         self.timeout = info.get("timeout",5)
 
-    @property   
-    def curPage(self):
-        """应用当前页面"""
-        return self.currentPage
+    @property
+    def currentPage(self):
+        return self._currentPage
     
-    @curPage.setter
-    def curPage(self, page: "_Page._Page_"):
-        """设置应用当前页面"""
-        if page == self.currentPage:
+    def _setCurrentPage(self, page: "_Page._Page_"):
+        if page == self._currentPage:
             return
-        self.currentPage = page
-        
-    def detectPage(self, page: "_Page._Page_"=None)->Optional["_Page._Page_"]:
-        """客户端实现：通过屏幕检测当前页面"""
+        self._currentPage = page
+        log = _G._G_.Log()
+        log.i(f"当前页面: {page.name if page else 'None'}")
+        Checker = _G._G_.Checker()
+        Checker.uncheckPage(self._currentPage)
+        # 将页面检测器添加到全局列表
         if page is not None:
-            #先自接检测目标页面
-            if page.match():
-                self.curPage = page
-                return page
-        #检测当前页面
-        tools = _G._G_.CTools()  
-        tools.refreshScreenInfos()
-        page = self.rootPage.detectPage()
-        if page is None:
-            return None
-        self.curPage = page
-        return page
+            Checker.checkPage(page)
+    
+    def detectPage(self, pageName, delay:int=3)->bool:
+        """客户端实现：通过屏幕检测当前页面"""
+        log = _G._G_.Log()
+        if delay > 0:
+            time.sleep(delay)
+        ret = True
+        if pageName is not None:
+            #检测特定页面
+            if isinstance(pageName, str):
+                page = self.getPage(pageName)
+                if page is None:
+                    log.e(f"找不到页面: {pageName}")
+                    return False
+            else:
+                page = pageName
+            ret = page.match()
+            if not ret:
+                log.e(f"页面{pageName}不匹配")
+                return False
+        else:
+            #获取当前页面，可能不是目标页面
+            tools = _G._G_.CTools()  
+            if tools.android is not None:
+                tools.refreshScreenInfos()
+                page = self.rootPage.detectPage()
+                if page is None:
+                    # log.e("检测当前页面失败")
+                    return False
+            else:
+                page = self._currentPage
+        self._setCurrentPage(page)
+        return ret
+    
+    @classmethod
+    def getPage(self, pageName:str)->Optional["_Page._Page_"]:
+        """获取指定页面"""
+        if pageName.strip() == '':
+            return self._currentPage
+        if _G._G_.Tools().isRoot(pageName) or pageName == self.name:
+            return self.rootPage
+        return self.rootPage.findChild(pageName)
+        
+    def goPage(self, page: "_Page._Page_", checkWaitTime=None) -> bool:
+        """跳转到目标页面
+        Args:
+            page: 目标页面
+            checkWaitTime: 检查等待时间，如果为None则使用页面默认值
+            
+        Returns:
+            成功返回目标页面对象，失败返回None
+        """
+        try:
+            if self.currentPage == page:
+                return True
+            g = _G._G_
+            log = g.Log()
+            # 查找路径
+            pages = self.currentPage.findPath(page.name)
+            if pages is None:
+                log.e(f"找不到从 {self.currentPage.name} 到 {page.name} 的路径")
+                return False
+            log.i(f"跳转路径: {'->'.join([p.name for p in pages])}")
+            
+            # 执行路径中的每一步跳转
+            page = self.currentPage
+            for i in range(1, len(pages)):  # 从1开始，因为0是当前页面
+                nextPage = pages[i]
+                
+                # 执行跳转动作
+                result = page.go(nextPage)
+                if not result:
+                    log.e(f"跳转失败: {page.name} -> {nextPage.name}")
+                    return False
+                if not self.detectPage(nextPage):
+                    log.e(f"跳转失败: {page.name} -> {nextPage.name}")
+                    return False
+                page = nextPage
+            return True
+        except Exception as e:
+            log.ex(e, "跳转失败")
+            return False
+
+    def go(self, tarName) -> bool:
+        """跳转到指定页面"""
+        try:
+            if tarName is None or tarName.strip() == '':
+                return False
+            g = _G._G_
+            log = g.Log()
+            tarName = tarName.lower()
+            tools = g.CTools()
+            if tools.isTop(tarName):
+                # 返回主屏幕，使用Top应用
+                return self.goHome()
+            # 使用getter方法获取当前应用名
+            app = self
+            page = None
+            # 使用正则表达式匹配 appName.pageName 格式
+            appName, pageName = tools.toAppPageName(tarName)
+            # 获取目标应用
+            if appName is not None and appName != self.name:
+                app = self.getApp(appName, True)
+                if app is None:
+                    log.e(f"应用 {appName} 没配置")
+                    return False
+                ret = self.goApp(appName)
+                if not ret:
+                    log.e(f"跳转失败: => {appName}")
+                    return False
+            if pageName is None:
+                return True
+            #处理页面跳转
+            if tools.isRoot(pageName):
+                page = app.rootPage                
+            else:
+                page = app.rootPage.findChild(pageName)
+                if page is None:
+                    if appName is not None:
+                        log.e(f"应用{appName}中找不到页面{pageName}")
+                        return False
+                    #到所有其它应用中查找目标页面
+                    for app1 in self.apps.values():
+                        if app1 == self:
+                            continue    
+                        page = app1.rootPage.findChild(pageName)
+                        if page:
+                            app = app1
+                            ret = self.goApp(app1)
+                            if not ret:
+                                log.e(f"跳转失败: {app1.name} -> {appName}")
+                                return False
+                            appName = app1.name
+                            break
+                if page is None:
+                    log.e(f"所有应用都找不到页面{pageName}")
+                    return False
+                    # 如果目标应用不是当前应用，则跳转到目标应用
+            return app.goPage(page) 
+        except Exception as e:
+            log.ex(e, "跳转失败")
+        return False
+
     
     
     @classmethod
@@ -70,7 +202,7 @@ class _App_:
             import CChecker
             import _Page
             # 清空现有应用
-            cls.apps = {}
+            cls.apps: dict[str, "_App_"] = {}
             Page = _Page._Page_
             root = Page.Root()
             if g.isServer():
@@ -206,6 +338,8 @@ class _App_:
         Returns:
             str: 匹配到的应用名，如果没有匹配到返回None
         """
+        if appName is None or appName.strip() == '':
+            return None
         log = _Log._Log_
         try:
             # 如果完全匹配，直接返回
@@ -214,7 +348,6 @@ class _App_:
                 return appName
             
             # 模糊匹配：检查输入是否是某个应用名的子串
-            # ret, sim = _G._G_.CTools().similarMatch(appName, cls.apps.keys(),0)
             ret = _G._G_.Tools().regexMatch(appName, cls.apps.keys())
             log.i(f"模糊匹配: {appName} 结果为: {ret}")
             if ret:
@@ -223,11 +356,29 @@ class _App_:
             log.ex(e, "应用模糊匹配失败")
         return None
     
+  
+
     @classmethod
-    def detectCurApp(cls) -> "_App_":
-        """检测当前运行的应用并设置为当前应用
+    def getCurAppName(cls) -> str:
+        """获取当前应用名称"""
+        if _App_._curAppName is None:
+            return _G.TOP
+        return _App_._curAppName
+        
+    @classmethod
+    def _setCurAppName(cls, appName: str):
+        """设置当前应用名称"""
+        if appName == _App_._curAppName:
+            return
+        _App_._curAppName = appName
+        log = _G._G_.Log()
+        log.i(f"当前应用: {appName}")
+
+    @classmethod
+    def detectAppName(cls) -> str:
+        """检测当前运行的应用名
         Returns:
-            _App_: 应用实例，如果未检测到则返回None
+            str: 应用名称，如果未检测到则返回None
         """
         g = _G._G_
         log = g.Log()
@@ -244,34 +395,36 @@ class _App_:
                 return None
             # 检查是否在桌面
             if tools.isHome():
-                return cls.Top
+                return _G.TOP
             appName = appInfo.get("appName")
-            cls._curAppName = appName
-            app = cls.apps.get(appName)
-            return app
+            return appName
         except Exception as e:
             log.ex(e, "检测当前运行的应用失败")
             return None
 
     @classmethod
-    def getCurAppName(cls) -> str:
-        """获取当前应用名称"""
-        if _App_._curAppName is None:
-            return _G.TOP
-        return _App_._curAppName
-        
-    @classmethod
-    def setCurAppName(cls, appName: str):
-        """设置当前应用名称"""
-        _App_._curAppName = appName
-    
-    @classmethod
-    def getCurApp(cls, refresh=False) -> Optional["_App_"]:
-        """获取当前应用对象"""
-        appName = cls.getCurAppName()
-        if appName.lower() == _G.TOP:
-            return cls.Top
-        return cls.apps.get(appName)
+    def detect(cls, appName:str=None, pageName:str=None, delay: int = 5) -> bool:
+        try:
+            """检测当前页面"""
+            time.sleep(delay)
+            g = _G._G_
+            log = g.Log()
+            curAppName = cls.detectAppName()
+            if g.Tools().android is None:
+                # 如果是PC端，则直接使用appName
+                curAppName = appName
+            cls._setCurAppName(curAppName)
+            app = cls.apps.get(curAppName)
+            if app:
+                if not app.detectPage(pageName,0):
+                    log.e(f"检测当前页面失败: {pageName}")
+                    return False
+            if appName is None or appName.strip() == '':
+                return True
+            return appName == curAppName
+        except Exception as e:
+            log.ex(e, "检测当前页面失败")
+            return False
     
     @classmethod
     def isHome(cls) -> bool:
@@ -282,7 +435,7 @@ class _App_:
         return tools.isHome()
     
     @classmethod
-    def goHome(cls):
+    def goHome(cls)->bool:
         """返回主屏幕"""
         return cls.goApp(_G.TOP)    
 
@@ -292,7 +445,12 @@ class _App_:
         try:
             g = _G._G_
             log = g.Log()
-            app = g.App().getApp(appName, True)
+            app = None
+            if not isinstance(appName,str):
+                app = appName
+                appName = appName.name
+            else:
+                app = g.App().getApp(appName, True)
             if app is None:
                 log.e(f"打开未知应用{appName}")
             else:
@@ -302,19 +460,13 @@ class _App_:
                 return True
             tools = g.CTools()
             ret = tools.openApp(appName)
-            result = False
             if not ret:
                 log.e(f"打开应用 {appName} 失败")
                 return False
-            if tools.android is None:
-                #对应PC端，这里一定要设置当前应用名称，否则无法检测到当前应用
-                cls.setCurAppName(appName)
             # 等待应用打开检查
-            time.sleep(g.Checker().pageChackerInterval)
-            # 检查应用是否打开
-            result = appName == cls.getCurAppName()
-            log.i(f"=>{appName} : {result}")
-            return result
+            ret = cls.detect(appName)
+            log.i(f"=>{appName} : {ret}")
+            return ret
         except Exception as e:
             log.ex(e, "切换应用失败")
             return False
@@ -343,14 +495,13 @@ class _App_:
         
         # 如果是桌面应用，无需关闭
         if appName == _G.TOP:
-            return True
-            
+            return True            
         # 关闭应用
         result = tools.closeApp(appName)
         if result:
             # 如果关闭的是当前应用，设置当前应用为主屏幕
             if appName == cls.getCurAppName():
-                cls.setCurAppName(_G.TOP)
+                cls._setCurAppName(_G.TOP)
             return True
         return False
     
@@ -365,6 +516,8 @@ class _App_:
         Returns:
             应用对象，如果未找到则返回None
         """
+        if appName is None or appName.strip() == '':
+            return None
         if _G._G_.Tools().isTop(appName):
             return cls.Top
         app = cls.apps.get(appName.lower())

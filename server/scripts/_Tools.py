@@ -83,7 +83,7 @@ class _Tools_:
         def replacer(match):
             code = match.group(1)
             try:
-                _,val = cls.eval(this, code)
+                val = cls.eval(this, code)
                 return str(val)
             except Exception as e:
                 log.ex(e, f"执行变量代码失败: {code}")
@@ -127,7 +127,6 @@ class _Tools_:
     def eval(cls, this, str:str):
         """执行规则"""
         log = _G._G_.Log()
-        log.i(f"执行代码: {str}")
         return cls._eval(this, str, True)
     
     @classmethod
@@ -199,7 +198,23 @@ class _Tools_:
         return value.lower() in ['true', '1', 'yes', 'y', 'on']
 
     @classmethod
-    def parsePos(cls, strPos: str) -> Tuple[str, tuple]:
+    def toAppPageName(cls, name:str) -> Tuple[str, str]:
+        """解析应用和页面名称"""
+        if name is None or name.strip() == '':
+            return None, None
+        parts = name.split('.')
+        pageName = None
+        appName = name
+        if len(parts) == 2:
+            appName, pageName = parts
+        if appName.strip() == '':
+            appName = None
+        if pageName.strip() == '':
+            pageName = None
+        return appName, pageName
+
+    @classmethod
+    def toPos(cls, strPos: str) -> Tuple[str, tuple]:
         """解析位置字符串
         
         支持多种配置：
@@ -353,7 +368,9 @@ class _Tools_:
     @classmethod
     def regexMatch(cls, pattern, items):
         log = _G._G_.Log()
-        log.i(f"regexMatch: {pattern}")
+        if pattern is None or pattern.strip() == '':
+            return None
+        # log.i(f"regexMatch: {pattern}")
         for item in items:
             if isinstance(item, str):
                 text = item

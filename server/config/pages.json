@@ -10,20 +10,20 @@
             "明日签到": {
                 "timeout": 5,
                 "do": {
-                    "@看视频再": "click;{app.getCurApp().detectPage()}"
+                    "@看视频再": "click;detect"
                 }
             },
             "看广告": {
                 "check": "广告&领取成功",
-                "timeout": 10,
+                "timeout": 40,
                 "do" : {
-                    "": "${T.goBack()}"
+                    "": "{T.goBack()}"
                 }
             },
             "倒计时": {
                 "check": "{this.pastTime > 5}",
                 "do" : {
-                    "": "${T.goBack()}"
+                    "": "{T.goBack()}"
                 },
                 "interval": 1
             }
@@ -87,7 +87,8 @@
                 },
                 "match": ["首页(y-300,0)"],  
                 "checkers": {
-                    "每日签到": {}
+                    "每日签到": {},
+                    "明日签到": {}
                 },            
                 "children": {
                     "我的火苗": {
@@ -115,12 +116,6 @@
                 "info": {
                     "ratio": 10000,
                     "description": "河马剧场积分换算比例10000:1"
-                },
-                "dialogs":{
-                    "签到": {
-                            "timeout": -1,
-                            "out": "{Tools.click('签到')}"
-                        }
                 },
                 "children": {                    
                     "福利": {

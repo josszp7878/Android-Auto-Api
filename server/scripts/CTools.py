@@ -27,7 +27,7 @@ class RegionCheck:
         - 支持正负数值
         """
         check = RegionCheck()
-        text1, coords = _Tools._Tools_.parsePos(text)
+        text1, coords = _Tools._Tools_.toPos(text)
         if coords is None:
             return None, text
         check.region = (coords[0] if coords[0] is not None else 0,
@@ -263,6 +263,8 @@ class CTools_(_Tools._Tools_):
     @classmethod
     def matchText(cls, str: str, refresh=False):
         try:
+            if str.strip() == '':
+                return None
             # 使用缓存的屏幕信息
             log = _G._G_.Log()            
             # log.i(f"aaa匹配文本: {str} matchExact={matchExact}")
@@ -271,7 +273,7 @@ class CTools_(_Tools._Tools_):
             # log.i(f"匹配文本: {text} region={region} matchExact={matchExact}")
             items = cls.getScreenInfo(refresh)
             if not items or len(items) == 0:
-                log.w(f"屏幕信息空空如也")
+                # log.w(f"屏幕信息空空如也")
                 return None
             textMatchedItems = []
             if region:
@@ -615,7 +617,7 @@ class CTools_(_Tools._Tools_):
         
         log = _G._G_.Log()
         # 尝试使用parsePos解析带括号的格式
-        parsed_text, coords = _Tools._Tools_.parsePos(text)
+        parsed_text, coords = _Tools._Tools_.toPos(text)
         if parsed_text is None:
             if coords is None:
                 parsed_text = text

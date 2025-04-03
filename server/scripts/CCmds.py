@@ -380,15 +380,15 @@ class CCmds_:
             if appName:
                 # 获取指定应用的当前页面
                 app = App.getApp(appName, True)
-                if app and app.currentPage:
-                    pageName = app.currentPage.name
+                if app and app._currentPage:
+                    pageName = app._currentPage.name
                 else:
                     return f"未找到应用 {appName} 或其页面信息"
             else:
                 # 获取当前应用及其页面
-                app = App.getCurApp()
-                if app and app.currentPage:
-                    pageName = app.currentPage.name
+                app = App.currentApp()
+                if app and app._currentPage:
+                    pageName = app._currentPage.name
             return f"{app.name if app else '':}:{pageName}"
 
         @regCmd(r"跳转-tz", r"(?P<target>.+)")
@@ -400,8 +400,7 @@ class CCmds_:
             参数: target - 目标页面路径
             示例: 跳转 首页
             """
-            import CApp
-            return CApp.CApp_.go(target)
+            return _G._G_.App().currentApp().go(target)
         
         @regCmd(r"路径-lj", r"(?P<target>.+)")
         def pathTo(target):
@@ -618,81 +617,34 @@ class CCmds_:
             from _App import _App_
             return _App_.printTopology(appName)
 
-        @regCmd(r"跳转页面-tzym", r"(?P<pageName>[^ ]+)(\s+(?P<appName>[^ ]+))?")
-        def gotoPage(pageName, appName=None):
-            """
-            功能：跳转到指定应用的指定页面
-            指令名: gotoPage-gp
-            中文名: 跳转页面-tzym
-            参数: 
-                pageName - 目标页面名称
-                appName - 应用名称(可选)，不提供则使用当前应用
-            示例: 跳转页面 设置 [微信]
-            """
-            g = _G._G_
-            log = g.Log()
-            
-            try:
-                # 获取应用对象
-                app = None
-                if appName:
-                    app = g.CApp().getApp(appName)
-                    if not app:
-                        return f"e->找不到应用: {appName}"
-                else:
-                    app = g.CApp().getCurrentApp()
-                    if not app:
-                        return "e->当前没有活跃的应用"
-                
-                # 执行页面跳转
-                result = app._gotoPage(pageName)
-                if result:
-                    return f"成功跳转到页面: {pageName}"
-                else:
-                    return f"e->跳转到页面 {pageName} 失败"
-            except Exception as e:
-                log.ex(e, "执行页面跳转命令失败")
-                return f"e->执行页面跳转命令失败: {str(e)}"
-
         
-        @regCmd(r"停止检查-tzjc", r"(?P<checkerName>\S+)")
-        def stopCheck(checkerName):
+        @regCmd(r"检查-jc", r"(?P<checkerName>\S+)(?:\s+(?P<enabled>\S+))?")
+        def check(checkerName, enabled=None):
             """
             功能：停止指定名称的检查器
-            指令名: stopCheck
-            中文名: 停止检查-tcq
+            指令名: check-c
+            中文名: 检查-jc
             参数: checkerName - 检查器名称
-            示例: 停止检查 每日签到
-            """ 
-            return g.Checker().stop(checkerName)
-
-        @regCmd(r"检查-jcq", r"(?P<checkerName>\S+)")
-        def check(checkerName):
-            """
-            功能：测试指定名称的检查器，使用当前页面作为参数
-            指令名: check
-            中文名: 检查-jcq
-            参数: 
-                checkerName - 检查器名称
             示例: 检查 每日签到
-            """
+            """ 
+            g = _G._G_
             Checker = g.Checker()
-            # 获取当前应用和页面
-            curApp = App.getCurApp()
-            if not curApp:
-                return "当前没有检测到应用，无法测试检查器"
-            curPage = curApp.curPage
-            if not curPage:
-                return "当前没有检测到页面，无法测试检查器"
-            # 创建检查器
-            checker = Checker.add(checkerName, curPage, None)
-            if not checker:
-                return None
-            # 设置回调函数
-            def onCheckResult(result):
-                log.i(f"检查器 {checkerName} 结果: {result}")
-            checker.onResult = onCheckResult
-            checker.enabled = True
-            
+            enabled = g.Tools().toBool(enabled, True)
+            checkerName = checkerName.lower()
+            if checkerName.startswith('@'):
+                # 检查应用和页面，格式为app.page
+                appName, pageName = g.Tools().toAppPageName(checkerName[1:])
+                app = g.CApp().currentApp()
+                if not app:
+                    return "e->当前应用为空"
+                return app.detect(appName, pageName)
+            # 检查器
+            checker = Checker.get(checkerName, create=True)
+            if checker:
+                checker.enabled = enabled
+                return f"检查器 {checkerName} 已设置为 {enabled}"
+            else:
+                return f"e->无效检查器: {checkerName}"
+
            
        

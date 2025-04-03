@@ -19,11 +19,13 @@ def End():
 
 
 def main():
-    # 命令行启动支持
-    deviceID = sys.argv[1] if len(sys.argv) > 1 else None
-    server = sys.argv[2] if len(sys.argv) > 2 else None
-    Begin(deviceID, server, False)
-
+    try:
+        # 命令行启动支持
+        deviceID = sys.argv[1] if len(sys.argv) > 1 else None
+        server = sys.argv[2] if len(sys.argv) > 2 else None
+        Begin(deviceID, server, False)
+    except Exception as e:
+        _G._G_.Log().printException(e)
 
 if __name__ == '__main__':
     main()
