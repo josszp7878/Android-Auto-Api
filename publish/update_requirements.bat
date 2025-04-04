@@ -13,5 +13,5 @@ cd ..
 echo requirements.txt文件已生成完成！
 :: update the dependencies
 echo installing dependencies...
-pip install -r requirements.txt
+pip install -r server/requirements.txt
 echo done!
