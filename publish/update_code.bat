@@ -28,6 +28,4 @@ if %ERRORLEVEL% NEQ 0 (
     echo update successfully!
 )
 
-
 echo update completed!
-pause 
