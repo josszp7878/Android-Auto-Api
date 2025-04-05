@@ -999,3 +999,15 @@ CTools.check_region(800, 1000, "[x-300,-100 y500,-50]")
 - 新增 `addPageDetectListener` 和 `removePageDetectListener` 方法用于添加和移除事件监听器
 - 在 `_detectPage` 方法中触发页面检测事件
 - 支持多个监听器同时订阅页面检测事件
+
+## 2023-11-15
+### 指令发起者显示功能优化
+- 指令日志中，sender和executor不再放在message里面，而是放在tag里面，格式为：`{sender}>{executor}`
+- 如果sender是服务器，只显示executor
+- 前端对TAG的显示格式改为`tag>`，不再使用方括号
+- 前端支持同时选中多个设备，可以向多个设备同时发送指令
+- 发送指令时根据设备选择状态确定executor:
+  - 没有选中设备：executor为服务端
+  - 选中一个设备：executor为该设备
+  - 选中多个设备：向所有选中设备发送指令
+- 支持在命令行中指定executor，格式：`executor> 指令内容`

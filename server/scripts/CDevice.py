@@ -187,7 +187,7 @@ class CDevice_:
         while retry_count > 0:
             try:
                 log.i(f"尝试登录设备 {cls._deviceID}，剩余尝试次数: {retry_count}")
-                cls.sio.emit('device_login', {
+                cls.sio.emit('C2S_Login', {
                     'device_id': cls._deviceID,
                     'timestamp': str(datetime.now()),
                     'status': 'login'
@@ -208,7 +208,7 @@ class CDevice_:
         log = g.Log()
         try:
             if cls.sio and hasattr(cls.sio, 'connected') and cls.sio.connected:
-                cls.sio.emit('device_logout', {
+                cls.sio.emit('C2S_Logout', {
                     'device_id': cls._deviceID
                 })
                 log.i("设备已注销")

@@ -16,7 +16,9 @@ if TYPE_CHECKING:
     from _Page import _Page_
     from CDevice import CDevice_ 
     from CChecker import CChecker_
-    from CApp import CApp_
+    from CApp import CApp_  
+    from SDeviceMgr import SDeviceMgr_
+    from SCommandHistory import SCommandHistory_
 TOP = "top"
 UNKNOWN = 'unknown'
 
@@ -168,7 +170,14 @@ class _G_:
     @classmethod
     def CDevice(cls) -> 'CDevice_':
         return cls.getClass('CDevice')
+    
+    @classmethod
+    def SDeviceMgr(cls) -> 'SDeviceMgr_':
+        return cls.getClass('SDeviceMgr')
 
+    @classmethod
+    def SCommandHistory(cls) -> 'SCommandHistory_':
+        return cls.getClass('SCommandHistory')
 
     @classmethod
     def CallMethod(cls, module, methodName, *args, **kwargs):

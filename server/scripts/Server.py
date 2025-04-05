@@ -22,7 +22,7 @@ def handle_connect(auth=None):
         _Log._Log_.i(f'收到连接请求: {device_id} {client_type}')
         
         if client_type == 'console':
-            deviceMgr.add_console(request.sid)
+            deviceMgr.addConsole(request.sid)
             # 刷新所有设备状态
             for device in deviceMgr.devices.values():
                 device.refresh()
@@ -30,10 +30,9 @@ def handle_connect(auth=None):
             
         elif device_id:
             with current_app.app_context():
-                device = deviceMgr.get_device(device_id)
+                device = deviceMgr.get(device_id)
                 if not device:
-                    device = deviceMgr.add_device(device_id)
-                
+                    device = deviceMgr.add(device_id)
                 device.info['sid'] = request.sid
                 device.info['connected_at'] = str(datetime.now())
                 device.onConnect()  # onConnect 内部会调用 refresh
@@ -49,27 +48,27 @@ def handle_disconnect():
     try:
         # _Log._Log_.i(f'Client disconnected: {request.sid}')    
         # 检查是否是控制台断开
-        if request.sid in deviceMgr.console_sids:
+        if request.sid in deviceMgr.consoles:
             # _Log._Log_.i(f'控制台断开连接: {request.sid}')
-            deviceMgr.remove_console(request.sid)
+            deviceMgr.removeConsole(request.sid)
             return
         # 设备断开处理...
-        device = deviceMgr.get_device_by_sid(request.sid)
+        device = deviceMgr.getBySID(request.sid)
         if device:
             # _Log._Log_.i(f'设备断开连接: {device.device_id}')
             device.onDisconnect()
     except Exception as e:
         _Log._Log_.ex(e, '处理客户端断开连接失败')
 
-@socketio.on('device_login')
-def handle_login(data):
+@socketio.on('C2S_Login')
+def handle_C2S_Login(data):
     """处理设备登录"""
     try:
         device_id = data.get('device_id')
         if not device_id:
             return
-        
-        device = deviceMgr.get_device(device_id)
+        device = deviceMgr.get(device_id)
+        # print(f'llllginlll device: {device}{device.device_id}')
         if not device:
             return
         ok = device.login()
@@ -78,14 +77,14 @@ def handle_login(data):
         _Log._Log_.ex(e, '处理设备登录失败')
 
 
-@socketio.on('device_logout')
-def handle_logout(data):
+@socketio.on('C2S_Logout')
+def handle_C2S_Logout(data):
     """处理设备登出"""
     try:
         device_id = data.get('device_id')
         if not device_id:
             return
-        device = deviceMgr.get_device(device_id)
+        device = deviceMgr.get(device_id)
         ret = False
         if device:
             ret = device.logout()
@@ -103,22 +102,13 @@ def handle_C2S_Screenshot(data):
         screenshot_data = data.get('image')
         if screenshot_data is None:
             return
-        device = deviceMgr.get_device(device_id)
+        device = deviceMgr.get(device_id)
         if device is None:
             return
         device.saveScreenshot(screenshot_data)  # 保存后会自动刷新前端
     except Exception as e:
         _Log._Log_.ex(e, '处理设备截图更新失败')
 
-
-@socketio.on('B2S_SetCurDev')
-def handle_set_current_device(data):
-    """设置当前设备"""
-    try:    
-        device_id = data.get('device_id')
-        deviceMgr.SetCurDevice(device_id, refresh=False)
-    except Exception as e:
-        _Log._Log_.ex(e, '设置当前设备失败')
 
 
 @socketio.on('C2S_Log')
@@ -149,7 +139,7 @@ def handle_C2S_StartTask(data):
         app_name = data.get('app_name')
         task_name = data.get('task_name')
         
-        device = deviceMgr.get_device(device_id)
+        device = deviceMgr.get(device_id)
         if not device:
             _Log._Log_.e(f'设备不存在: {device_id}')
             return
@@ -168,7 +158,7 @@ def handle_C2S_UpdateTask(data):
         task_name = data.get('task_name')
         progress = data.get('progress', 0)
         
-        device = deviceMgr.get_device(device_id)
+        device = deviceMgr.get(device_id)
         if not device:
             _Log._Log_.e(f'设备不存在: {device_id}')
             return
@@ -185,7 +175,7 @@ def handle_stop_task(data):
         app_name = data.get('app_name')
         task_name = data.get('task_name')
         _Log._Log_.i(f'收到任务停止消息: {device_id}/{app_name}/{task_name}')
-        device = deviceMgr.get_device(device_id)
+        device = deviceMgr.get(device_id)
         if not device:
             _Log._Log_.e(f'设备不存在: {device_id}')
             return
@@ -204,7 +194,7 @@ def handle_task_end(data):
         score = data.get('score', 0)
         result = data.get('result', True)  # 获取执行结果
         
-        device = deviceMgr.get_device(device_id)
+        device = deviceMgr.get(device_id)
         if not device:
             _Log._Log_.e(f'设备不存在: {device_id}')
             return
@@ -221,7 +211,7 @@ def handle_cancel_task(data):
         app_name = data.get('app_name')
         task_name = data.get('task_name')
         _Log._Log_.i(f'收到任务取消消息: {device_id}/{app_name}/{task_name}')
-        device = deviceMgr.get_device(device_id)
+        device = deviceMgr.get(device_id)
         if not device:
             _Log._Log_.e(f'设备不存在: {device_id}')
             return
@@ -235,28 +225,33 @@ def handle_2S_Cmd(data):
     """处理2S命令请求"""
     Log = _Log._Log_
     try:
-        device_id = data.get('device_id') or '控制台'
-        command = data.get('command')
-        # 确定指令流向
-        m = re.match(r'^\s*[>》]\s*(.+)$', command)
-        serverCmd = False
-        if m:
-            serverCmd = True
-            command = m.group(1)
-        serverTag = _Log.TAG.Server.value
-        sender = serverTag
-        executor = device_id if serverCmd else serverTag
+        selectedIDs = data.get('device_ids', [])
+        # _Log._Log_.i(f'目标: {selectedIDs}')
+        strCommand = data.get('command', '')
+        deviceMgr.curDeviceIDs = selectedIDs
         
-        result = None
-        # print(f'执行命令: {command} {serverCmd}')
-        if not serverCmd:
-            result = deviceMgr.doServerCmd(device_id, command, data.get('params', {}))
-            Log.cmdLog(command, sender, executor, result)
-            return result
+        # 检查命令是否指定了executor
+        clientTag = re.match(r'^\s*([^>]*)>\s*(.+)$', strCommand)
+        targets = []
+        command = strCommand
+        if clientTag:
+            # 命令中指定了executor
+            deviceList = clientTag.group(1).strip()
+            deviceList = deviceList.lower()
+            command = clientTag.group(2).strip()            
+            # 处理不同类型的执行者指定
+            if not deviceList:
+                # 空值，使用当前选中的设备或服务器
+                targets = selectedIDs
+            else:
+                # 处理可能的多个执行者，用逗号分隔
+                targets = re.split(r'[,，]', deviceList)
         else:
-            result = deviceMgr.sendClientCmd(device_id, command, data.get('params', {}))
-            Log.cmdLog(f'>{command}', sender, executor)
-        return result        
+            # 没有指定执行者，使用选中的设备
+            targets = [_Log.TAG.Server.value]        
+        params = data.get('params', {})        
+        result = deviceMgr.sendCmd(targets, command, params)
+        Log.log(strCommand, None, 'c', result)       
     except Exception as e:
         Log.ex(e, '执行命令失败')
 
@@ -266,7 +261,7 @@ def handle_2S_Cmd(data):
 def handle_C2S_CmdResult(data):
     """处理命令响应"""
     try:
-        deviceMgr.handCmdResult(data)
+        deviceMgr.handleCmdResult(data)
     except Exception as e:
         _Log._Log_.ex(e, '处理命令响应失败')
 

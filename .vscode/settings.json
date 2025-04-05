@@ -1,6 +1,5 @@
 {
     "files.exclude": {
-        "**/*.log": true,
         "**/*.pyc": true,
         "**/*.pyo": true,
         "**/*.pyd": true,

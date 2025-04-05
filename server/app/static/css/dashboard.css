@@ -61,16 +61,23 @@
     text-align: right;
 }
 
-/* 选中状态的设备卡片 */
+/* 选中状态的设备卡片 - 确保选中状态的样式优先级高于离线状态 */
 .device-card.selected {
-    border-color: #28a745;
-    box-shadow: 0 0 15px rgba(40, 167, 69, 0.5);
+    border: 2px solid #4CAF50 !important;  /* 使用!important确保优先级 */
+    box-shadow: 0 0 8px rgba(76, 175, 80, 0.6) !important;
+    /* 确保边框不受灰度滤镜影响 */
+    filter: none !important;
 }
 
 /* 设备状态样式 */
 .device-card.offline {
-    filter: grayscale(100%);
     opacity: 0.7;
+}
+
+/* 设备内容区域的灰度滤镜 */
+.device-card.offline .device-background,
+.device-card.offline .device-info {
+    filter: grayscale(100%);
 }
 
 /* 在线和登录状态的设备 */
@@ -549,8 +556,8 @@
 }
 
 .log-tag {
-    color: #aaa;
-    margin-right: 8px;
+    color: #88ccff;
+    margin-right: 5px;
 }
 
 .log-i .log-message {
@@ -783,3 +790,44 @@
 .log-result.log-e { color: #ff6666; }
 .log-result.log-d { color: #88ccff; }
 .log-result.log-c { color: #4CAF50; }
+
+/* 命令日志标签样式 */
+.log-c .log-tag {
+    color: #4CAF50;
+    font-weight: bold;
+}
+
+/* 设备选择样式 */
+.device-item {
+    cursor: pointer;
+    transition: background-color 0.2s;
+    user-select: none;
+}
+
+.device-item.selected {
+    background-color: rgba(0, 123, 255, 0.1);
+    border-left: 3px solid #007bff;
+}
+
+.device-item:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* 批量操作按钮 */
+.batch-action {
+    display: none;
+    margin-left: 10px;
+}
+
+.multi-device-action.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+/* 选中计数 */
+#selected-count-container {
+    display: inline-block;
+    margin-left: 10px;
+    font-size: 0.9rem;
+    color: #666;
+}

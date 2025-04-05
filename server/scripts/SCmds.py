@@ -53,12 +53,10 @@ class SCmds_:
             try:
                 date_format = format or "%Y-%m-%d %H:%M:%S"
                 current_time = datetime.now().strftime(date_format)
-                _Log._Log_.i(f"date: 当前日期和时间: {current_time}")
-                deviceMgr.sendClientCmd(deviceMgr.curDeviceID, f"date {current_time}")
-                return f"i->当前日期和时间: {current_time}"
+                return f"当前日期和时间: {current_time}"
             except Exception as e:
                 _Log._Log_.ex(e, "获取日期时间失败")
-                return f"e->获取日期时间失败: {str(e)}"
+                return f"e-获取日期时间失败: {str(e)}"
 
 
         @regCmd('状态-zt')
@@ -100,7 +98,7 @@ class SCmds_:
             示例：设备列表
             """
             device_manager = SDeviceMgr_()
-            devices = device_manager.to_dict()
+            devices = device_manager.toDict()
             return '\n'.join([
                 f"{id}: {dev['status']}" 
                 for id, dev in devices.items()
@@ -157,31 +155,6 @@ class SCmds_:
                 _Log._Log_.ex(e, "查询任务进度失败")
                 return f"e->查询任务进度失败: {str(e)}"
 
-        @regCmd('继续-jx')
-        def resume():
-            """功能：继续执行当前设备的暂停任务
-            指令名：resume
-            中文名：继续
-            参数：无
-            示例：继续
-            """
-            try:
-                device = deviceMgr.curDevice
-                if not device:
-                    return "e->未选择设备"
-                    
-                # 获取暂停的任务
-                task = STask_.query.filter_by(
-                    deviceId=device.deviceID,
-                    state=TaskState.PAUSED.value
-                ).order_by(STask_.time.desc()).first()
-                if not task:
-                    return "i->未找到暂停的任务"
-                device.taskMgr.startTask(task)
-                return f"i->已继续任务: {task.appName} {task.taskName}"
-            except Exception as e:
-                _Log._Log_.ex(e, "继续任务失败")
-                return f"e->继续任务失败: {str(e)}"
 
         @regCmd('调试-ts')
         def debug():
@@ -197,7 +170,7 @@ class SCmds_:
                 if not device_id:
                     return "e->未选择设备"
                     
-                device = deviceMgr.get_device(device_id)
+                device = deviceMgr.get(device_id)
                 if not device:
                     return "e->设备不存在"
                     
@@ -302,7 +275,7 @@ class SCmds_:
                 if not device_id:
                     return "e->未选择设备"
                     
-                device = deviceMgr.get_device(device_id)
+                device = deviceMgr.get(device_id)
                 if not device or not device.taskMgr:
                     return "e->设备或任务管理器不存在"
                     
@@ -389,36 +362,6 @@ class SCmds_:
             except Exception as e:
                 _Log._Log_.ex(e, "保存结果失败")
                 return f"e->保存结果失败: {str(e)}"
-
-        @regCmd('分析收益-fxsy')
-        def analyzeEarnings():
-            """功能：分析当前设备屏幕上的收益信息
-            指令名：analyzeEarnings
-            中文名：分析收益
-            参数：无
-            示例：分析收益
-            """
-            try:
-                # 等待截屏完成后的回调
-                def parseResult(data):
-                    try:
-                        # 获取当前应用名称
-                        appName = deviceMgr.currentApp
-                        if not appName:
-                            _Log._Log_.e("当前没有运行的应用")
-                            return
-                        if SEarningMgr_.Load(appName, data):
-                            _Log._Log_.i("收益记录导入成功")
-                        else:
-                            _Log._Log_.e("部分收益记录导入失败")
-                        
-                    except Exception as e:
-                        _Log._Log_.ex(e, "处理截屏结果失败")
-                deviceMgr.sendClientCmd(deviceMgr.curDeviceID, 'getScreen', None, 10, parseResult)
-                return "i->正在分析收益..."
-            except Exception as e:
-                _Log._Log_.ex(e, "分析收益失败")
-                return f"e->分析收益失败: {str(e)}"
 
        
         @regCmd('快照-kz')
@@ -528,7 +471,7 @@ class SCmds_:
                 log.ex(e, "设置屏幕信息失败")
                 return f"e-设置屏幕信息失败: {str(e)}"
 
-        @regCmd('格式化JSON-gsjson', r"(?P<fileName>[^ ]+)")
+        @regCmd('格式化JSON-gsh', r"(?P<fileName>[^ ]+)")
         def formatJsonFile(fileName):
             """功能：格式化指定的JSON文件使其更易读
             指令名：formatJsonFile
@@ -595,3 +538,51 @@ class SCmds_:
             示例：load
             """
             _G._G_.load()
+
+        @regCmd('选择-xz', r"(?P<target>.*)?")
+        def select(target=None):
+            """功能：根据目标描述选择设备
+            指令名：select
+            中文名：选择
+            参数：
+               target - 目标描述 (可选)
+            
+            target 解析规则:
+            1. 为空: 只打印当前选中的设备名，不做选择动作
+            2. @: 表示选择服务端
+            3. 其它: 先当成设备ID查找，如果存在就选择该设备
+                     如果不存在，当成group名查找，选择该group所有设备
+                     如果还不存在，报错
+            示例：
+              选择           # 显示当前选中的设备
+              选择 @         # 选择服务端
+              选择 device001 # 选择指定设备
+              选择 测试组     # 选择指定分组的所有设备
+            """
+            from SDeviceMgr import deviceMgr            
+            target = target.strip() if target else ''
+            # 如果目标是@，选择服务端
+            if target == "@" or target == '':
+                #清空当前选择，表示选择服务端
+                deviceMgr.curDeviceIDs =[]
+            elif target == '?':
+                return f"选中设备为: {deviceMgr.curDeviceIDs}"
+            elif target == 'all':
+                deviceMgr.curDeviceIDs = list(deviceMgr.devices.keys())
+            else:                
+                # 尝试作为设备ID查找
+                device = deviceMgr.get(target)
+                if device:
+                    deviceMgr.curDeviceIDs = [target]
+                else:
+                    # 尝试作为分组名查找
+                    if target == 'def':
+                        target = ''
+                    group_devices = list(deviceMgr.GetByGroup(target).keys())
+                    if group_devices:
+                        deviceMgr.curDeviceIDs = group_devices
+                    else:
+                        return f"e->无效目标: {target}"
+            
+            # 通知前端更新选择
+            deviceMgr.emit2B('S2B_UpdateSelection', {'device_ids': deviceMgr.curDeviceIDs})

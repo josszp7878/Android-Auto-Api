@@ -12,6 +12,7 @@ class DeviceModel(db.Model):
     status = db.Column(db.String(20), default='offline')
     info = db.Column(db.JSON)
     last_seen = db.Column(db.DateTime, default=datetime.now)
+    grp = db.Column(db.String(50), default='')  # 分组字段改名为grp
 
     def __repr__(self):
         return f'<Device {self.device_id}>'
@@ -20,7 +21,8 @@ class DeviceModel(db.Model):
         return {
             'status': self.status,
             'last_seen': self.last_seen,
-            'info': self.info or {}
+            'info': self.info or {},
+            'grp': self.grp  # 分组信息字段名修改
         }
 
     @staticmethod

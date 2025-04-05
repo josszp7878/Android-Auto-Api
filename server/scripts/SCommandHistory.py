@@ -2,9 +2,9 @@ from datetime import datetime
 from SDatabase import db
 
 
-class CommandHistory(db.Model):
+class SCommandHistory_(db.Model):
     """命令历史记录"""
-    __tablename__ = 'command_history'
+    __tablename__ = 'commandhistory'
     
     id = db.Column(db.Integer, primary_key=True)
     sender = db.Column(db.String(50), nullable=False)  # 发送者ID
@@ -50,10 +50,10 @@ class CommandHistory(db.Model):
             }
         """
         # 查询该设备相关的所有命令
-        query = CommandHistory.query.filter(
-            (CommandHistory.sender == device_id) | 
-            (CommandHistory.target == device_id)
-        ).order_by(CommandHistory.created_at.desc())
+        query = SCommandHistory_.query.filter(
+            (SCommandHistory_.sender == device_id) | 
+            (SCommandHistory_.target == device_id)
+        ).order_by(SCommandHistory_.created_at.desc())
         
         # 分页
         offset = (page - 1) * per_page
@@ -86,12 +86,12 @@ class CommandHistory(db.Model):
 
 
     @classmethod
-    def add(cls, command_id, result, device_id):
+    def add(cls, cmd, result, device):
         """处理命令执行结果"""
         try:
-            print(f"@@@@@ command_id= {command_id}")
-            if command_id:
-                cmd = cls.query.get(command_id)
+            # print(f"@@@@@ command_id= {cmd}")
+            if cmd:
+                cmd = cls.query.get(cmd)
                 if cmd:
                     # 格式化响应
                     cmd.update_response(result)

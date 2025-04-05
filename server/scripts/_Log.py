@@ -170,11 +170,13 @@ class _Log_:
     @classmethod
     def _serverLog(cls, tag, level, content, result=None)->dict:
         try:
-            # 检查content是否以特定格式开头，提取level
-            m = re.match(r'\s*([diwec])[\#\-]\s*(.+)$', content)
+            # 提取level
+            m = re.search(r'([diwec])[\#\-]', content)
             if m:
                 level = m.group(1)  # 提取level字符
-                content = m.group(2)  # 提取剩余内容            
+                # 从content中移除匹配到的部分
+                start, end = m.span()
+                content = content[:start] + content[end:]
             time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')            
             # 创建新日志
             logData = {
@@ -312,14 +314,5 @@ class _Log_:
     def isWarning(cls, message):
         return isinstance(message, str) and message.startswith('w->')
 
-    @classmethod
-    def cmdLog(cls, command, sender, executor, result=None):
-        """记录指令日志（自动包含结果）"""
-        # 生成标准格式
-        if sender == executor:
-            message = f"{sender}: {command}"
-        else:
-            message = f"{sender}→{executor}: {command}"
-        cls.log(message, TAG.CMD.value, 'c', result)
    
 c = _Log_()

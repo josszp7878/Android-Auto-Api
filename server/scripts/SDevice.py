@@ -24,10 +24,20 @@ class SDevice_:
         self._lastScreenshot = None
         self._ensure_screenshot_dir()
         self.apps = []  # 新增应用列表缓存
+        self._grp = ''  # 默认分组，改名为_grp
     
     @property
     def deviceID(self):
         return self.device_id
+        
+    @property
+    def group(self):
+        return self._grp
+    
+    @group.setter
+    def group(self, value):
+        self._grp = value
+        self._commit()
         
     def init(self, model: DeviceModel = None):
         # _Log._Log_.i(f'初始化设备&&&: {self.device_id}')
@@ -35,6 +45,7 @@ class SDevice_:
             self.device_id = model.device_id
             self._status = model.status
             self.last_seen = model.last_seen
+            self._grp = model.grp or ''  # 从模型加载分组信息，字段名修改
         self.taskMgr.init(self.device_id)
         # 新增：从数据库加载应用列表
         with current_app.app_context():
@@ -93,6 +104,7 @@ class SDevice_:
                 if model:
                     model.status = self._status
                     model.last_seen = self.last_seen
+                    model.grp = self._grp  # 同步分组信息到数据库，字段名修改
                     db.session.add(model)
                     db.session.commit()
                     # print(f'设备 {self.device_id} 状态已同步到数据库')
@@ -209,14 +221,16 @@ class SDevice_:
                 'screenshot': screenshotFile,
                 'screenshotTime': screenshotTime,
                 'todayTaskScore': todayTaskScore,
-                'totalScore': totalScore
+                'totalScore': totalScore,
+                'group': self.group
             }
         except Exception as e:
             _Log._Log_.ex(e, '生成设备信息字典失败')
             # 返回最小化的设备信息
             return {
                 'deviceId': self.device_id,
-                'status': self.status
+                'status': self.status,
+                'group': self.group
             }
     
     def saveScreenshot(self, base64_data):

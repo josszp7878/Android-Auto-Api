@@ -1,5 +1,5 @@
 class CommandHistory(db.Model):
-    __tablename__ = 'command_history'
+    __tablename__ = 'commandHistory'
     
     id = db.Column(db.Integer, primary_key=True)
     sender = db.Column(db.String(50))

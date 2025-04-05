@@ -13,7 +13,7 @@ def index():
     """首页路由，返回设备列表"""
     log = _G._G_.Log()
     log.i('Server', '访问首页')
-    devices = deviceMgr.to_dict()
+    devices = deviceMgr.toDict()
     curDeviceID = deviceMgr.curDeviceID
     return render_template('index.html', initial_devices=devices, curDeviceID=curDeviceID)
 
@@ -21,7 +21,7 @@ def index():
 @bp.route('/device/<device_id>')
 def device(device_id):
     """设备控制页面"""
-    device = deviceMgr.get_device(device_id)
+    device = deviceMgr.get(device_id)
     if not device:
         return "设备不存在", 404
     return render_template('device.html', device_id=device_id, device=device.to_dict())
@@ -66,3 +66,57 @@ def get_timestamps():
 def get_logs():
     # 修改为返回空列表或其他替代方案
     return jsonify([])
+
+@bp.route('/api/device/<device_id>/screenshot', methods=['POST'])
+def take_screenshot(device_id):
+    """设备截图API"""
+    device = deviceMgr.get(device_id)
+    if not device:
+        return jsonify({'success': False, 'message': '设备不存在'}), 404
+    
+    success = device.takeScreenshot()
+    return jsonify({
+        'success': success,
+        'message': '截图指令已发送' if success else '截图失败'
+    })
+
+@bp.route('/api/device/<device_id>/refresh', methods=['POST'])
+def refresh_device(device_id):
+    """刷新设备API"""
+    device = deviceMgr.get(device_id)
+    if not device:
+        return jsonify({'success': False, 'message': '设备不存在'}), 404
+    
+    device.refresh()
+    return jsonify({'success': True, 'message': '设备已刷新'})
+
+@bp.route('/api/devices/batch', methods=['POST'])
+def batch_operation():
+    """批量设备操作API"""
+    data = request.json
+    device_ids = data.get('device_ids', [])
+    operation = data.get('operation')
+    
+    results = []
+    for device_id in device_ids:
+        device = deviceMgr.get(device_id)
+        if not device:
+            results.append({'device_id': device_id, 'success': False, 'message': '设备不存在'})
+            continue
+            
+        if operation == 'screenshot':
+            success = device.takeScreenshot()
+            results.append({
+                'device_id': device_id,
+                'success': success,
+                'message': '截图指令已发送' if success else '截图失败'
+            })
+        elif operation == 'refresh':
+            device.refresh()
+            results.append({
+                'device_id': device_id,
+                'success': True,
+                'message': '设备已刷新'
+            })
+    
+    return jsonify({'results': results})

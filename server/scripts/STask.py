@@ -39,7 +39,7 @@ class STask_(db.Model):
         """获取任务对应的设备,使用缓存避免重复查询"""
         if not hasattr(self, '_device'):
             from SDeviceMgr import deviceMgr
-            self._device = deviceMgr.get_device(self.deviceId)
+            self._device = deviceMgr.get(self.deviceId)
         return self._device
 
     def __init__(self, deviceId: str, appName: str, taskName: str):

@@ -58,25 +58,82 @@ class Dashboard {
                 filteredLogs: [],
                 isScrolling: false,
                 _scrollTimeout: null,
-                _tempCommand: undefined
+                _tempCommand: undefined,
+                selectedDevices: [], // 存储选中的设备ID列表
+                multiDeviceActionDisabled: false,
+                showBatchActions: false,
+                selectedCount: 0,
+                lastSelectedIndex: -1,
             },
             methods: {
                 formatTime(time) {
                     return time || '未知';
                 },
-                selectDevice(deviceId) {
-                    const oldDevice = this.selectedDevice;
-                    this.selectedDevice = this.selectedDevice === deviceId ? null : deviceId;
+                selectDevice(deviceId, multiSelect = false) {
+                    if (multiSelect) {
+                        const index = this.selectedDevices.indexOf(deviceId);
+                        if (index !== -1) {
+                            // 已选中，则取消选择
+                            this.selectedDevices.splice(index, 1);
+                            if (this.selectedDevice === deviceId) {
+                                this.selectedDevice = this.selectedDevices.length > 0 ? 
+                                    this.selectedDevices[0] : null;
+                            }
+                        } else {
+                            // 未选中，则添加到选择
+                            this.selectedDevices.push(deviceId);
+                            this.selectedDevice = deviceId;
+                        }
+                    } else {
+                        // 单击模式
+                        if (this.selectedDevices.length === 1 && this.selectedDevices[0] === deviceId) {
+                            // 如果只有这一个设备被选中，则取消选择
+                            this.selectedDevices = [];
+                            this.selectedDevice = null;
+                        } else {
+                            // 否则选中这个设备
+                            this.selectedDevice = deviceId;
+                            this.selectedDevices = [deviceId];
+                        }
+                    }
                     
-                    if (this.selectedDevice) {  // 选中新设备
-                        this.showLogs = true;
+                    this.updateDeviceSelectionUI();
+                },
+                updateDeviceSelectionUI() {
+                    // 使用原生 DOM API 替代 jQuery
+                    document.querySelectorAll('.device-card').forEach(card => {
+                        card.classList.remove('selected');
+                    });
+                    
+                    this.selectedDevices.forEach(deviceId => {
+                        const card = document.querySelector(`.device-card[data-device-id="${deviceId}"]`);
+                        if (card) {
+                            card.classList.add('selected');
+                        }
+                    });
+                    
+                    // 更新操作按钮状态
+                    const multiDeviceActions = document.querySelectorAll('.multi-device-action');
+                    const batchActions = document.querySelectorAll('.batch-action');
+                    
+                    if (this.selectedDevices.length > 0) {
+                        multiDeviceActions.forEach(el => el.classList.remove('disabled'));
                         
-                        // 通知后端设置当前设备ID
-                        this.socket.emit('B2S_SetCurDev', {
-                            device_id: deviceId
-                        });
-                    } else if (oldDevice) {  // 取消选中设备
-                        this.showLogs = false;
+                        // 如果选择了多个设备，显示批量操作按钮
+                        if (this.selectedDevices.length > 1) {
+                            batchActions.forEach(el => el.style.display = 'inline-block');
+                        } else {
+                            batchActions.forEach(el => el.style.display = 'none');
+                        }
+                    } else {
+                        multiDeviceActions.forEach(el => el.classList.add('disabled'));
+                        batchActions.forEach(el => el.style.display = 'none');
+                    }
+                    
+                    // 更新选中设备计数
+                    const selectedCountEl = document.getElementById('selected-count');
+                    if (selectedCountEl) {
+                        selectedCountEl.textContent = this.selectedDevices.length;
                     }
                 },
                 showFullScreenshot(device) {
@@ -97,18 +154,24 @@ class Dashboard {
                     }, 200);
                 },
                 sendCommand() {
+                    if (!this.commandInput) return;
+                    
+                    console.log('发送命令:', this.commandInput);
+                    this.addCommandToHistory(this.commandInput);
+                    
                     this.socket.emit('2S_Cmd', {
+                        device_ids: this.selectedDevices,
                         command: this.commandInput,
-                        device_id: this.selectedDevice || '控制台'
+                        params: {}
                     });
-                    this.historyIndex = -1;
-                    this._tempCommand = undefined;
+                    
                     this.commandInput = '';
+                    this.historyIndex = -1;
                 },
                 handleOutsideClick() {
-                    if (this.showLogs) {
-                        this.showLogs = false;
-                    }
+                    // 取消所有设备选择
+                    this.selectedDevices = [];
+                    this.updateDeviceSelectionUI();
                 },
                 handleLogsScroll(e) {
                     if(this.logManager) {
@@ -446,6 +509,109 @@ class Dashboard {
                     console.error('发生错误:', error);
                     // 添加错误日志
                     this.logManager.addLog('e', 'ERROR', error.message || error);
+                },
+                addCommandToHistory(command) {
+                    if (this.cmdHistoryCache.length >= 100) {
+                        this.cmdHistoryCache.shift();
+                    }
+                    this.cmdHistoryCache.push(command);
+                    this.historyIndex = this.cmdHistoryCache.length - 1;
+                },
+                handleGlobalClick(event) {
+                    // 检查点击是否在设备列表区域内的空白处
+                    const devicesContainer = document.querySelector('.devices-container');
+                    const isInsideDevicesContainer = devicesContainer && devicesContainer.contains(event.target);
+                    
+                    // 检查是否点击了设备卡片
+                    const isDeviceCard = event.target.closest('.device-card');
+                    
+                    // 检查是否点击了其他UI元素（按钮、日志窗口等）
+                    const isOtherUIElement = event.target.closest('.console-window') || 
+                                            event.target.closest('button') ||
+                                            event.target.closest('.logs-section') ||
+                                            event.target.closest('.logs-toggle');
+                    
+                    // 只有当点击在设备列表区域内的空白处时，才清除设备选择
+                    if (isInsideDevicesContainer && !isDeviceCard && !isOtherUIElement) {
+                        // 清除所有设备选择
+                        this.selectedDevices = [];
+                        this.selectedDevice = null;
+                        this.updateDeviceSelectionUI();
+                    }
+                },
+                handleDeviceClick(deviceId, event) {
+                    event.stopPropagation();
+                    
+                    // 获取所有设备ID的数组，用于确定索引
+                    // 注意：需要确保设备顺序与DOM中的顺序一致
+                    const deviceCards = document.querySelectorAll('.device-card');
+                    const deviceIds = Array.from(deviceCards).map(card => card.getAttribute('data-device-id'));
+                    const currentIndex = deviceIds.indexOf(deviceId);
+                    
+                    // 右键点击 - 取消所有选择
+                    if (event.button === 2) {
+                        this.selectedDevices = [];
+                        this.selectedDevice = null;
+                        this.updateDeviceSelectionUI();
+                        event.preventDefault();
+                        return false;
+                    }
+                    
+                    // Shift键 - 连续选择
+                    if (event.shiftKey && this.lastSelectedIndex >= 0 && this.lastSelectedIndex !== currentIndex) {
+                        const start = Math.min(this.lastSelectedIndex, currentIndex);
+                        const end = Math.max(this.lastSelectedIndex, currentIndex);
+                        
+                        // 清除当前选择
+                        this.selectedDevices = [];
+                        
+                        // 选择范围内的所有设备
+                        for (let i = start; i <= end; i++) {
+                            if (i < deviceIds.length) {
+                                this.selectedDevices.push(deviceIds[i]);
+                            }
+                        }
+                        
+                        // 设置当前设备为最后点击的设备
+                        this.selectedDevice = deviceId;
+                    } 
+                    // Ctrl键 - 多选
+                    else if (event.ctrlKey) {
+                        const index = this.selectedDevices.indexOf(deviceId);
+                        if (index !== -1) {
+                            // 已选中，则取消选择
+                            this.selectedDevices.splice(index, 1);
+                            if (this.selectedDevice === deviceId) {
+                                this.selectedDevice = this.selectedDevices.length > 0 ? 
+                                    this.selectedDevices[0] : null;
+                            }
+                        } else {
+                            // 未选中，则添加到选择
+                            this.selectedDevices.push(deviceId);
+                            this.selectedDevice = deviceId;
+                        }
+                    } 
+                    // 普通点击 - 单选或取消选择
+                    else {
+                        if (this.selectedDevices.length === 1 && this.selectedDevices[0] === deviceId) {
+                            // 如果只有这一个设备被选中，则取消选择
+                            this.selectedDevices = [];
+                            this.selectedDevice = null;
+                        } else {
+                            // 否则选中这个设备
+                            this.selectedDevice = deviceId;
+                            this.selectedDevices = [deviceId];
+                        }
+                    }
+                    
+                    // 更新最后选中的索引
+                    this.lastSelectedIndex = currentIndex;
+                    
+                    // 更新UI
+                    this.updateDeviceSelectionUI();
+                    
+                    // 防止默认行为和冒泡
+                    event.preventDefault();
                 }
             },
             computed: {
@@ -577,6 +743,18 @@ class Dashboard {
                     }
                 });
 
+                // 在 mounted 中添加事件监听
+                this.socket.on('S2B_UpdateSelection', (data) => {
+                    console.log('服务器更新设备选择:', data);
+                    if (data.device_ids) {
+                        // 更新选中状态
+                        this.selectedDevices = data.device_ids;
+                        this.selectedDevice = data.device_ids.length > 0 ? data.device_ids[0] : null;
+                        // 更新UI
+                        this.updateDeviceSelectionUI();
+                    }
+                });
+
                 // 验证实例是否创建成功
                 if (!this.logManager.addLog) {
                     console.error('LogManager实例创建失败，请检查socket连接');
@@ -587,8 +765,157 @@ class Dashboard {
                 if (this.logManager && this.logsContainer) {
                     this.logManager._logContainer = this.logsContainer;
                 }
+
+                // 添加全局点击事件监听器
+                document.addEventListener('click', this.handleGlobalClick);
+            },
+            beforeDestroy() {
+                // 组件销毁前移除事件监听器
+                document.removeEventListener('click', this.handleGlobalClick);
             }
         });
     }
+}
+
+// 设备选择相关变量
+let selectedDevices = [];
+let lastSelectedIndex = -1;
+
+/**
+ * 初始化设备选择功能
+ */
+function initDeviceSelection() {
+    // 为设备列表添加点击事件
+    $(document).on('click', '.device-item', function(e) {
+        const deviceId = $(this).data('device-id');
+        const index = $(this).index();
+        
+        // 右键点击 - 取消所有选择
+        if (e.button === 2) {
+            clearDeviceSelection();
+            e.preventDefault();
+            return false;
+        }
+        
+        // Shift键 - 连续选择
+        if (e.shiftKey && lastSelectedIndex >= 0) {
+            clearDeviceSelection();
+            const start = Math.min(lastSelectedIndex, index);
+            const end = Math.max(lastSelectedIndex, index);
+            
+            $('.device-item').slice(start, end + 1).each(function() {
+                const id = $(this).data('device-id');
+                selectDevice(id, $(this));
+            });
+        } 
+        // Ctrl键 - 多选
+        else if (e.ctrlKey) {
+            // 如果已选中，则取消选择
+            if ($(this).hasClass('selected')) {
+                deselectDevice(deviceId, $(this));
+            } else {
+                // 否则添加到选择
+                selectDevice(deviceId, $(this));
+            }
+        } 
+        // 普通点击 - 单选
+        else {
+            clearDeviceSelection();
+            selectDevice(deviceId, $(this));
+        }
+        
+        lastSelectedIndex = index;
+        updateDeviceSelectionUI();
+        e.preventDefault();
+    });
+    
+    // 阻止设备列表的右键菜单
+    $(document).on('contextmenu', '.device-item', function(e) {
+        e.preventDefault();
+        return false;
+    });
+}
+
+/**
+ * 选择设备
+ * @param {string} deviceId 设备ID
+ * @param {jQuery} $element 设备元素
+ */
+function selectDevice(deviceId, $element) {
+    if (!selectedDevices.includes(deviceId)) {
+        selectedDevices.push(deviceId);
+        $element.addClass('selected');
+    }
+}
+
+/**
+ * 取消选择设备
+ * @param {string} deviceId 设备ID
+ * @param {jQuery} $element 设备元素
+ */
+function deselectDevice(deviceId, $element) {
+    const index = selectedDevices.indexOf(deviceId);
+    if (index !== -1) {
+        selectedDevices.splice(index, 1);
+        $element.removeClass('selected');
+    }
+}
+
+/**
+ * 清除所有设备选择
+ */
+function clearDeviceSelection() {
+    selectedDevices = [];
+    $('.device-item').removeClass('selected');
+}
+
+/**
+ * 获取当前选中的设备ID列表
+ * @returns {Array} 设备ID数组
+ */
+function getSelectedDevices() {
+    return selectedDevices;
+}
+
+// 在页面加载完成后初始化
+$(document).ready(function() {
+    initDeviceSelection();
+    
+    // 添加批量操作按钮事件
+    $('#batch-screenshot').click(function() {
+        if (selectedDevices.length > 0) {
+            batchTakeScreenshot(selectedDevices);
+        }
+    });
+    
+    $('#batch-refresh').click(function() {
+        if (selectedDevices.length > 0) {
+            batchRefreshDevices(selectedDevices);
+        }
+    });
+});
+
+/**
+ * 批量截图
+ * @param {Array} deviceIds 设备ID数组
+ */
+function batchTakeScreenshot(deviceIds) {
+    deviceIds.forEach(deviceId => {
+        $.post(`/api/device/${deviceId}/screenshot`, function(response) {
+            showToast(response.message);
+        });
+    });
+}
+
+/**
+ * 批量刷新设备
+ * @param {Array} deviceIds 设备ID数组
+ */
+function batchRefreshDevices(deviceIds) {
+    deviceIds.forEach(deviceId => {
+        $.post(`/api/device/${deviceId}/refresh`, function(response) {
+            showToast(response.message);
+        });
+    });
 }
 

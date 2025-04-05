@@ -113,14 +113,14 @@ class LogManager {
     }
     this.processCmdLog(data);
     // 在日志面板中显示日志
-    const logElement = this._createLogElement(data);
+    const logElement = this.renderLog(data);
     this._logContainer.appendChild(logElement);
     
     // 如果日志有result字段，显示结果
     if (data.result) {
         const resultElement = document.createElement('div');
         resultElement.className = `log-result log-${data.level}`;
-        resultElement.textContent = `结果: ${data.result}`;
+        resultElement.textContent = ``;
         this._logContainer.appendChild(resultElement);
     }
     
@@ -253,7 +253,7 @@ class LogManager {
   // 修改后的处理CMD日志方法
   processCmdLog(log) {
     // 只处理命令类型的日志
-    if (log.tag && log.tag.includes('CMD')) {
+    if (log.level == 'c') {
       // 提取纯命令内容
       let commandText = log.message;
       
@@ -595,7 +595,7 @@ class LogManager {
   
   // 新增获取命令历史方法
   getCommandHistory() {
-    return [...this.cmdHistoryCache];  // 返回副本避免直接修改
+    return this.cmdHistoryCache;
   }
   
   // 更新统计信息
@@ -650,30 +650,41 @@ class LogManager {
     }, 0);
   }
 
-  // 添加_createLogElement方法
-  _createLogElement(log) {
+  // 修改日志显示方法
+  renderLog(log) {
     const logElement = document.createElement('div');
     logElement.className = `log-entry log-${log.level}`;
     
-    // 创建时间元素
-    const timeElement = document.createElement('span');
-    timeElement.className = 'log-time';
-    timeElement.textContent = log.time;
+    // 创建时间标签
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'log-time';
+    timeSpan.textContent = log.time;
+    logElement.appendChild(timeSpan);
     
-    // 创建标签元素
-    const tagElement = document.createElement('span');
-    tagElement.className = 'log-tag';
-    tagElement.textContent = log.tag || '';
+    // 创建标签标签，不再使用方括号
+    const tagSpan = document.createElement('span');
+    tagSpan.className = 'log-tag';
+    // 如果是命令日志，使用新的格式
+    if (log.level === 'c' && log.tag) {
+      tagSpan.textContent = `${log.tag}> `;
+    } else {
+      tagSpan.textContent = log.tag ? `${log.tag}> ` : '';
+    }
+    logElement.appendChild(tagSpan);
     
-    // 创建消息元素
-    const messageElement = document.createElement('span');
-    messageElement.className = 'log-message';
-    messageElement.textContent = log.message;
+    // 创建消息标签
+    const messageSpan = document.createElement('span');
+    messageSpan.className = 'log-message';
+    messageSpan.textContent = log.message;
+    logElement.appendChild(messageSpan);
     
-    // 组装日志元素
-    logElement.appendChild(timeElement);
-    logElement.appendChild(tagElement);
-    logElement.appendChild(messageElement);
+    // 如果有结果，添加结果显示
+    if (log.result) {
+      const resultDiv = document.createElement('div');
+      resultDiv.className = `log-result log-${log.level}`;
+      resultDiv.textContent = log.result;
+      logElement.appendChild(resultDiv);
+    }
     
     return logElement;
   }
