@@ -1,11 +1,13 @@
 import time
 import _G
-from typing import List, Optional, Dict, Any, Callable, TYPE_CHECKING
+from typing import List, Optional, Dict, Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from CChecker import CChecker_
 
-log = _G._G_.Log()
+g = _G._G_
+log = g.Log()
+
 class _Page_:
     # 类变量
     currentPage = None
@@ -30,7 +32,7 @@ class _Page_:
     
     
     @classmethod
-    def createPage(cls, name, parent=None, matches=None, inAction=None, outAction=None, checkers=None, dialogs=None, timeout=2)->"_Page_":
+    def createPage(cls, name, parent=None, matches=None, inAction=None, outAction=None, checkers=None, timeout=2)->"_Page_":
         """创建页面对象
         
         Args:
@@ -45,7 +47,7 @@ class _Page_:
             return parent.children[name]
             
         # 创建新页面
-        page = _Page_(name, parent, matches, inAction, outAction, checkers, dialogs, timeout)  # 提供空规则列表作为默认值
+        page = _Page_(name, parent, matches, inAction, outAction, checkers, timeout)  # 提供空规则列表作为默认值
         
         # 设置父子关系
         if parent:
@@ -54,7 +56,7 @@ class _Page_:
             
         return page
     
-    def __init__(self, name, parent=None, matches=None, inAction=None, outAction=None, checkers=None, dialogs=None, timeout=30):
+    def __init__(self, name, parent=None, matches=None, inAction=None, outAction=None, checkers=None, timeout=30):
         self.name = name
         self.matches: list[str] = matches if matches else [] 
         self.parent: Optional["_Page_"] = parent  # 父页面对象
@@ -283,15 +285,26 @@ class _Page_:
         # 如果没有找到，返回None
         return None
     
+    def check(self): 
+        """添加检查器"""
+        checkers = self.checkers
+        if checkers is None or len(checkers) == 0:
+            return
+        for checkerName, config in checkers.items():
+            config = config if isinstance(config, dict) else None
+            checker = g.Checker().get(checkerName, config, True)
+            if checker is None:
+                log.w(f"添加页面检查器：{self.name} -> {checkerName} 失败")
+                continue
+            checker.data = self
+            checker.enabled = True
+
     def match(self) -> bool: 
         """检查页面规则是否匹配当前屏幕"""
         g = _G._G_
         tools = g.CTools()
         log = g.Log()
         if not self.matches:
-            return True
-        if tools.android is None:
-            # 测试客户端，不执行动作，只打印。
             return True
         try:
             # 刷新屏幕信息
@@ -300,7 +313,7 @@ class _Page_:
             all_passed = True
             for rule in self.matches:
                 try:
-                    result = tools.eval(self, rule)
+                    result = tools.check(self, rule)
                     if not result:
                         all_passed = False
                         break
@@ -345,7 +358,7 @@ class _Page_:
                 log.i(f'-> {pageName}')
                 act = targetPage.inAction.strip()
                 if act != '':
-                    success = tools.eval(self, act)
+                    success = tools.do(self, act)
                 else:
                     # 如果进入动作失败，执行默认动作，点击页名
                     success = tools.click(pageName)
@@ -353,7 +366,7 @@ class _Page_:
                 log.i(f'<- {pageName}')
                 act = self.outAction.strip()
                 if act != '':
-                    success = tools.eval(self, act)
+                    success = tools.do(self, act)
                 else:
                     success = tools.goBack()
                 if not success:

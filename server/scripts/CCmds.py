@@ -1,6 +1,7 @@
 from datetime import datetime
 import threading
 import time as time_module
+from typing import Optional
 import json
 import _G
 
@@ -29,6 +30,7 @@ class CCmds_:
         """热更新后重新注册命令"""
         log.i("CCmds模块热更新 重新注册命令")
         cls.registerCommands()
+    
 
 
     @classmethod
@@ -526,31 +528,7 @@ class CCmds_:
                 log.ex(e, f"执行代码失败: {code}")
                 return None
 
-        @regCmd('匹配-pp', r"(?P<rule>\S+)")
-        def match(rule):
-            """
-            功能：匹配当前屏幕上查找文字或者页面
-            指令名: match-m
-            中文名: 匹配-pp
-            参数: rule - 文字规则或者页面名
-            示例: 匹配 确定
-            """
-            g = _G._G_
-            log = g.Log()
-            try:
-                if rule.startswith('@'):
-                    import _Page
-                    page = _Page._Page_.getCurrent().findPagesByPath(rule[1:])[-1]
-                    if not page:
-                        return f"e->找不到页面: {rule[1:]}"
-                    return page.match()
-                result = g.CTools().matchTexts(rule, True)
-                return result
-            except Exception as e:
-                log.ex(e, "查找文字失败")
-                return None
-
-
+        
         @regCmd(r"返回桌面-fhzm")
         def goHome():
             """
@@ -616,8 +594,34 @@ class CCmds_:
             """
             from _App import _App_
             return _App_.printTopology(appName)
-
         
+        
+
+        @regCmd('匹配-pp', r"(?P<rule>\S+)")
+        def match(rule):
+            """
+            功能：匹配当前屏幕上查找文字或者页面
+            指令名: match-m
+            中文名: 匹配-pp
+            参数: rule - 文字规则或者页面名
+            示例: 匹配 确定
+            """
+            g = _G._G_
+            log = g.Log()
+            try:
+                if rule.startswith('@'):
+                    rule = rule[1:].strip()
+                    # 检查应用和页面，格式为app.page
+                    page = g.App().getAppPage(rule)
+                    if page:
+                        return page.match()
+                result = g.CTools().matchTexts(rule, True)
+                return result
+            except Exception as e:
+                log.ex(e, "查找文字失败")
+                return None
+
+
         @regCmd(r"检查-jc", r"(?P<checkerName>\S+)(?:\s+(?P<enabled>\S+))?")
         def check(checkerName, enabled=None):
             """
@@ -632,14 +636,20 @@ class CCmds_:
             enabled = g.Tools().toBool(enabled, True)
             checkerName = checkerName.lower()
             if checkerName.startswith('@'):
+                checkerName = checkerName[1:].strip()
                 # 检查应用和页面，格式为app.page
-                appName, pageName = g.Tools().toAppPageName(checkerName[1:])
-                app = g.CApp().currentApp()
-                if not app:
-                    return "e->当前应用为空"
-                return app.detect(appName, pageName)
+                page = g.App().getAppPage(checkerName)
+                if page:
+                    page.check()
+                    return f"已经开始检查页面 {page.name}"
+            elif checkerName.startswith('!'):
+                pageName = checkerName[1:].strip()
+                g.App().currentApp().detectPage(pageName)
+                return "已关闭当前应用"
+
             # 检查器
             checker = Checker.get(checkerName, create=True)
+            log.i(f"checker.config = {checker._actions}")
             if checker:
                 checker.enabled = enabled
                 return f"检查器 {checkerName} 已设置为 {enabled}"

@@ -43,6 +43,7 @@ class _Tools_:
         if serverIP is None:
             import socket
             serverIP = socket.gethostbyname(socket.gethostname())
+        print(f"服务器IP: {serverIP}")
         return f"http://{serverIP}:{cls.port}"
 
     @classmethod
@@ -83,7 +84,7 @@ class _Tools_:
         def replacer(match):
             code = match.group(1)
             try:
-                val = cls.eval(this, code)
+                val = cls.do(this, code)
                 return str(val)
             except Exception as e:
                 log.ex(e, f"执行变量代码失败: {code}")
@@ -124,9 +125,8 @@ class _Tools_:
         return cls._eval(this, str, False)
 
     @classmethod
-    def eval(cls, this, str:str):
+    def do(cls, this, str:str):
         """执行规则"""
-        log = _G._G_.Log()
         return cls._eval(this, str, True)
     
     @classmethod
@@ -140,7 +140,7 @@ class _Tools_:
                 return False
             g = _G._G_
             log = g.Log()
-            str = cls._replaceVars(this, str)
+            # str = cls._replaceVars(this, str)
             evaled = re.match(r'^\s*\{(.*)\}\s*$', str)
             result = None
             if evaled:
@@ -156,7 +156,6 @@ class _Tools_:
                 else:
                     #执行text检查
                     result = g.CTools().matchTexts(str)
-                    result = True
             return result
         except Exception as e:
             log.ex(e, f"执行规则失败: {str}")
@@ -190,6 +189,7 @@ class _Tools_:
         if match:
             return int(match.group(1)), int(match.group(2))
         return None
+    
     @classmethod
     def toBool(cls, value, default=False):
         """将字符串转换为布尔值"""
@@ -198,19 +198,29 @@ class _Tools_:
         return value.lower() in ['true', '1', 'yes', 'y', 'on']
 
     @classmethod
-    def toAppPageName(cls, name:str) -> Tuple[str, str]:
-        """解析应用和页面名称"""
-        if name is None or name.strip() == '':
+    def toAppPageName(cls, name: str) -> Tuple[str, str]:
+        """解析应用和页面名称
+        
+        Args:
+            name: 应用和页面名称，格式为 "应用名.页面名" 或 "应用名"
+            
+        Returns:
+            Tuple[str, str]: (应用名, 页面名)，如果未提供则返回 (None, None)
+        """
+        # print(f"解析应用和页面名称: {name}")
+        if not name or not name.strip():
             return None, None
-        parts = name.split('.')
-        pageName = None
-        appName = name
-        if len(parts) == 2:
-            appName, pageName = parts
-        if appName.strip() == '':
-            appName = None
-        if pageName.strip() == '':
-            pageName = None
+        
+        # 使用正则表达式匹配 "应用名.页面名" 格式
+        import re
+        match = re.match(r'^([^.。]*)(?:[\.。](.*))?$', name.strip())
+        
+        if not match:
+            return None, None
+        
+        appName = match.group(1).strip() or None
+        pageName = match.group(2).strip() if match.group(2) else None
+        
         return appName, pageName
 
     @classmethod

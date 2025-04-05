@@ -125,7 +125,7 @@ class CChecker_:
                         else:
                             if not code.startswith('{'):
                                 code = f'{{ {code} }}'
-                            ret = tools.eval(self, code)
+                            ret = tools.do(self, code)
                 if ret == self.Exit:
                     return True
                 if ret:
@@ -204,6 +204,7 @@ class CChecker_:
 
             if interval is not None:
                 cls._checkInterval = max(1, interval)  # 确保间隔至少为1秒
+            cls._checkers = []
             # cls._initDetecter()
             cls._running = True
             cls._checkThread = threading.Thread(target=cls._loop, daemon=True)
@@ -292,23 +293,7 @@ class CChecker_:
                 time.sleep(1)  # 发生异常时短暂暂停
         log.i("检查线程已停止")
 
-    @classmethod
-    def checkPage(cls, page: "_Page_"):
-        """添加检查器"""
-        if page is None:
-            return
-        checkers = page.checkers
-        if checkers is None or len(checkers) == 0:
-            return
-        for checkerName, config in checkers.items():
-            config = config if isinstance(config, dict) else None
-            checker = cls.get(checkerName, config, True)
-            if checker is None:
-                log.w(f"添加页面检查器：{page.name} -> {checkerName} 失败")
-                continue
-            checker.data = page
-            checker.enabled = True
-
+   
     @classmethod
     def uncheckPage(cls, page: "_Page_"):
         """移除检查器"""

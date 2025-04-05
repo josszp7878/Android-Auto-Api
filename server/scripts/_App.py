@@ -45,7 +45,7 @@ class _App_:
         Checker.uncheckPage(self._currentPage)
         # 将页面检测器添加到全局列表
         if page is not None:
-            Checker.checkPage(page)
+            page.check()
     
     def detectPage(self, pageName, delay:int=3)->bool:
         """客户端实现：通过屏幕检测当前页面"""
@@ -81,6 +81,25 @@ class _App_:
         return ret
     
     @classmethod
+    def getAppPage(cls, pageName)->Optional["_Page._Page_"]:
+        g = _G._G_
+        log = g.Log()
+        appName, pageName = g.Tools().toAppPageName(pageName)
+        App = g.CApp()
+        app = App.currentApp()
+        if appName:
+            app = App.getApp(appName, True)
+            if not app:
+                log.e(f"找不到应用: {appName}")
+                return None
+        page = app.currentPage
+        if pageName:
+            page = app.getPage(pageName)
+            if not page:
+                log.e(f"找不到页面: {pageName}")
+                return None
+        return page
+    
     def getPage(self, pageName:str)->Optional["_Page._Page_"]:
         """获取指定页面"""
         if pageName.strip() == '':
@@ -199,7 +218,6 @@ class _App_:
         try:
             import json
             import os
-            import CChecker
             import _Page
             # 清空现有应用
             cls.apps: dict[str, "_App_"] = {}
@@ -223,8 +241,11 @@ class _App_:
             
             # 首先读取TOP节点的checkers配置
             topCheckers = configData.get("Top", {}).get("checkers", {})
+            import CChecker
+            Checker = CChecker.CChecker_
             if topCheckers:
-                CChecker.CChecker_.loadTemplates(topCheckers)
+                Checker.loadTemplates(topCheckers)
+                Checker.start()
                 log.i(f"已加载{len(topCheckers)}个checker模板")
             
             # 创建根页面
@@ -242,8 +263,7 @@ class _App_:
                     inAction = pageConfig.get("in", None)
                     outAction = pageConfig.get("out", None)
                     checkers = pageConfig.get("checkers", None)
-                    dialogs = pageConfig.get("dialogs", None)
-                    currentPage = Page.createPage(pageName, parentPage, match, inAction, outAction, checkers, dialogs)
+                    currentPage = Page.createPage(pageName, parentPage, match, inAction, outAction, checkers)
                     # 识别应用根节点（Top的直接子节点）
                     if parentName == "Top":
                         appInfo = pageConfig.get("app_info", {})

@@ -436,8 +436,8 @@ class SCmds_:
                         log.ex(e, "处理屏幕信息失败")
                 
                 # 发送客户端命令获取屏幕信息
-                deviceMgr.sendClientCmd(device.deviceID, "eval T.getScreenInfo(True)", None, 10, handleScreenInfo)
-                
+                res = deviceMgr.sendClientCmd(device.deviceID, "eval T.getScreenInfo(True)", None, 10)
+                handleScreenInfo(res)
                 return "i->正在获取屏幕信息..."
             except Exception as e:
                 log.ex(e, "获取屏幕信息失败")

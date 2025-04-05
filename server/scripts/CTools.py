@@ -273,7 +273,7 @@ class CTools_(_Tools._Tools_):
             # log.i(f"匹配文本: {text} region={region} matchExact={matchExact}")
             items = cls.getScreenInfo(refresh)
             if not items or len(items) == 0:
-                # log.w(f"屏幕信息空空如也")
+                log.w(f"屏幕信息空空如也")
                 return None
             textMatchedItems = []
             if region:

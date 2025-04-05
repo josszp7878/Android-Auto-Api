@@ -231,7 +231,7 @@ def handle_2S_Cmd(data):
         deviceMgr.curDeviceIDs = selectedIDs
         
         # 检查命令是否指定了executor
-        clientTag = re.match(r'^\s*([^>]*)>\s*(.+)$', strCommand)
+        clientTag = re.match(r'^\s*([^>》]*)[>》]+\s*(.+)$', strCommand)
         targets = []
         command = strCommand
         if clientTag:
