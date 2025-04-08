@@ -25,7 +25,7 @@ def main():
         server = sys.argv[2] if len(sys.argv) > 2 else None
         Begin(deviceID, server, False)
     except Exception as e:
-        _G._G_.Log().printException(e)
+        _G._G_.Log().logEx_(e, 'main失败')
 
 if __name__ == '__main__':
     main()

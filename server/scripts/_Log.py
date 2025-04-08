@@ -59,7 +59,7 @@ class _Log_:
         else:
             # 开发环境使用当前目录
             dir = os.path.dirname(os.path.abspath(__file__))
-            print(f"脚本目录: {dir}")
+            cls.log_(f"脚本目录: {dir}")
         return dir 
     
    
@@ -102,7 +102,7 @@ class _Log_:
                         'date': date or datetime.now().strftime('%Y-%m-%d')
                     })
                 except Exception as e:
-                    print(f'发送日志到前端失败: {e}')
+                    cls.logEx_(e, '发送日志到前端失败')
         except Exception as e:
             cls.ex(e, '加载日志文件失败')
     
@@ -114,7 +114,7 @@ class _Log_:
             if not cls._cache:
                 return
                 
-            print(f'保存日志到文件: {log_path}')
+            cls.log_(f'保存日志到文件: {log_path}')
             with open(log_path, 'w', encoding='utf-8') as f:
                 for log in cls._cache:
                     # print(log)
@@ -127,7 +127,7 @@ class _Log_:
     def add(cls, logDict):
         """添加日志到缓存并发送到前端"""      
         try:
-            cls.printLog(logDict.get('level'), logDict.get('message'), logDict.get('tag'), logDict.get('result'))          
+            cls.log_(logDict.get('message'), logDict.get('tag'), logDict.get('level'),  logDict.get('result'))          
             logs = cls._cache
             from app import socketio
             # 检查是否与最后一条日志内容相同
@@ -149,7 +149,7 @@ class _Log_:
                         # 确保发送完整的日志对象，包括时间戳
                         socketio.emit('S2B_EditLog', lastLog)
                     except Exception as e:
-                        print(f'发送EditLog事件失败: {e}')
+                        cls.logEx_(e, '发送EditLog事件失败')
                     return
                   # 打印带颜色的日志到终端
             # 确保新日志有count字段
@@ -161,10 +161,9 @@ class _Log_:
                 try:
                     socketio.emit('S2B_AddLog', logDict)
                 except Exception as e:
-                    print(f'发送AddLog事件失败: {e}')
+                    cls.logEx_(e,'发送AddLog事件失败')
         except Exception as e:
-            message = cls.formatEx('发送日志到控制台失败', e, '')
-            print(message)
+            cls.logEx_(e, '发送日志到控制台失败')
 
 
     @classmethod
@@ -173,10 +172,8 @@ class _Log_:
             # 提取level
             m = re.search(r'([diwec])[\#\-]', content)
             if m:
-                level = m.group(1)  # 提取level字符
-                # 从content中移除匹配到的部分
-                start, end = m.span()
-                content = content[:start] + content[end:]
+                level = m.group(1)  # 提取level字符                
+                content = m.group(2)  # 提取剩余内容            
             time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')            
             # 创建新日志
             logData = {
@@ -191,7 +188,7 @@ class _Log_:
             cls.add(logData)
             return logData
         except Exception as e:
-            print(f'发送日志到服务器失败: {e}')
+            cls.logEx_(e, '发送日志到服务器失败')
             return None
 
     @classmethod
@@ -213,21 +210,35 @@ class _Log_:
                 }
                 if CDevice.connected():
                     CDevice.emit('C2S_Log', logData)
-                cls.printLog(level, content, tag, result)
+                cls.log_(content, tag, level, result)
                 return logData
         except Exception as e:
-            print(f'发送日志到服务器失败: {e}')
+            cls.logEx_(e, '发送日志到服务器失败')
             return None
         
-    @classmethod
-    def printException(cls, e, message=None):
-        """打印异常信息"""
-        import traceback
-        print(f'{cls.COLORS["red"]}异常: {e}:{message}{cls.COLORS["reset"]}')
-        print(f'{cls.COLORS["red"]}{traceback.format_exc()}{cls.COLORS["reset"]}')
         
     @classmethod
-    def printLog(cls, level, content, tag=None,  result=None):
+    def log_(cls, content, tag=None, level=None, result=None):
+        """打印日志到终端"""
+        android = _G._G_.Tools().android
+        tag = tag if tag else ''    
+        level = level if level else 'i'
+        # print(f'### [{tag}][{level}] {result}')
+        if android:
+
+            android.log(content, tag, level, result)
+        else:
+            cls.printPCLog(content, tag, level, result)
+            
+    @classmethod
+    def logEx_(cls, e, message=None, tag=None):
+        """打印异常信息"""
+        content = cls.formatEx('异常', e, message)
+        cls.log_(content, tag, 'e')
+    
+
+    @classmethod
+    def printPCLog(cls, content, tag=None, level='i', result=None):
         """打印带颜色的日志到终端"""
         # 根据日志级别选择颜色
         color = cls.COLORS['reset']
@@ -265,7 +276,7 @@ class _Log_:
                 logData = cls._clientLog(tag, level, content, result)
             return logData
         except Exception as e:
-            print(f'记录日志失败: {e}')
+            cls.logEx_(e, '记录日志失败')
 
     @classmethod
     def d(cls, message, tag=None):
@@ -297,7 +308,11 @@ class _Log_:
     def formatEx(cls, message, e=None, tag=None):
         import traceback
         return f'{message} Exception: {e}, {traceback.format_exc()}'
-        
+
+    @classmethod
+    def printEx(cls, message, e, tag=None):
+        print(cls.formatEx(message, e, tag))
+
     @classmethod
     def ex(cls, e, message, tag=None):
         message = cls.formatEx(message, e, tag)

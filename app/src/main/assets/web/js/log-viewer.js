@@ -16,7 +16,7 @@ logContainer.addEventListener('scroll', function(e) {
 });
 
 // 添加日志的函数
-function appendLog(logText) {
+function addLog(logText) {
     // 保存到缓冲区
     logBuffer.push(logText);
     
@@ -24,7 +24,6 @@ function appendLog(logText) {
     if (logBuffer.length > 1000) {
         logBuffer.shift(); // 移除最旧的日志
     }
-    
     // 更新显示
     updateLogDisplay();
 }
@@ -66,7 +65,7 @@ function refreshLogs() {
         .then(newLogs => {
             if (newLogs.length > 0) {
                 // 添加新日志
-                newLogs.forEach(log => appendLog(log));
+                newLogs.forEach(log => addLog(log));
                 lastLogIndex += newLogs.length;
             }
         })

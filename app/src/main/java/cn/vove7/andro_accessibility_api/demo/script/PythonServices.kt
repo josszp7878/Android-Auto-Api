@@ -40,6 +40,8 @@ import android.app.usage.UsageStats
 import android.app.usage.UsageStatsManager
 import androidx.annotation.RequiresApi
 import cn.vove7.andro_accessibility_api.demo.utils.UIUtils
+import java.lang.ref.WeakReference
+import android.os.Process
 
 /**
  * Python服务接口的Kotlin实现
@@ -69,6 +71,14 @@ class PythonServices {
             "com.oneplus.launcher"           // 一加
         )
 
+        private var contextRef: WeakReference<Context>? = null
+
+        // 修改PythonServices.kt中的回调注册方法
+        private var inputCallback: PyObject? = null
+
+        // 添加一个标志，表示是否已经显示过权限提示
+        private var permissionAlertShown = false
+
         /**
          * 初始化 Context 和应用信息
          */
@@ -76,8 +86,36 @@ class PythonServices {
         fun init(context: MainActivity) {
             this.context = context
             loadInstalledApps()
+            contextRef = WeakReference(context.applicationContext)
+            Log.d(TAG, "PythonServices 初始化完成")
         }
 
+        @JvmStatic
+        fun checkPermission(permission: String): Boolean {
+            val result = when {
+                permission == "android.permission.PACKAGE_USAGE_STATS" -> {
+                    val appContext = context.applicationContext
+                    val pm = appContext.packageManager
+                    val mode = pm.checkPermission(
+                        permission,
+                        appContext.packageName
+                    )
+                    mode == PackageManager.PERMISSION_GRANTED
+                }
+                else -> ContextCompat.checkSelfPermission(context, permission) == 
+                       PackageManager.PERMISSION_GRANTED
+            }
+            
+            // 如果权限被拒绝，但还没有显示过提示，则显示一次提示
+            if (!result && !permissionAlertShown) {
+                UIUtils.runOnUiThread {
+                    Toast.makeText(context, "Permission denied: ${permission.substringAfterLast(".")}", Toast.LENGTH_SHORT).show()
+                }
+                permissionAlertShown = true // 标记已经显示过提示
+            }
+            
+            return result
+        }
         /**
          * 加载已安装应用的信息
          */
@@ -376,50 +414,7 @@ class PythonServices {
             }
         }
 
-        @JvmStatic
-        fun checkPermission(permission: String): Boolean {
-            return when {
-                permission == "android.permission.PACKAGE_USAGE_STATS" -> {
-                    val appContext = context.applicationContext
-                    val pm = appContext.packageManager
-                    val mode = pm.checkPermission(
-                        permission,
-                        appContext.packageName
-                    )
-                    mode == PackageManager.PERMISSION_GRANTED
-                }
-                else -> ContextCompat.checkSelfPermission(context, permission) == 
-                       PackageManager.PERMISSION_GRANTED
-            }
-        }
-
-        @JvmStatic
-        fun requestPermission(permission: String) {
-            val intent = when (permission) {
-                "android.permission.PACKAGE_USAGE_STATS" -> {
-                    Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
-                        putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                }
-                else -> {
-                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                        data = Uri.parse("package:${context.packageName}")
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                }
-            }
-            context.startActivity(intent)
-            showToast("请开启「${getPermissionName(permission)}」权限", TOAST_LENGTH_LONG)
-        }
-
-        private fun getPermissionName(permission: String): String {
-            return when(permission) {
-                "android.permission.PACKAGE_USAGE_STATS" -> "使用情况访问"
-                "android.permission.WRITE_EXTERNAL_STORAGE" -> "存储"
-                else -> "所需"
-            }
-        }
+        
 
         @JvmStatic
         fun getScreenText(): String {
@@ -471,7 +466,9 @@ class PythonServices {
             xOffset: Int = 0, 
             yOffset: Int = 0
         ) {
-            UIUtils.showToast(context, msg, duration, gravity, xOffset, yOffset)
+            contextRef?.get()?.let { context ->
+                Toast.makeText(context, msg, duration).show()
+            }
         }
 
         // 添加Toast常量供Python使用
@@ -530,6 +527,11 @@ class PythonServices {
         @JvmStatic
         fun getContext(): Context {
             return context
+        }
+
+        @JvmStatic
+        fun enableTouchMonitor(enable: Boolean) {
+            ToolBarService.getInstance()?.get()?.enableTouchMonitor(enable)
         }
 
         /**
@@ -672,6 +674,169 @@ class PythonServices {
             Timber.tag(TAG).i("设置点击坐标显示: $enable")
             val toolBarService = ToolBarService.getInstance()?.get()
             toolBarService?.showClicker(enable)
+        }
+
+        /**
+         * 注册输入回调
+         * 简化版本，直接接收Python函数对象
+         */
+        @JvmStatic
+        fun onInput(callback: PyObject) {
+            inputCallback = callback
+        }
+
+        /**
+         * 执行命令
+         */
+        @JvmStatic
+        fun doCommand(command: String): Any? {
+            return try {
+                if (inputCallback != null) {
+                    // 直接调用Python函数
+                    val result = inputCallback!!.call(command)
+                    result.toJava(Any::class.java)
+                } else {
+                    val errorMsg = "输入回调未注册"
+                    logE(errorMsg, TAG)
+                    null
+                }
+            } catch (e: Exception) {
+                val errorMsg = "执行命令失败: ${e.message}"
+                logE(errorMsg, TAG)
+                null
+            }
+        }
+
+        // 添加检查应用是否在前台的方法
+        @JvmStatic
+        fun isAppForeground(): Boolean {
+            try {
+                val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+                val tasks = am.getRunningTasks(1)
+                if (tasks.isNotEmpty()) {
+                    val topActivity = tasks[0].topActivity
+                    return topActivity?.packageName == context.packageName
+                }
+            } catch (e: Exception) {
+                Timber.tag(TAG).e(e, "检查应用前台状态失败")
+            }
+            return false
+        }
+
+        @JvmStatic
+        fun isOnHomeScreen(): Boolean {
+            try {
+                // 获取当前应用包名
+                val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+                val tasks = am.getRunningTasks(1)
+                if (tasks.isNotEmpty()) {
+                    val packageName = tasks[0].topActivity?.packageName ?: ""
+                    
+                    // 常见桌面应用包名列表
+                    val launcherPackages = setOf(
+                        "com.android.launcher3",         // 原生Android
+                        "com.google.android.apps.nexuslauncher",  // Pixel
+                        "com.sec.android.app.launcher",  // 三星
+                        "com.huawei.android.launcher",   // 华为
+                        "com.miui.home",                 // 小米
+                        "com.oppo.launcher",             // OPPO
+                        "com.vivo.launcher",             // vivo
+                        "com.realme.launcher",           // Realme
+                        "com.oneplus.launcher"           // 一加
+                    )
+                    
+                    // 检查是否在已知桌面包名列表中
+                    return launcherPackages.contains(packageName) ||
+                           packageName.contains("launcher", ignoreCase = true) ||
+                           packageName.contains("home", ignoreCase = true)
+                }
+            } catch (e: Exception) {
+                Timber.tag(TAG).e(e, "检查是否在桌面失败")
+            }
+            return false
+        }
+
+        /**
+         * 供脚本直接调用的日志方法
+         * @param tag 日志标签
+         * @param level 日志级别 (i, d, e, w)
+         * @param content 日志内容
+         * @param result 可选的结果信息
+         */
+        @JvmStatic
+        fun log(content: String, tag: String?, level: String?, result: String? = null) {
+            // 确保tag不为null，如果为null则使用空字符串
+            val safeTag = tag ?: ""
+            // 确保level不为null，如果为null则使用默认级别'i'
+            val safeLevel = level ?: "i"
+            
+            // 调用ToolBarService的addLog方法
+            ToolBarService.addLog(content, safeTag, safeLevel, result)
+        }
+        @JvmStatic
+        fun logE(content: String, tag: String, result: String? = null) {
+            ToolBarService.addLog(content, tag, "e", result)
+        }
+        @JvmStatic
+        fun logW(content: String, tag: String, result: String? = null) {
+            ToolBarService.addLog(content, tag, "w", result)
+        }
+        @JvmStatic
+        fun logD(content: String, tag: String, result: String? = null) {
+            ToolBarService.addLog(content, tag, "d", result)
+        }
+        @JvmStatic
+        fun logI(content: String, tag: String, result: String? = null) {
+            ToolBarService.addLog(content, tag, "i", result)
+        }
+
+        @JvmStatic
+        fun logC(content: String, tag: String, result: String? = null) {
+            ToolBarService.addLog(content, tag, "c", result)
+        }
+
+        @JvmStatic
+        fun logException(e: Exception, content: String, tag: String, result: String? = null) {
+            val msg = "${content}\n${e.message}\n${e.stackTrace.joinToString("\n")}"
+            ToolBarService.addLog(msg, tag, "e", result)
+        }
+        
+        /**
+         * 退出应用
+         */
+        @JvmStatic
+        fun exitApp() {
+            try {
+                // 使用Handler确保在主线程上执行
+                Handler(Looper.getMainLooper()).post {
+                    // 先停止ToolBarService
+                    val context = contextRef?.get() ?: return@post
+                    context.stopService(Intent(context, ToolBarService::class.java))
+                    
+                    // 等待一小段时间确保服务停止
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        // 获取MainActivity实例
+                        val activity = MainActivity.getInstance()
+                        activity?.let {
+                            // 结束活动
+                            it.finish()
+                            
+                            // 使用延迟确保活动有时间结束
+                            Handler(Looper.getMainLooper()).postDelayed({
+                                // 强制退出应用
+                                Process.killProcess(Process.myPid())
+                                System.exit(0)
+                            }, 300)
+                        } ?: run {
+                            // 如果找不到活动，直接强制退出
+                            Process.killProcess(Process.myPid())
+                            System.exit(0)
+                        }
+                    }, 200)
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "退出应用失败")
+            }
         }
     }
 } 

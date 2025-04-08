@@ -1,7 +1,6 @@
 from datetime import datetime
 import threading
 import time as time_module
-from typing import Optional
 import json
 import _G
 
@@ -595,7 +594,17 @@ class CCmds_:
             from _App import _App_
             return _App_.printTopology(appName)
         
-        
+        @regCmd(r"触摸监控-cmjk", r"(?P<enable>\S+)?")
+        def enableTouchMonitor(enable=None):
+            """
+            功能：启用触摸监控
+            指令名: enableTouchMonitor
+            中文名: 触摸监控-cmjk
+            参数: enable - 是否启用
+            示例: 触摸监控
+            """
+            g = _G._G_
+            g.CTools().android.enableTouchMonitor(g.Tools().toBool(enable, True))
 
         @regCmd('匹配-pp', r"(?P<rule>\S+)")
         def match(rule):
@@ -656,5 +665,24 @@ class CCmds_:
             else:
                 return f"e->无效检查器: {checkerName}"
 
-           
+        @regCmd(f'exit')
+        def exit():
+            """退出应用
+            指令名: exit
+            中文名: 退出应用
+            参数: 无
+            示例: exit
+            """
+            try:
+                # 获取Android对象
+                android = _G._G_.Tools().android
+                if android:
+                    # 调用退出应用的方法
+                    android.exitApp()
+                    return "应用正在退出..."
+                else:
+                    return "无法获取Android对象，退出失败"
+            except Exception as e:
+                log.ex(e, "退出应用失败")
+                return f"退出应用失败: {str(e)}"
        

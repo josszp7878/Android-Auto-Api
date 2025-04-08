@@ -22,6 +22,29 @@ if TYPE_CHECKING:
 TOP = "top"
 UNKNOWN = 'unknown'
 
+# 添加一个标志，表示是否已经显示过权限提示
+_permission_alert_shown = False
+
+def checkPermission(permission):
+    """检查权限是否已授予"""
+    global _permission_alert_shown
+    
+    try:
+        android = _G_.Tools().android
+        if android:
+            result = android.checkPermission(permission)
+            
+            # 如果权限被拒绝，但还没有显示过提示，则记录一条日志
+            if not result and not _permission_alert_shown:
+                from _Log import _Log_
+                _Log_.w(f"Permission denied: {permission.split('.')[-1]}", "Permission")
+                _permission_alert_shown = True # 标记已经显示过提示
+                
+            return result
+        return False
+    except Exception as e:
+        print(f"Check permission error: {e}")
+        return False
 
 class _G_:
     # 使用线程安全的存储

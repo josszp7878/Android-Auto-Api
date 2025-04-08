@@ -1,5 +1,6 @@
 package cn.vove7.andro_accessibility_api.demo.script;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
@@ -68,9 +69,10 @@ public class ScriptEngine {
         return INSTANCE;
     }
 
-    public void init(String deviceName, String serverName) {
+    
+    public void start(String deviceName, String serverName) {
         try {
-            uninit();
+            end();
             // 启动Python环境
             if (!Python.isStarted()) {
                 Python.start(new AndroidPlatform(applicationContext));
@@ -102,7 +104,7 @@ public class ScriptEngine {
         }
     }
 
-    public void uninit() {
+    public void end() {
         if (py != null) {
             try {
                 if (mainModule != null) {
@@ -118,36 +120,6 @@ public class ScriptEngine {
     }
 
 
-    private static void copyScriptsFromAssets(Context context, File scriptsDir) {
-        try {
-            // 列出assets/scripts目录下的所有文件
-            String[] files = context.getAssets().list(SCRIPTS_DIR);
-            if (files != null) {
-                for (String fileName : files) {
-                    // 跳过隐藏文件
-                    if (fileName.startsWith(".")) continue;
-                    
-                    String assetPath = SCRIPTS_DIR + "/" + fileName;
-                    File targetFile = new File(scriptsDir, fileName);
-                    
-                    // 从assets复制文件
-                    try (InputStream in = context.getAssets().open(assetPath);
-                         OutputStream out = new FileOutputStream(targetFile)) {
-                        
-                        byte[] buffer = new byte[1024];
-                        int read;
-                        while ((read = in.read(buffer)) != -1) {
-                            out.write(buffer, 0, read);
-                        }
-                        out.flush();
-                        // Log.i(TAG, "Copied script: " + fileName);
-                    }
-                }
-            }
-        } catch (IOException e) {
-            Log.e(TAG, "Failed to copy scripts from assets", e);
-        }
-    }
 
     public void syncFiles(String serverIP) {
         if (!checkNetwork()) {
@@ -167,7 +139,7 @@ public class ScriptEngine {
                 List<String> toUpdate = new ArrayList<>();
                 for (Map.Entry<String, Long> entry : remoteVersions.entrySet()) {
                     String filename = entry.getKey();
-                    Long localTime = localVersions.getOrDefault(filename, 0L);
+                    @SuppressLint({"NewApi", "LocalSuppress"}) Long localTime = localVersions.getOrDefault(filename, 0L);
                     if (entry.getValue() > localTime) {
                         toUpdate.add(filename);
                     }
@@ -309,4 +281,5 @@ public class ScriptEngine {
         NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
         return activeNetwork != null && activeNetwork.isConnected();
     }
+    
 } 

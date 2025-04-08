@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/transparent">
+
+    <!-- 工具栏区域 - 移动到命令输入框右上方 -->
+    <LinearLayout
+        android:id="@+id/toolbarButtons"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_above="@+id/bottomInputBar"
+        android:layout_alignParentEnd="true"
+        android:layout_marginBottom="4dp"
+        android:padding="4dp"
+        android:background="#80000000">
+
+        <Button
+            android:id="@+id/startStopButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/transparent_button_background"
+            android:foreground="@drawable/ic_play"
+            android:contentDescription="@string/start_stop_script" />
+
+        <Button
+            android:id="@+id/syncButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="4dp"
+            android:background="@drawable/transparent_button_background"
+            android:foreground="@drawable/ic_sync"
+            android:contentDescription="同步文件" />
+
+        <Button
+            android:id="@+id/settingsButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="4dp"
+            android:background="@drawable/transparent_button_background"
+            android:foreground="@drawable/ic_settings"
+            android:contentDescription="@string/settings" />
+
+        <ImageButton
+            android:id="@+id/toggleLogsButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="4dp"
+            android:src="@android:drawable/arrow_up_float"
+            android:background="@drawable/transparent_button_background"
+            android:contentDescription="展开/收起日志" />
+    </LinearLayout>
+
+    <!-- 日志区域 -->
+    <LinearLayout
+        android:id="@+id/logArea"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_above="@+id/toolbarButtons"
+        android:orientation="vertical"
+        android:padding="8dp"
+        android:background="@android:color/transparent">
+
+        <!-- 过滤栏 - 优化为紧凑的图标式设计 -->
+        <LinearLayout
+            android:id="@+id/filterBar"
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:orientation="horizontal"
+            android:layout_marginBottom="4dp"
+            android:gravity="center_vertical"
+            android:background="#80000000">
+
+            <ImageButton
+                android:id="@+id/filterButton"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginStart="4dp"
+                android:background="@drawable/circle_button_background"
+                android:contentDescription="过滤"
+                android:padding="6dp"
+                android:src="@android:drawable/ic_search_category_default" />
+
+            <EditText
+                android:id="@+id/filterInput"
+                android:layout_width="0dp"
+                android:layout_height="32dp"
+                android:layout_weight="1"
+                android:background="#40FFFFFF"
+                android:textColor="#FFFFFF"
+                android:padding="4dp"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
+                android:hint="输入过滤文本"
+                android:textSize="12sp"
+                android:singleLine="true"
+                android:imeOptions="actionDone"
+                android:textColorHint="#80FFFFFF" />
+
+            <ImageButton
+                android:id="@+id/clearFilterButton"
+                android:layout_width="32dp"
+                android:layout_height="28dp"
+                android:background="@drawable/circle_button_background"
+                android:contentDescription="清除过滤"
+                android:padding="6dp"
+                android:src="@drawable/ic_clear" />
+
+            <Spinner
+                android:id="@+id/tagFilterSpinner"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
+                android:background="#40FFFFFF"
+                android:popupBackground="#80000000" />
+        </LinearLayout>
+
+        <!-- 日志滚动视图 - 增加背景不透明度 -->
+        <ScrollView
+            android:id="@+id/logScrollView"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:background="#B0000000">
+
+            <TextView
+                android:id="@+id/logTextView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="#FFFFFF"
+                android:padding="8dp"
+                android:textSize="12sp"
+                android:fontFamily="monospace" />
+        </ScrollView>
+    </LinearLayout>
+
+    <!-- 底部输入栏 -->
+    <LinearLayout
+        android:id="@+id/bottomInputBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_alignParentBottom="true"
+        android:background="#80000000"
+        android:padding="8dp">
+
+        <EditText
+            android:id="@+id/commandInput"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="#40FFFFFF"
+            android:textColor="#FFFFFF"
+            android:padding="8dp"
+            android:hint="输入命令"
+            android:textColorHint="#80FFFFFF"
+            android:imeOptions="actionSend"
+            android:inputType="text" />
+
+        <ImageButton
+            android:id="@+id/sendButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="4dp"
+            android:src="@android:drawable/ic_menu_send"
+            android:background="@drawable/transparent_button_background"
+            android:contentDescription="发送命令" />
+
+        <ImageButton
+            android:id="@+id/historyButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="4dp"
+            android:src="@android:drawable/ic_menu_recent_history"
+            android:background="@drawable/transparent_button_background"
+            android:contentDescription="命令历史" />
+    </LinearLayout>
+</RelativeLayout> 

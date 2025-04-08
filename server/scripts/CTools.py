@@ -120,16 +120,24 @@ class CTools_(_Tools._Tools_):
         cls.screenSize = screenSize
         cls.setPosFixScope(140)
         return screenSize
+    
+    # 简化的输入处理函数
+    @classmethod
+    def onInput(cls, command):
+        result, cmd_name = _G._G_().CmdMgr().do(command)
+        return result
         
     @classmethod
     def init(cls):
         log = _G._G_.Log()
         try:
-            if cls.android is None:
-                from java import jclass
-                cls.android = jclass(
-                    "cn.vove7.andro_accessibility_api.demo.script.PythonServices")
-            log.i(f'初始化CTools模块 {cls.android}')
+            android = cls.android
+            from java import jclass
+            android = jclass(
+                "cn.vove7.andro_accessibility_api.demo.script.PythonServices")
+            android.onInput(cls.onInput)
+            cls.android = android
+            # log.i(f'初始化CTools模块2222 {cls.android}')
             cls._initScreenSize()
         except Exception as _:
             pass

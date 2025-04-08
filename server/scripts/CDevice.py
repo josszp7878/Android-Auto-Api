@@ -4,8 +4,6 @@ from datetime import datetime
 import time
 import _G
 
-
-
 class CDevice_:
     _instance = None  # 单例实例
     _server = None
@@ -329,11 +327,11 @@ class CDevice_:
         log = _G._G_.Log()
         try:
             if not cls._connected:
-                log.printLog('e', "未连接到服务器")
+                log.log_('e', "未连接到服务器")
                 return False
             
             if not cls.sio:
-                log.printLog('e', "Socket未初始化")
+                log.log_('e', "Socket未初始化")
                 return False
                 
             data['device_id'] = cls._deviceID

@@ -7,14 +7,18 @@ import _G
 
 class CFileServer_:
     
-    _server = None
+    _serverIP = None
+    @classmethod
+    def server(cls):
+        return _G._G_.Tools().getServerURL(cls._serverIP)
+    
     @classmethod
     def Clone(cls, oldCls):
-        cls._server = oldCls.serverIp
+        cls._serverIP = oldCls.serverIp
     
     @classmethod
     def init(cls, serverIp):
-        cls._server = serverIp
+        cls._serverIP = serverIp
 
 
     @classmethod
@@ -26,8 +30,6 @@ class CFileServer_:
             try:
                 curVersions = cls.currentVersions()
                 remoteVersions = cls.remoteVersions()
-                # log.d(f"当前版本: {curVersions}")
-                # log.d(f"远程版本: {remoteVersions}")
                 # 遍历远程脚本的版本信息
                 count = 0
                 downloadTasks = []
@@ -71,7 +73,7 @@ class CFileServer_:
         log = g.Log()
         ok = False
         try:
-            url = f"{g.Tools().getServerURL(cls._server)}/file/{filename}"
+            url = f"{cls.server()}/file/{filename}"
             # log.d(f"下载文件...: {url}")
             response = requests.get(url, timeout=8)
             response.raise_for_status()
@@ -116,12 +118,13 @@ class CFileServer_:
     @classmethod
     def remoteVersions(cls):
         # 测试阶段使用的方法
-        url = f"{cls._server}/timestamps"
+        url = f"{cls.server()}/timestamps"
+        # print('aaaaaaaaaaaaaaaaaaaaaaaaaa')
         try:
             response = requests.get(url, timeout=8)
             response.raise_for_status()
             remote_versions = response.json()
-            print(f'22remote_versions={remote_versions}')
+            # print(f'22remote_versions={remote_versions}')
             return remote_versions
         except requests.RequestException as e:
             print(e)
