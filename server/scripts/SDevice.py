@@ -85,6 +85,10 @@ class SDevice_:
         from app import SCREENSHOTS_DIR
         self.screenshot_dir = Path(SCREENSHOTS_DIR) / self.device_id
         self.screenshot_dir.mkdir(parents=True, exist_ok=True)
+
+    @property
+    def isConnected(self):
+        return self.status != 'offline'
     
     @property
     def status(self):
@@ -135,6 +139,7 @@ class SDevice_:
         """设备断开连接回调"""
         try:
             self.status = 'offline'
+            self.last_seen = datetime.now()  # 更新断开时间
             _Log._Log_.i(f'设备 {self.device_id} 已断开连接')
             self._commit()
             self.refresh()  # 统一刷新状态

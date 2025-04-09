@@ -39,7 +39,8 @@
         android:usesCleartextTraffic="true"
         android:largeHeap="true"
         android:persistent="true"
-        android:requestLegacyExternalStorage="true">
+        android:requestLegacyExternalStorage="true"
+        android:debuggable="false">
         <uses-library android:name="android.test.runner" />
         <activity
             android:name=".MainActivity"

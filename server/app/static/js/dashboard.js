@@ -626,9 +626,16 @@ class Dashboard {
                 },
                 sortedDevices() {
                     return Object.entries(this.devices).sort((a, b) => {
-                        const aStatus = a[1].status === 'online' ? 0 : 1;
-                        const bStatus = b[1].status === 'online' ? 0 : 1;
-                        return aStatus - bStatus;
+                        // 在线状态优先排序
+                        const aOnline = a[1].status === 'online' ? 1 : 0;
+                        const bOnline = b[1].status === 'online' ? 1 : 0;
+                        
+                        // 修正排序逻辑：在线设备在前，按最后活跃时间倒序
+                        if (aOnline !== bOnline) {
+                            return bOnline - aOnline; // 在线状态差异时，在线优先
+                        }
+                        // 状态相同时，按最后活跃时间倒序
+                        return (b[1].last_seen || 0) - (a[1].last_seen || 0);
                     });
                 }
             },
@@ -683,26 +690,24 @@ class Dashboard {
                 this.socket.on('S2B_DeviceUpdate', (data) => {
                     console.log('设备状态更新:', data);
                     
-                    // 更新 Vue 数据
-                    if (this.devices[data.deviceId]) {
-                        // 更新设备状态
-                        this.$set(this.devices[data.deviceId], 'status', data.status);
-                        
-                        // 如果有截图数据,更新截图
-                        if (data.screenshot) {
-                            this.$set(this.devices[data.deviceId], 'screenshot', data.screenshot);
-                        }
+                    // 使用深拷贝强制触发响应式更新
+                    const newDevices = JSON.parse(JSON.stringify(this.devices));
+                    if (newDevices[data.deviceId]) {
+                        newDevices[data.deviceId].status = data.status;
+                        newDevices[data.deviceId].last_seen = Date.now();
                     }
-                    
+                    this.devices = newDevices;
+
                     // 更新设备卡片的离线状态
                     const deviceCard = document.querySelector(`[data-device-id="${data.deviceId}"]`);
                     if (deviceCard) {
-                        if (data.status === 'offline') {
-                            deviceCard.classList.add('offline');
-                        } else {
-                            deviceCard.classList.remove('offline');
-                        }
+                        deviceCard.classList.toggle('offline', data.status === 'offline');
                     }
+                    
+                    // 强制重新计算排序
+                    this.$nextTick(() => {
+                        this.sortedDevices = [...this.sortedDevices];
+                    });
                 });
 
                 // 任务更新

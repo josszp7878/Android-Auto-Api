@@ -251,7 +251,8 @@ def handle_2S_Cmd(data):
             targets = [_Log.TAG.Server.value]        
         params = data.get('params', {})        
         result = deviceMgr.sendCmd(targets, command, params)
-        Log.log(strCommand, None, 'c', result)       
+        if result:
+            Log.log(strCommand, None, 'c', result)       
     except Exception as e:
         Log.ex(e, '执行命令失败')
 

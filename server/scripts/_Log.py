@@ -169,11 +169,11 @@ class _Log_:
     @classmethod
     def _serverLog(cls, tag, level, content, result=None)->dict:
         try:
-            # 提取level
-            m = re.search(r'([diwec])[\#\-]', content)
+            # 提取level标记（如"-d#", "e-", "#w"等格式）
+            m = re.search(r'.*?([dDiIwEcC])[#-](.*)', content)
             if m:
-                level = m.group(1)  # 提取level字符                
-                content = m.group(2)  # 提取剩余内容            
+                level = m.group(1).lower()  # 提取level字符
+                content = m.group(2).strip()  # 提取剩余内容
             time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')            
             # 创建新日志
             logData = {

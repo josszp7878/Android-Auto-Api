@@ -9,7 +9,7 @@ import threading
 import hashlib
 import time
 import _G
-
+from typing import cast
 
 class SDeviceMgr_:
     """设备管理器：管理所有设备"""
@@ -212,7 +212,6 @@ class SDeviceMgr_:
     def handleCmdResult(self, data):
         """处理命令响应"""
         try:
-            log = _G._G_.Log()
             result = str(data.get('result', ''))
             device_id = data.get('device_id')
             cmdName = data.get('cmdName')
@@ -237,9 +236,6 @@ class SDeviceMgr_:
                 self.cmdResults[cmd_id] = result
                 if cmd_id in self.cmdEvents:
                     self.cmdEvents[cmd_id].set()
-
-            log.log(result, device_id)
-
         except Exception as e:
             _Log._Log_.ex(e, '处理命令响应出错')
 
@@ -284,9 +280,10 @@ class SDeviceMgr_:
         """
         log = _G._G_.Log()
         try:
+            device = cast(SDevice_, device)
             with current_app.app_context():
-                if device.status != 'login':
-                    return 'w->设备未登录'
+                if not device.isConnected:
+                    return 'w->设备未连接'
                 sid = device.info.get('sid')
                 if not sid:
                     return 'w->设备会话无效'
@@ -383,8 +380,9 @@ class SDeviceMgr_:
             _Log._Log_.ex(e, f"设置设备 {device_id} 分组失败")
             return False
 
-    def sendCmd(self, targets, command, data=None):
+    def sendCmd(self, targets, command, data=None)->str:
         """发送命令"""
+        result = ''            
         try:
             g = _G._G_
             log = g.Log()
@@ -392,7 +390,6 @@ class SDeviceMgr_:
             for target in targets:
                 if target == _Log.TAG.Server.value:
                     result, _ = cmdMgr.do(command, None, data)
-                    log.log(f'=> {result}')
                     g.SCommandHistory().add(command, target, result)
                 else:
                     devices = self.gets(target) 
@@ -401,10 +398,19 @@ class SDeviceMgr_:
                         continue
                     for device in devices:
                         result = self._sendClientCmd(device, command, data)
-                        log.log(f'=> {result}')
                         g.SCommandHistory().add(command, target, result)
+            return result
         except Exception as e:
             log.ex(e, '发送命令失败')
+            return None
+
+    def addDevice(self, device):
+        """添加新设备"""
+        self.devices[device.device_id] = device
+        device.last_seen = datetime.now()  # 更新连接时间
+        self._save(device)
+        _Log._Log_.i(f'新设备连接: {device.device_id}')
+        return True
 
 
 deviceMgr = SDeviceMgr_()
