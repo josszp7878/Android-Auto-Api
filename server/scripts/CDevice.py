@@ -13,11 +13,17 @@ class CDevice_:
     @classmethod
     def connected(cls):
         return cls._connected
-    
+
+    @classmethod
+    def onUnload(cls):
+        cls.uninit()
+        
     @classmethod
     def Clone(cls, oldCls):
         cls._server = oldCls._server
         cls._deviceID = oldCls._deviceID
+        cls.init()
+        cls.connect()
         
     @classmethod
     def deviceID(cls):
@@ -184,8 +190,8 @@ class CDevice_:
         retry_count = 3
         while retry_count > 0:
             try:
-                log.i(f"尝试登录设备 {cls._deviceID}，剩余尝试次数: {retry_count}")
-                cls.sio.emit('C2S_Login', {
+                # log.i(f"尝试登录设备 {cls._deviceID}，剩余尝试次数: {retry_count}")
+                cls.emit('C2S_Login', {
                     'device_id': cls._deviceID,
                     'timestamp': str(datetime.now()),
                     'status': 'login'
@@ -204,16 +210,10 @@ class CDevice_:
         """注销设备"""
         g = _G._G_
         log = g.Log()
-        try:
-            if cls.sio and hasattr(cls.sio, 'connected') and cls.sio.connected:
-                cls.sio.emit('C2S_Logout', {
-                    'device_id': cls._deviceID
-                })
-                log.i("设备已注销")
-            else:
-                log.w("设备未连接，无法注销")
-        except Exception as e:
-            log.ex(e, "注销设备失败")
+        cls.emit('C2S_Logout', {
+            'device_id': cls._deviceID
+        })
+        log.i("设备已注销")
     
 
     @classmethod
@@ -236,28 +236,16 @@ class CDevice_:
                 log.i(f'收到重置命令: {command}，不发送结果')
                 # 不发送结果，但也不抛出异常
                 return
-            
-            # 发送命令执行结果
-            cls.sio.emit('C2S_CmdResult', {
+            cls.emit('C2S_CmdResult', {
                 'result': result,
                 'device_id': cls._deviceID,
                 'command': command,
                 'cmdName': cmdName,
                 'cmd_id': cmd_id  # 返回命令ID
-            })
+            })  
+            
         except Exception as e:
             log.ex(e, f'执行命令出错: {command}')
-            # 发送错误结果
-            try:
-                cls.sio.emit('C2S_CmdResult', {
-                    'result': f'e->{str(e)}',
-                    'device_id': cls._deviceID,
-                    'command': command,
-                    'cmdName': 'error',
-                    'cmd_id': data.get('cmd_id')  # 返回命令ID
-                })
-            except Exception as ex:
-                log.ex(ex, f'发送错误结果失败: {command}')
 
     @classmethod
     def on_connect(cls):
@@ -326,14 +314,12 @@ class CDevice_:
         """
         log = _G._G_.Log()
         try:
-            if not cls._connected:
-                log.log_('e', "未连接到服务器")
-                return False
-            
             if not cls.sio:
                 log.log_('e', "Socket未初始化")
                 return False
-                
+            if not cls.sio.connected:
+                log.log_('e', "未连接到服务器")
+                return False                
             data['device_id'] = cls._deviceID
             cls.sio.emit(event, data)
             return True
@@ -346,11 +332,14 @@ class CDevice_:
         """截取当前屏幕并发送到服务器"""
         g = _G._G_
         log = g.Log()
-        android = g.Tools().android   
-        if not android:
-            log.e("Android环境未初始化")
-            return False
-        image = android.takeScreenshot()
-        if image:
-            cls.emit("C2S_Screenshot", {"device_id": cls._deviceID, "image": image})
-        return True
+        try:
+            android = g.Tools().android   
+            if not android:
+                log.e("Android环境未初始化")
+                return False
+            image = android.takeScreenshot()
+            log.i(f'截图成功: {image}')
+            if image:
+                cls.emit("C2S_Screenshot", {"device_id": cls._deviceID, "image": image})
+        except Exception as e:
+            log.ex(e, "截图失败")

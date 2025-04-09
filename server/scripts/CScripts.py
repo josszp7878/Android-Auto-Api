@@ -7,7 +7,7 @@ from CCmds import CCmds_
 class CScripts_:
 
     @classmethod
-    def OnPreload(cls):
+    def onUnload(cls):
         log = _G._G_.Log()
         log.i("CScripts_模块预加载")
         cls.registerCommands()

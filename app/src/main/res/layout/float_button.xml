@@ -1,15 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:background="@android:color/transparent">
-
-    <ImageButton
-        android:id="@+id/floatToggleButton"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:background="@drawable/circle_button_background"
-        android:contentDescription="展开/收起工具栏"
-        android:padding="8dp"
-        android:src="@drawable/googleg_standard_color_18" />
-</FrameLayout> 
+<ImageButton xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/floatToggleButton"
+    android:layout_width="64dp"
+    android:layout_height="64dp"
+    android:background="@android:color/transparent"
+    android:contentDescription="展开/收起工具栏"
+    android:scaleType="centerInside"
+    android:src="@drawable/zhangyu" />

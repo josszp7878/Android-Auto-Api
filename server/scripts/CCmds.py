@@ -282,61 +282,6 @@ class CCmds_:
                 log.ex(e, "获取屏幕信息失败")
                 return '[]'
         
-        @regCmd(r"监控-jk", r"(?P<interval>\d+)?")
-        def startScreenMonitor(interval=None):
-            """
-            功能：开始屏幕监控
-            指令名: startScreenMonitor-s
-            中文名: 监控-jk
-            参数: interval - 监控间隔秒数(可选)
-            示例: 监控 [5]
-            """
-            global _screenMonitorTask
-            g = _G._G_
-            log = g.Log()
-            log.i(f"开始监控@: {interval}")
-            if _screenMonitorTask and _screenMonitorTask.is_alive():
-                return "e->监控已在运行中"
-            try:
-                interval = int(interval) if interval else 5
-                if interval < 1:
-                    return "e->间隔时间不能小于1秒"
-                def monitor_task():
-                    while _screenMonitorTask:
-                        try:
-                            g.CClient().TakeScreenshot()
-                            time_module.sleep(interval)
-                        except Exception as e:
-                            log.ex(e, "监控任务异常")
-                            break
-                _screenMonitorTask = threading.Thread(target=monitor_task, daemon=True)
-                _screenMonitorTask.start()
-                return f"开始屏幕监控(间隔{interval}秒)"
-            except Exception as e:
-                log.ex(e, "启动监控失败")
-                return f"e->启动监控失败: {str(e)}"
-
-        @regCmd(r"停止监控-tzjk")
-        def stopScreenMonitor():
-            """
-            功能：停止屏幕监控
-            指令名: stopScreenMonitor-s
-            中文名: 停止监控-tzjk
-            参数: 无
-            示例: 停止监控
-            """
-            global _screenMonitorTask
-            g = _G._G_
-            log = g.Log()
-            log.i(f"停止监控: {_screenMonitorTask}")
-            if not _screenMonitorTask or not _screenMonitorTask.is_alive():
-                return "监控未运行"
-            try:
-                _screenMonitorTask = None
-                return "已停止屏幕监控"
-            except Exception as e:
-                log.ex(e, "停止监控失败")
-                return f"e->停止监控失败: {str(e)}"
 
         @regCmd(r"滑动-hd", r"(?P<param>.+)")
         def swipe(param):
@@ -358,14 +303,7 @@ class CCmds_:
             参数: 无
             示例: 快照
             """
-            g = _G._G_
-            log = g.Log()
-            try:
-                device = g.getClass('CDevice').instance()
-                device.TakeScreenshot()
-            except Exception as e:
-                log.ex(e, '截图失败')
-                return f'e->截图异常: {str(e)}'
+            _G._G_.CDevice().TakeScreenshot()
 
         @regCmd(r"当前页面-dqym", r"(?P<appName>\S+)?")
         def curPage(appName=None):

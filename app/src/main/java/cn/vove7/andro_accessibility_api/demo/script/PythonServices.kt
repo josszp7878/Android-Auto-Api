@@ -334,24 +334,6 @@ class PythonServices {
             }
         }
 
-        /**
-         * 截屏
-         */
-        @JvmStatic
-        fun takeScreenshot(): String {
-            Timber.tag(TAG).i("Taking screenshot using ScreenCapture service")
-            return try {
-                // 调用新的全屏截图方法
-                return ScreenCapture.getInstance().captureScreen()
-            } catch (e: SecurityException) {
-                Timber.tag(TAG).e(e, "权限不足，无法截屏")
-                "截屏失败: 权限不足"
-            } catch (e: Exception) {
-                Timber.tag(TAG).e(e, "Take screenshot failed")
-                "截屏失败: ${e.message}"
-            }
-        }
-
         @JvmStatic
         fun findTextNodes(): Array<ViewNode> {
             return try {
@@ -414,44 +396,129 @@ class PythonServices {
             }
         }
 
-        
-
+        /**
+         * 控制应用界面的显示和隐藏
+         * 
+         * @param visible true表示显示界面，false表示隐藏界面
+         * @return 操作是否成功
+         */
         @JvmStatic
-        fun getScreenText(): String {
-            val screenCapture = ScreenCapture.getInstance()
-            var result = ""
-            val latch = CountDownLatch(1)
-            
-            screenCapture?.recognizeText({ text ->
-                result = text as String
-                latch.countDown()
-            }, false)
-            
-            // 等待结果，最多等待10秒
-            latch.await(10, TimeUnit.SECONDS)
-            return result
+        fun showUI(visible: Boolean): Boolean {
+            try {
+                val service = ToolBarService.getInstance()?.get()
+                if (service != null) {
+                    Handler(Looper.getMainLooper()).post {
+                        service.setUIVisibility(visible)
+                    }
+                    return true
+                }
+                return false
+            } catch (e: Exception) {
+                Timber.tag(TAG).e(e, "控制界面显示失败")
+                return false
+            }
         }
 
+        /**
+         * 截屏
+         */
+        @JvmStatic
+        fun takeScreenshot(): String {
+            Timber.tag(TAG).i("Taking screenshot using ScreenCapture service")
+            return try {
+                // 隐藏界面，避免影响截图
+                showUI(false)
+                
+                // 延迟一小段时间，确保界面完全隐藏
+                Thread.sleep(100)
+                
+                // 调用原有的截图方法
+                val result = ScreenCapture.getInstance().captureScreen()
+                
+                // 恢复界面显示
+                showUI(true)
+                
+                return result
+            } catch (e: SecurityException) {
+                // 确保界面恢复显示
+                showUI(true)
+                
+                Timber.tag(TAG).e(e, "权限不足，无法截屏")
+                "截屏失败: 权限不足"
+            } catch (e: Exception) {
+                // 确保界面恢复显示
+                showUI(true)
+                
+                Timber.tag(TAG).e(e, "Take screenshot failed")
+                "截屏失败: ${e.message}"
+            }
+        }
+
+        /**
+         * 获取屏幕信息
+         * @param withPos 是否返回文本位置
+         * @return 屏幕信息
+         */
+        @JvmStatic
+        fun _getScreenInfo(withPos: Boolean = false): Any? {
+            try {
+                // 隐藏界面，避免影响屏幕内容识别
+                showUI(false)
+                
+                // 延迟一小段时间，确保界面完全隐藏
+                Thread.sleep(100)
+                
+                val screenCapture = ScreenCapture.getInstance()
+                var result: Any? = null
+                val latch = CountDownLatch(1)
+                
+                screenCapture?.recognizeText({ text ->
+                    result = text
+                    latch.countDown()
+                }, withPos)
+                
+                // 等待结果，最多等待10秒
+                latch.await(10, TimeUnit.SECONDS)
+                
+                // 恢复界面显示
+                showUI(true)
+                
+                return result
+            } catch (e: Exception) {
+                // 确保界面恢复显示
+                showUI(true)
+                
+                Timber.tag(TAG).e(e, "获取屏幕信息失败: ${e.message}")
+                throw e
+            }
+        }
+
+        /**
+         * 获取屏幕文本
+         * @return 屏幕文本
+         */
+        @JvmStatic
+        fun getScreenText(): String {
+            return _getScreenInfo(false) as String
+        }
+
+        /**
+         * 获取屏幕文本和位置
+         * @param withPos 是否返回文本位置
+         * @return 屏幕信息
+         */
         @JvmStatic
         fun getScreenInfo(): List<Map<String, String>> {
-            val screenCapture = ScreenCapture.getInstance()
             val result = mutableListOf<Map<String, String>>()
-            val latch = CountDownLatch(1)
-            
-            screenCapture?.recognizeText({ textBlockInfos ->
-                @Suppress("UNCHECKED_CAST")
-                val infos = textBlockInfos as List<ScreenCapture.TextBlockInfo>
-                result.addAll(infos.map { textBlockInfo ->
+            val textBlockInfos = _getScreenInfo(true) as List<ScreenCapture.TextBlockInfo>
+            if (textBlockInfos != null) {
+                result.addAll(textBlockInfos.map { textBlockInfo ->
                     mapOf(
                         "t" to textBlockInfo.text,
                         "b" to "${textBlockInfo.bounds.left},${textBlockInfo.bounds.top},${textBlockInfo.bounds.right},${textBlockInfo.bounds.bottom}"
                     )
                 })
-                latch.countDown()
-            }, true)
-            
-            // 等待结果，最多等待10秒
-            latch.await(10, TimeUnit.SECONDS)
+            }
             return result
         }
 

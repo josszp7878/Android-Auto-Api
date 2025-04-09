@@ -220,12 +220,14 @@ class _Log_:
     @classmethod
     def log_(cls, content, tag=None, level=None, result=None):
         """打印日志到终端"""
-        android = _G._G_.Tools().android
+        g = _G._G_
+        server = g.isServer()
+        android = None
+        if not server:
+            android = g.CTools().android
         tag = tag if tag else ''    
         level = level if level else 'i'
-        # print(f'### [{tag}][{level}] {result}')
         if android:
-
             android.log(content, tag, level, result)
         else:
             cls.printPCLog(content, tag, level, result)
@@ -316,7 +318,6 @@ class _Log_:
     @classmethod
     def ex(cls, e, message, tag=None):
         message = cls.formatEx(message, e, tag)
-        print(message)
         cls.log(message, tag, 'e')     
     
     # 定义一个常量，用于标记执行操作的日志

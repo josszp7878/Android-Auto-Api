@@ -1491,7 +1491,7 @@ class ToolBarService : LifecycleService() {
         val buttonView = layoutInflater.inflate(R.layout.float_button, null)
         
         // 获取按钮引用
-        val toggleButton = buttonView.findViewById<ImageButton>(R.id.floatToggleButton)
+        val toggleButton = buttonView // 直接使用根视图
         
         // 创建窗口参数
         val params = WindowManager.LayoutParams(
@@ -1520,7 +1520,7 @@ class ToolBarService : LifecycleService() {
         var isDragging = false
         
         // 设置触摸事件监听，确保全屏拖动功能
-        toggleButton.setOnTouchListener { _, event ->
+        toggleButton.setOnTouchListener { v, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     // 记录初始位置
@@ -1651,6 +1651,37 @@ class ToolBarService : LifecycleService() {
         if (historySet != null) {
             commandHistory.clear()
             commandHistory.addAll(historySet)
+        }
+    }
+
+    /**
+     * 设置整个UI的可见性
+     * 
+     * @param visible true表示显示UI，false表示隐藏UI
+     */
+    fun setUIVisibility(visible: Boolean) {
+        try {
+            // 隐藏/显示悬浮按钮
+            floatButtonView?.visibility = if (visible) View.VISIBLE else View.GONE
+            
+            // 隐藏/显示工具栏
+            if (!visible) {
+                // 如果需要隐藏，直接隐藏工具栏
+                floatRootView?.visibility = View.GONE
+            } else if (toolbarExpanded) {
+                // 如果需要显示，且工具栏处于展开状态，则显示工具栏
+                floatRootView?.visibility = View.VISIBLE
+                // 更新日志区域可见性
+                updateLogsVisibility()
+            }
+            
+            // 隐藏/显示触摸监控视图
+            touchView?.visibility = if (visible) View.VISIBLE else View.GONE
+            
+            // 隐藏/显示点击位置显示
+            cursorView?.visibility = if (visible) View.VISIBLE else View.GONE
+        } catch (e: Exception) {
+            Timber.e(e, "设置UI可见性失败")
         }
     }
 

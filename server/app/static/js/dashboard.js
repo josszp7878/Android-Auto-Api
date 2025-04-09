@@ -64,6 +64,7 @@ class Dashboard {
                 showBatchActions: false,
                 selectedCount: 0,
                 lastSelectedIndex: -1,
+                sortOnlineFirst: true, // 新增在线优先排序标志
             },
             methods: {
                 formatTime(time) {
@@ -622,6 +623,13 @@ class Dashboard {
                         case '*': return 'filter-regex';
                         default: return 'filter-text';
                     }
+                },
+                sortedDevices() {
+                    return Object.entries(this.devices).sort((a, b) => {
+                        const aStatus = a[1].status === 'online' ? 0 : 1;
+                        const bStatus = b[1].status === 'online' ? 0 : 1;
+                        return aStatus - bStatus;
+                    });
                 }
             },
             mounted() {
