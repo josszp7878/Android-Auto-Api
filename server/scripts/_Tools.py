@@ -195,7 +195,7 @@ class _Tools_:
         """将字符串转换为布尔值"""
         if value is None:
             return default
-        return value.lower() in ['true', '1', 'yes', 'y', 'on']
+        return value.lower() in ['true', '1', 'yes', 'y', 'on','开']
 
     @classmethod
     def toAppPageName(cls, name: str) -> Tuple[str, str]:

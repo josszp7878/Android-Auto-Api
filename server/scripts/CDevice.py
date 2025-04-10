@@ -223,13 +223,12 @@ class CDevice_:
         log = g.Log()
         try:
             command = data.get('command')
-            sender = data.get('sender')
             cmdData = data.get('data', {})
             cmd_id = data.get('cmd_id')  # 获取命令ID
             
             # log.d(f'收到命令: {command} from {sender} data: {cmdData}')
             # 使用 CmdMgr 执行命令
-            result, cmdName = g.CmdMgr().do(command, sender, cmdData)
+            result, cmdName = g.CmdMgr().do(command, cmdData)
             
             # 特殊处理reset命令
             if cmdName and cmdName.lower() == 'reset':

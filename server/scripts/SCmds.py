@@ -27,7 +27,7 @@ class SCmds_:
         log = _G._G_.Log()
         log.i("注册SCmds模块命令...")
         
-        @regCmd(r"服务器信息-fwqxx")
+        @regCmd(r"服务器信息", sAlias="fwqxx")
         def info():
             """功能：获取服务器基本信息
             指令名：info
@@ -59,7 +59,7 @@ class SCmds_:
                 return f"e-获取日期时间失败: {str(e)}"
 
 
-        @regCmd('状态-zt')
+        @regCmd('状态', sAlias="zt")
         def status():
             """功能：显示服务器运行状态
             指令名：status
@@ -69,7 +69,7 @@ class SCmds_:
             """
             return '服务器运行正常aa'
 
-        @regCmd('清除-qc')
+        @regCmd('清除', sAlias="qc")
         def clearLog():
             """功能：清除控制台日志缓存
             指令名：clearLog
@@ -89,7 +89,7 @@ class SCmds_:
                 _Log._Log_.ex(e, '清除日志缓存出错')
                 return '清除日志缓存失败'
 
-        @regCmd('设备列表-sblb')
+        @regCmd('设备列表', sAlias="sblb")
         def list_devices():
             """功能：列出所有连接的设备及其状态
             指令名：list_devices
@@ -104,7 +104,7 @@ class SCmds_:
                 for id, dev in devices.items()
             ])
 
-        @regCmd('进度-jd', r"(?P<deviceId>[^ ]+)?(?P<appName>[^ ]+)?(?P<taskName>[^ ]+)?")
+        @regCmd('进度', r"(?P<deviceId>[^ ]+)?(?P<appName>[^ ]+)?(?P<taskName>[^ ]+)?")
         def progress(deviceId, appName, taskName):
             """功能：查询任务执行进度
             指令名：progress
@@ -156,7 +156,7 @@ class SCmds_:
                 return f"e->查询任务进度失败: {str(e)}"
 
 
-        @regCmd('调试-ts')
+        @regCmd('调试', sAlias="ts")
         def debug():
             """功能：显示当前设备的详细调试信息
             指令名：debug
@@ -205,7 +205,7 @@ class SCmds_:
                 _Log._Log_.ex(e, "获取调试信息失败")
                 return f"e->获取调试信息失败: {str(e)}"
 
-        @regCmd('任务列表-rwlb', r"(?P<deviceId>[^ ]+)?(?P<state>[^ ]+)?")
+        @regCmd('任务列表', r"(?P<deviceId>[^ ]+)?(?P<state>[^ ]+)?")
         def show_tasks(deviceId, state):
             """功能：显示设备的任务列表
             指令名：show_tasks
@@ -248,7 +248,7 @@ class SCmds_:
                 _Log._Log_.ex(e, "获取任务列表失败")
                 return f"e->获取任务列表失败: {str(e)}"
 
-        @regCmd('设置日期-szrq', r"(?P<date>[^ ]+)")
+        @regCmd('设置日期', r"(?P<date>[^ ]+)", sAlias="szrq")
         def set_date(date):
             """功能：设置任务管理器的执行日期
             指令名：set_date
@@ -288,7 +288,7 @@ class SCmds_:
                 _Log._Log_.ex(e, "设置日期失败")
                 return f"e->设置日期失败: {str(e)}"
 
-        @regCmd('停止-tz')
+        @regCmd('停止', sAlias="tz")
         def stop():
             """功能：停止当前设备正在运行的任务
             指令名：stop
@@ -320,7 +320,7 @@ class SCmds_:
             
             return f"i->已发送停止命令: {task.appName} {task.taskName}"
 
-        @regCmd('保存结果-bcjg')
+        @regCmd('保存结果', sAlias="bcjg")
         def saveResult():
             """功能：保存最近一次命令执行结果到JSON文件
             指令名：saveResult
@@ -364,7 +364,7 @@ class SCmds_:
                 return f"e->保存结果失败: {str(e)}"
 
        
-        @regCmd('快照-kz')
+        @regCmd('快照', sAlias="kz")
         def takeScreenshot():
             """功能：对当前设备进行屏幕截图
             指令名：takeScreenshot
@@ -382,7 +382,7 @@ class SCmds_:
                 _Log._Log_.ex(e, '执行快照命令失败')
 
 
-        @regCmd('扫描应用-smyy')
+        @regCmd('扫描应用', sAlias="smyy")
         def scanApp():
             """功能：分析当前设备屏幕上的应用信息
             指令名：scanApp
@@ -401,7 +401,7 @@ class SCmds_:
                 _Log._Log_.ex(e, "执行屏幕分析失败")
                 return f"e->{str(e)}"
 
-        @regCmd('截屏-jp', r"(?P<pageName>[^ ]+)?")
+        @regCmd('截屏', r"(?P<pageName>[^ ]+)?", sAlias="jp")
         def getScreenInfo(pageName=None):
             """功能：获取当前设备的屏幕信息并缓存
             指令名：getScreenInfo
@@ -443,7 +443,7 @@ class SCmds_:
                 log.ex(e, "获取屏幕信息失败")
                 return f"e->获取屏幕信息失败: {str(e)}"
 
-        @regCmd('设置屏幕-szpm', r"(?P<pageName>[^ ]+)?")
+        @regCmd('设置屏幕', r"(?P<pageName>[^ ]+)?", sAlias="szpm")
         def setScreenInfo(pageName=None):
             """功能：将服务端缓存的屏幕信息发送到客户端
             指令名：setScreenInfo
@@ -471,7 +471,7 @@ class SCmds_:
                 log.ex(e, "设置屏幕信息失败")
                 return f"e-设置屏幕信息失败: {str(e)}"
 
-        @regCmd('格式化JSON-gsh', r"(?P<fileName>[^ ]+)")
+        @regCmd('格式化JSON', r"(?P<fileName>[^ ]+)", sAlias="gsh")
         def formatJsonFile(fileName):
             """功能：格式化指定的JSON文件使其更易读
             指令名：formatJsonFile
@@ -514,7 +514,7 @@ class SCmds_:
                 log.ex(e, f"格式化JSON文件失败: {fileName}")
                 return f"e->格式化失败: {str(e)}"
 
-        @regCmd('打印拓扑-pt')
+        @regCmd('打印拓扑', sAlias="pt")
         def printTopology():
             """功能：打印系统拓扑结构
             指令名：printTopology
@@ -529,7 +529,7 @@ class SCmds_:
                 _Log._Log_.ex(e, "打印拓扑结构失败")
                 return f"e->打印拓扑结构失败: {str(e)}"
 
-        @regCmd()
+        @regCmd('加载', sAlias="jl")
         def load():
             """功能：加载环境配置
             指令名：load
@@ -539,7 +539,7 @@ class SCmds_:
             """
             _G._G_.load()
 
-        @regCmd('选择-xz', r"(?P<target>.*)?")
+        @regCmd('选择', r"(?P<target>.*)?", sAlias="xz")
         def select(target=None):
             """功能：根据目标描述选择设备
             指令名：select

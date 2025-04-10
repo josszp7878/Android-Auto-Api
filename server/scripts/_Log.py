@@ -167,25 +167,57 @@ class _Log_:
 
 
     @classmethod
+    def _parseLevel(cls, content, level):
+        """从字符串中提取级别信息
+        
+        Args:
+            content: 可能包含级别前缀的字符串
+            level: 默认级别
+            
+        Returns:
+            tuple: (level, content) 级别和处理后的内容
+        """
+        if not content:
+            return (level, None)
+        
+        # 如果已经是字典格式，直接返回
+        if isinstance(content, dict):
+            return content
+        
+        # 提取level标记（如"-d#", "e-", "#w"等格式）
+        m = re.search(r'.*?([dDiIwWEecC])[#->]+(.*)', content)
+        if m:
+            level = m.group(1).lower()  # 提取level字符
+            content = m.group(2).strip()  # 提取剩余内容
+            return (level, content)
+        
+        # 默认使用传入的级别
+        return (level, content)
+    
+    @classmethod
+    def createLogData(cls, tag, content, level='i', result=None)->dict:
+        """创建日志数据"""
+        time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        level, content = cls._parseLevel(content, level)
+        if content is None:
+            return None
+        res = cls._parseLevel(result,level)
+        # print(f'res@@@@: {res}')
+        return {
+            'time': time,
+            'tag': tag,
+            'level': level,
+            'message': content,
+            'result': res,
+            'count': 1
+        }   
+    
+    @classmethod
     def _serverLog(cls, tag, level, content, result=None)->dict:
         try:
-            # 提取level标记（如"-d#", "e-", "#w"等格式）
-            m = re.search(r'.*?([dDiIwEcC])[#-](.*)', content)
-            if m:
-                level = m.group(1).lower()  # 提取level字符
-                content = m.group(2).strip()  # 提取剩余内容
-            time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')            
-            # 创建新日志
-            logData = {
-                'time': time,
-                'tag': tag,
-                'level': level,
-                'message': content,
-                'result': result,  # 确保result字段被包含
-                'count': 1
-            }
-            
-            cls.add(logData)
+            logData = cls.createLogData(tag, content, level, result)
+            if logData:
+                cls.add(logData)
             return logData
         except Exception as e:
             cls.logEx_(e, '发送日志到服务器失败')
@@ -199,18 +231,11 @@ class _Log_:
             if CDevice:
                 devID = CDevice.deviceID()
                 tag = f'{devID}{tag}' if tag else devID
-                time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                logData = {
-                    'time': time,
-                    'tag': tag,
-                    'level': level,
-                    'message': content,
-                    'result': result,  # 确保result字段被包含
-                    'count': 1  # 添加count字段，与服务端日志保持一致
-                }
+                logData = cls.createLogData(tag, content, level, result)
                 if CDevice.connected():
                     CDevice.emit('C2S_Log', logData)
-                cls.log_(content, tag, level, result)
+                cls.log_(logData.get('message'), logData.get('tag'),
+                         logData.get('level'), logData.get('result'))
                 return logData
         except Exception as e:
             cls.logEx_(e, '发送日志到服务器失败')
@@ -227,21 +252,48 @@ class _Log_:
             android = g.CTools().android
         tag = tag if tag else ''    
         level = level if level else 'i'
-        if android:
-            android.log(content, tag, level, result)
+        res = None
+        if result:
+            res = result[1]
+        if android:            
+            android.log(content, tag, level, f'{result[0]}-{res}' if res else '')
         else:
-            cls.printPCLog(content, tag, level, result)
+            cls._PCLog_(content, tag, level)
+            if res:
+                cls._PCLog_(res, '', result[0])
             
     @classmethod
     def logEx_(cls, e, message=None, tag=None):
         """打印异常信息"""
         content = cls.formatEx('异常', e, message)
         cls.log_(content, tag, 'e')
-    
 
     @classmethod
-    def printPCLog(cls, content, tag=None, level='i', result=None):
+    def logI_(cls, content, tag=None):
+        """打印日志到终端"""
+        cls.log_(content, tag, 'i', '')
+
+    @classmethod
+    def logD_(cls, content, tag=None):
+        """打印日志到终端"""
+        cls.log_(content, tag, 'd', '')
+
+    @classmethod
+    def logW_(cls, content, tag=None):
+        """打印日志到终端"""
+        cls.log_(content, tag, 'w', '')
+
+    @classmethod
+    def logE_(cls, content, tag=None):
+        """打印日志到终端"""
+        cls.log_(content, tag, 'e', '')
+
+
+    @classmethod
+    def _PCLog_(cls, content, tag=None, level='i'):
         """打印带颜色的日志到终端"""
+        if content is None:
+            return
         # 根据日志级别选择颜色
         color = cls.COLORS['reset']
         if level == 'e':
@@ -257,10 +309,6 @@ class _Log_:
             print(f"{color}{tag}: {content}{cls.COLORS['reset']}")
         else:
             print(f"{color}{content}{cls.COLORS['reset']}")
-            
-        # 如果有结果，也打印结果
-        if result:
-            print(f"{cls.COLORS['blue']}结果: {result}{cls.COLORS['reset']}")
 
             
     @classmethod

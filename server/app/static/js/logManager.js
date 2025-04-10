@@ -661,7 +661,7 @@ class LogManager {
     timeSpan.textContent = log.time;
     logElement.appendChild(timeSpan);
     
-    // 创建标签标签，不再使用方括号
+    // 创建标签标签
     const tagSpan = document.createElement('span');
     tagSpan.className = 'log-tag';
     // 如果是命令日志，使用新的格式
@@ -681,8 +681,24 @@ class LogManager {
     // 如果有结果，添加结果显示
     if (log.result) {
       const resultDiv = document.createElement('div');
-      resultDiv.className = `log-result log-${log.level}`;
-      resultDiv.textContent = log.result;
+      
+      // 检查结果是否为元组格式 [level, content]
+      if (Array.isArray(log.result) && log.result.length === 2) {
+        const [resultLevel, resultContent] = log.result;
+        resultDiv.className = `log-result log-${resultLevel}`;
+        resultDiv.textContent = resultContent || '';
+      }
+      // 检查结果是否为对象格式 {level, content}
+      else if (typeof log.result === 'object' && log.result.level && 'content' in log.result) {
+        resultDiv.className = `log-result log-${log.result.level}`;
+        resultDiv.textContent = log.result.content || '';
+      }
+      // 旧格式，使用日志级别
+      else {
+        resultDiv.className = `log-result log-${log.level}`;
+        resultDiv.textContent = log.result;
+      }
+      
       logElement.appendChild(resultDiv);
     }
     

@@ -1389,16 +1389,31 @@ class ToolBarService : LifecycleService() {
         }.start()
     }
 
-    // 修改showTouchMonitorView方法，添加全屏透明背景
+    // 修改showTouchMonitorView方法
     private fun showTouchMonitorView() {
         if (touchView != null) return
+        
+        Timber.d("正在创建触摸监控视图...")
         
         val outMetrics = DisplayMetrics()
         windowManager.defaultDisplay.getMetrics(outMetrics)
         
-        touchView = View(this)
-        touchView?.setBackgroundColor(Color.TRANSPARENT)
-        
+        touchView = View(this).apply {
+            setBackgroundColor(Color.TRANSPARENT)
+            setOnTouchListener { v, event ->
+                Timber.d("收到触摸事件: ${MotionEvent.actionToString(event.action)}")
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        Timber.d("触摸坐标: (${event.rawX}, ${event.rawY})")
+                        if (clickerEnabled) {
+                            showClickPosition(event.rawX.toInt(), event.rawY.toInt())
+                        }
+                    }
+                }
+                false
+            }
+        }
+
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.MATCH_PARENT,
@@ -1408,28 +1423,30 @@ class ToolBarService : LifecycleService() {
                 WindowManager.LayoutParams.TYPE_PHONE
             },
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,  // 添加此flag
             PixelFormat.TRANSLUCENT
         )
-        
-        params.gravity = Gravity.CENTER
-        
+
         try {
             windowManager.addView(touchView, params)
-            
-            // 设置触摸事件监听
-            touchView?.setOnTouchListener { _, event ->
-                when (event.action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        if (clickerEnabled) {
-                            showClickPosition(event.rawX.toInt(), event.rawY.toInt())
-                        }
-                    }
-                }
-                false // 不消费事件，让事件继续传递
-            }
+            Timber.d("触摸监控视图已添加")
         } catch (e: Exception) {
             Timber.e(e, "添加触摸监控视图失败")
+        }
+    }
+
+    // 修改enableTouchMonitor方法
+    public fun enableTouchMonitor(enable: Boolean) {
+        Handler(Looper.getMainLooper()).post {
+            if (enable) {
+                showTouchMonitorView()
+                addLog("触摸监控已启用")
+                Timber.d("触摸监控已启用，当前视图状态: ${touchView?.visibility}")
+            } else {
+                hideTouchMonitorView()
+                addLog("触摸监控已禁用")
+            }
         }
     }
 
@@ -1449,10 +1466,10 @@ class ToolBarService : LifecycleService() {
     public fun enableTouchMonitor(enable: Boolean) {
         if (enable) {
             showTouchMonitorView()
-            addLog("触摸监控已启用", "System", "i")
+            addLog("触摸监控已启用")
         } else {
             hideTouchMonitorView()
-            addLog("触摸监控已禁用", "System", "i")
+            addLog("触摸监控已禁用")
         }
     }
 

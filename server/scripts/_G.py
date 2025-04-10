@@ -315,7 +315,8 @@ class _G_:
         for file in files:
             # 忽略大小写比较文件名
             fileLower = file.lower()
-            if fileNameLower in fileLower:
+            #if fileNameLower in fileLower:
+            if fileNameLower == fileLower:
                 return file
         return None
     

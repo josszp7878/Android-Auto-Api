@@ -125,6 +125,8 @@ class CTools_(_Tools._Tools_):
     @classmethod
     def onInput(cls, command):
         result, cmd_name = _G._G_().CmdMgr().do(command)
+        log = _G._G_.Log()
+        log.log_(f'{cmd_name} => {result}', None, 'c', result)
         return result
         
     @classmethod
@@ -152,6 +154,8 @@ class CTools_(_Tools._Tools_):
         Returns:
             list: 屏幕信息列表
         """
+        log = _G._G_.Log()
+        log.log_(f"获取屏幕信息 android={cls.android} refresh={refresh}")
         if cls.android is None:
             return cls._screenInfoCache
         if cls._screenInfoCache is None or refresh:
