@@ -864,4 +864,34 @@ class CTools_(_Tools._Tools_):
     #     log.i("获取屏幕文本失败")
     #     return None
 
+    @classmethod
+    def registerCommands(cls):
+        log = _G._G_.Log()
+        log.i("注册CTools模块命令...")
+        from _CmdMgr import regCmd
+        
+        @regCmd(r"(?:工具列表|gjlb)")
+        def toolsList():
+            """
+            功能：获取可用工具列表
+            指令名: toolsList-tL
+            中文名: 工具列表
+            参数: 无
+            示例: 工具列表
+            """
+            # 命令实现...
+        
+        @regCmd(r"(?:截图|jt)")
+        def screenshot():
+            """
+            功能：截取屏幕图像
+            指令名: screenshot-s
+            中文名: 截图
+            参数: 无
+            示例: 截图
+            """
+            # 命令实现...
+        
+        # 其他命令...
+
 CTools_.init()

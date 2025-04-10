@@ -228,20 +228,32 @@ class CTaskMgr_:
     @classmethod
     def registerCommands(cls):
         """注册任务管理相关命令"""
-        log = _G._G_.Log()  
+        log = _G._G_.Log()
         log.i("注册CTaskMgr模块命令...")
+        from _CmdMgr import regCmd
         
-        @regCmd(r"任务列表")
+        @regCmd(r"(?:任务列表|rwlb)")
         def taskList():
-            """获取任务列表"""
-            return cls.getTasks()
-        
-        @regCmd(r"取消任务", r"(?P<taskId>\w+)")
-        def cancelTask(taskId):
-            """取消指定任务
-            用法: 取消任务 <任务ID>
             """
-            return cls.cancelTask(taskId)
+            功能：获取任务列表
+            指令名: taskList-tL
+            中文名: 任务列表
+            参数: 无
+            示例: 任务列表
+            """
+            # 命令实现...
         
+        @regCmd(r"(?:启动任务|qdtw)(?P<taskName>.+)")
+        def startTask(taskName):
+            """
+            功能：启动指定任务
+            指令名: startTask-sT
+            中文名: 启动任务
+            参数: taskName - 任务名称
+            示例: 启动任务 每日签到
+            """
+            # 命令实现...
+        
+        # 其他命令...
 
 taskMgr = CTaskMgr_.getInstance()

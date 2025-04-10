@@ -6,6 +6,7 @@ from datetime import datetime
 import json
 import _Log
 from SDeviceMgr import deviceMgr
+
 class DateTimeEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, datetime):
@@ -301,5 +302,35 @@ def handle_get_available_dates():
         socketio.emit('S2B_AvailableDates', {'dates': dates})
     except Exception as e:
         _Log._Log_.ex(e, '获取可用日志日期失败')
+
+@classmethod
+def registerCommands(cls):
+    log = _G._G_.Log()
+    log.i("注册Server模块命令...")
+    from _CmdMgr import regCmd
+    
+    @regCmd(r"(?:启动服务器|qdfwq)")
+    def startServer():
+        """
+        功能：启动服务器
+        指令名: startServer-sS
+        中文名: 启动服务器
+        参数: 无
+        示例: 启动服务器
+        """
+        # 命令实现...
+    
+    @regCmd(r"(?:停止服务器|tzfwq)")
+    def stopServer():
+        """
+        功能：停止服务器
+        指令名: stopServer-sS
+        中文名: 停止服务器
+        参数: 无
+        示例: 停止服务器
+        """
+        # 命令实现...
+    
+    # 其他命令...
 
 

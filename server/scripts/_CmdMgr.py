@@ -8,35 +8,12 @@ from typing import List, Any, Tuple
 class Cmd:
     """命令类，存储命令信息"""
     
-    def __init__(self, func, alias=None, sAlias=None, param=None, doc=None, is_full_pattern=False):
+    def __init__(self, func, alias=None, doc=None):
         self.func = func      # 命令函数
-        self.param = param    # 参数匹配模式
         self.alias = alias or func.__name__  # 命令别名，默认为函数名
-        self.sAlias = sAlias  # 命令缩写别名
         self.doc = doc or func.__doc__      # 命令文档
         self.module = func.__module__       # 命令所属模块
         self.name = func.__name__           # 函数名
-        self.is_full_pattern = is_full_pattern  # 是否为完整正则模式
-        
-        # 生成函数名首字母+大写字母缩写
-        self.sName = self._getNameShortcut(self.name).lower()
-    
-    def _getNameShortcut(self, name):
-        """获取函数名首字母+大写字母缩写"""
-        if not name:
-            return ""
-        
-        try:
-            # 获取首字母
-            shortcut = name[0]
-            # 添加其他大写字母
-            for char in name[1:]:
-                if char.isupper():
-                    shortcut += char.lower()
-            return shortcut
-        except Exception as e:
-            _Log._Log_.ex(e, f"获取函数名缩写失败: {name}")
-            return ""
 
 
 class _CmdMgr_:
@@ -47,18 +24,16 @@ class _CmdMgr_:
     # 使用列表存储命令
     cmdRegistry: List[Cmd] = []
     
+    # 预编译正则表达式
+    _SPACE_PATTERN = re.compile(r'\s+')
+    _PUNCT_QUOTE_PATTERN = re.compile(r'[,，。.、?？!！;；:：]$|["""'']')
+    
     @classmethod
-    def reg(cls, alias=None, param=None, sAlias=None):
+    def reg(cls, alias=None):
         """注册命令
         
         Args:
-            alias: 命令别名或完整正则表达式
-            sAlias: 命令缩写别名
-            param: 参数匹配模式，默认为None
-        
-        支持两种模式：
-        1. 传统模式：alias为命令前缀，param为参数正则
-        2. 完整模式：当alias以"(?P<"开头时，视为完整正则表达式
+            alias: 命令正则表达式
         """
         # 如果第一个参数是函数，说明装饰器没有参数
         if callable(alias):
@@ -75,25 +50,13 @@ class _CmdMgr_:
             # 清除同名或同模块同函数名的旧命令
             cls._clearOldCommand(alias, func.__module__, func.__name__)
             
-            # 判断是否为完整正则模式
-            is_full_pattern = alias and alias.startswith("(?P<")
-            
             # 创建命令对象并添加到注册表
             cmd = Cmd(
                 func=func, 
-                alias=alias, 
-                sAlias=sAlias,
-                param=param, 
-                doc=func.__doc__, 
-                is_full_pattern=is_full_pattern
+                alias=alias,
+                doc=func.__doc__
             )
-            
-            # 完整正则模式的命令放在前面，优先匹配
-            if is_full_pattern:
-                cls.cmdRegistry.insert(0, cmd)
-            else:
-                cls.cmdRegistry.append(cmd)
-                
+            cls.cmdRegistry.append(cmd)
             return func
         return decorator
     
@@ -138,23 +101,25 @@ class _CmdMgr_:
             if cmd.alias.lower() == cmdName:
                 return cmd
         
-        # 2. 匹配缩写别名
-        for cmd in cls.cmdRegistry:
-            if cmd.sAlias and cmd.sAlias.lower() == cmdName:
-                return cmd
-        
-        # 3. 匹配函数名
+        # 2. 匹配函数名
         for cmd in cls.cmdRegistry:
             if cmd.name.lower() == cmdName:
                 return cmd
         
-        # 4. 匹配函数名缩写
-        for cmd in cls.cmdRegistry:
-            if cmd.sName.lower() == cmdName:
-                return cmd
-        
         return None
     
+    @classmethod
+    def _cleanParam(cls, value:str)->str:
+        """清理参数值，去除多余空格和标点符号"""
+        # 去除前后空格
+        value = value.strip()        
+        # 替换多余空格为单个空格
+        value = cls._SPACE_PATTERN.sub(' ', value)
+        # 去除末尾标点符号和所有引号
+        value = cls._PUNCT_QUOTE_PATTERN.sub('', value)
+        
+        return value
+
     @classmethod
     def do(cls, cmdStr, data=None)->Tuple[Any, str]:
         """执行命令
@@ -168,43 +133,26 @@ class _CmdMgr_:
         """
         g = _G._G_
         log = g.Log()
-        
+        cmdStr = cmdStr.strip()
         try:
-            # 先尝试完整正则模式匹配
+            # 尝试匹配所有命令的正则表达式
             for cmd in cls.cmdRegistry:
-                if cmd.is_full_pattern:
+                try:
                     match = re.fullmatch(cmd.alias, cmdStr)
-                    if match:
-                        # 提取命名捕获组作为参数
-                        kwargs = match.groupdict()
-                        if data:
-                            kwargs['data'] = data
-                        return cmd.func(**kwargs), cmd.name
-            
-            # 再尝试传统模式匹配
-            for cmd in cls.cmdRegistry:
-                if not cmd.is_full_pattern:
-                    # 匹配命令前缀
-                    pattern = rf"^({cmd.alias}|{cmd.sAlias})\b" if cmd.sAlias else rf"^{cmd.alias}\b"
-                    match = re.match(pattern, cmdStr)
-                    if match:
-                        # 提取参数部分
-                        paramPart = cmdStr[match.end():].strip()
-                        
-                        # 如果有参数模式，则匹配参数
-                        if cmd.param:
-                            paramMatch = re.fullmatch(cmd.param, paramPart)
-                            if not paramMatch:
-                                return f"参数格式错误，正确格式：{cmd.param}", cmd.name
-                            
-                            # 提取参数
-                            kwargs = paramMatch.groupdict()
-                            if data:
-                                kwargs['data'] = data   
-                            return cmd.func(**kwargs), cmd.name
-                        else:
-                            # 无参数
-                            return cmd.func(), cmd.name
+                except Exception as e:
+                    log.ex(e, f"命令: {cmdStr} 正则表达式错误: {cmd.alias}")
+                    continue
+                
+                if match:
+                    # 提取命名捕获组作为参数
+                    kwargs = match.groupdict()
+                    
+                    # 清理所有参数
+                    kwargs = {key: cls._cleanParam(value) for key, value in kwargs.items()}
+                    
+                    if data:
+                        kwargs['data'] = data
+                    return cmd.func(**kwargs), cmd.name
             
             return "未知命令", None
         except Exception as e:
@@ -384,7 +332,7 @@ class _CmdMgr_:
     @classmethod
     def registerCommands(cls):
         """注册命令管理器自身的命令"""
-        @cls.reg(r"重启", sAlias="cq")
+        @cls.reg(r"重启")
         def reset():
             """功能：重新加载所有脚本并重启脚本引擎
             指令名：reloadAll
@@ -394,7 +342,7 @@ class _CmdMgr_:
             """
             return cls._reset()
         
-        @cls.reg(r"加载", r"(?P<moduleName>\S+)", sAlias="jz")
+        @cls.reg(r"加载(?P<moduleName>.+)")
         def reload(moduleName):
             """功能：重新加载指定模块
             指令名：reload
@@ -425,7 +373,7 @@ class _CmdMgr_:
                 # 如果没有文件服务器，直接重载
                 cls._reloadModule(moduleName)
         
-        @cls.reg(r"命令列表", sAlias="mllb")
+        @cls.reg(r"命令列表")
         def cmdList():
             """功能：列出所有可用命令
             指令名：cmdList
@@ -435,10 +383,10 @@ class _CmdMgr_:
             """
             result = "可用命令:\n"
             for cmd in sorted(cls.cmdRegistry, key=lambda x: x.name):
-                result += f"{cmd.name}-{cmd.sName}\t\t: {cmd.alias}-{cmd.sAlias}\n"
+                result += f"{cmd.name}\t\t: {cmd.alias}\n"
             return result
         
-        @cls.reg(r"帮助", r"(?P<command>\S+)?", sAlias="bz")
+        @cls.reg(r"帮助(?P<command>\S+)?")
         def help(command=None):
             """功能：显示命令帮助信息
             指令名：help

@@ -6,6 +6,7 @@ from SDatabase import db  # 导入单例的db实例
 from _Tools import TaskState, _Tools_
 from contextlib import contextmanager
 from sqlalchemy.exc import SQLAlchemyError
+from _G import _G_
 
 class STaskMgr_:
     """设备任务管理器"""
@@ -181,7 +182,7 @@ class STaskMgr_:
                 return True
             return False
         except Exception as e:
-            _Log._Log_.ex(e, f'启动任务失败: {appName}/{taskName}')
+            _Log._Log_.ex(e, f'启动任务失败: {task.appName}/{task.taskName}')
             return False
 
     def pauseTask(self, appName: str, taskName: str) -> bool:
@@ -260,6 +261,36 @@ class STaskMgr_:
         except Exception as e:
             _Log._Log_.ex(e, f'更新任务进度失败: {appName}/{taskName}/{progress}')
             return False
+
+    @classmethod
+    def registerCommands(cls):
+        log = _G_._G_.Log()
+        log.i("注册STaskMgr模块命令...")
+        from _CmdMgr import regCmd
+        
+        @regCmd(r"(?:服务器任务列表|fwqrwlb)")
+        def serverTaskList():
+            """
+            功能：获取服务器任务列表
+            指令名: serverTaskList-sTL
+            中文名: 服务器任务列表
+            参数: 无
+            示例: 服务器任务列表
+            """
+            # 命令实现...
+        
+        @regCmd(r"(?:启动服务器任务|qdfwqrw)(?P<taskName>.+)")
+        def startServerTask(taskName):
+            """
+            功能：启动指定服务器任务
+            指令名: startServerTask-sST
+            中文名: 启动服务器任务
+            参数: taskName - 任务名称
+            示例: 启动服务器任务 数据备份
+            """
+            # 命令实现...
+        
+        # 其他命令...
 
 @contextmanager
 def session_scope():
