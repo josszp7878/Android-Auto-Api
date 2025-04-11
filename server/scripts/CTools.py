@@ -123,11 +123,8 @@ class CTools_(_Tools._Tools_):
     
     # 简化的输入处理函数
     @classmethod
-    def onInput(cls, command):
-        result, cmd_name = _G._G_().CmdMgr().do(command)
-        log = _G._G_.Log()
-        log.log_(f'{cmd_name} => {result}', None, 'c', result)
-        return result
+    def onInput(cls, inputText):
+        _G._G_().CmdMgr().do(inputText)
         
     @classmethod
     def init(cls):
@@ -526,7 +523,7 @@ class CTools_(_Tools._Tools_):
         ED - 从顶部向下滑动
         """
         log = _G._G_.Log()
-        log.i(f"<>: {param}")
+        # log.i(f"<>: {param}")
         try:
             android = cls.android
             # 默认持续时间为0.5秒

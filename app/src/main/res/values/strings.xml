@@ -1,6 +1,6 @@
 <resources>
-    <string name="app_name">Android-Accessibility-Api</string>
-    <string name="base_ser_desc">Accessibility-Api Demo desc</string>
+    <string name="app_name">点点</string>
+    <string name="base_ser_desc">点点你就知道了</string>
     <string name="fore_service">前台服务</string>
     <string name="your_channel_id">Author</string>
     <string name="start">Start</string>

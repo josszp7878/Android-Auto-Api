@@ -13,6 +13,7 @@ import android.text.Editable
 import android.text.Spannable
 import android.text.SpannableString
 import android.text.style.ForegroundColorSpan
+import android.text.method.ScrollingMovementMethod
 import android.util.DisplayMetrics
 import android.util.Log
 import android.view.GestureDetector
@@ -22,7 +23,6 @@ import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
-import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
@@ -32,7 +32,6 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageButton
-import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Spinner
@@ -45,13 +44,10 @@ import cn.vove7.andro_accessibility_api.demo.R
 import cn.vove7.andro_accessibility_api.demo.databinding.DialogDeviceInfoBinding
 import cn.vove7.andro_accessibility_api.demo.script.PythonServices
 import cn.vove7.andro_accessibility_api.demo.script.ScriptEngine
-import cn.vove7.andro_accessibility_api.demo.utils.UIUtils
-import cn.vove7.andro_accessibility_api.demo.utils.UIUtils.runOnUiThread
 import cn.vove7.andro_accessibility_api.demo.view.CursorView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.lang.ref.WeakReference
 import java.text.SimpleDateFormat
@@ -80,7 +76,11 @@ class ToolBarService : LifecycleService() {
         fun getInstance(): WeakReference<ToolBarService>? {
             return instance
         }
-
+        @JvmStatic
+        fun logEx(e: Exception, content: String = "", tag: String = "", result: String? = null) {
+            val msg = "${content}\n${e.message}\n${e.stackTrace.joinToString("\n")}"
+            log(msg, tag, "e", result)
+        }
         /**
          * 添加日志，与脚本层的_clientLog函数参数保持一致
          * 作为类方法，可以在没有实例的情况下调用
@@ -90,20 +90,19 @@ class ToolBarService : LifecycleService() {
          * @param result 可选的结果信息
          */
         @JvmStatic
-        fun addLog(content: String, tag: String = "", level: String = "i", result: String? = null) {
+        fun log(content: String, tag: String = "", level: String = "i", result: String? = null) {
             try {
                 if(content.isEmpty())
                     return
-                // 尝试从缓存获取logTextView
+                // 如果有有效的logTextView，输出到日志窗口
                 val logTextView = cachedLogTextView?.get()            
                 if (logTextView != null) {
-                    // 如果有有效的logTextView，输出到日志窗口
                     val timestamp = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
                     val logEntry = if (result != null) {
                         if (tag.isEmpty()) {
-                            "$timestamp $content\nResult: $result\n"
+                            "$timestamp $content\n => $result\n"
                         } else {
-                            "$timestamp[$tag] $content\nResult: $result\n"
+                            "$timestamp[$tag] $content\n => $result\n"
                         }
                     } else {
                         if (tag.isEmpty()) {
@@ -117,7 +116,7 @@ class ToolBarService : LifecycleService() {
                     val color = when (level.lowercase()) {
                         "e", "error" -> Color.RED
                         "w", "warn" -> Color.YELLOW
-                        "d", "debug" -> Color.GREEN
+                        "d", "debug" -> Color.GRAY
                         "result" -> Color.CYAN
                         "c" -> Color.GREEN
                         else -> Color.WHITE
@@ -146,21 +145,20 @@ class ToolBarService : LifecycleService() {
                             }
                         }
                     }
+                }
+                //打印系统日志
+                val logTag = "ToolBarService"
+                val logMessage = if (tag.isEmpty()) {
+                    "[$level] $content" + (result?.let { " Result: $it" } ?: "")
                 } else {
-                    // 如果没有有效的logTextView，使用系统日志
-                    val logTag = "ToolBarService"
-                    val logMessage = if (tag.isEmpty()) {
-                        "[$level] $content" + (result?.let { " Result: $it" } ?: "")
-                    } else {
-                        "[$tag][$level] $content" + (result?.let { " Result: $it" } ?: "")
-                    }
-                    when (level.lowercase()) {
-                        "e", "error" -> Log.e(logTag, logMessage)
-                        "w", "warn" -> Log.w(logTag, logMessage)
-                        "d", "debug" -> Log.d(logTag, logMessage)
-                        "c", "cmd" -> Log.i(logTag, logMessage)
-                        else -> Log.i(logTag, logMessage)
-                    }
+                    "[$tag][$level] $content" + (result?.let { " Result: $it" } ?: "")
+                }
+                when (level.lowercase()) {
+                    "e", "error" -> Log.e(logTag, logMessage)
+                    "w", "warn" -> Log.w(logTag, logMessage)
+                    "d", "debug" -> Log.d(logTag, logMessage)
+                    "c", "cmd" -> Log.i(logTag, logMessage)
+                    else -> Log.i(logTag, logMessage)
                 }
             } catch (e: Exception) {
                 Timber.e(e, "记录日志失败")
@@ -248,21 +246,28 @@ class ToolBarService : LifecycleService() {
     private val COMMAND_HISTORY_KEY = "command_history"
     private val MAX_HISTORY_SIZE = 100
 
+    // 添加新的成员变量
+    private var commandInputBarView: View? = null
+
+    // 添加成员变量，用于保存悬浮按钮的原始位置
+    private var originalButtonX = 100
+    private var originalButtonY = 200
+    private var buttonParams: WindowManager.LayoutParams? = null
+    private var isButtonDocked = false
+
+    // 在类的成员变量部分添加这些变量
+    private var currentInput = ""  // 保存当前输入，用于从历史返回
+
     override fun onCreate() {
         super.onCreate()
         instance = WeakReference(this)
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        
-        // 创建悬浮按钮
-        createFloatingButton()
         
         // 确保工具栏背景透明
         floatRootView?.setBackgroundColor(Color.TRANSPARENT)
         
         // 加载命令历史
         loadCommandHistory()
-        
-        // 其他初始化代码...
         
         // 初始化手势检测器
         gestureDetector = GestureDetector(this, object : SimpleOnGestureListener() {
@@ -304,8 +309,10 @@ class ToolBarService : LifecycleService() {
                 MainActivity.getInstance()?.moveTaskToBack(true)
             }, 500)
         }
+        
+        // 创建光标视图，但默认隐藏
         addCursorView()
-        enableTouchMonitor(false)
+        // 触摸监控视图将在需要时创建
     }
 
     /**
@@ -316,98 +323,10 @@ class ToolBarService : LifecycleService() {
         val outMetrics = DisplayMetrics()
         windowManager.defaultDisplay.getMetrics(outMetrics)
         
-        // 使用统一布局
-        val unifiedView = LayoutInflater.from(this).inflate(R.layout.unified_toolbar, null)
+        // 创建命令输入栏（现在包含了日志视图）
+        initializeToolbar()
         
-        // 创建布局参数
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            } else {
-                WindowManager.LayoutParams.TYPE_PHONE
-            },
-            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,  // 移除FLAG_NOT_FOCUSABLE以允许输入框获取焦点
-            PixelFormat.TRANSLUCENT
-        )
-        
-        // 设置显示位置
-        params.gravity = Gravity.CENTER
-        
-        // 保存根视图引用
-        floatRootView = unifiedView
-        
-        // 初始化控件引用
-        val logTextView = unifiedView.findViewById<TextView>(R.id.logTextView)
-        val filterInput = unifiedView.findViewById<EditText>(R.id.filterInput)
-        val toggleLogsButton = unifiedView.findViewById<ImageButton>(R.id.toggleLogsButton)
-        val commandInput = unifiedView.findViewById<EditText>(R.id.commandInput)
-        val historyButton = unifiedView.findViewById<ImageButton>(R.id.historyButton)
-        val sendButton = unifiedView.findViewById<ImageButton>(R.id.sendButton)
-        
-        // 获取工具栏按钮
-        val startStopButton = unifiedView.findViewById<Button>(R.id.startStopButton)
-        val syncButton = unifiedView.findViewById<Button>(R.id.syncButton)
-        val settingsButton = unifiedView.findViewById<Button>(R.id.settingsButton)
-        
-        // 确保工具栏按钮可见
-        val toolbarButtons = unifiedView.findViewById<LinearLayout>(R.id.toolbarButtons)
-        toolbarButtons.visibility = View.VISIBLE
-        
-        // 设置事件监听
-        toggleLogsButton.setOnClickListener { toggleLogsVisibility() }
-        
-        // 设置工具栏按钮事件
-        startStopButton.setOnClickListener { onStartStopButtonClick() }
-        syncButton.setOnClickListener { onSyncButtonClick() }
-        settingsButton.setOnClickListener { showSetting() }
-        
-        // 设置发送按钮点击事件
-        sendButton?.setOnClickListener {
-            sendCommand(commandInput, logTextView)
-        }
-        
-        // 设置过滤输入框监听
-        filterInput.addTextChangedListener(object : android.text.TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: Editable?) {
-                filterLogs(s.toString(), logTextView)
-            }
-        })
-        
-        // 修改历史按钮，移除双击功能，只保留单击和长按
-        historyButton?.setOnClickListener {
-            browseHistoryUp(commandInput)
-        }
-        
-        historyButton?.setOnLongClickListener {
-            showCommandHistoryDialog(commandInput)
-            true
-        }
-        
-        // 设置命令输入框监听
-        commandInput.setOnEditorActionListener { v, actionId, event ->
-            if (actionId == EditorInfo.IME_ACTION_SEND || 
-                (event != null && event.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN)) {
-                sendCommand(commandInput, logTextView)
-                true
-            } else {
-                false
-            }
-        }
-        
-        // 添加到窗口
-        windowManager.addView(unifiedView, params)
-        
-        // 缓存日志视图
-        cachedLogTextView = WeakReference(logTextView)
-        
-        // 初始化日志系统
-        initLogSystem(logTextView)
-        
-        // 创建独立的悬浮按钮
+        // 创建悬浮按钮 - 只在这里创建一次
         createFloatingButton()
         
         // 初始状态设置
@@ -420,68 +339,212 @@ class ToolBarService : LifecycleService() {
         }
     }
 
-    @SuppressLint("ClickableViewAccessibility")
-    private fun setupConsoleView() {
-        if (floatRootView == null) return
+    /**
+     * 重命名这个方法，避免冲突
+     */
+    private fun initializeToolbar() {
+        if (floatRootView != null) return        
+        val layoutInflater = LayoutInflater.from(this)
+        val unifiedView = layoutInflater.inflate(R.layout.command_input_bar, null)
         
-        // 获取控件引用
-        val logTextView = floatRootView?.findViewById<TextView>(R.id.logTextView)
-        val filterInput = floatRootView?.findViewById<EditText>(R.id.filterInput)
-        val toggleLogsButton = floatRootView?.findViewById<ImageButton>(R.id.toggleLogsButton)
-        val commandInput = floatRootView?.findViewById<EditText>(R.id.commandInput)
-        val historyButton = floatRootView?.findViewById<ImageButton>(R.id.historyButton)
-        val sendButton = floatRootView?.findViewById<ImageButton>(R.id.sendButton)
-
-        // 获取工具栏按钮
-        val startStopButton = floatRootView?.findViewById<Button>(R.id.startStopButton)
-        val syncButton = floatRootView?.findViewById<Button>(R.id.syncButton)
-        val settingsButton = floatRootView?.findViewById<Button>(R.id.settingsButton)
+        // 设置整个视图的背景为透明
+        unifiedView.setBackgroundColor(Color.TRANSPARENT)
         
-        // 设置事件监听
-        toggleLogsButton?.setOnClickListener { toggleLogsVisibility() }
-
-        // 设置工具栏按钮事件
-        startStopButton?.setOnClickListener { onStartStopButtonClick() }
-        syncButton?.setOnClickListener { onSyncButtonClick() }
-        settingsButton?.setOnClickListener { showSetting() }
+        // 创建布局参数
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            if (logsExpanded) WindowManager.LayoutParams.MATCH_PARENT else WindowManager.LayoutParams.WRAP_CONTENT,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                WindowManager.LayoutParams.TYPE_PHONE
+            },
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT
+        )
+        
+        // 设置显示位置 - 始终底部对齐
+        params.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+        
+        // 设置过滤按钮点击事件
+        val filterButton = unifiedView.findViewById<ImageButton>(R.id.filterButton)
+        filterButton?.setOnClickListener {
+            val filterInput = unifiedView.findViewById<EditText>(R.id.filterInput)
+            filterInput?.let {
+                if (it.visibility == View.VISIBLE) {
+                    it.visibility = View.GONE
+                } else {
+                    it.visibility = View.VISIBLE
+                    it.requestFocus()
+                    val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                    imm.showSoftInput(it, InputMethodManager.SHOW_IMPLICIT)
+                }
+            }
+        }
+        
+        // 设置清除过滤按钮点击事件
+        val clearFilterButton = unifiedView.findViewById<ImageButton>(R.id.clearFilterButton)
+        clearFilterButton?.setOnClickListener {
+            val filterInput = unifiedView.findViewById<EditText>(R.id.filterInput)
+            filterInput?.setText("")
+            val logTextView = unifiedView.findViewById<TextView>(R.id.logTextView)
+            filterLogs("", logTextView)
+        }
+        
+        // 设置过滤输入框动作监听
+        val filterInput = unifiedView.findViewById<EditText>(R.id.filterInput)
+        filterInput?.setOnEditorActionListener { textView, actionId, event ->
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                val logTextView = unifiedView.findViewById<TextView>(R.id.logTextView)
+                filterLogs(textView.text.toString(), logTextView)
+                
+                // 隐藏键盘
+                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                imm.hideSoftInputFromWindow(textView.windowToken, 0)
+                return@setOnEditorActionListener true
+            }
+            false
+        }
+        
+        // 设置工具栏按钮点击事件
+        val startStopButton = unifiedView.findViewById<ImageButton>(R.id.startStopButton)
+        startStopButton?.setOnClickListener {
+            isRunning = !isRunning
+        }
+        
+        val syncButton = unifiedView.findViewById<ImageButton>(R.id.syncButton)
+        syncButton?.setOnClickListener {
+            onSyncButtonClick()
+        }
+        
+        val settingsButton = unifiedView.findViewById<ImageButton>(R.id.settingsButton)
+        settingsButton?.setOnClickListener {
+            showSetting()
+        }
+        
+        // 获取命令输入相关控件
+        val commandInput = unifiedView.findViewById<EditText>(R.id.commandInput)
+        val sendButton = unifiedView.findViewById<ImageButton>(R.id.sendButton)
+        val historyButton = unifiedView.findViewById<ImageButton>(R.id.historyButton)
+        val toggleLogsButton = unifiedView.findViewById<ImageButton>(R.id.toggleLogsButton)
+        
+        // 设置命令输入框点击事件
+        commandInput.setOnClickListener {
+            // 使输入框可获取焦点
+            makeInputFocusable()
+        }
         
         // 设置发送按钮点击事件
-        sendButton?.setOnClickListener {
+        sendButton.setOnClickListener {
+            val logTextView = unifiedView.findViewById<TextView>(R.id.logTextView)
             sendCommand(commandInput, logTextView)
+            // 发送后恢复不可获取焦点状态
+            makeInputUnfocusable()
         }
+        
+        // 设置历史按钮事件
+        historyButton.setOnClickListener {
+            browseHistoryUp(commandInput)
+        }
+        
+        historyButton.setOnLongClickListener {
+            showCommandHistoryDialog(commandInput)
+            true
+        }
+        
+        // 设置日志切换按钮事件
+        toggleLogsButton?.setOnClickListener { 
+            toggleLogsVisibility() 
+        }
+        
+        // 初始化日志切换按钮图标
+        updateLogsToggleButton(toggleLogsButton)
+        
+        // 添加到窗口
+        windowManager.addView(unifiedView, params)
+        
+        // 保存引用
+        floatRootView = unifiedView
+        commandInputBarView = unifiedView
+        
+        // 缓存日志视图
+        val logTextView = unifiedView.findViewById<TextView>(R.id.logTextView)
+        cachedLogTextView = WeakReference(logTextView)
+        
+        // 初始化日志系统
+        initLogSystem(logTextView)
+        
+        // 初始化过滤系统
+        initFilterSystem(unifiedView)
+        
+        // 根据当前日志展开状态更新窗口位置
+        updateWindowPosition()
+    }
+
+    /**
+     * 初始化过滤系统
+     */
+    private fun initFilterSystem(rootView: View) {
+        val filterInput = rootView.findViewById<EditText>(R.id.filterInput)
+        val clearFilterButton = rootView.findViewById<ImageButton>(R.id.clearFilterButton)
+        val filterButton = rootView.findViewById<ImageButton>(R.id.filterButton)
+        val tagFilterSpinner = rootView.findViewById<Spinner>(R.id.tagFilterSpinner)
         
         // 设置过滤输入框监听
         filterInput?.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
-                s?.toString()?.let { filterLogs(it, logTextView) }
+                filterLogs(s.toString(), rootView.findViewById(R.id.logTextView))
             }
         })
         
-        // 初始化TAG过滤下拉框
-        val tagFilterSpinner = floatRootView?.findViewById<Spinner>(R.id.tagFilterSpinner)
-        val tagList = ArrayList<String>()
-        tagList.add("全部") // 默认选项
+        // 设置清除过滤按钮
+        clearFilterButton?.setOnClickListener {
+            filterInput?.setText("")
+        }
         
-        val tagAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, tagList)
-        tagAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        tagFilterSpinner?.adapter = tagAdapter
-        
-        tagFilterSpinner?.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                val selectedTag = if (position == 0) "" else tagList[position]
-                filterLogsByTag(selectedTag, logTextView)
-            }
-            
-            override fun onNothingSelected(parent: AdapterView<*>?) {
-                // 不做任何处理
+        // 设置过滤按钮
+        filterButton?.setOnClickListener {
+            // 切换过滤输入框的可见性
+            if (filterInput?.visibility == View.VISIBLE) {
+                filterInput.visibility = View.GONE
+                clearFilterButton?.visibility = View.GONE
+            } else {
+                filterInput?.visibility = View.VISIBLE
+                clearFilterButton?.visibility = View.VISIBLE
             }
         }
         
-        // 初始化界面状态
-        updateToolbarVisibility()
-        updateLogsVisibility()
+        // 初始化TAG过滤下拉框
+        if (tagFilterSpinner != null) {
+            // 创建适配器
+            val adapter = ArrayAdapter<String>(
+                this,
+                android.R.layout.simple_spinner_item,
+                mutableListOf("全部", "System", "cmd")
+            )
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            tagFilterSpinner.adapter = adapter
+            
+            // 设置选择监听器
+            tagFilterSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                    val selectedTag = parent?.getItemAtPosition(position) as String
+                    if (selectedTag == "全部") {
+                        // 显示所有日志
+                        filterLogs("", rootView.findViewById(R.id.logTextView))
+                    } else {
+                        // 按TAG过滤
+                        filterLogs("[$selectedTag]", rootView.findViewById(R.id.logTextView))
+                    }
+                }
+                
+                override fun onNothingSelected(parent: AdapterView<*>?) {
+                    // 不做任何处理
+                }
+            }
+        }
     }
 
     private var _isRunning = false
@@ -498,17 +561,17 @@ class ToolBarService : LifecycleService() {
                         scriptEngine.end()
                     }
                     // 更新按钮图标
-                    val startStopButton = floatRootView?.findViewById<Button>(R.id.startStopButton)
+                    val startStopButton = floatRootView?.findViewById<ImageButton>(R.id.startStopButton)
                     if (value) {
                         // 使用系统内置图标
-                        startStopButton?.foreground = getDrawable(android.R.drawable.ic_media_pause)
+                        startStopButton?.setImageResource(android.R.drawable.ic_media_pause)
                     } else {
                         // 使用系统内置图标
-                        startStopButton?.foreground = getDrawable(android.R.drawable.ic_media_play)
+                        startStopButton?.setImageResource(android.R.drawable.ic_media_play)
                     }
                 }
             }catch(e:Exception){
-                addLog("Failed to update button icon")
+                log("Failed to update button icon")
             }
         }
 
@@ -624,22 +687,28 @@ class ToolBarService : LifecycleService() {
         executor.shutdown()
         
         // 移除所有视图
-        if (floatRootView != null) {
+        floatRootView?.let {
             try {
-                windowManager.removeView(floatRootView)
+                windowManager.removeView(it)
             } catch (e: Exception) {
-                Timber.e(e, "移除主视图失败")
+                Timber.e(e, "移除日志视图失败")
             }
-            floatRootView = null
         }
         
-        if (floatButtonView != null) {
+        commandInputBarView?.let {
             try {
-                windowManager.removeView(floatButtonView)
+                windowManager.removeView(it)
+            } catch (e: Exception) {
+                Timber.e(e, "移除命令输入栏失败")
+            }
+        }
+        
+        floatButtonView?.let {
+            try {
+                windowManager.removeView(it)
             } catch (e: Exception) {
                 Timber.e(e, "移除悬浮按钮失败")
             }
-            floatButtonView = null
         }
         
         // 清除其他资源
@@ -805,7 +874,7 @@ class ToolBarService : LifecycleService() {
             hideTouchMonitorView()
         }
         
-        addLog("点击坐标显示已" + (if (enable) "启用" else "禁用"), "System", "i")
+        log("点击坐标显示已" + (if (enable) "启用" else "禁用"), "System", "i")
     }   
 
     /**
@@ -952,46 +1021,33 @@ class ToolBarService : LifecycleService() {
         }
     }
 
-    // 添加日志相关方法
+    // 修改toggleLogsVisibility方法
     private fun toggleLogsVisibility() {
         logsExpanded = !logsExpanded
         updateLogsVisibility()
     }
 
+    // 修改updateLogsVisibility方法
     private fun updateLogsVisibility() {
-        if (!toolbarExpanded) {
-            // 如果工具栏收起，日志也应该收起
-            floatRootView?.findViewById<ScrollView>(R.id.logScrollView)?.visibility = View.GONE
-            floatRootView?.findViewById<LinearLayout>(R.id.filterBar)?.visibility = View.GONE
-            floatRootView?.findViewById<LinearLayout>(R.id.logArea)?.visibility = View.GONE
-            return
-        }
-        
-        val logScrollView = floatRootView?.findViewById<ScrollView>(R.id.logScrollView)
-        val toggleLogsButton = floatRootView?.findViewById<ImageButton>(R.id.toggleLogsButton)
-        val filterBar = floatRootView?.findViewById<LinearLayout>(R.id.filterBar)
-        val bottomInputBar = floatRootView?.findViewById<LinearLayout>(R.id.bottomInputBar)
-        val logTextView = floatRootView?.findViewById<TextView>(R.id.logTextView)
         val logArea = floatRootView?.findViewById<LinearLayout>(R.id.logArea)
+        logArea?.visibility = if (logsExpanded) View.VISIBLE else View.GONE
         
-        // 确保日志文本视图可见
-        logTextView?.visibility = View.VISIBLE
+        // 更新窗口位置和大小
+        updateWindowPosition()
         
-        if (logsExpanded) {
-            // 展开时显示日志窗口和过滤栏
-            logArea?.visibility = View.VISIBLE
-            logScrollView?.visibility = View.VISIBLE
-            filterBar?.visibility = View.VISIBLE
-            bottomInputBar?.visibility = View.VISIBLE
-            toggleLogsButton?.setImageResource(R.drawable.ic_arrow_down)
-        } else {
-            // 收起时隐藏日志窗口和过滤栏
-            logArea?.visibility = View.GONE
-            logScrollView?.visibility = View.GONE
-            filterBar?.visibility = View.GONE
-            bottomInputBar?.visibility = View.VISIBLE // 保持命令输入栏可见
-            toggleLogsButton?.setImageResource(R.drawable.ic_arrow_up)
-        }
+        // 更新切换按钮图标
+        val toggleLogsButton = floatRootView?.findViewById<ImageButton>(R.id.toggleLogsButton)
+        updateLogsToggleButton(toggleLogsButton)
+    }
+
+    /**
+     * 更新日志切换按钮图标
+     */
+    private fun updateLogsToggleButton(button: ImageButton?) {
+        button?.setImageResource(
+            if (logsExpanded) android.R.drawable.arrow_down_float
+            else android.R.drawable.arrow_up_float
+        )
     }
 
     private fun filterLogs(filterText: String, logTextView: TextView?) {
@@ -1045,122 +1101,74 @@ class ToolBarService : LifecycleService() {
         }
     }
 
-    private fun browseHistoryUp(commandInput: EditText?) {
-        if (commandInput == null || commandHistory.isEmpty()) return
+    private fun browseHistoryUp(commandInput: EditText) {
+        if (commandHistory.isEmpty()) return
         
-        if (historyIndex > 0) {
+        if (historyIndex < 0) {
+            // 首次浏览，保存当前输入
+            currentInput = commandInput.text.toString()
+            historyIndex = commandHistory.size - 1 // 从最新的命令开始
+        } else if (historyIndex > 0) {
+            // 继续向上浏览（向更早的命令）
             historyIndex--
-            commandInput.setText(commandHistory[historyIndex])
-            commandInput.setSelection(commandInput.text.length)
-        } else if (historyIndex == 0) {
-            // 已经到达最早的命令，可以选择循环到最新的命令
-            historyIndex = commandHistory.size - 1
-            commandInput.setText(commandHistory[historyIndex])
-            commandInput.setSelection(commandInput.text.length)
         }
+        
+        // 设置命令
+        commandInput.setText(commandHistory[historyIndex])
+        commandInput.setSelection(commandInput.text.length)
     }
 
-    private fun browseHistoryDown(commandInput: EditText?) {
-        if (commandInput == null || commandHistory.isEmpty()) return
+    private fun browseHistoryDown(commandInput: EditText) {
+        if (historyIndex < 0) return
         
         if (historyIndex < commandHistory.size - 1) {
+            // 向下浏览（向更新的命令）
             historyIndex++
             commandInput.setText(commandHistory[historyIndex])
             commandInput.setSelection(commandInput.text.length)
-        } else if (historyIndex == commandHistory.size - 1) {
-            // 已经到达最新的命令，可以选择循环到最早的命令
-            historyIndex = 0
-            commandInput.setText(commandHistory[historyIndex])
+        } else {
+            // 已经到最新的命令，恢复原始输入
+            historyIndex = -1
+            commandInput.setText(currentInput)
             commandInput.setSelection(commandInput.text.length)
         }
     }
 
-    private fun showCommandHistoryDialog(commandInput: EditText?) {
-        if (commandInput == null || commandHistory.isEmpty()) {
+    private fun showCommandHistoryDialog(commandInput: EditText) {
+        if (commandHistory.isEmpty()) {
             Toast.makeText(this, "没有命令历史", Toast.LENGTH_SHORT).show()
             return
         }
         
         try {
-            // 创建一个自定义的ListView来显示历史命令，确保文字为白色
-            val listView = android.widget.ListView(this)
+            // 使用自定义布局创建对话框
+            val builder = AlertDialog.Builder(this, R.style.Theme_AppCompat_Dialog_Alert)
+            builder.setTitle("命令历史")
             
-            // 确保使用ArrayList创建适配器，以保持顺序
-            val historyList = ArrayList(commandHistory)
-            
-            // 使用自定义适配器，设置文字颜色为白色
-            val adapter = object : ArrayAdapter<String>(
-                this,
-                android.R.layout.simple_list_item_1,
-                historyList
-            ) {
-                override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
-                    val view = super.getView(position, convertView, parent)
-                    val textView = view.findViewById<TextView>(android.R.id.text1)
-                    textView.setTextColor(Color.WHITE)
-                    return view
-                }
+            // 直接使用命令历史列表，不需要反转
+            builder.setItems(commandHistory.toTypedArray()) { _, which ->
+                val selectedCommand = commandHistory[which]
+                commandInput.setText(selectedCommand)
+                commandInput.setSelection(selectedCommand.length)
             }
             
-            listView.adapter = adapter
-            
-            // 创建一个自定义的对话框布局
-            val dialogView = LinearLayout(this)
-            dialogView.orientation = LinearLayout.VERTICAL
-            dialogView.setPadding(20, 20, 20, 20)
-            dialogView.setBackgroundColor(Color.parseColor("#80000000"))
-            
-            // 添加标题
-            val titleView = TextView(this)
-            titleView.text = "命令历史 (${historyList.size})"
-            titleView.setTextColor(Color.WHITE)
-            titleView.textSize = 18f
-            titleView.setPadding(0, 0, 0, 20)
-            dialogView.addView(titleView)
-            
-            // 添加列表
-            dialogView.addView(listView)
-            
-            // 添加取消按钮
-            val cancelButton = Button(this)
-            cancelButton.text = "取消"
-            cancelButton.setBackgroundColor(Color.parseColor("#40FFFFFF"))
-            cancelButton.setTextColor(Color.WHITE)
-            val buttonParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            buttonParams.topMargin = 20
-            dialogView.addView(cancelButton, buttonParams)
-            
-            // 创建窗口参数
-            val params = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-                } else {
-                    WindowManager.LayoutParams.TYPE_PHONE
-                },
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
-                PixelFormat.TRANSLUCENT
-            )
-            params.gravity = Gravity.CENTER
-            
-            // 添加到窗口
-            windowManager.addView(dialogView, params)
-            
-            // 设置列表项点击事件
-            listView.setOnItemClickListener { _, _, position, _ ->
-                commandInput.setText(historyList[position])
-                commandInput.setSelection(historyList[position].length)
-                windowManager.removeView(dialogView)
+            builder.setNegativeButton("取消", null)
+            builder.setNeutralButton("清空历史") { _, _ ->
+                commandHistory.clear()
+                saveCommandHistory()
+                Toast.makeText(this, "命令历史已清空", Toast.LENGTH_SHORT).show()
             }
             
-            // 设置取消按钮点击事件
-            cancelButton.setOnClickListener {
-                windowManager.removeView(dialogView)
+            val dialog = builder.create()
+            
+            // 设置对话框类型为应用覆盖层
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+            } else {
+                dialog.window?.setType(WindowManager.LayoutParams.TYPE_PHONE)
             }
+            
+            dialog.show()
         } catch (e: Exception) {
             Timber.e(e, "显示命令历史对话框失败")
             Toast.makeText(this, "无法显示命令历史: ${e.message}", Toast.LENGTH_SHORT).show()
@@ -1168,47 +1176,29 @@ class ToolBarService : LifecycleService() {
     }
 
     private fun sendCommand(commandInput: EditText?, logTextView: TextView?) {
-        if (commandInput == null || logTextView == null) return
-        
-        val command = commandInput.text.toString().trim()
-        if (command.isEmpty()) return
-        
-        // 优化命令历史管理
-        // 1. 如果命令已存在，先移除旧的
-        commandHistory.remove(command)
-        // 2. 添加到历史列表开头（最新的命令在前面）
-        commandHistory.add(0, command)
-        // 3. 限制历史记录数量
-        if (commandHistory.size > MAX_HISTORY_SIZE) {
-            commandHistory.removeAt(MAX_HISTORY_SIZE)
+        val command = commandInput?.text?.toString()?.trim() ?: ""
+        if (command.isNotEmpty()) {
+            // 添加到历史记录
+            addCommandToHistory(command)
+            // 清空输入框
+            commandInput?.setText("")
+            // 重置历史浏览索引
+            historyIndex = -1
+            // 执行命令
+            executeCommand(command, logTextView)
+            // 隐藏键盘
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.hideSoftInputFromWindow(commandInput?.windowToken, 0)
+            
+            // 恢复不可获取焦点状态
+            makeInputUnfocusable()
         }
-        // 4. 重置历史索引
-        historyIndex = 0
-        
-        // 5. 保存命令历史
-        saveCommandHistory()
-        
-        // 清空输入框
-        commandInput.setText("")
-        
-        // 收起输入法
-        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-        imm.hideSoftInputFromWindow(commandInput.windowToken, 0)
-        
-        // 执行命令
-        executeCommand(command, logTextView)
     }
 
     private fun initLogSystem(logTextView: TextView?) {
         if (logTextView == null) return
-        
         // 清空日志
         logTextView.text = ""
-        
-        // 添加初始日志
-        addLog("日志系统初始化完成", "System", "i")
-        addLog("工具栏已准备就绪", "System", "i")
-        addLog("点击悬浮按钮可展开/收起工具栏", "System", "i")
     }
 
     // 实现TAG过滤方法
@@ -1291,17 +1281,12 @@ class ToolBarService : LifecycleService() {
         tagList.addAll(uniqueTags)
     }
 
-    // 添加工具栏显示/隐藏方法
-    private fun toggleToolbarVisibility() {
-        if (floatRootView == null) {
-            // 如果工具栏视图不存在，创建它
-            createToolbarView()
-        }
-        
+    // 统一工具栏可见性控制方法，移除_toggleVisibility方法
+    private fun toggleVisibility() {
         toolbarExpanded = !toolbarExpanded
         
         if (toolbarExpanded) {
-            // 显示工具栏，但不显示背景
+            // 显示工具栏
             floatRootView?.visibility = View.VISIBLE
             
             // 更新日志区域可见性
@@ -1312,86 +1297,37 @@ class ToolBarService : LifecycleService() {
         }
     }
 
-    private fun createToolbarView() {
-        if (floatRootView != null) return
-        
-        val layoutInflater = LayoutInflater.from(this)
-        val unifiedView = layoutInflater.inflate(R.layout.unified_toolbar, null)
-        
-        // 设置整个视图的背景为透明
-        unifiedView.setBackgroundColor(Color.TRANSPARENT)
-        
-        // 设置过滤按钮点击事件
-        val filterButton = unifiedView.findViewById<ImageButton>(R.id.filterButton)
-        filterButton?.setOnClickListener {
-            val filterInput = unifiedView.findViewById<EditText>(R.id.filterInput)
-            filterInput?.let {
-                if (it.visibility == View.VISIBLE) {
-                    it.visibility = View.GONE
-                } else {
-                    it.visibility = View.VISIBLE
-                    it.requestFocus()
-                    val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                    imm.showSoftInput(it, InputMethodManager.SHOW_IMPLICIT)
-                }
-            }
+    // 简化updateToolbarVisibility方法，专注于更新UI状态
+    private fun updateToolbarVisibility() {
+        if (floatRootView == null) {
+            initializeToolbar()
         }
         
-        // 设置清除过滤按钮点击事件
-        val clearFilterButton = unifiedView.findViewById<ImageButton>(R.id.clearFilterButton)
-        clearFilterButton?.setOnClickListener {
-            val filterInput = unifiedView.findViewById<EditText>(R.id.filterInput)
-            filterInput?.setText("")
-            val logTextView = unifiedView.findViewById<TextView>(R.id.logTextView)
-            filterLogs("", logTextView)
+        // 根据当前状态更新UI
+        if (toolbarExpanded) {
+            // 显示工具栏
+            floatRootView?.visibility = View.VISIBLE
+            commandInputBarView?.visibility = View.VISIBLE
+            // 更新日志区域可见性
+            updateLogsVisibility()
+        } else {
+            // 隐藏工具栏
+            floatRootView?.visibility = View.GONE
         }
-        
-        // 设置过滤输入框动作监听
-        val filterInput = unifiedView.findViewById<EditText>(R.id.filterInput)
-        filterInput?.setOnEditorActionListener { textView, actionId, event ->
-            if (actionId == EditorInfo.IME_ACTION_DONE) {
-                val logTextView = unifiedView.findViewById<TextView>(R.id.logTextView)
-                filterLogs(textView.text.toString(), logTextView)
-                
-                // 隐藏键盘
-                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                imm.hideSoftInputFromWindow(textView.windowToken, 0)
-                return@setOnEditorActionListener true
-            }
-            false
-        }
-        
-        // 其他代码保持不变...
     }
 
-    // 添加同步按钮点击事件处理方法
-    private fun onSyncButtonClick() {
-        if (serverIP.isEmpty()) {
-            Toast.makeText(this, "请先设置服务器IP", Toast.LENGTH_SHORT).show()
-            return
-        }
-        
-        Toast.makeText(this, "正在同步文件...", Toast.LENGTH_SHORT).show()
-        
-        // 在后台线程中执行文件同步
-        Thread {
-            try {
-                scriptEngine.syncFiles(serverIP)
-                Handler(Looper.getMainLooper()).post {
-                    Toast.makeText(this, "文件同步完成", Toast.LENGTH_SHORT).show()
-                }
-            } catch (e: Exception) {
-                Handler(Looper.getMainLooper()).post {
-                    Toast.makeText(this, "文件同步失败: ${e.message}", Toast.LENGTH_SHORT).show()
-                }
-                Timber.e(e, "文件同步失败")
-            }
-        }.start()
+    // 修改setVisibility方法，使用更新后的方法
+    public fun setVisibility(visibility: Boolean) {
+        toolbarExpanded = visibility
+        updateToolbarVisibility()
     }
 
     // 修改showTouchMonitorView方法
     private fun showTouchMonitorView() {
-        if (touchView != null) return
+        if (touchView != null) {
+            touchView?.visibility = View.VISIBLE
+            return
+        }
         
         Timber.d("正在创建触摸监控视图...")
         
@@ -1436,20 +1372,6 @@ class ToolBarService : LifecycleService() {
         }
     }
 
-    // 修改enableTouchMonitor方法
-    public fun enableTouchMonitor(enable: Boolean) {
-        Handler(Looper.getMainLooper()).post {
-            if (enable) {
-                showTouchMonitorView()
-                addLog("触摸监控已启用")
-                Timber.d("触摸监控已启用，当前视图状态: ${touchView?.visibility}")
-            } else {
-                hideTouchMonitorView()
-                addLog("触摸监控已禁用")
-            }
-        }
-    }
-
     // 添加隐藏触摸监控视图的方法
     private fun hideTouchMonitorView() {
         touchView?.let {
@@ -1462,14 +1384,20 @@ class ToolBarService : LifecycleService() {
         }
     }
 
-    // 添加启用/禁用触摸监控的方法
+    // 修改 enableTouchMonitor 方法，按需创建触摸监控视图
     public fun enableTouchMonitor(enable: Boolean) {
         if (enable) {
-            showTouchMonitorView()
-            addLog("触摸监控已启用")
+            if (touchView == null) {
+                // 只有在需要时才创建触摸监控视图
+                showTouchMonitorView()
+            } else {
+                touchView?.visibility = View.VISIBLE
+            }
+            log("触摸监控已启用")
         } else {
-            hideTouchMonitorView()
-            addLog("触摸监控已禁用")
+            // 如果已创建，则隐藏；如果未创建，则不做任何操作
+            touchView?.visibility = View.GONE
+            log("触摸监控已禁用")
         }
     }
 
@@ -1493,41 +1421,54 @@ class ToolBarService : LifecycleService() {
 
     @SuppressLint("ClickableViewAccessibility")
     private fun createFloatingButton() {
-        // 如果已经存在，先移除
         if (floatButtonView != null) {
-            try {
-                windowManager.removeView(floatButtonView)
-                floatButtonView = null
-            } catch (e: Exception) {
-                Timber.e(e, "移除悬浮按钮失败")
-            }
+            // 如果按钮已存在，确保可见
+            floatButtonView?.visibility = View.VISIBLE
+            return
         }
         
-        // 从布局文件加载悬浮按钮
-        val layoutInflater = LayoutInflater.from(this)
-        val buttonView = layoutInflater.inflate(R.layout.float_button, null)
+        // 创建悬浮按钮
+        val buttonView = LayoutInflater.from(this).inflate(R.layout.float_button, null)
         
-        // 获取按钮引用
-        val toggleButton = buttonView // 直接使用根视图
+        // 直接使用根视图作为按钮
+        // 不需要查找toggleButton，因为整个视图就是按钮
         
-        // 创建窗口参数
+        // 创建布局参数
         val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            128, // 固定宽度为128dp
+            128, // 固定高度为128dp
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             } else {
                 WindowManager.LayoutParams.TYPE_PHONE
             },
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
         )
         
         // 设置初始位置
         params.gravity = Gravity.TOP or Gravity.START
-        params.x = 100
-        params.y = 200
+        params.x = originalButtonX
+        params.y = originalButtonY
+        
+        // 保存参数引用
+        buttonParams = params
+        
+        // 添加到窗口
+        windowManager.addView(buttonView, params)
+        
+        // 保存引用
+        floatButtonView = buttonView
+        
+        // 设置触摸监听器 - 简化版，始终可拖动
+        setupSimpleFloatingButtonTouchListener()
+    }
+
+    /**
+     * 设置简化版悬浮按钮触摸监听器 - 始终可拖动
+     */
+    private fun setupSimpleFloatingButtonTouchListener() {
+        if (floatButtonView == null || buttonParams == null) return
         
         // 记录触摸事件的初始位置
         var initialTouchX = 0f
@@ -1537,12 +1478,12 @@ class ToolBarService : LifecycleService() {
         var isDragging = false
         
         // 设置触摸事件监听，确保全屏拖动功能
-        toggleButton.setOnTouchListener { v, event ->
+        floatButtonView?.setOnTouchListener { v, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     // 记录初始位置
-                    initialX = params.x
-                    initialY = params.y
+                    initialX = buttonParams?.x ?: 0
+                    initialY = buttonParams?.y ?: 0
                     initialTouchX = event.rawX
                     initialTouchY = event.rawY
                     isDragging = false
@@ -1553,28 +1494,21 @@ class ToolBarService : LifecycleService() {
                     val dx = event.rawX - initialTouchX
                     val dy = event.rawY - initialTouchY
                     
-                    // 如果移动距离超过阈值，认为是拖动操作
-                    if (!isDragging && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
+                    // 如果移动距离超过阈值，认为是拖动
+                    if (!isDragging && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
                         isDragging = true
                     }
                     
+                    // 更新位置
                     if (isDragging) {
-                        // 更新位置，确保不超出屏幕边界
-                        val displayMetrics = DisplayMetrics()
-                        windowManager.defaultDisplay.getMetrics(displayMetrics)
-                        
-                        // 计算新位置，确保按钮完全在屏幕内
-                        val newX = (initialX + dx).toInt()
-                        val newY = (initialY + dy).toInt()
-                        
-                        // 限制X坐标范围
-                        params.x = newX.coerceIn(0, displayMetrics.widthPixels - buttonView.width)
-                        // 限制Y坐标范围
-                        params.y = newY.coerceIn(0, displayMetrics.heightPixels - buttonView.height)
-                        
-                        // 更新视图
+                        buttonParams?.x = initialX + dx.toInt()
+                        buttonParams?.y = initialY + dy.toInt()
                         try {
-                            windowManager.updateViewLayout(buttonView, params)
+                            windowManager.updateViewLayout(floatButtonView, buttonParams)
+                            
+                            // 保存当前位置为原始位置（用于恢复）
+                            originalButtonX = buttonParams?.x ?: 0
+                            originalButtonY = buttonParams?.y ?: 0
                         } catch (e: Exception) {
                             Timber.e(e, "更新悬浮按钮位置失败")
                         }
@@ -1583,73 +1517,61 @@ class ToolBarService : LifecycleService() {
                 }
                 MotionEvent.ACTION_UP -> {
                     if (!isDragging) {
-                        // 如果不是拖动操作，则触发点击事件
-                        toggleToolbarVisibility()
+                        // 如果不是拖动，则是点击，切换工具栏可见性
+                        toggleVisibility()
                     }
                     true
                 }
                 else -> false
             }
         }
+    }
+
+    /**
+     * 设置命令输入框可获取焦点
+     */
+    private fun makeInputFocusable() {
+        if (floatRootView == null) return
         
-        // 添加到窗口
         try {
-            windowManager.addView(buttonView, params)
-            floatButtonView = buttonView
-        } catch (e: Exception) {
-            Timber.e(e, "添加悬浮按钮失败")
-        }
-    }
-
-    // 添加更新TAG列表的方法
-    fun updateTagList(newTag: String) {
-        // 获取TAG过滤下拉框
-        val tagFilterSpinner = floatRootView?.findViewById<Spinner>(R.id.tagFilterSpinner) ?: return
-        
-        // 获取当前适配器
-        val adapter = tagFilterSpinner.adapter as? ArrayAdapter<String> ?: return
-        
-        // 检查TAG是否已存在
-        for (i in 0 until adapter.count) {
-            if (adapter.getItem(i) == newTag) {
-                return // TAG已存在，不需要添加
-            }
-        }
-        
-        // 添加新TAG
-        adapter.add(newTag)
-        adapter.notifyDataSetChanged()
-    }
-
-    // 添加executeCommand方法，用于执行命令
-    private fun executeCommand(command: String, logTextView: TextView?) {
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                val result = PythonServices.doCommand(command)
-                addLog("执行命令: $command", "cmd", "c", result.toString())
-            } catch (e: Exception) {
-                addLog("执行失败: ${e.message}", "", "e")
-            }
-        }
-    }
-
-    // 在ToolBarService.kt中添加updateToolbarVisibility方法作为toggleToolbarVisibility的别名
-    // 这样可以保持向后兼容性，避免未解析的引用错误
-    private fun updateToolbarVisibility() {
-        // 调用新的方法
-        if (floatRootView == null) {
-            createToolbarView()
-        }
-        
-        if (toolbarExpanded) {
-            // 显示工具栏，但不显示背景
-            floatRootView?.visibility = View.VISIBLE
+            // 获取当前布局参数
+            val params = (floatRootView?.layoutParams as? WindowManager.LayoutParams) ?: return
             
-            // 更新日志区域可见性
-            updateLogsVisibility()
-        } else {
-            // 隐藏工具栏
-            floatRootView?.visibility = View.GONE
+            // 移除不可获取焦点的标志
+            params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+            
+            // 更新布局
+            windowManager.updateViewLayout(floatRootView, params)
+            
+            // 获取命令输入框
+            val commandInput = floatRootView?.findViewById<EditText>(R.id.commandInput)
+            
+            // 请求焦点并显示键盘
+            commandInput?.requestFocus()
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.showSoftInput(commandInput, InputMethodManager.SHOW_IMPLICIT)
+        } catch (e: Exception) {
+            Timber.e(e, "设置输入框可获取焦点失败")
+        }
+    }
+
+    /**
+     * 设置命令输入框不可获取焦点
+     */
+    private fun makeInputUnfocusable() {
+        if (floatRootView == null) return
+        
+        try {
+            // 获取当前布局参数
+            val params = (floatRootView?.layoutParams as? WindowManager.LayoutParams) ?: return
+            
+            // 添加不可获取焦点的标志
+            params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+            
+            // 更新布局
+            windowManager.updateViewLayout(floatRootView, params)
+        } catch (e: Exception) {
+            Timber.e(e, "设置输入框不可获取焦点失败")
         }
     }
 
@@ -1699,6 +1621,180 @@ class ToolBarService : LifecycleService() {
             cursorView?.visibility = if (visible) View.VISIBLE else View.GONE
         } catch (e: Exception) {
             Timber.e(e, "设置UI可见性失败")
+        }
+    }
+
+    private fun setupConsoleView() {
+        try {
+            // 初始化日志视图
+            val logTextView = floatRootView?.findViewById<TextView>(R.id.logTextView)
+            if (logTextView != null) {
+                // 设置日志文本视图的属性
+                logTextView.movementMethod = ScrollingMovementMethod.getInstance()
+                
+                // 缓存日志视图引用
+                cachedLogTextView = WeakReference(logTextView)
+                
+                // 初始化TAG过滤下拉框
+                val tagFilterSpinner = floatRootView?.findViewById<Spinner>(R.id.tagFilterSpinner)
+                if (tagFilterSpinner != null) {
+                    // 创建适配器
+                    val adapter = ArrayAdapter<String>(
+                        this,
+                        android.R.layout.simple_spinner_item,
+                        mutableListOf("全部", "System", "cmd")
+                    )
+                    adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+                    tagFilterSpinner.adapter = adapter
+                    
+                    // 设置选择监听器
+                    tagFilterSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                        override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                            val selectedTag = parent?.getItemAtPosition(position) as String
+                            if (selectedTag == "全部") {
+                                // 显示所有日志
+                                filterLogs("", logTextView)
+                            } else {
+                                // 按TAG过滤
+                                filterLogs("[$selectedTag]", logTextView)
+                            }
+                        }
+                        
+                        override fun onNothingSelected(parent: AdapterView<*>?) {
+                            // 不做任何处理
+                        }
+                    }
+                }
+            }
+            
+            // 初始化命令输入框
+            val commandInput = commandInputBarView?.findViewById<EditText>(R.id.commandInput)
+            if (commandInput != null) {
+                // 设置命令输入框的属性
+                commandInput.setOnEditorActionListener { v, actionId, event ->
+                    if (actionId == EditorInfo.IME_ACTION_SEND || 
+                        (event != null && event.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN)) {
+                        sendCommand(commandInput, logTextView)
+                        true
+                    } else {
+                        false
+                    }
+                }
+            }
+            
+            log("控制台视图初始化完成", "System", "i")
+        } catch (e: Exception) {
+            Timber.e(e, "初始化控制台视图失败")
+        }
+    }
+
+    // 添加更新TAG列表的方法
+    fun updateTagList(newTag: String) {
+        // 获取TAG过滤下拉框
+        val tagFilterSpinner = floatRootView?.findViewById<Spinner>(R.id.tagFilterSpinner) ?: return
+        
+        // 获取当前适配器
+        val adapter = tagFilterSpinner.adapter as? ArrayAdapter<String> ?: return
+        
+        // 检查TAG是否已存在
+        for (i in 0 until adapter.count) {
+            if (adapter.getItem(i) == newTag) {
+                return // TAG已存在，不需要添加
+            }
+        }
+        
+        // 添加新TAG
+        adapter.add(newTag)
+        adapter.notifyDataSetChanged()
+    }
+
+    // 修改executeCommand方法，添加空值检查
+    private fun executeCommand(command: String, logTextView: TextView?) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                // 检查脚本引擎是否已初始化
+                if (isRunning) {
+                    log("脚本引擎未初始化或未运行，无法执行命令", "", "e")
+                    return@launch
+                }
+                PythonServices.doCommand(command)
+            } catch (e: Exception) {
+                logEx(e, "执行失败: ${e.message}", "", "")
+            }
+        }
+    }
+
+    // 修改添加命令到历史的方法
+    private fun addCommandToHistory(command: String) {
+        // 如果命令为空，不添加到历史
+        if (command.isBlank()) return
+        
+        // 如果命令已存在，先移除旧记录
+        commandHistory.remove(command)
+        
+        // 添加到列表末尾（最新的命令在最后）
+        commandHistory.add(command)
+        
+        // 如果历史记录超过最大数量，移除最旧的记录
+        while (commandHistory.size > MAX_HISTORY_SIZE) {
+            commandHistory.removeAt(0)
+        }
+        
+        // 保存历史记录
+        saveCommandHistory()
+    }
+
+    // 添加回onSyncButtonClick方法
+    private fun onSyncButtonClick() {
+        if (serverIP.isEmpty()) {
+            Toast.makeText(this, "请先设置服务器IP", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        Toast.makeText(this, "正在同步文件...", Toast.LENGTH_SHORT).show()
+        
+        // 在后台线程中执行文件同步
+        Thread {
+            try {
+                scriptEngine.syncFiles(serverIP)
+                Handler(Looper.getMainLooper()).post {
+                    Toast.makeText(this, "文件同步完成", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Handler(Looper.getMainLooper()).post {
+                    Toast.makeText(this, "文件同步失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+                Timber.e(e, "文件同步失败")
+            }
+        }.start()
+    }
+
+    /**
+     * 更新窗口位置
+     */
+    private fun updateWindowPosition() {
+        if (floatRootView == null) return
+        
+        try {
+            // 获取当前布局参数
+            val params = (floatRootView?.layoutParams as? WindowManager.LayoutParams) ?: return
+            
+            // 无论日志是否展开，都保持底部对齐
+            params.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            
+            // 根据日志展开状态调整高度
+            if (logsExpanded) {
+                // 日志展开时，使用MATCH_PARENT高度
+                params.height = WindowManager.LayoutParams.MATCH_PARENT
+            } else {
+                // 日志收起时，使用WRAP_CONTENT高度
+                params.height = WindowManager.LayoutParams.WRAP_CONTENT
+            }
+            
+            // 更新布局
+            windowManager.updateViewLayout(floatRootView, params)
+        } catch (e: Exception) {
+            Timber.e(e, "更新窗口位置失败")
         }
     }
 

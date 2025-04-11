@@ -174,7 +174,7 @@ public class ScreenCapture extends Service {
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, channelId)
                 .setContentTitle("屏幕截图服务")
                 .setContentText("服务正在运行中")
-                .setSmallIcon(R.drawable.icon_background)
+                .setSmallIcon(R.drawable.zhangyu)
                 .setOngoing(true)
                 .setContentIntent(pendingIntent)
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)

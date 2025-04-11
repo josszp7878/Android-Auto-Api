@@ -253,6 +253,8 @@ class _Log_:
         tag = tag if tag else ''    
         level = level if level else 'i'
         res = None
+        if not isinstance(result, tuple):
+            result = ('i', str(result))
         if result:
             res = result[1]
         if android:            
@@ -260,7 +262,7 @@ class _Log_:
         else:
             cls._PCLog_(content, tag, level)
             if res:
-                cls._PCLog_(res, '', result[0])
+                cls._PCLog_(f' => {res}', '', result[0])
             
     @classmethod
     def logEx_(cls, e, message=None, tag=None):
@@ -301,9 +303,11 @@ class _Log_:
         elif level == 'w':
             color = cls.COLORS['yellow']
         elif level == 'i':
-            color = cls.COLORS['green']
+            color = cls.COLORS['white']
         elif level == 'd':
             color = cls.COLORS['cyan']  
+        elif level == 'c':
+            color = cls.COLORS['green']
         # 打印带颜色的日志到终端，去掉日志级别标识
         if tag:
             print(f"{color}{tag}: {content}{cls.COLORS['reset']}")

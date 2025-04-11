@@ -1,4 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <drawable name="icon_background">@drawable/ic_launcher_background</drawable>
+    <drawable name="icon_background">@drawable/zhangyu</drawable>
 </resources>

@@ -10,11 +10,8 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.widget.Toast
-import android.util.Base64
 import android.view.Gravity
 import android.util.Log
-import android.util.DisplayMetrics
-import android.provider.Settings
 import cn.vove7.andro_accessibility_api.demo.MainActivity
 import cn.vove7.andro_accessibility_api.demo.service.ScreenCapture
 import cn.vove7.auto.AutoApi
@@ -27,10 +24,7 @@ import kotlinx.coroutines.runBlocking
 import timber.log.Timber
 import java.io.File
 import com.chaquo.python.PyObject
-import java.util.concurrent.CompletableFuture
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.content.PackageManagerCompat
 import cn.vove7.andro_accessibility_api.demo.service.ToolBarService
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -153,14 +147,16 @@ class PythonServices {
          */
         @JvmStatic
         fun click(x: Int, y: Int): Boolean {
-            Timber.tag(TAG).i("Click position: $x, $y")
             return try {
+                showUI(false)
                 runBlocking {
                     clickAt(x, y)
+                    logI("点击位置: $x, $y")
                 }
+                showUI(true)
                 true
             } catch (e: Exception) {
-                Timber.tag(TAG).e(e, "Click position failed")
+                logEx(e,"点击位置失败: $x, $y")
                 false
             }
         }
@@ -170,12 +166,15 @@ class PythonServices {
         @JvmStatic
         fun swipe(x: Int, y: Int, toX: Int, toY: Int, duration: Int): Boolean {
             return try {
+                showUI(false)
                 runBlocking {
                     gestureSwipe(x, y, toX, toY, duration)
+                    logI("滑动位置: $x, $y, $toX, $toY, $duration")
                 }
+                showUI(true)
                 true
             } catch (e: Exception) {
-                Timber.tag(TAG).e(e, "swipe failed")
+                logEx(e, "滑动失败: $x, $y, $toX, $toY, $duration")
                 false
             }
         }
@@ -185,7 +184,7 @@ class PythonServices {
                 ToolBarService.getInstance()?.get()?.moveCursor(x, y)
                 true
             } catch (e: Exception) {
-                Timber.tag(TAG).e(e, "Click position failed")
+                logEx(e, "移动失败: $x, $y", "move")
                 false
             }
         }
@@ -194,7 +193,7 @@ class PythonServices {
          */
         @JvmStatic
         fun goBack(): Boolean {
-            Timber.tag(TAG).i("Go back")
+            logI("返回上一个界面")
             return back();
         }
 
@@ -203,7 +202,7 @@ class PythonServices {
          */
         @JvmStatic
         fun goHome(): Boolean {
-            Timber.tag(TAG).i("Go home")
+            logI("返回主屏幕")
             return home()
         }
 
@@ -763,13 +762,11 @@ class PythonServices {
                     val result = inputCallback!!.call(command)
                     result.toJava(Any::class.java)
                 } else {
-                    val errorMsg = "输入回调未注册"
-                    logE(errorMsg, TAG)
+                    logE("输入回调未注册")
                     null
                 }
             } catch (e: Exception) {
-                val errorMsg = "执行命令失败: ${e.message}"
-                logE(errorMsg, TAG)
+                logEx(e, "执行命令失败")
                 null
             }
         }
@@ -831,41 +828,36 @@ class PythonServices {
          * @param result 可选的结果信息
          */
         @JvmStatic
-        fun log(content: String, tag: String?, level: String?, result: String? = null) {
-            // 确保tag不为null，如果为null则使用空字符串
-            val safeTag = tag ?: ""
-            // 确保level不为null，如果为null则使用默认级别'i'
-            val safeLevel = level ?: "i"
-            
+        fun log(content: String, tag: String = "", level: String = "i", result: String? = null) {
             // 调用ToolBarService的addLog方法
-            ToolBarService.addLog(content, safeTag, safeLevel, result)
+            ToolBarService.log(content, tag, level, result)
         }
         @JvmStatic
-        fun logE(content: String, tag: String, result: String? = null) {
-            ToolBarService.addLog(content, tag, "e", result)
+        fun logE(content: String, tag: String = "", result: String? = null) {
+            ToolBarService.log(content, tag, "e", result)
         }
         @JvmStatic
-        fun logW(content: String, tag: String, result: String? = null) {
-            ToolBarService.addLog(content, tag, "w", result)
+        fun logW(content: String, tag: String = "", result: String? = null) {
+            ToolBarService.log(content, tag, "w", result)
         }
         @JvmStatic
-        fun logD(content: String, tag: String, result: String? = null) {
-            ToolBarService.addLog(content, tag, "d", result)
+        fun logD(content: String, tag: String = "", result: String? = null) {
+            ToolBarService.log(content, tag, "d", result)
         }
         @JvmStatic
-        fun logI(content: String, tag: String, result: String? = null) {
-            ToolBarService.addLog(content, tag, "i", result)
-        }
-
-        @JvmStatic
-        fun logC(content: String, tag: String, result: String? = null) {
-            ToolBarService.addLog(content, tag, "c", result)
+        fun logI(content: String, tag: String = "", result: String? = null) {
+            ToolBarService.log(content, tag, "i", result)
         }
 
         @JvmStatic
-        fun logException(e: Exception, content: String, tag: String, result: String? = null) {
+        fun logC(content: String, tag: String = "", result: String? = null) {
+            ToolBarService.log(content, tag, "c", result)
+        }
+
+        @JvmStatic
+        fun logEx(e: Exception, content: String = "", tag: String = "", result: String? = null) {
             val msg = "${content}\n${e.message}\n${e.stackTrace.joinToString("\n")}"
-            ToolBarService.addLog(msg, tag, "e", result)
+            ToolBarService.log(msg, tag, "e", result)
         }
         
         /**

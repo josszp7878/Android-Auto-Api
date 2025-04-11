@@ -135,6 +135,8 @@ class _CmdMgr_:
         log = g.Log()
         cmdStr = cmdStr.strip()
         try:
+            findCmd = None
+            m = None
             # 尝试匹配所有命令的正则表达式
             for cmd in cls.cmdRegistry:
                 try:
@@ -142,22 +144,23 @@ class _CmdMgr_:
                 except Exception as e:
                     log.ex(e, f"命令: {cmdStr} 正则表达式错误: {cmd.alias}")
                     continue
-                
                 if match:
-                    # 提取命名捕获组作为参数
-                    kwargs = match.groupdict()
-                    
-                    # 清理所有参数
-                    kwargs = {key: cls._cleanParam(value) for key, value in kwargs.items()}
-                    
-                    if data:
-                        kwargs['data'] = data
-                    return cmd.func(**kwargs), cmd.name
-            
-            return "未知命令", None
+                    findCmd = cmd
+                    m = match
+            if findCmd is None:
+                return "w-未知命令", None
+            # 提取命名捕获组作为参数
+            kwargs = m.groupdict()
+            # 清理所有参数
+            kwargs = {key: cls._cleanParam(value) for key, value in kwargs.items()}
+            if data:
+                kwargs['data'] = data
+            result = findCmd.func(**kwargs)
+            log.log_(cmdStr, '', 'c', result or '')
+            return result, findCmd.name
         except Exception as e:
-            log.ex(e, f"执行命令出错: {cmdStr}")
-            return f"执行出错: {str(e)}", None
+            str = log.formatEx('执行命令出错', e)
+            return str, None
         
     @classmethod
     def _reloadModule(cls, moduleName: str) -> bool:
@@ -226,16 +229,14 @@ class _CmdMgr_:
             if g.isServer():
                 log.i("当前是服务器，不支持RESET")
                 return False
-            # 创建一个事件来等待脚本更新完成
-            log.i("开始重载所有脚本...")
             
             # 调用更新脚本方法
-            log.i("正在更新脚本...")
+            # log.i("正在更新脚本...")
             downAll = g.CFileServer().downAll()
             downAll.join()
             log.i("脚本更新完成")
             
-            log.i("正在结束客户端...")
+            # log.i("正在结束客户端...")
             CDevice = g.CDevice()
             Client = g.CClient()
             if Client:
@@ -249,12 +250,12 @@ class _CmdMgr_:
             server = CDevice.server()
             log.i(f"当前设备ID: {deviceID}, 服务器地址: {server}")
 
-            log.i("正在清除模块缓存...")
+            # log.i("正在清除模块缓存...")
             cls.clearModules()
 
             CMain = importlib.import_module("CMain")
             importlib.reload(CMain)            
-            log.i(f"222当前设备ID: {deviceID}, 服务器地址: {server}")
+            # log.i(f"222当前设备ID: {deviceID}, 服务器地址: {server}")
             if deviceID:
                 # 重新初始化客户端
                 log.i("重启客户端...")
@@ -342,7 +343,7 @@ class _CmdMgr_:
             """
             return cls._reset()
         
-        @cls.reg(r"加载(?P<moduleName>.+)")
+        @cls.reg(r"(?:加载|jz|rl)(?P<moduleName>.+)")
         def reload(moduleName):
             """功能：重新加载指定模块
             指令名：reload
@@ -373,7 +374,7 @@ class _CmdMgr_:
                 # 如果没有文件服务器，直接重载
                 cls._reloadModule(moduleName)
         
-        @cls.reg(r"命令列表")
+        @cls.reg(r"(?:命令列表|mjlb|cl)") 
         def cmdList():
             """功能：列出所有可用命令
             指令名：cmdList
@@ -386,7 +387,7 @@ class _CmdMgr_:
                 result += f"{cmd.name}\t\t: {cmd.alias}\n"
             return result
         
-        @cls.reg(r"帮助(?P<command>\S+)?")
+        @cls.reg(r"(?:帮助|bz|help)(?P<command>\S+)?")
         def help(command=None):
             """功能：显示命令帮助信息
             指令名：help

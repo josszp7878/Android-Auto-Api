@@ -292,6 +292,7 @@ class SDeviceMgr_:
                 cmd_event = threading.Event()
                 self.cmdEvents[cmd_id] = cmd_event
                 # 设置超时定时器
+                log.i(f'设置超时定时器: {cmd_id}, {command}, {timeout}')
                 timer = threading.Timer(timeout, self.handleCmdTimeout, args=[
                                         cmd_id, command])
                 timer.daemon = True

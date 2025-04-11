@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ImageButton xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/floatToggleButton"
-    android:layout_width="64dp"
-    android:layout_height="64dp"
+    android:layout_width="128dp"
+    android:layout_height="128dp"
     android:background="@android:color/transparent"
     android:contentDescription="展开/收起工具栏"
-    android:scaleType="centerInside"
+    android:scaleType="fitCenter"
     android:src="@drawable/zhangyu" />

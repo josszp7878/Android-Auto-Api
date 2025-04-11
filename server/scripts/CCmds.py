@@ -225,12 +225,12 @@ class CCmds_:
         def swipe(param):
             """
             功能：在屏幕上滑动
-            指令名: swipe-s
-            中文名: 滑动-hd
+            指令名: swipe
+            中文名: 滑动
             参数: param - 滑动参数，格式为"起点x,起点y,终点x,终点y"或方向
             示例: 滑动 100,200,300,400
             """
-            return _G._G_.Tools().swipe(param)
+            return _G._G_.CTools().swipe(param)
 
         @regCmd(r"(?:快照|kz)")
         def takeScreenshot():
@@ -291,7 +291,7 @@ class CCmds_:
             import _Page
             return _Page._Page_.currentPathTo(target)
         
-        @regCmd(r"(?:桌面|zm)")
+        @regCmd(r"(?:桌面|zm|home)")
         def home():
             """
             功能：返回手机桌面
@@ -302,12 +302,12 @@ class CCmds_:
             """
             return _G._G_.Tools().goHome()
         
-        @regCmd(r"(?:返回|fh)")
-        def goBack():
+        @regCmd(r"(?:返回|fh|back)")
+        def back():
             """
             功能：返回上一页
-            指令名: goBack-g
-            中文名: 返回-fh
+            指令名: back
+            中文名: 返回
             参数: 无
             示例: 返回
             """           
