@@ -199,7 +199,7 @@ class CChecker_:
         """
         try:
             if cls._checkThread and cls._checkThread.is_alive():
-                _Log.c.i("检查线程已在运行中")
+                # _Log.c.i("检查线程已在运行中")
                 return False
 
             if interval is not None:

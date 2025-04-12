@@ -596,8 +596,18 @@ class PythonServices {
         }
 
         @JvmStatic
-        fun enableTouchMonitor(enable: Boolean) {
-            ToolBarService.getInstance()?.get()?.enableTouchMonitor(enable)
+        fun showClick(enable: Boolean) {
+            Timber.d("Python调用showClick: $enable")
+            val service = ToolBarService.getInstance()?.get()
+            if (service != null) {
+                // 在主线程上执行UI操作
+                Handler(Looper.getMainLooper()).post {
+                    service.showClick(enable)
+                    Timber.d("调用showClick完成: $enable")
+                }
+            } else {
+                Timber.e("ToolBarService实例不可用")
+            }
         }
 
         /**
@@ -728,18 +738,6 @@ class PythonServices {
                 Timber.tag(TAG).e(e, "获取当前应用失败")
                 return null
             }
-        }
-
-        /**
-         * 控制点击坐标显示功能
-         * @param enable 是否启用点击坐标显示
-         * @return 操作是否成功
-         */
-        @JvmStatic
-        fun showClicker(enable: Boolean) {
-            Timber.tag(TAG).i("设置点击坐标显示: $enable")
-            val toolBarService = ToolBarService.getInstance()?.get()
-            toolBarService?.showClicker(enable)
         }
 
         /**
@@ -896,6 +894,13 @@ class PythonServices {
             } catch (e: Exception) {
                 Timber.e(e, "退出应用失败")
             }
+        }
+
+        // 保留这个方法作为兼容性支持
+        @JvmStatic
+        fun enableTouchMonitor(enable: Boolean) {
+            Timber.d("Python调用enableTouchMonitor (已废弃): $enable")
+            showClick(enable)
         }
     }
 } 

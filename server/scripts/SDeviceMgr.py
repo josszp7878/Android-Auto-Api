@@ -253,7 +253,7 @@ class SDeviceMgr_:
         if cmd_id in self.pendingCmds:
             del self.pendingCmds[cmd_id]
             # 存储超时结果并设置事件
-            timeout_result = f"e->命令执行超时: {command}"
+            timeout_result = f"e~命令执行超时: {command}"
             self.cmdResults[cmd_id] = timeout_result
             if cmd_id in self.cmdEvents:
                 self.cmdEvents[cmd_id].set()
@@ -283,16 +283,16 @@ class SDeviceMgr_:
             device = cast(SDevice_, device)
             with current_app.app_context():
                 if not device.isConnected:
-                    return 'w->设备未连接'
+                    return 'w~设备未连接'
                 sid = device.info.get('sid')
                 if not sid:
-                    return 'w->设备会话无效'
+                    return 'w~设备会话无效'
                 # 生成命令ID并创建事件
                 cmd_id = self.genCmdId(device.device_id, command)
                 cmd_event = threading.Event()
                 self.cmdEvents[cmd_id] = cmd_event
                 # 设置超时定时器
-                log.i(f'设置超时定时器: {cmd_id}, {command}, {timeout}')
+                # log.i(f'设置超时定时器: {cmd_id}, {command}, {timeout}')
                 timer = threading.Timer(timeout, self.handleCmdTimeout, args=[
                                         cmd_id, command])
                 timer.daemon = True
@@ -309,12 +309,12 @@ class SDeviceMgr_:
                     }, to=sid)
                 except Exception as e:
                     log.ex(e, '发送命令时出错')
-                    return f'e->发送命令异常{e}'
+                    return f'e~发送命令异常{e}'
 
                 # 等待结果或超时
                 cmd_event.wait(timeout)
                 # 获取结果
-                result = self.cmdResults.get(cmd_id, f"e->命令执行超时: {command}")
+                result = self.cmdResults.get(cmd_id, f"e~命令执行超时: {command}")
                 # 清理资源
                 if cmd_id in self.cmdEvents:
                     del self.cmdEvents[cmd_id]
@@ -323,7 +323,7 @@ class SDeviceMgr_:
                 return result
         except Exception as e:
             log.ex(e, '执行设备命令出错')
-            return f'e->执行命令失败:{e}'
+            return f'e~执行命令失败:{e}'
 
     def GetByGroup(self, group_name) -> List[SDevice_]:
         """按分组获取设备列表

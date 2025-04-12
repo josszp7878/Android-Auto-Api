@@ -485,7 +485,6 @@ class _App_:
                 return False
             # 等待应用打开检查
             ret = cls.detect(appName)
-            log.i(f"=>{appName} : {ret}")
             return ret
         except Exception as e:
             log.ex(e, "切换应用失败")

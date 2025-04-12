@@ -264,10 +264,7 @@ class STaskMgr_:
 
     @classmethod
     def registerCommands(cls):
-        log = _G_._G_.Log()
-        log.i("注册STaskMgr模块命令...")
-        from _CmdMgr import regCmd
-        
+        from _CmdMgr import regCmd        
         @regCmd(r"(?:服务器任务列表|fwqrwlb)")
         def serverTaskList():
             """
@@ -276,17 +273,6 @@ class STaskMgr_:
             中文名: 服务器任务列表
             参数: 无
             示例: 服务器任务列表
-            """
-            # 命令实现...
-        
-        @regCmd(r"(?:启动服务器任务|qdfwqrw)(?P<taskName>.+)")
-        def startServerTask(taskName):
-            """
-            功能：启动指定服务器任务
-            指令名: startServerTask-sST
-            中文名: 启动服务器任务
-            参数: taskName - 任务名称
-            示例: 启动服务器任务 数据备份
             """
             # 命令实现...
         

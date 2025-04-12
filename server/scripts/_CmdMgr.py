@@ -29,31 +29,68 @@ class _CmdMgr_:
     _PUNCT_QUOTE_PATTERN = re.compile(r'[,，。.、?？!！;；:：]$|["""'']')
     
     @classmethod
-    def reg(cls, alias=None):
+    def reg(cls, pattern=None):
         """注册命令
         
         Args:
-            alias: 命令正则表达式
+            pattern: 命令模式，支持以下格式:
+                1. 包含 "#命令名|别名" 的模式 - 自动替换为 "(?P<CC>命令名|别名|函数名|缩写)"
+                2. 完整的正则表达式 - 直接使用
+            
+        注意: 系统会自动将函数名和函数名缩写添加到命令别名中
+        函数名缩写规则: 取函数名第一个字母和所有大写字母组合
         """
         # 如果第一个参数是函数，说明装饰器没有参数
-        if callable(alias):
-            func = alias
+        if callable(pattern):
+            func = pattern
+            # 获取函数名和函数名缩写
+            func_name = func.__name__
+            # 生成函数名缩写: 取第一个字母和所有大写字母
+            abbr = func_name[0] + ''.join(c for c in func_name[1:] if c.isupper())
+            
+            # 创建命令模式，使用函数名和缩写
+            cmd_pattern = f"(?P<{cls.CmdKey}>{func_name}|{abbr})"
+            
             # 清除同名或同模块同函数名的旧命令
-            cls._clearOldCommand(func.__name__, func.__module__, func.__name__)
+            cls._clearOldCommand(cmd_pattern, func.__module__, func.__name__)
+            
             # 创建命令对象并添加到注册表
-            cmd = Cmd(func=func)
+            cmd = Cmd(func=func, alias=cmd_pattern)
             cls.cmdRegistry.append(cmd)
             return func
         
         # 如果第一个参数不是函数，说明装饰器有参数
         def decorator(func):
+            # 获取函数名和函数名缩写
+            func_name = func.__name__
+            # 生成函数名缩写: 取第一个字母和所有大写字母
+            abbr = func_name[0] + ''.join(c for c in func_name[1:] if c.isupper())
+            
+            # 处理简化的命令格式
+            if '#' in pattern:
+                # 使用正则表达式查找 #命令名|别名 格式                
+                m = re.search(r'\s*#([^\s\(]+)\s*', pattern)
+                if m:
+                    cmd_pattern = m.group(0)
+                    cmdName = m.group(1)
+                    # 始终添加函数名和缩写到命令别名中，不考虑是否已有别名
+                    cmdName = f"{cmdName}|{func_name}|{abbr}"
+                    # 替换为命名捕获组格式
+                    new_pattern = pattern.replace(cmd_pattern, f'\s*(?P<{cls.CmdKey}>{cmdName})\s*')
+                else:
+                    _G._G_.log().e(f"{pattern} 没有匹配指令名")
+                    return func
+            else:
+                # 如果不是简化格式，直接使用原始模式
+                new_pattern = pattern
+            
             # 清除同名或同模块同函数名的旧命令
-            cls._clearOldCommand(alias, func.__module__, func.__name__)
+            cls._clearOldCommand(new_pattern, func.__module__, func.__name__)
             
             # 创建命令对象并添加到注册表
             cmd = Cmd(
                 func=func, 
-                alias=alias,
+                alias=new_pattern,
                 doc=func.__doc__
             )
             cls.cmdRegistry.append(cmd)
@@ -111,14 +148,17 @@ class _CmdMgr_:
     @classmethod
     def _cleanParam(cls, value:str)->str:
         """清理参数值，去除多余空格和标点符号"""
-        # 去除前后空格
-        value = value.strip()        
-        # 替换多余空格为单个空格
-        value = cls._SPACE_PATTERN.sub(' ', value)
-        # 去除末尾标点符号和所有引号
-        value = cls._PUNCT_QUOTE_PATTERN.sub('', value)
-        
+        if value is not None:
+            # 去除前后空格
+            value = value.strip()        
+            # 替换多余空格为单个空格
+            value = cls._SPACE_PATTERN.sub(' ', value)
+            # 去除末尾标点符号和所有引号
+            value = cls._PUNCT_QUOTE_PATTERN.sub('', value)
         return value
+    
+    CmdKey = "CC"
+    DataKey = 'DD'
 
     @classmethod
     def do(cls, cmdStr, data=None)->Tuple[Any, str]:
@@ -133,11 +173,15 @@ class _CmdMgr_:
         """
         g = _G._G_
         log = g.Log()
-        cmdStr = cmdStr.strip()
+        cmdStr = cmdStr.strip() if cmdStr else ''
+        if cmdStr == '':
+            return None, None
         try:
             findCmd = None
             m = None
-            # 尝试匹配所有命令的正则表达式
+            # 尝试匹配所有命令的正则表达式，找到最长的匹配
+            bestMatch = None
+            bestMatchLength = -1
             for cmd in cls.cmdRegistry:
                 try:
                     match = re.fullmatch(cmd.alias, cmdStr)
@@ -145,22 +189,30 @@ class _CmdMgr_:
                     log.ex(e, f"命令: {cmdStr} 正则表达式错误: {cmd.alias}")
                     continue
                 if match:
-                    findCmd = cmd
-                    m = match
+                    cmdMatch = match.groupdict().get(cls.CmdKey)
+                    matchLength = len(cmdMatch) if cmdMatch else 0
+                    if matchLength > bestMatchLength:
+                        bestMatch = cmd
+                        m = match
+                        bestMatchLength = matchLength
+            findCmd = bestMatch
             if findCmd is None:
-                return "w-未知命令", None
+                log.e(f"找不到命令: {cmdStr}")
+                return "", None
             # 提取命名捕获组作为参数
-            kwargs = m.groupdict()
-            # 清理所有参数
-            kwargs = {key: cls._cleanParam(value) for key, value in kwargs.items()}
+            kwargs = {}
+            for key, value in m.groupdict().items():
+                # 跳过命令关键字,这个不能作为参数
+                if key != cls.CmdKey:
+                    kwargs[key] = cls._cleanParam(value)
             if data:
-                kwargs['data'] = data
+                kwargs[cls.DataKey] = data
             result = findCmd.func(**kwargs)
             log.log_(cmdStr, '', 'c', result or '')
             return result, findCmd.name
         except Exception as e:
-            str = log.formatEx('执行命令出错', e)
-            return str, None
+            log.ex(e, f'执行命令出错: {cmdStr}')
+            return None, None
         
     @classmethod
     def _reloadModule(cls, moduleName: str) -> bool:
@@ -333,7 +385,7 @@ class _CmdMgr_:
     @classmethod
     def registerCommands(cls):
         """注册命令管理器自身的命令"""
-        @cls.reg(r"重启")
+        @cls.reg(r"#重启")
         def reset():
             """功能：重新加载所有脚本并重启脚本引擎
             指令名：reloadAll
@@ -343,7 +395,7 @@ class _CmdMgr_:
             """
             return cls._reset()
         
-        @cls.reg(r"(?:加载|jz|rl)(?P<moduleName>.+)")
+        @cls.reg(r"#加载|jz|rl (?P<moduleName>.+)")
         def reload(moduleName):
             """功能：重新加载指定模块
             指令名：reload
@@ -357,7 +409,7 @@ class _CmdMgr_:
             # log.i(f"重新加载模块: {moduleName}")
             moduleName = g.getScriptName(moduleName)
             if not moduleName:
-                return "e-找不到模块"
+                return "e~找不到模块"
             # 检查是否需要下载最新版本
             moduleFile = f"scripts/{moduleName}.py"
             if not g.isServer():
@@ -374,7 +426,7 @@ class _CmdMgr_:
                 # 如果没有文件服务器，直接重载
                 cls._reloadModule(moduleName)
         
-        @cls.reg(r"(?:命令列表|mjlb|cl)") 
+        @cls.reg(r"#命令列表|mjlb|cl") 
         def cmdList():
             """功能：列出所有可用命令
             指令名：cmdList
@@ -387,7 +439,7 @@ class _CmdMgr_:
                 result += f"{cmd.name}\t\t: {cmd.alias}\n"
             return result
         
-        @cls.reg(r"(?:帮助|bz|help)(?P<command>\S+)?")
+        @cls.reg(r"#帮助|bz|help (?P<command>\S+)?")
         def help(command=None):
             """功能：显示命令帮助信息
             指令名：help
@@ -419,7 +471,7 @@ class _CmdMgr_:
             # 获取命令信息
             cmd_info = cls._findCommand(command)
             if not cmd_info:
-                return "e->无效指令"
+                return "e~无效指令"
             # 获取命令的描述
             desc = cmd_info.doc
             return desc

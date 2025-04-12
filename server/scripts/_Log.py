@@ -184,11 +184,12 @@ class _Log_:
         if isinstance(content, dict):
             return content
         
-        # 提取level标记（如"-d#", "e-", "#w"等格式）
-        m = re.search(r'.*?([dDiIwWEecC])[#->]+(.*)', content)
+        # 提取level标记
+        m = re.search(r'([dDiIwWEecC])[~]', content)
         if m:
             level = m.group(1).lower()  # 提取level字符
-            content = m.group(2).strip()  # 提取剩余内容
+            #提取剩余内容(去掉level标记,可能LEVEL标记在中间)
+            content = re.sub(m.group(0), '', content)
             return (level, content)
         
         # 默认使用传入的级别
@@ -377,10 +378,10 @@ class _Log_:
     
     @classmethod
     def isError(cls, message):
-        return isinstance(message, str) and message.startswith('e->')
+        return isinstance(message, str) and message.startswith('e~')
     @classmethod
     def isWarning(cls, message):
-        return isinstance(message, str) and message.startswith('w->')
+        return isinstance(message, str) and message.startswith('w~')
 
    
 c = _Log_()

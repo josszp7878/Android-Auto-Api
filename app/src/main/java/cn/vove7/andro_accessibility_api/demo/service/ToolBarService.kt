@@ -41,7 +41,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.lifecycle.LifecycleService
 import cn.vove7.andro_accessibility_api.demo.MainActivity
 import cn.vove7.andro_accessibility_api.demo.R
-import cn.vove7.andro_accessibility_api.demo.databinding.DialogDeviceInfoBinding
+import cn.vove7.andro_accessibility_api.demo.databinding.DSettingBinding
 import cn.vove7.andro_accessibility_api.demo.script.PythonServices
 import cn.vove7.andro_accessibility_api.demo.script.ScriptEngine
 import cn.vove7.andro_accessibility_api.demo.view.CursorView
@@ -345,7 +345,7 @@ class ToolBarService : LifecycleService() {
     private fun initializeToolbar() {
         if (floatRootView != null) return        
         val layoutInflater = LayoutInflater.from(this)
-        val unifiedView = layoutInflater.inflate(R.layout.command_input_bar, null)
+        val unifiedView = layoutInflater.inflate(R.layout.toolbar, null)
         
         // 设置整个视图的背景为透明
         unifiedView.setBackgroundColor(Color.TRANSPARENT)
@@ -606,8 +606,8 @@ class ToolBarService : LifecycleService() {
             PixelFormat.OPAQUE
         )
 
-        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_device_info, null)
-        val binding = DialogDeviceInfoBinding.bind(dialogView)
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.d_setting, null)
+        val binding = DSettingBinding.bind(dialogView)
 
         // 设置初始值
         binding.serverNameInput.setText(serverIP)
@@ -863,20 +863,6 @@ class ToolBarService : LifecycleService() {
         }
     }
 
-    fun showClicker(enable: Boolean) {
-        clickerEnabled = enable
-        
-        if (enable) {
-            // 启用点击坐标显示，添加全屏透明背景以捕获点击事件
-            showTouchMonitorView()
-        } else {
-            // 禁用点击坐标显示，移除背景
-            hideTouchMonitorView()
-        }
-        
-        log("点击坐标显示已" + (if (enable) "启用" else "禁用"), "System", "i")
-    }   
-
     /**
      * 显示点击坐标
      */
@@ -884,7 +870,8 @@ class ToolBarService : LifecycleService() {
         try {
             // 更新最后显示时间
             lastPositionToastUpdateTime = System.currentTimeMillis()
-            
+            val pos = "($x, $y)"
+            log(pos)
             // 使用Handler确保在主线程上执行
             Handler(Looper.getMainLooper()).post {
                 try {
@@ -892,8 +879,7 @@ class ToolBarService : LifecycleService() {
                     if (positionToastView != null) {
                         // 使用安全的类型转换
                         val textView = positionToastView?.findViewById<TextView>(R.id.position_toast_text)
-                        textView?.text = "点击坐标: ($x, $y)"
-                        
+                        textView?.text = pos
                         // 重置自动隐藏定时器
                         resetPositionToastAutoHideTimer()
                         return@post
@@ -1322,81 +1308,57 @@ class ToolBarService : LifecycleService() {
         updateToolbarVisibility()
     }
 
-    // 修改showTouchMonitorView方法
+    // 修改 showTouchMonitorView 方法，使用布局中的视图
     private fun showTouchMonitorView() {
-        if (touchView != null) {
-            touchView?.visibility = View.VISIBLE
-            return
-        }
+        // 获取布局中的触摸监控视图
+        val touchMonitorView = floatRootView?.findViewById<View>(R.id.touchMonitorView)
         
-        Timber.d("正在创建触摸监控视图...")
-        
-        val outMetrics = DisplayMetrics()
-        windowManager.defaultDisplay.getMetrics(outMetrics)
-        
-        touchView = View(this).apply {
-            setBackgroundColor(Color.TRANSPARENT)
-            setOnTouchListener { v, event ->
-                Timber.d("收到触摸事件: ${MotionEvent.actionToString(event.action)}")
+        if (touchMonitorView != null) {
+            // 设置触摸监听器
+            touchMonitorView.setOnTouchListener { v, event ->
+                // 记录所有触摸事件
+                Timber.d("收到触摸事件: ${MotionEvent.actionToString(event.action)} 坐标: (${event.rawX}, ${event.rawY})")
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
                         Timber.d("触摸坐标: (${event.rawX}, ${event.rawY})")
-                        if (clickerEnabled) {
-                            showClickPosition(event.rawX.toInt(), event.rawY.toInt())
-                        }
+                        showClickPosition(event.rawX.toInt(), event.rawY.toInt())
                     }
                 }
+                // 返回false以允许事件继续传递
                 false
             }
-        }
-
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            } else {
-                WindowManager.LayoutParams.TYPE_PHONE
-            },
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                    WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,  // 添加此flag
-            PixelFormat.TRANSLUCENT
-        )
-
-        try {
-            windowManager.addView(touchView, params)
-            Timber.d("触摸监控视图已添加")
-        } catch (e: Exception) {
-            Timber.e(e, "添加触摸监控视图失败")
+            
+            // 显示触摸监控视图
+            touchMonitorView.visibility = View.VISIBLE
+            touchView = touchMonitorView
+            Timber.d("触摸监控视图已启用")
+        } else {
+            Timber.e("找不到触摸监控视图")
         }
     }
 
-    // 添加隐藏触摸监控视图的方法
+    // 修改 hideTouchMonitorView 方法，隐藏而不是移除视图
     private fun hideTouchMonitorView() {
-        touchView?.let {
-            try {
-                windowManager.removeView(it)
-                touchView = null
-            } catch (e: Exception) {
-                Timber.e(e, "移除触摸监控视图失败")
-            }
-        }
+        val touchMonitorView = floatRootView?.findViewById<View>(R.id.touchMonitorView)
+        touchMonitorView?.visibility = View.GONE
+        touchView = null
+        Timber.d("触摸监控视图已隐藏")
     }
 
-    // 修改 enableTouchMonitor 方法，按需创建触摸监控视图
-    public fun enableTouchMonitor(enable: Boolean) {
+    // 修改 showClick 方法，使用布局中的视图
+    public fun showClick(enable: Boolean) {
+        Timber.d("设置触摸监控: $enable")
+        
+        // 添加更多详细日志
+        Timber.d("当前线程: ${Thread.currentThread().name}")
+        
         if (enable) {
-            if (touchView == null) {
-                // 只有在需要时才创建触摸监控视图
-                showTouchMonitorView()
-            } else {
-                touchView?.visibility = View.VISIBLE
-            }
+            // 启用触摸监控
+            showTouchMonitorView()
             log("触摸监控已启用")
         } else {
-            // 如果已创建，则隐藏；如果未创建，则不做任何操作
-            touchView?.visibility = View.GONE
+            // 隐藏触摸监控视图
+            hideTouchMonitorView()
             log("触摸监控已禁用")
         }
     }

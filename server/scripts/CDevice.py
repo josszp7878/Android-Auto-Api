@@ -229,7 +229,8 @@ class CDevice_:
             # log.d(f'收到命令: {command} from {sender} data: {cmdData}')
             # 使用 CmdMgr 执行命令
             result, cmdName = g.CmdMgr().do(command, cmdData)
-            
+            if cmdName is None:
+                return result
             # 特殊处理reset命令
             if cmdName and cmdName.lower() == 'reset':
                 log.i(f'收到重置命令: {command}，不发送结果')

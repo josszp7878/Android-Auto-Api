@@ -24,10 +24,8 @@ class SCmds_:
     @classmethod
     def registerCommands(cls):
         """注册服务器命令"""
-        log = _G._G_.Log()
-        log.i("注册SCmds模块命令...")
-        
-        @regCmd(r"(?:服务器信息|fwqxx)")
+        _G._G_.Log().i("注册SCmds模块命令...")
+        @regCmd(r"#服务器信息|fwqxx")
         def serverInfo():
             """
             功能：获取服务器信息
@@ -42,7 +40,7 @@ class SCmds_:
                 "devices": len(deviceMgr.devices),
             }
         
-        @regCmd(r"日期(?P<format>\S+)?")
+        @regCmd(r"#日期|rq (?P<format>\S+)?")
         def date(format=None):
             """功能：获取当前日期和时间
             指令名：date
@@ -57,10 +55,10 @@ class SCmds_:
                 return f"当前日期和时间: {current_time}"
             except Exception as e:
                 _Log._Log_.ex(e, "获取日期时间失败")
-                return f"e-获取日期时间失败: {str(e)}"
+                return f"e~获取日期时间失败: {str(e)}"
 
 
-        @regCmd('状态', sAlias="zt")
+        @regCmd('#状态')
         def status():
             """功能：显示服务器运行状态
             指令名：status
@@ -70,7 +68,7 @@ class SCmds_:
             """
             return '服务器运行正常aa'
 
-        @regCmd('清除', sAlias="qc")
+        @regCmd('#清空日志')
         def clearLog():
             """功能：清除控制台日志缓存
             指令名：clearLog
@@ -90,7 +88,7 @@ class SCmds_:
                 _Log._Log_.ex(e, '清除日志缓存出错')
                 return '清除日志缓存失败'
 
-        @regCmd(r"(?:设备列表|sblb)")
+        @regCmd('#设备列表')
         def deviceList():
             """
             功能：获取已连接设备列表
@@ -106,7 +104,7 @@ class SCmds_:
                 for id, dev in devices.items()
             ])
 
-        @regCmd(r"进度(?P<deviceId>[^ ]+)?(?P<appName>[^ ]+)?(?P<taskName>[^ ]+)?")
+        @regCmd(r'#进度 (?P<deviceId>[^ ]+)?(?P<appName>[^ ]+)?(?P<taskName>[^ ]+)?')
         def progress(deviceId, appName, taskName):
             """功能：查询任务执行进度
             指令名：progress
@@ -122,7 +120,7 @@ class SCmds_:
                 if deviceId == '_':
                     deviceId = deviceMgr.curDeviceID
                     if not deviceId:
-                        return "e->未选择设备"
+                        return "e~未选择设备"
                 
                 # 处理最近任务
                 if appName == '_' or taskName == '_':
@@ -132,7 +130,7 @@ class SCmds_:
                     ).order_by(STask_.time.desc()).first()
                     
                     if not last_task:
-                        return "i->未找到最近任务记录"
+                        return "未找到最近任务记录"
                     
                     if appName == '_':
                         appName = last_task.appName
@@ -147,18 +145,18 @@ class SCmds_:
                 ).order_by(STask_.time.desc()).first()
                 
                 if not task:
-                    return "i->未找到正在运行的任务"
+                    return "未找到正在运行的任务"
                     
                 # 格式化输出任务信息（转换为百分比）
                 progress_percent = task.progress * 100
-                return f"i->任务进度: {progress_percent:.1f}%"
+                return f"任务进度: {progress_percent:.1f}%"
                 
             except Exception as e:
                 _Log._Log_.ex(e, "查询任务进度失败")
-                return f"e->查询任务进度失败: {str(e)}"
+                return f"e~查询任务进度失败: {str(e)}"
 
 
-        @regCmd('调试', sAlias="ts")
+        @regCmd('#调试')
         def debug():
             """功能：显示当前设备的详细调试信息
             指令名：debug
@@ -170,11 +168,11 @@ class SCmds_:
                 # 获取当前设备
                 device_id = deviceMgr.curDeviceID
                 if not device_id:
-                    return "e->未选择设备"
+                    return "e~未选择设备"
                     
                 device = deviceMgr.get(device_id)
                 if not device:
-                    return "e->设备不存在"
+                    return "e~设备不存在"
                     
                 # 获取设备信息
                 info = device.to_dict()
@@ -205,9 +203,9 @@ class SCmds_:
                 
             except Exception as e:
                 _Log._Log_.ex(e, "获取调试信息失败")
-                return f"e->获取调试信息失败: {str(e)}"
+                return f"e~获取调试信息失败: {str(e)}"
 
-        @regCmd(r"任务列表(?P<deviceId>[^ ]+)?(?P<state>[^ ]+)?")
+        @regCmd(r"#任务列表|rwlb (?P<deviceId>[^ ]+)?(?P<state>[^ ]+)?")
         def show_tasks(deviceId, state):
             """功能：显示设备的任务列表
             指令名：show_tasks
@@ -223,7 +221,7 @@ class SCmds_:
                 state = state.lower() if state else 'all'
                 
                 if not device_id:
-                    return "e->未指定设备ID"
+                    return "e~未指定设备ID"
                     
                 # 构建查询
                 query = STask_.query.filter_by(deviceId=device_id)
@@ -236,7 +234,7 @@ class SCmds_:
                 tasks = query.order_by(STask_.time.desc()).limit(10).all()
                 
                 if not tasks:
-                    return f"i->设备 {device_id} 没有{state}任务记录"
+                    return f"设备 {device_id} 没有{state}任务记录"
                     
                 # 格式化输出
                 result = f"设备 {device_id} 的任务列表 ({state}):\n"
@@ -248,9 +246,9 @@ class SCmds_:
                 
             except Exception as e:
                 _Log._Log_.ex(e, "获取任务列表失败")
-                return f"e->获取任务列表失败: {str(e)}"
+                return f"e~获取任务列表失败: {str(e)}"
 
-        @regCmd(r'设置日期(?P<date>[^ ]+)')
+        @regCmd('#设置日期 (?P<date>[^ ]+)')
         def set_date(date):
             """功能：设置任务管理器的执行日期
             指令名：set_date
@@ -262,7 +260,7 @@ class SCmds_:
             try:
                 parts = date.split('-')
                 if len(parts) != 3:
-                    return "e->日期格式错误，应为: YY-M-D"
+                    return "e~日期格式错误，应为: YY-M-D"
                     
                 year, month, day = int(parts[0]), int(parts[1]), int(parts[2])
                 # 补全年份
@@ -275,20 +273,20 @@ class SCmds_:
                 # 设置任务管理器日期
                 device_id = deviceMgr.curDeviceID
                 if not device_id:
-                    return "e->未选择设备"
+                    return "e~未选择设备"
                     
                 device = deviceMgr.get(device_id)
                 if not device or not device.taskMgr:
-                    return "e->设备或任务管理器不存在"
+                    return "e~设备或任务管理器不存在"
                     
                 device.taskMgr.setDate(date_obj)
-                return f"i->已设置日期为: {date_obj.strftime('%Y-%m-%d')}"
+                return f"已设置日期为: {date_obj.strftime('%Y-%m-%d')}"
                 
             except ValueError as e:
-                return f"e->日期格式错误: {str(e)}"
+                return f"e~日期格式错误: {str(e)}"
             except Exception as e:
                 _Log._Log_.ex(e, "设置日期失败")
-                return f"e->设置日期失败: {str(e)}"
+                return f"e~设置日期失败: {str(e)}"
 
         @regCmd(r"(?:停止|tz)(?P<taskName>[^ ]+)?")
         def stop(taskName=None):
@@ -302,7 +300,7 @@ class SCmds_:
             try:
                 device_id = deviceMgr.curDeviceID
                 if not device_id:
-                    return "e->未选择设备"
+                    return "e~未选择设备"
                     
                 # 获取正在运行的任务
                 task = STask_.query.filter_by(
@@ -311,19 +309,19 @@ class SCmds_:
                 ).order_by(STask_.time.desc()).first()
                 
                 if not task:
-                    return "i->未找到正在运行的任务"
+                    return "未找到正在运行的任务"
                     
                 if task.state != TaskState.RUNNING.value:
-                    return 'w->当前任务不在运行状态'
+                    return 'w~当前任务不在运行状态'
                 deviceMgr.sendClientCmd(device_id, f"stopTask {task.appName} {task.taskName}")
                 
             except Exception as e:
                 _Log._Log_.ex(e, "停止任务失败")
-                return f"e->停止任务失败: {str(e)}"
+                return f"e~停止任务失败: {str(e)}"
             
-            return f"i->已发送停止命令: {task.appName} {task.taskName}"
+            return f"已发送停止命令: {task.appName} {task.taskName}"
 
-        @regCmd(r"(?:保存结果|bcjg)")
+        @regCmd('#保存结果|bcjg')
         def saveResult():
             """功能：保存最近一次命令执行结果到JSON文件
             指令名：saveResult
@@ -335,7 +333,7 @@ class SCmds_:
                 g = _G._G_
                 result = g.lastResult
                 if not result:
-                    return "e->没有可保存的结果"
+                    return "e~没有可保存的结果"
                     
                 # 尝试将结果转换为JSON格式
                 try:
@@ -361,13 +359,13 @@ class SCmds_:
                 with open("result.json", "w", encoding="utf-8") as f:
                     f.write(formatted_json)
                     
-                return f"i->结果已保存到 result.json"
+                return f"结果已保存到 result.json"
             except Exception as e:
                 _Log._Log_.ex(e, "保存结果失败")
-                return f"e->保存结果失败: {str(e)}"
+                return f"e~保存结果失败: {str(e)}"
 
        
-        @regCmd(r"(?:快照|kz)")
+        @regCmd('#快照|kz')
         def takeScreenshot():
             """功能：对当前设备进行屏幕截图
             指令名：takeScreenshot
@@ -378,14 +376,14 @@ class SCmds_:
             try:
                 device = deviceMgr.curDevice
                 if device is None:
-                    _Log._Log_.e('e->当前没有设备')
+                    _Log._Log_.e('e~当前没有设备')
                 else:
                     device.takeScreenshot()
             except Exception as e:
                 _Log._Log_.ex(e, '执行快照命令失败')
 
 
-        @regCmd(r"(?:扫描应用|smyy)")
+        @regCmd('#扫描应用|smyy')
         def scanApp():
             """功能：分析当前设备屏幕上的应用信息
             指令名：scanApp
@@ -396,13 +394,13 @@ class SCmds_:
             try:
                 device = deviceMgr.curDevice
                 if not device:
-                    return "e->请先选择设备"
+                    return "e~请先选择设备"
                 if device.getAppOnScreen():
                     return "分析完成"
-                return "e->分析指令发送失败"
+                return "e~分析指令发送失败"
             except Exception as e:
                 _Log._Log_.ex(e, "执行屏幕分析失败")
-                return f"e->{str(e)}"
+                return f"e~{str(e)}"
 
         @regCmd(r'截屏(?P<pageName>[^ ]+)?')
         def getScreenInfo(pageName=None):
@@ -417,7 +415,7 @@ class SCmds_:
                 log = _G._G_.Log()
                 device = deviceMgr.curDevice
                 if not device:
-                    return "e->请先选择设备"
+                    return "e~请先选择设备"
                 pageName = pageName or 'Last'
                 
                 # 回调函数处理客户端返回的屏幕信息
@@ -441,12 +439,12 @@ class SCmds_:
                 # 发送客户端命令获取屏幕信息
                 res = deviceMgr.sendClientCmd(device.deviceID, "eval T.getScreenInfo(True)", None, 10)
                 handleScreenInfo(res)
-                return "i->正在获取屏幕信息..."
+                return "正在获取屏幕信息..."
             except Exception as e:
                 log.ex(e, "获取屏幕信息失败")
-                return f"e->获取屏幕信息失败: {str(e)}"
+                return f"e~获取屏幕信息失败: {str(e)}"
 
-        @regCmd(r"(?:设置屏幕|szpm)(?P<pageName>[^ ]+)?")
+        @regCmd(r'#设置屏幕信息|szpmxx (?P<pageName>\S+)?')
         def setScreenInfo(pageName=None):
             """功能：将服务端缓存的屏幕信息发送到客户端
             指令名：setScreenInfo
@@ -459,11 +457,11 @@ class SCmds_:
                 log = _G._G_.Log()
                 device = deviceMgr.curDevice
                 if not device:
-                    return "e-请先选择设备"
+                    return "e~请先选择设备"
                 # 获取屏幕信息
                 screenInfo = device.getScreenInfo(pageName)
                 if not screenInfo:
-                    return f"e-屏幕信息为空"
+                    return f"e~屏幕信息为空"
                     
                 # 使用三引号包裹多行JSON字符串
                 cmd = f"eval T.setScreenInfo('''{screenInfo}''')"
@@ -472,9 +470,9 @@ class SCmds_:
                 return f"i-成功设置屏幕信息: {pageName}"
             except Exception as e:
                 log.ex(e, "设置屏幕信息失败")
-                return f"e-设置屏幕信息失败: {str(e)}"
+                return f"e~设置屏幕信息失败: {str(e)}"
 
-        @regCmd(r"(?:格式化|fjf)(?P<fileName>[^ ]+)")
+        @regCmd('#格式化|fjf (?P<fileName>[^ ]+)')
         def formatJsonFile(fileName):
             """功能：格式化指定的JSON文件使其更易读
             指令名：formatJsonFile
@@ -488,7 +486,7 @@ class SCmds_:
                 
                 # 检查文件是否存在
                 if not os.path.exists(fileName):
-                    return f"e-文件不存在: {fileName}"
+                    return f"e~文件不存在: {fileName}"
                     
                 # 读取文件内容
                 with open(fileName, 'r', encoding='utf-8') as f:
@@ -498,7 +496,7 @@ class SCmds_:
                 try:
                     data = json.loads(content)
                 except json.JSONDecodeError as e:
-                    return f"e->JSON解析错误: {str(e)}"
+                    return f"e~JSON解析错误: {str(e)}"
                     
                 # 使用漂亮的格式重新序列化
                 formatted_json = json.dumps(
@@ -512,12 +510,12 @@ class SCmds_:
                 with open(fileName, 'w', encoding='utf-8') as f:
                     f.write(formatted_json)
                     
-                return f"i->文件已格式化: {fileName}"
+                return f"文件已格式化: {fileName}"
             except Exception as e:
                 log.ex(e, f"格式化JSON文件失败: {fileName}")
-                return f"e->格式化失败: {str(e)}"
+                return f"e~格式化失败: {str(e)}"
 
-        @regCmd(r"(?:打印拓扑|pt)")
+        @regCmd('#打印拓扑|pt')
         def printTopology():
             """功能：打印系统拓扑结构
             指令名：printTopology
@@ -527,12 +525,12 @@ class SCmds_:
             """
             try:
                 _App_.printTopology()
-                return "i->拓扑结构已打印"
+                return "拓扑结构已打印"
             except Exception as e:
                 _Log._Log_.ex(e, "打印拓扑结构失败")
-                return f"e->打印拓扑结构失败: {str(e)}"
+                return f"e~打印拓扑结构失败: {str(e)}"
 
-        @regCmd(r"(?:加载|jz)")
+        @regCmd('#加载|jz')
         def load():
             """功能：加载环境配置
             指令名：load
@@ -542,7 +540,7 @@ class SCmds_:
             """
             _G._G_.load()
 
-        @regCmd(r'选择(?P<target>.*)?')
+        @regCmd('#选择设备|xzsb (?P<target>\S+)')
         def select(target=None):
             """功能：根据目标描述选择设备
             指令名：select
@@ -585,7 +583,180 @@ class SCmds_:
                     if group_devices:
                         deviceMgr.curDeviceIDs = group_devices
                     else:
-                        return f"e->无效目标: {target}"
+                        return f"e~无效目标: {target}"
             
             # 通知前端更新选择
             deviceMgr.emit2B('S2B_UpdateSelection', {'device_ids': deviceMgr.curDeviceIDs})
+
+        @regCmd(r'#设备信息|sbxx (?P<deviceID>\S+)?')
+        def deviceInfo(deviceID):
+            """功能：获取设备信息
+            指令名：deviceInfo
+            中文名：设备信息
+            参数：
+               deviceID - 设备ID (可选)
+            示例：设备信息 设备1
+            """
+            try:
+                device = deviceMgr.get(deviceID)
+                if device:
+                    return device.to_dict()
+                else:
+                    return "e~设备不存在"
+            except Exception as e:
+                _Log._Log_.ex(e, "获取设备信息失败")
+                return f"e~获取设备信息失败: {str(e)}"
+
+        @regCmd('#任务信息|rwxx (?P<taskID>\S+)')
+        def taskInfo(taskID):
+            """功能：获取任务信息
+            指令名：taskInfo
+            中文名：任务信息
+            参数：
+               taskID - 任务ID
+            示例：任务信息 任务1
+            """
+            try:
+                task = STask_.query.get(taskID)
+                if task:
+                    return task.to_dict()
+                else:
+                    return "e~任务不存在"
+            except Exception as e:
+                _Log._Log_.ex(e, "获取任务信息失败")
+                return f"e~获取任务信息失败: {str(e)}"
+
+        @regCmd(r'#创建任务|cjrw (?P<taskName>\S+)(?:\s+(?P<deviceIDs>.+))?')
+        def createTask(taskName, deviceIDs):
+            """功能：创建任务
+            指令名：createTask
+            中文名：创建任务
+            参数：
+               taskName - 任务名称
+               deviceIDs - 设备ID列表，用空格分隔
+            示例：创建任务 签到 设备1 设备2
+            """
+            try:
+                device_ids = deviceIDs.split() if deviceIDs else []
+                if not device_ids:
+                    return "e~未指定设备ID"
+                
+                task = STask_(
+                    appName=taskName,
+                    deviceIds=device_ids
+                )
+                task.save()
+                return f"已创建任务: {taskName}, 设备: {', '.join(device_ids)}"
+            except Exception as e:
+                _Log._Log_.ex(e, "创建任务失败")
+                return f"e~创建任务失败: {str(e)}"
+
+        @regCmd('#删除任务|scrw (?P<taskID>\S+)'):
+        def deleteTask(taskID):
+            """功能：删除任务
+            指令名：deleteTask
+            中文名：删除任务
+            参数：
+               taskID - 任务ID
+            示例：删除任务 任务1
+            """
+            try:
+                task = STask_.query.get(taskID)
+                if task:
+                    task.delete()
+                    return f"已删除任务: {taskID}"
+                else:
+                    return "e~任务不存在"
+            except Exception as e:
+                _Log._Log_.ex(e, "删除任务失败")
+                return f"e~删除任务失败: {str(e)}"
+
+        @regCmd('#启动任务|qdrw (?P<taskID>\S+)'):
+        def startTask(taskID):
+            """功能：启动任务
+            指令名：startTask
+            中文名：启动任务
+            参数：
+               taskID - 任务ID
+            示例：启动任务 任务1
+            """
+            try:
+                task = STask_.query.get(taskID)
+                if task:
+                    task.start()
+                    return f"已启动任务: {taskID}"
+                else:
+                    return "e~任务不存在"
+            except Exception as e:
+                _Log._Log_.ex(e, "启动任务失败")
+                return f"e~启动任务失败: {str(e)}"
+
+        @regCmd('#停止任务|tzrw (?P<taskID>\S+)'):
+        def stopTask(taskID):
+            """功能：停止任务
+            指令名：stopTask
+            中文名：停止任务
+            参数：
+               taskID - 任务ID
+            示例：停止任务 任务1
+            """
+            try:
+                task = STask_.query.get(taskID)
+                if task:
+                    task.stop()
+                    return f"已停止任务: {taskID}"
+                else:
+                    return "e~任务不存在"
+            except Exception as e:
+                _Log._Log_.ex(e, "停止任务失败")
+                return f"e~停止任务失败: {str(e)}"
+
+        @regCmd('#添加设备|tjsb (?P<taskID>\S+)\s+(?P<deviceIDs>.+)'):
+        def addDevice(taskID, deviceIDs):
+            """功能：添加设备到任务
+            指令名：addDevice
+            中文名：添加设备
+            参数：
+               taskID - 任务ID
+               deviceIDs - 设备ID列表，用空格分隔
+            示例：添加设备 任务1 设备1 设备2
+            """
+            try:
+                task = STask_.query.get(taskID)
+                if task:
+                    device_ids = deviceIDs.split()
+                    if not device_ids:
+                        return "e~未指定设备ID"
+                    
+                    task.addDevices(device_ids)
+                    return f"已添加设备到任务: {taskID}, 设备: {', '.join(device_ids)}"
+                else:
+                    return "e~任务不存在"
+            except Exception as e:
+                _Log._Log_.ex(e, "添加设备到任务失败")
+                return f"e~添加设备到任务失败: {str(e)}"
+
+        @regCmd('#移除设备|ycsb (?P<taskID>\S+)\s+(?P<deviceIDs>.+)'):
+        def removeDevice(taskID, deviceIDs):
+            """功能：从任务中移除设备
+            指令名：removeDevice
+            中文名：移除设备
+            参数：
+               taskID - 任务ID
+               deviceIDs - 设备ID列表，用空格分隔
+            示例：移除设备 任务1 设备1 设备2
+            """
+            try:
+                task = STask_.query.get(taskID)
+                if task:
+                    device_ids = deviceIDs.split()
+                    if not device_ids:
+                        return "e~未指定设备ID"
+                    
+                    task.removeDevices(device_ids)
+                    return f"已从任务中移除设备: {taskID}, 设备: {', '.join(device_ids)}"
+                else:
+                    return "e~任务不存在"
+            except Exception as e:
+                _Log._Log_.ex(e, "从任务中移除设备失败")
+                return f"e~从任务中移除设备失败: {str(e)}"
