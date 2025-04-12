@@ -104,8 +104,8 @@ class CCmds_:
                 return f"{pos}"
             return "e~无效位置"
 
-        @regCmd(r"#点击|dj(?P<text>\S+)?\s*(?P<dir>[HV])?")
-        def click(text, dir=None):
+        @regCmd(r"#点击|dj(?P<text>\S+)?(?P<dir>[LlRrUuDd]+)?")
+        def clIck(text, dir=None):
             """
             功能：点击指定位置或文本
             指令名: click-c
@@ -194,7 +194,7 @@ class CCmds_:
                     return "未指定要关闭的应用"            
             return App.closeApp(appName)
             
-        @regCmd(r"(?:截屏|jp)")
+        @regCmd(r"#截屏|jp")
         def getScreen():
             """
             功能：获取屏幕结构化数据
@@ -231,7 +231,7 @@ class CCmds_:
             """
             return _G._G_.CTools().swipe(param)
 
-        @regCmd(r"(?:快照|kz)")
+        @regCmd(r"#快照|kz")
         def takeScreenshot():
             """
             功能：截取当前屏幕并发送到服务器
@@ -242,7 +242,7 @@ class CCmds_:
             """
             _G._G_.CDevice().TakeScreenshot()
 
-        @regCmd(r"(?:当前页面|dqym)(?P<appName>\S+)?")
+        @regCmd(r"#当前页面|dqym(?P<appName>\S+)?")
         def curPage(appName=None):
             """
             功能：获取当前页面信息
@@ -367,12 +367,12 @@ class CCmds_:
                 log.ex(e, '下载操作异常')
                 return False
 
-        @regCmd(r"(?:获取文件|hqwj)(?P<fileName>.+)")
+        @regCmd(r"#获取文件(?P<fileName>.+)")
         def getFileName(fileName):
             """
             功能：检查文件是否存在
-            指令名: getFileName-g
-            中文名: 获取文件-hqwj
+            指令名: getFileName
+            中文名: 获取文件
             参数: fileName - 要检查的文件名
             示例: 获取文件 config.json
             """
@@ -491,7 +491,7 @@ class CCmds_:
 
 
         @regCmd(r"#检查|jc (?P<checkerName>\S+)(?:\s+(?P<enabled>\S+))?")
-        def check(checkerName, enabled=None):
+        def chEck(checkerName, enabled=None):
             """
             功能：停止指定名称的检查器
             指令名: check-c

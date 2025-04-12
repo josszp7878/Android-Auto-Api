@@ -232,7 +232,7 @@ class CTaskMgr_:
         log.i("注册CTaskMgr模块命令...")
         from _CmdMgr import regCmd
         
-        @regCmd(r"(?:任务列表|rwlb)")
+        @regCmd(r"#任务列表")
         def taskList():
             """
             功能：获取任务列表
@@ -243,7 +243,7 @@ class CTaskMgr_:
             """
             # 命令实现...
         
-        @regCmd(r"(?:启动任务|qdtw)(?P<taskName>.+)")
+        @regCmd(r"#启动任务(?P<taskName>.+)")
         def startTask(taskName):
             """
             功能：启动指定任务

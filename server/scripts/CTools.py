@@ -685,6 +685,7 @@ class CTools_(_Tools._Tools_):
         Returns:
             bool: 是否找到匹配内容
         """
+        direction = direction.upper()
         log = _G._G_.Log()        
         # 检查初始屏幕是否匹配
         if matchFunc():
@@ -701,14 +702,6 @@ class CTools_(_Tools._Tools_):
             'R': 'CR',
             'U': 'CU',
             'D': 'CD'
-        }
-        
-        # 反向映射
-        opposite_dir = {
-            'L': 'R',
-            'R': 'L',
-            'U': 'D',
-            'D': 'U'
         }
         
         # 开始主方向滑动
@@ -848,51 +841,5 @@ class CTools_(_Tools._Tools_):
         similarity = len(common) / total
         return similarity > 0.7  # 相似度阈值
 
-    # @classmethod
-    # def getScreenText(cls):
-    #     """获取当前屏幕上的所有文本
-    #     Returns:
-    #         文本内容列表
-    #     """
-    #     log = _G._G_.Log()
-    #     try:
-    #         if cls.android:
-    #             nodes = cls.android.findTextNodes()
-    #             if nodes is not None and len(nodes) > 0:
-    #                 return [node.getText() for node in nodes if node.getText()]
-    #     except Exception as e:
-    #         log.ex(e, "获取屏幕文本异常")
-    #     log.i("获取屏幕文本失败")
-    #     return None
-
-    @classmethod
-    def registerCommands(cls):
-        log = _G._G_.Log()
-        log.i("注册CTools模块命令...")
-        from _CmdMgr import regCmd
-        
-        @regCmd(r"(?:工具列表|gjlb)")
-        def toolsList():
-            """
-            功能：获取可用工具列表
-            指令名: toolsList-tL
-            中文名: 工具列表
-            参数: 无
-            示例: 工具列表
-            """
-            # 命令实现...
-        
-        @regCmd(r"(?:截图|jt)")
-        def screenshot():
-            """
-            功能：截取屏幕图像
-            指令名: screenshot-s
-            中文名: 截图
-            参数: 无
-            示例: 截图
-            """
-            # 命令实现...
-        
-        # 其他命令...
-
+   
 CTools_.init()

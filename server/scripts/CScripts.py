@@ -15,7 +15,7 @@ class CScripts_:
     @classmethod
     def registerCommands(cls):
         # 注册复合命令
-        @regCmd(r"打开快手极速版")
+        @regCmd(r"#打开快手极速版")
         def runCC():
             from CApp import CApp_
             CApp_.goHome()

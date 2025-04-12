@@ -28,6 +28,37 @@ class _CmdMgr_:
     _SPACE_PATTERN = re.compile(r'\s+')
     _PUNCT_QUOTE_PATTERN = re.compile(r'[,，。.、?？!！;；:：]$|["""'']')
     
+
+    @classmethod
+    def processParamSpaces(cls, cmdStr):
+        """处理参数之间的空格"""
+        # 查找所有命名捕获组 (?P<name>pattern) 包括可选参数
+        param_groups = list(re.finditer(r'\(\?P<([^>]+)>[^)]+\)\??', cmdStr))
+        
+        # 过滤掉命令关键字参数，并按出现顺序记录参数位置
+        params = []
+        for match in param_groups:
+            param_name = match.group(1)
+            if param_name != cls.CmdKey:
+                params.append((match.start(), match.end()))
+        
+        # 在参数之间添加\s+（最后一个参数不添加）
+        modified = cmdStr
+        offset = 0  # 用于跟踪插入空格后的位置偏移
+        for i in range(len(params)-1):
+            current_end = params[i][1] + offset
+            next_start = params[i+1][0] + offset
+            
+            # 检查当前参数结束到下一个参数开始之间是否有其他字符
+            between = modified[current_end:next_start]
+            if not re.search(r'\\s', between):  # 如果没有已有的空格匹配
+                # 在当前位置插入\s+
+                modified = modified[:current_end] + r'\s*' + modified[current_end:]
+                offset += 4  # 插入4个字符(\s+)
+        
+        return modified
+
+    
     @classmethod
     def reg(cls, pattern=None):
         """注册命令
@@ -40,6 +71,8 @@ class _CmdMgr_:
         注意: 系统会自动将函数名和函数名缩写添加到命令别名中
         函数名缩写规则: 取函数名第一个字母和所有大写字母组合
         """
+        log = _G._G_.Log()
+        
         # 如果第一个参数是函数，说明装饰器没有参数
         if callable(pattern):
             func = pattern
@@ -61,32 +94,44 @@ class _CmdMgr_:
         
         # 如果第一个参数不是函数，说明装饰器有参数
         def decorator(func):
+            nonlocal pattern  # 声明pattern为非局部变量，引用外部作用域的pattern
+            
             # 获取函数名和函数名缩写
             func_name = func.__name__
             # 生成函数名缩写: 取第一个字母和所有大写字母
             abbr = func_name[0] + ''.join(c for c in func_name[1:] if c.isupper())
             
-            # 处理简化的命令格式
-            if '#' in pattern:
-                # 使用正则表达式查找 #命令名|别名 格式                
-                m = re.search(r'\s*#([^\s\(]+)\s*', pattern)
-                if m:
-                    cmd_pattern = m.group(0)
-                    cmdName = m.group(1)
-                    # 始终添加函数名和缩写到命令别名中，不考虑是否已有别名
-                    cmdName = f"{cmdName}|{func_name}|{abbr.lower()}"
-                    # 替换为命名捕获组格式
-                    new_pattern = pattern.replace(cmd_pattern, f'\s*(?P<{cls.CmdKey}>{cmdName})\s*')
-                else:
-                    _G._G_.log().e(f"{pattern} 没有匹配指令名")
-                    return func
-            else:
-                # 如果不是简化格式，直接使用原始模式
-                new_pattern = pattern
+            if '#' not in pattern:
+                log.e(f"命令格式错误: {pattern}")
+                return func
             
+            # 处理参数之间的空格
+            pattern = cls.processParamSpaces(pattern)
+            
+            # 使用正则表达式查找 #命令名|别名 格式
+            m = re.search(r'\s*#([^\s\(]+)\s*', pattern)
+            if m:
+                cmd_pattern = m.group(0)
+                cmdName = m.group(1)
+                # 始终添加函数名和缩写到命令别名中，不考虑是否已有别名
+                cmdName = f"{cmdName}|{func_name}|{abbr.lower()}"
+                # 在替换命令名时添加忽略大小写标记
+                new_pattern = pattern.replace(
+                    cmd_pattern, 
+                    f'(?P<{cls.CmdKey}>{cmdName})(?i)\s*'  # 添加(?i)忽略大小写
+                )
+            else:
+                log.e(f"{pattern} 没有匹配指令名")
+                return func
+            # 如果new_pattern结尾是\s+,应该去掉
+            if new_pattern.endswith(r'\s+'):
+                new_pattern = new_pattern[:-3]
+            # 记录日志，帮助调试
+            # log.i(f"{pattern}<=>\n{new_pattern}")
             # 清除同名或同模块同函数名的旧命令
             cls._clearOldCommand(new_pattern, func.__module__, func.__name__)
             
+
             # 创建命令对象并添加到注册表
             cmd = Cmd(
                 func=func, 
@@ -209,7 +254,7 @@ class _CmdMgr_:
             if data:
                 kwargs[cls.DataKey] = data
             result = findCmd.func(**kwargs)
-            log.log_(cmdStr, '', 'c', result or '')
+            log.log_(f'cmdStr<{findCmd.name.lower()}>', '', 'c', result or '')
             return result, findCmd.name
         except Exception as e:
             log.ex(e, f'执行命令出错: {cmdStr}')
