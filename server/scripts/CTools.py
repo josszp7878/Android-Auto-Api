@@ -4,7 +4,6 @@ import _G
 import re
 from typing import Optional, TYPE_CHECKING, Any
 import _Tools
-import _Log
 
 if TYPE_CHECKING:
     import _App
@@ -627,36 +626,33 @@ class CTools_(_Tools._Tools_):
         log = _G._G_.Log()
         # 尝试使用parsePos解析带括号的格式
         parsed_text, coords = _Tools._Tools_.toPos(text)
-        if parsed_text is None:
-            if coords is None:
-                parsed_text = text
-            else:
-                pos = (coords[0], coords[1])
-                log.i(f"click:  {pos}")
-                return cls.clickPos(pos)
-        if parsed_text is None:
-            log.i(f"click:{text} 解析失败")
-            return False
         offset = (0, 0)
-        if coords is not None:
-            offset = (
-                coords[0] if len(coords) > 0 else 0,
-                coords[1] if len(coords) > 1 else 0
-            )
-        # log.i(f"点击文本 {parsed_text}，{offset}")
-        # 查找文本位置
-        pos = cls.findTextPos(parsed_text, direction)
-        if pos:
-            log.i(f"点击文本: {parsed_text}，pos={pos}，偏移:{offset}")
-            return cls.clickPos(pos, offset)
-        return cls.android is None
+        # log.i(f"click: {text} 解析结果: {parsed_text}, {coords}")
+        if parsed_text is None:
+            #纯坐标
+            if coords is None:
+                log.w(f"click:  {text} 解析失败")
+                return False
+            else:
+                x = coords[0] if len(coords) > 0 else 0
+                y = coords[1] if len(coords) > 1 else 0
+                pos = (x, y)
+        else:
+            if coords:
+                offset = coords
+            # 查找文本位置
+            pos = cls.findTextPos(parsed_text, direction)
+            if pos is None:
+                log.w(f"{parsed_text} 位置未找到")
+                return False
+        return cls.clickPos(pos, offset)
     
     @classmethod
     def clickPos(cls, pos, offset=None):
         """点击文本（支持偏移）"""
         log = _G._G_.Log()
         try:
-            # log.i(f"点击位置: {pos}，偏移:{offset}")
+            log.i(f"点击位置: {pos}，偏移:{offset}")
             offsetX= offset[0] if offset else 0
             offsetX= offsetX if offsetX else 0
             offsetY= offset[1] if offset else 0
@@ -776,7 +772,11 @@ class CTools_(_Tools._Tools_):
             找到文本的坐标元组(x,y)或None
         """
         # 尝试在当前屏幕查找
+        log = _G._G_.Log()
+        log.i(f"查找文本: {text}")
         pos = cls._findTextPos(text)
+        if pos is None:
+            return None
         # _Log.c.i(f"findTextPos: {pos}")
         if pos or not searchDir:
             return pos
@@ -799,10 +799,14 @@ class CTools_(_Tools._Tools_):
         Returns:
             找到文本的坐标元组(x,y)或None
         """
+        text = text.strip() if text else ''
+        if text == '':
+            return None
         log = _G._G_.Log()
         try:
             # 使用matchText查找文本
             result = cls.matchText(text, True)
+            # log.i(f"匹配{text}结果: {result}")
             if result:
                 # 从匹配结果中获取坐标
                 bounds = [int(x) for x in result['b'].split(',')]

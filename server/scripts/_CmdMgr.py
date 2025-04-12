@@ -49,7 +49,7 @@ class _CmdMgr_:
             abbr = func_name[0] + ''.join(c for c in func_name[1:] if c.isupper())
             
             # 创建命令模式，使用函数名和缩写
-            cmd_pattern = f"(?P<{cls.CmdKey}>{func_name}|{abbr})"
+            cmd_pattern = f"(?P<{cls.CmdKey}>{func_name}|{abbr.lower()})"
             
             # 清除同名或同模块同函数名的旧命令
             cls._clearOldCommand(cmd_pattern, func.__module__, func.__name__)
@@ -74,7 +74,7 @@ class _CmdMgr_:
                     cmd_pattern = m.group(0)
                     cmdName = m.group(1)
                     # 始终添加函数名和缩写到命令别名中，不考虑是否已有别名
-                    cmdName = f"{cmdName}|{func_name}|{abbr}"
+                    cmdName = f"{cmdName}|{func_name}|{abbr.lower()}"
                     # 替换为命名捕获组格式
                     new_pattern = pattern.replace(cmd_pattern, f'\s*(?P<{cls.CmdKey}>{cmdName})\s*')
                 else:
@@ -176,6 +176,7 @@ class _CmdMgr_:
         cmdStr = cmdStr.strip() if cmdStr else ''
         if cmdStr == '':
             return None, None
+        cmdStr = cmdStr.lower()
         try:
             findCmd = None
             m = None
@@ -395,7 +396,7 @@ class _CmdMgr_:
             """
             return cls._reset()
         
-        @cls.reg(r"#加载|jz|rl (?P<moduleName>.+)")
+        @cls.reg(r"#加载|jz (?P<moduleName>.+)")
         def reload(moduleName):
             """功能：重新加载指定模块
             指令名：reload

@@ -102,7 +102,7 @@ class _Log_:
                         'date': date or datetime.now().strftime('%Y-%m-%d')
                     })
                 except Exception as e:
-                    cls.logEx_(e, '发送日志到前端失败')
+                    cls.ex_(e, '发送日志到前端失败')
         except Exception as e:
             cls.ex(e, '加载日志文件失败')
     
@@ -149,7 +149,7 @@ class _Log_:
                         # 确保发送完整的日志对象，包括时间戳
                         socketio.emit('S2B_EditLog', lastLog)
                     except Exception as e:
-                        cls.logEx_(e, '发送EditLog事件失败')
+                        cls.ex_(e, '发送EditLog事件失败')
                     return
                   # 打印带颜色的日志到终端
             # 确保新日志有count字段
@@ -161,9 +161,9 @@ class _Log_:
                 try:
                     socketio.emit('S2B_AddLog', logDict)
                 except Exception as e:
-                    cls.logEx_(e,'发送AddLog事件失败')
+                    cls.ex_(e,'发送AddLog事件失败')
         except Exception as e:
-            cls.logEx_(e, '发送日志到控制台失败')
+            cls.ex_(e, '发送日志到控制台失败')
 
 
     @classmethod
@@ -221,7 +221,7 @@ class _Log_:
                 cls.add(logData)
             return logData
         except Exception as e:
-            cls.logEx_(e, '发送日志到服务器失败')
+            cls.ex_(e, '发送日志到服务器失败')
             return None
 
     @classmethod
@@ -239,7 +239,7 @@ class _Log_:
                          logData.get('level'), logData.get('result'))
                 return logData
         except Exception as e:
-            cls.logEx_(e, '发送日志到服务器失败')
+            cls.ex_(e, '发送日志到服务器失败')
             return None
         
         
@@ -266,28 +266,28 @@ class _Log_:
                 cls._PCLog_(f' => {res}', '', result[0])
             
     @classmethod
-    def logEx_(cls, e, message=None, tag=None):
+    def ex_(cls, e, message=None, tag=None):
         """打印异常信息"""
         content = cls.formatEx('异常', e, message)
         cls.log_(content, tag, 'e')
 
     @classmethod
-    def logI_(cls, content, tag=None):
+    def i_(cls, content, tag=None):
         """打印日志到终端"""
         cls.log_(content, tag, 'i', '')
 
     @classmethod
-    def logD_(cls, content, tag=None):
+    def d_(cls, content, tag=None):
         """打印日志到终端"""
         cls.log_(content, tag, 'd', '')
 
     @classmethod
-    def logW_(cls, content, tag=None):
+    def w_(cls, content, tag=None):
         """打印日志到终端"""
         cls.log_(content, tag, 'w', '')
 
     @classmethod
-    def logE_(cls, content, tag=None):
+    def e_(cls, content, tag=None):
         """打印日志到终端"""
         cls.log_(content, tag, 'e', '')
 
@@ -331,7 +331,7 @@ class _Log_:
                 logData = cls._clientLog(tag, level, content, result)
             return logData
         except Exception as e:
-            cls.logEx_(e, '记录日志失败')
+            cls.ex_(e, '记录日志失败')
 
     @classmethod
     def d(cls, message, tag=None):

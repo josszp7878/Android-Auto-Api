@@ -104,8 +104,8 @@ class CCmds_:
                 return f"{pos}"
             return "e~无效位置"
 
-        @regCmd(r"#点击|dj(?P<text>.+)")
-        def click(text):
+        @regCmd(r"#点击|dj(?P<text>\S+)?\s*(?P<dir>[HV])?")
+        def click(text, dir=None):
             """
             功能：点击指定位置或文本
             指令名: click-c

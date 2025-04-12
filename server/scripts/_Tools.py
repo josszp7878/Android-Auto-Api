@@ -242,21 +242,24 @@ class _Tools_:
         try:
             if strPos is None:
                 return None, None
-            
-            import re
             strPos = strPos.strip()
-            
+            if strPos == '':
+                return None, None
+            import re
             # 检查是否是纯坐标形式 (如 "100,200,300,400")
             pure_coords_match = re.match(r'^([\s,xX\d]+)$', strPos)
             if pure_coords_match:
                 values = [v.strip() for v in pure_coords_match.group(1).split(',')]
                 values = [int(v) if v and re.match(r'[+-]?\d+', v) else None for v in values]
+                if len(values) == 1:
+                    # 单个数字，不当成坐标处理。
+                    return strPos, None
                 return None, tuple(values)
             # 检查是否有括号
             bracket_match = re.match(r'(.*?)\s*[\(（](.*?)[\)）]', strPos)
             if not bracket_match:
                 # 没有括号，返回None
-                return None, None
+                return strPos, None
             
             text = bracket_match.group(1).strip()
             content = bracket_match.group(2).strip()
