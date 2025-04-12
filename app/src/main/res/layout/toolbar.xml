@@ -6,6 +6,15 @@
     android:orientation="vertical"
     android:background="@android:color/transparent">
 
+    <!-- 触摸监控视图 - 添加在最底层 -->
+    <View
+        android:id="@+id/touchMonitorView"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="#33FF0000"
+        android:visibility="gone" />
+
     <!-- 日志区域 -->
     <LinearLayout
         android:id="@+id/logArea"
