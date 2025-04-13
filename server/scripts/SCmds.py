@@ -12,14 +12,6 @@ import os
 from _App import _App_
 
 class SCmds_:
-    @classmethod
-    def OnReload(cls):
-        """热更新后重新注册命令"""
-        log = _G._G_.Log()
-        log.w("SCmds模块热更新 重新注册命令")
-        cls.registerCommands()
-        # 使用全局命令重新注册机制
-        log.i("命令重新注册完成")
     
     @classmethod
     def registerCommands(cls):
@@ -651,7 +643,7 @@ class SCmds_:
                 _Log._Log_.ex(e, "创建任务失败")
                 return f"e~创建任务失败: {str(e)}"
 
-        @regCmd('#删除任务|scrw (?P<taskID>\S+)'):
+        @regCmd('#删除任务|scrw (?P<taskID>\S+)')
         def deleteTask(taskID):
             """功能：删除任务
             指令名：deleteTask
@@ -671,7 +663,7 @@ class SCmds_:
                 _Log._Log_.ex(e, "删除任务失败")
                 return f"e~删除任务失败: {str(e)}"
 
-        @regCmd('#启动任务|qdrw (?P<taskID>\S+)'):
+        @regCmd('#启动任务|qdrw (?P<taskID>\S+)')
         def startTask(taskID):
             """功能：启动任务
             指令名：startTask
@@ -691,7 +683,7 @@ class SCmds_:
                 _Log._Log_.ex(e, "启动任务失败")
                 return f"e~启动任务失败: {str(e)}"
 
-        @regCmd('#停止任务|tzrw (?P<taskID>\S+)'):
+        @regCmd('#停止任务|tzrw (?P<taskID>\S+)')
         def stopTask(taskID):
             """功能：停止任务
             指令名：stopTask
@@ -711,7 +703,7 @@ class SCmds_:
                 _Log._Log_.ex(e, "停止任务失败")
                 return f"e~停止任务失败: {str(e)}"
 
-        @regCmd('#添加设备|tjsb (?P<taskID>\S+)\s+(?P<deviceIDs>.+)'):
+        @regCmd('#添加设备|tjsb (?P<taskID>\S+)\s+(?P<deviceIDs>.+)')
         def addDevice(taskID, deviceIDs):
             """功能：添加设备到任务
             指令名：addDevice
@@ -736,7 +728,7 @@ class SCmds_:
                 _Log._Log_.ex(e, "添加设备到任务失败")
                 return f"e~添加设备到任务失败: {str(e)}"
 
-        @regCmd('#移除设备|ycsb (?P<taskID>\S+)\s+(?P<deviceIDs>.+)'):
+        @regCmd('#移除设备|ycsb (?P<taskID>\S+)\s+(?P<deviceIDs>.+)')
         def removeDevice(taskID, deviceIDs):
             """功能：从任务中移除设备
             指令名：removeDevice
@@ -760,3 +752,12 @@ class SCmds_:
             except Exception as e:
                 _Log._Log_.ex(e, "从任务中移除设备失败")
                 return f"e~从任务中移除设备失败: {str(e)}"
+
+    @classmethod
+    def onLoad(cls, clone):
+        log = _G._G_.Log()
+        log.i("注册指令 SCmds")
+        cls.registerCommands()
+        return True
+    
+SCmds_.onLoad(None) 

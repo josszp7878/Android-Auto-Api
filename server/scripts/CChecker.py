@@ -22,13 +22,16 @@ class CChecker_:
     _running: bool = False  # 线程运行状态
     _lock = threading.Lock()  # 线程安全锁
 
-    @classmethod
-    def Clone(cls, oldCls):
-        """克隆"""
-        cls.end()
-        cls._templates = oldCls._templates.copy()
-        cls._checkInterval = oldCls._checkInterval
-        cls.start()
+    # 默认配置（新增）
+    DEFAULT_CONFIG = {
+        'check': '',
+        'do': {},
+        'interval': 0,
+        'timeout': 5,
+        'type': 'temp'
+    }
+
+    
 
 
     def __init__(self, name: str, config: Dict[str, Any], data=None):
@@ -52,6 +55,15 @@ class CChecker_:
         self._enabled = False
         self.type = config.get('type', 'temp')
 
+        # 应用默认配置（新增）
+        for k, v in self.DEFAULT_CONFIG.items():
+            if k not in config:
+                setattr(self, k, v)
+        # 覆盖自定义配置
+        for k, v in config.items():
+            if hasattr(self, k):
+                setattr(self, k, v)
+
     def __str__(self):
         return f"{self.name} {self._check}"
 
@@ -67,7 +79,20 @@ class CChecker_:
             self.startTime = time.time()
             self.lastTime = 0
 
-    def check(self):
+    def _setMatch(self, check: str) -> bool:
+        """设置检查"""
+        if not self._editChecker:
+            return False
+        self._check = check
+        return True
+
+    def _addDo(self, check: str, action: str) -> bool:
+        """添加操作"""
+        # 更新新配置
+        self._actions.update({check: action})
+        return True
+
+    def _check(self):
         """执行检查逻辑
         Returns:
             bool: 检查是否通过
@@ -274,7 +299,7 @@ class CChecker_:
                     try:
                         # 更新上次检查时间
                         checker.lastTime = currentTime
-                        ret = checker.check()
+                        ret = checker._check()
                         if ret:
                             # log.i(f"检查器 {checker.name} 匹配成功，执行操作")
                             if checker.do():
@@ -344,3 +369,215 @@ class CChecker_:
     #     cls._detecter.timeout = timeout
     #     time.sleep(timeout)
     # ##############################################################
+
+    @classmethod
+    def loadConfig(cls):
+        """加载checker配置文件"""
+        import os
+        import json
+        try:
+            configPath = os.path.join(_G.g.rootDir(), 'config', 'Checks.json')
+            with open(configPath, 'r', encoding='utf-8') as f:
+                configs = json.load(f)
+                for name, cfg in configs.items():
+                    # 合并默认配置和文件配置
+                    merged = cls.DEFAULT_CONFIG.copy()
+                    merged.update(cfg)
+                    cls._templates[name] = merged
+                log.i(f"加载{len(configs)}个checker配置")
+        except Exception as e:
+            log.ex(e, "加载Checks.json失败")
+
+    @classmethod
+    def saveConfig(cls):
+        """保存checker配置到文件"""
+        import os
+        import json
+        try:
+            configPath = os.path.join(_G.g.rootDir(), 'config', 'Checks.json')
+            # 过滤默认值并生成精简配置
+            saveConfig = {}
+            for name, cfg in cls._templates.items():
+                filtered = {k:v for k,v in cfg.items() 
+                           if v != cls.CChecker_.get(k, None)}
+                if filtered:
+                    saveConfig[name] = filtered
+            with open(configPath, 'w', encoding='utf-8') as f:
+                json.dump(saveConfig, f, indent=2, ensure_ascii=False)
+            log.i(f"保存{len(saveConfig)}个checker配置")
+        except Exception as e:
+            log.ex(e, "保存Checks.json失败")
+
+    @classmethod
+    def check(cls, checkName: str, param: dict = None):
+        """启动指定检查器并覆盖参数"""
+        checker = cls.get(checkName, param, True)
+        if checker:
+            # 覆盖参数
+            if param:
+                for k, v in param.items():
+                    if hasattr(checker, k):
+                        setattr(checker, k, v)
+            checker.enabled = True
+            return checker
+        return None
+
+    _editChecker: Optional["CChecker_"] = None  # 新增类变量存储编辑状态
+
+    @classmethod
+    def _startEdit(cls, checkName: str) -> bool:
+        """启动编辑检查器"""
+        checker = cls.get(checkName, create=True)
+        if not checker:
+            return False
+        
+        # 深拷贝配置（修复参数错误）
+        cls._editChecker = CChecker_(
+            name=checker.name,
+            config={
+                'check': checker._check,
+                'do': dict(checker._actions),  # 使用dict确保深拷贝
+                'interval': checker.interval,
+                'timeout': checker.timeout,
+                'type': checker.type
+            }
+        )
+        return True
+
+    @classmethod
+    def _endEdit(cls, cancel: bool = False) -> bool:
+        """结束编辑"""
+        if not cls._editChecker:
+            return False
+        
+        try:
+            if not cancel:
+                # 保存到模板配置
+                newConfig = {
+                    'check': cls._editChecker._check,
+                    'do': cls._editChecker._actions,
+                    'interval': cls._editChecker.interval,
+                    'timeout': cls._editChecker.timeout,
+                    'type': cls._editChecker.type
+                }
+                # 过滤默认值
+                filtered = {
+                    k: v for k, v in newConfig.items()
+                    if v != cls.DEFAULT_CONFIG.get(k, None)
+                }
+                cls._templates[cls._editChecker.name] = filtered
+                cls.saveConfig()
+            return True
+        finally:
+            cls._editChecker = None
+
+    @classmethod
+    def _delete(cls, checkName: str) -> bool:
+        """删除检查器"""
+        checkName = checkName.lower()
+        if checkName in cls._templates:
+            try:
+                del cls._templates[checkName]
+                # 同时删除正在运行的检查器
+                with cls._lock:
+                    cls._checkers = [c for c in cls._checkers if c.name != checkName]
+                cls.saveConfig()
+                return True
+            except Exception as e:
+                log.ex(e, f"删除检查器 {checkName} 失败")
+        return False
+
+  # === 核心功能方法 ===
+    # ... saveConfig、check、startEdit、edit、endEdit、delete 等方法 ...
+
+    # === 指令注册和克隆方法（放在类定义末尾）===
+    @classmethod
+    def registerCommands(cls):
+        """注册检查器相关指令（补充参数校验）"""
+        from _CmdMgr import regCmd
+        import json
+
+        @regCmd(r"#开始编辑|ksbj(?P<checkName>\S+)")
+        def startEditCheck(checkName):
+            if not checkName.strip():
+                return "e~检查器名称不能为空"
+            return cls._startEdit(checkName);
+
+        @regCmd(r"如果|rg|if\s*(?P<check>.+?)\s*就(?P<do>\{.*\})")
+        def addDo(check, do):
+            return cls._editChecker._addDo(check, do)
+        
+        @regCmd(r"#设置匹配|szpp(?P<match>.+)")
+        def setMatch(match):
+            return cls._editChecker._setMatch(match)
+
+        @regCmd(r"#结束编辑|jsbj (?P<cancel>[01])")
+        def endEditCheck(cancel='0'):
+            return f"e~{cls._endEdit(cancel=bool(int(cancel)))}"
+
+        @regCmd(r"#删除检查|scjc (?P<checkName>\S+)")
+        def delCheck(checkName):
+            return f"e~{cls._delete(checkName)}"
+
+        @regCmd(r"#检查列表|jclb")
+        def listCheck():
+            return "当前检查器列表：\n" + "\n".join(
+                f"{name}（{len(cfg['do'])}个操作）" 
+                for name, cfg in cls._templates.items()
+            )
+        
+        @regCmd(r"#显示检查|xscj (?P<checkName>\S+)")
+        def showCheck(checkName):
+            checker = cls.get(checkName, create=False)
+            if checker: 
+                return f"检查器 {checkName} 配置：\n" + json.dumps(checker._actions, indent=2, ensure_ascii=False)
+            return f"检查器 {checkName} 不存在"
+
+        @regCmd(r"#检查|jc (?P<checkerName>\S+)(?:\s+(?P<enabled>\S+))?")
+        def check(checkerName, enabled=None):
+            """
+            功能：停止指定名称的检查器
+            指令名: check-c
+            中文名: 检查-jc
+            参数: checkerName - 检查器名称
+            示例: 检查 每日签到
+            """ 
+            g = _G._G_
+            enabled = g.Tools().toBool(enabled, True)
+            checkerName = checkerName.lower()
+            if checkerName.startswith('@'):
+                checkerName = checkerName[1:].strip()
+                # 检查应用和页面，格式为app.page
+                page = g.App().getAppPage(checkerName)
+                if page:
+                    page.check()
+                    return f"已经开始检查页面 {page.name}"
+            elif checkerName.startswith('!'):
+                pageName = checkerName[1:].strip()
+                g.App().currentApp().detectPage(pageName)
+                return "已关闭当前应用"
+
+            # 检查器
+            checker = cls.get(checkerName, create=True)
+            # log.i(f"checker.config = {checker._actions}")
+            if checker:
+                checker.enabled = enabled
+                return f"检查器 {checkerName} 已设置为 {enabled}"
+            else:
+                return f"e~无效检查器: {checkerName}"
+    
+    @classmethod
+    def onLoad(cls, oldCls):
+        """克隆时重新注册指令"""
+        log.i("克隆CChecker并注册指令")
+        cls.registerCommands()
+        if oldCls:
+            # 保留原有克隆逻辑
+            cls.end()
+            cls._templates = oldCls._templates.copy()
+            cls._checkInterval = oldCls._checkInterval
+        else:
+            cls.loadConfig()
+        cls.start()
+    
+CChecker_.onLoad(None)

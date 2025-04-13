@@ -23,14 +23,6 @@ class CCmds_:
     
 
     
-    @classmethod
-    def OnReload(cls):
-        g = _G._G_
-        log = g.Log()
-        """热更新后重新注册命令"""
-        log.i("CCmds模块热更新 重新注册命令")
-        cls.registerCommands()
-    
 
 
     @classmethod
@@ -490,40 +482,6 @@ class CCmds_:
                 return None
 
 
-        @regCmd(r"#检查|jc (?P<checkerName>\S+)(?:\s+(?P<enabled>\S+))?")
-        def chEck(checkerName, enabled=None):
-            """
-            功能：停止指定名称的检查器
-            指令名: check-c
-            中文名: 检查-jc
-            参数: checkerName - 检查器名称
-            示例: 检查 每日签到
-            """ 
-            g = _G._G_
-            Checker = g.Checker()
-            enabled = g.Tools().toBool(enabled, True)
-            checkerName = checkerName.lower()
-            if checkerName.startswith('@'):
-                checkerName = checkerName[1:].strip()
-                # 检查应用和页面，格式为app.page
-                page = g.App().getAppPage(checkerName)
-                if page:
-                    page.check()
-                    return f"已经开始检查页面 {page.name}"
-            elif checkerName.startswith('!'):
-                pageName = checkerName[1:].strip()
-                g.App().currentApp().detectPage(pageName)
-                return "已关闭当前应用"
-
-            # 检查器
-            checker = Checker.get(checkerName, create=True)
-            log.i(f"checker.config = {checker._actions}")
-            if checker:
-                checker.enabled = enabled
-                return f"检查器 {checkerName} 已设置为 {enabled}"
-            else:
-                return f"e~无效检查器: {checkerName}"
-
         @regCmd(r"#退出|tc")
         def exit():
             """退出应用
@@ -545,5 +503,11 @@ class CCmds_:
                 log.ex(e, "退出应用失败")
                 return f"退出应用失败: {str(e)}"
 
-
-       
+    @classmethod
+    def onLoad(cls, clone):
+        log = _G._G_.Log()
+        log.i("注册指令 CCmds")
+        cls.registerCommands()
+        return True
+    
+CCmds_.onLoad(None)

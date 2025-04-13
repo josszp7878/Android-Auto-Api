@@ -387,10 +387,10 @@ class SDeviceMgr_:
         try:
             g = _G._G_
             log = g.Log()
-            cmdMgr = g.getClass('_CmdMgr')
+            cmdMgr = g.CmdMgr()
             for target in targets:
                 if target == _Log.TAG.Server.value:
-                    result, _ = cmdMgr.do(command, None, data)
+                    result, _ = cmdMgr.do(command, data)
                     g.SCommandHistory().add(command, target, result)
                 else:
                     devices = self.gets(target) 

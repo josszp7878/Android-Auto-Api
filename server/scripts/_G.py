@@ -56,11 +56,6 @@ class _G_:
     _scriptNamesCache = None  # 添加脚本名称缓存
 
     @classmethod
-    def init(cls):
-        import _Log
-        cls.log = _Log._Log_()     
-
-    @classmethod
     def isServer(cls):
         """是否是服务器端"""    
         return cls._isServer
@@ -74,13 +69,6 @@ class _G_:
         from _App import _App_
         _App_.loadConfig()
     
-    @classmethod
-    def Clone(cls, oldCls):
-        """克隆"""
-        cls._isServer = oldCls._isServer
-        cls._dir = oldCls._dir
-        cls._store = oldCls._store
-
     @classmethod
     def rootDir(cls):
         """获取根目录"""
@@ -351,6 +339,14 @@ class _G_:
         
         return all_files
 
+    @classmethod
+    def onLoad(cls, oldCls):
+        if oldCls:  
+            cls._isServer = oldCls._isServer
+            cls._dir = oldCls._dir
+            cls._store = oldCls._store
+        import _Log
+        cls.log = _Log._Log_()    
 
-_G_.init()
+_G_.onLoad(None)
 g = _G_

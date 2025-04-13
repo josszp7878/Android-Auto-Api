@@ -1,39 +1,5 @@
 {
     "Top": {
-        "checkers": {
-            "每日签到": {
-                "timeout": 5,
-                "do": {
-                    "立即签到\\+": ""
-                }
-            },
-            "明日签到": {
-                "timeout": 5,
-                "do": {
-                    "@看视频再": "click;detect"
-                }
-            },
-            "看广告": {
-                "check": "广告&领取成功",
-                "timeout": 40,
-                "do" : {
-                    "": "{T.goBack()}"
-                }
-            },
-            "恭喜累计获得奖励": {
-                "timeout": 2,
-                "do" : {
-                    "评价": "click"
-                }
-            },
-            "倒计时": {
-                "check": "{this.pastTime > 5}",
-                "do" : {
-                    "": "{T.goBack()}"
-                },
-                "interval": 1
-            }
-        },
         "timeout": 5,
         "children": {
             "快手极速版": {

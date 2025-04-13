@@ -5,11 +5,6 @@ class CClient_:
     """客户端管理类（静态方法）"""
     fromAndroid = False
 
-    @classmethod
-    def Clone(cls, clone):
-        cls.fromAndroid = clone.fromAndroid
-        return True
-
 
     @classmethod
     def updateFiles(cls):
@@ -35,9 +30,9 @@ class CClient_:
         try:
             CDevice = g.CDevice()
             CDevice.init(deviceID or 'TEST1', server)
-            g.CmdMgr().regAllCmds()
             CDevice.connect()
             g.CFileServer().init(server)
+            g.CmdMgr().regAllCmds_()            
             g.Checker().start()
             print("按Ctrl+C退出")    
             while True:
@@ -78,3 +73,11 @@ class CClient_:
                 log.ex(e, "停止任务失败")
         except Exception as e:
             log.ex(e, "客户端结束失败")
+
+    @classmethod
+    def onLoad(cls, clone):
+        if clone is not None:
+            cls.fromAndroid = clone.fromAndroid
+        return True
+    
+CClient_.onLoad(None)

@@ -56,7 +56,7 @@ if __name__ == '__main__':
         Database.init(app)
         # 注册所有命令
         import _CmdMgr
-        _CmdMgr._CmdMgr_.regAllCmds()
+        _CmdMgr._CmdMgr_.regAllCmds_()
         socketio.run(
             app, 
             host=cfg.SERVER_HOST,

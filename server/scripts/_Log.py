@@ -32,12 +32,6 @@ class _Log_:
         'underline': '\033[4m'
     }
 
-    @classmethod
-    def Clone(cls, oldCls):
-        """克隆"""
-        cls._cache = oldCls._cache
-        cls._visualLogs = oldCls._visualLogs
-
 
     @classmethod
     def clear(cls):
@@ -383,5 +377,11 @@ class _Log_:
     def isWarning(cls, message):
         return isinstance(message, str) and message.startswith('w~')
 
-   
+    @classmethod
+    def onLoad(cls, oldCls):
+        if oldCls:
+            cls._cache = oldCls._cache
+            cls._visualLogs = oldCls._visualLogs
+
+_Log_.onLoad(None)
 c = _Log_()

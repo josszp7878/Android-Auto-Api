@@ -17,12 +17,6 @@ class _App_:
         """获取当前应用"""
         return cls.getApp(cls._curAppName, True)
     
-
-    @classmethod
-    def Clone(cls, oldCls):
-        """克隆"""
-        cls.loadConfig()
-
     def __init__(self, name:str, rootPage: "_Page._Page_", info:dict):
         self.name = name
         self.rootPage = rootPage
@@ -555,3 +549,12 @@ class _App_:
     def getAllApps(cls) -> List[str]:
         """获取所有应用名称"""
         return list(cls.apps.keys())
+
+
+    @classmethod
+    def onLoad(cls, oldCls):
+        """克隆"""
+        if oldCls:
+            cls.loadConfig()
+
+_App_.onLoad(None)

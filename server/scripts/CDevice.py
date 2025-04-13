@@ -14,16 +14,6 @@ class CDevice_:
     def connected(cls):
         return cls._connected
 
-    @classmethod
-    def onUnload(cls):
-        cls.uninit()
-        
-    @classmethod
-    def Clone(cls, oldCls):
-        cls._server = oldCls._server
-        cls._deviceID = oldCls._deviceID
-        cls.init()
-        cls.connect()
         
     @classmethod
     def deviceID(cls):
@@ -343,3 +333,18 @@ class CDevice_:
                 cls.emit("C2S_Screenshot", {"device_id": cls._deviceID, "image": image})
         except Exception as e:
             log.ex(e, "截图失败")
+
+
+    @classmethod
+    def onUnload(cls):
+        cls.uninit()
+        
+    @classmethod
+    def onLoad(cls, oldCls):
+        if oldCls:
+            cls._server = oldCls._server
+            cls._deviceID = oldCls._deviceID
+            cls.init()
+            cls.connect()
+
+CDevice_.onLoad(None)

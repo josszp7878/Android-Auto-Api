@@ -82,11 +82,6 @@ class CTools_(_Tools._Tools_):
     port = 5000
     android = None
     
-    @classmethod
-    def Clone(cls, clone):
-        cls._screenInfoCache = clone._screenInfoCache
-        return True
-    
 
     screenSize: tuple[int, int] = (1080, 1920)
     # 坐标修正范围,不知道为什么，文字识别拷屏后的位置和实际位置有偏差，而且不是固定的
@@ -125,21 +120,7 @@ class CTools_(_Tools._Tools_):
     def onInput(cls, inputText):
         _G._G_().CmdMgr().do(inputText)
         
-    @classmethod
-    def init(cls):
-        log = _G._G_.Log()
-        try:
-            android = cls.android
-            from java import jclass
-            android = jclass(
-                "cn.vove7.andro_accessibility_api.demo.script.PythonServices")
-            android.onInput(cls.onInput)
-            cls.android = android
-            # log.i(f'初始化CTools模块2222 {cls.android}')
-            cls._initScreenSize()
-        except Exception as _:
-            pass
-        
+    
     _screenInfoCache = None
     @classmethod
     def getScreenInfo(cls, refresh=False)->list[dict]:
@@ -841,5 +822,22 @@ class CTools_(_Tools._Tools_):
         similarity = len(common) / total
         return similarity > 0.7  # 相似度阈值
 
+    @classmethod
+    def onLoad(cls, old):
+        if old:
+            cls._screenInfoCache = old._screenInfoCache
+        log = _G._G_.Log()
+        try:
+            android = cls.android
+            from java import jclass
+            android = jclass(
+                "cn.vove7.andro_accessibility_api.demo.script.PythonServices")
+            android.onInput(cls.onInput)
+            cls.android = android
+            # log.i(f'初始化CTools模块2222 {cls.android}')
+            cls._initScreenSize()
+        except Exception as _:
+            pass    
+        return True
    
-CTools_.init()
+CTools_.onLoad(None)

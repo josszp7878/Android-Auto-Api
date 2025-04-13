@@ -101,41 +101,37 @@ class _CmdMgr_:
             # 生成函数名缩写: 取第一个字母和所有大写字母
             abbr = func_name[0] + ''.join(c for c in func_name[1:] if c.isupper())
             
-            if '#' not in pattern:
-                log.e(f"命令格式错误: {pattern}")
-                return func
-            
             # 处理参数之间的空格
             pattern = cls.processParamSpaces(pattern)
             
-            # 使用正则表达式查找 #命令名|别名 格式
-            m = re.search(r'\s*#([^\s\(]+)\s*', pattern)
-            if m:
-                cmd_pattern = m.group(0)
-                cmdName = m.group(1)
-                # 始终添加函数名和缩写到命令别名中，不考虑是否已有别名
-                cmdName = f"{cmdName}|{func_name}|{abbr.lower()}"
-                # 在替换命令名时添加忽略大小写标记
-                new_pattern = pattern.replace(
-                    cmd_pattern, 
-                    f'(?P<{cls.CmdKey}>{cmdName})(?i)\s*'  # 添加(?i)忽略大小写
-                )
-            else:
-                log.e(f"{pattern} 没有匹配指令名")
-                return func
-            # 如果new_pattern结尾是\s+,应该去掉
-            if new_pattern.endswith(r'\s+'):
-                new_pattern = new_pattern[:-3]
+            if '#' in pattern:
+                # 使用正则表达式查找 #命令名|别名 格式
+                m = re.search(r'\s*#([^\s\(]+)\s*', pattern)
+                if m:
+                    cmd_pattern = m.group(0)
+                    cmdName = m.group(1)
+                    # 始终添加函数名和缩写到命令别名中，不考虑是否已有别名
+                    cmdName = f"{cmdName}|{func_name}|{abbr.lower()}"
+                    # 在替换命令名时添加忽略大小写标记
+                    pattern = pattern.replace(
+                        cmd_pattern, 
+                        f'(?P<{cls.CmdKey}>{cmdName})(?i)\s*'  # 添加(?i)忽略大小写
+                    )
+                else:
+                    log.e(f"{pattern} 没有匹配指令名")
+                    return func
+            # 如果pattern结尾是\s+,应该去掉
+            if pattern.endswith(r'\s+'):
+                pattern = pattern[:-3]
             # 记录日志，帮助调试
             # log.i(f"{pattern}<=>\n{new_pattern}")
             # 清除同名或同模块同函数名的旧命令
-            cls._clearOldCommand(new_pattern, func.__module__, func.__name__)
-            
+            cls._clearOldCommand(pattern, func.__module__, func.__name__)
 
             # 创建命令对象并添加到注册表
             cmd = Cmd(
                 func=func, 
-                alias=new_pattern,
+                alias=pattern,
                 doc=func.__doc__
             )
             cls.cmdRegistry.append(cmd)
@@ -302,8 +298,7 @@ class _CmdMgr_:
                 # 清除全局引用
                 g.clear()
                 # log.d(f'清除全局引用: {moduleName}')    
-                g.CallMethod(module, 'Clone', oldCls)
-                g.CallMethod(module, 'OnReload')
+                g.CallMethod(module, 'onLoad', oldCls)
             else:
                 # 首次加载直接使用import_module
                 try:
@@ -385,6 +380,35 @@ class _CmdMgr_:
         except Exception as e:
             _Log._Log_.ex(e, "清除模块缓存失败")
 
+    @classmethod
+    def regAllCmds_(cls):
+        g = _G._G_
+        log = g.Log()
+        log.i("开始重新注册命令...")
+        try:
+            # 1. 清除所有命令注册
+            cls.clear()            
+            modules = g.getScriptNames()
+            success_count = 0
+            # 加载所有为加载的模块，加载模块时模块本身会执行registerCommands方法
+            for module in modules:
+                try:
+                    # 直接使用模块名，不添加前缀
+                    full_module_name = module                    
+                    # 加载模块
+                    try:
+                        if full_module_name not in sys.modules:
+                            module = importlib.import_module(full_module_name)
+                    except Exception as e:
+                        log.ex(e, f"加载模块失败: {full_module_name}")
+                        continue
+                    success_count += 1
+                except Exception as e:
+                    log.ex(e, f"注册模块 {module} 的命令失败")
+        except Exception as e:
+            log.ex(e, "命令重新注册失败")
+            return False
+       
     @classmethod
     def regAllCmds(cls):
         """清除已注册的命令并重新注册所有命令
@@ -523,12 +547,14 @@ class _CmdMgr_:
             return desc
 
 
+
     @classmethod
-    def OnReload(cls):
-        _Log._Log_.i("CmdMgr模块热更新 重新注册命令")
-        # 使用全局命令重新注册机制
-        cls.regAllCmds()
-
-
+    def onLoad(cls, clone):
+        log = _G._G_.Log()
+        log.i("注册指令 _CmdMgr_")
+        cls.registerCommands()
+        return True
+    
+_CmdMgr_.onLoad(None)
 # 创建全局单例实例
 regCmd = _CmdMgr_.reg

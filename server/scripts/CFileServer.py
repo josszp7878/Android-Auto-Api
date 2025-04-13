@@ -13,10 +13,6 @@ class CFileServer_:
         return _G._G_.Tools().getServerURL(cls._serverIP)
     
     @classmethod
-    def Clone(cls, oldCls):
-        cls._serverIP = oldCls.serverIp
-    
-    @classmethod
     def init(cls, serverIp):
         cls._serverIP = serverIp
 
@@ -129,3 +125,10 @@ class CFileServer_:
         except requests.RequestException as e:
             print(e)
             return {}
+        
+    @classmethod
+    def onLoad(cls, oldCls):
+        if oldCls:
+            cls._serverIP = oldCls._serverIP
+
+CFileServer_.onLoad(None)

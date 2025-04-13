@@ -220,12 +220,6 @@ class CTaskMgr_:
             _Log._Log_.ex(e, "停止所有任务失败")
 
     @classmethod
-    def OnReload(cls):
-        log = _G._G_.Log()  
-        log.i("CTaskMgr模块热更新 重新注册命令")
-        cls.registerCommands()
-
-    @classmethod
     def registerCommands(cls):
         """注册任务管理相关命令"""
         log = _G._G_.Log()
@@ -254,6 +248,12 @@ class CTaskMgr_:
             """
             # 命令实现...
         
-        # 其他命令...
 
+    @classmethod
+    def onLoad(cls, clone):
+        log = _G._G_.Log()
+        log.i("注册指令 CTaskMgr_")
+        cls.registerCommands()
+        return True
+CTaskMgr_.onLoad(None)
 taskMgr = CTaskMgr_.getInstance()
