@@ -250,10 +250,11 @@ class CTaskMgr_:
         
 
     @classmethod
-    def onLoad(cls, clone):
+    def onLoad(cls, old):
         log = _G._G_.Log()
-        log.i("注册指令 CTaskMgr_")
+        log.i("加载CTaskMgr")
         cls.registerCommands()
         return True
+    
 CTaskMgr_.onLoad(None)
 taskMgr = CTaskMgr_.getInstance()

@@ -504,9 +504,9 @@ class CCmds_:
                 return f"退出应用失败: {str(e)}"
 
     @classmethod
-    def onLoad(cls, clone):
+    def onLoad(cls, old):
         log = _G._G_.Log()
-        log.i("注册指令 CCmds")
+        log.i("加载CCmds")
         cls.registerCommands()
         return True
     

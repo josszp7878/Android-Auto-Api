@@ -3,7 +3,7 @@ import _Log
 import _G
 import sys
 import importlib
-from typing import List, Any, Tuple
+from typing import Any, Tuple
 
 class Cmd:
     """命令类，存储命令信息"""
@@ -21,8 +21,15 @@ class _CmdMgr_:
     
     _instance = None  # 单例实例
     
-    # 使用列表存储命令
-    cmdRegistry: List[Cmd] = []
+    # 按模块存储命令，格式: [(模块名, {命令名: Cmd对象}), ...]
+    cmdModules = []
+    
+    # 模块优先级，数字越小优先级越高
+    modulePriority = {
+        "_CmdMgr": 10,
+        "_G": 20,
+        "_Log": 30
+    }
     
     # 预编译正则表达式
     _SPACE_PATTERN = re.compile(r'\s+')
@@ -84,12 +91,9 @@ class _CmdMgr_:
             # 创建命令模式，使用函数名和缩写
             cmd_pattern = f"(?P<{cls.CmdKey}>{func_name}|{abbr.lower()})"
             
-            # 清除同名或同模块同函数名的旧命令
-            cls._clearOldCommand(cmd_pattern, func.__module__, func.__name__)
-            
             # 创建命令对象并添加到注册表
             cmd = Cmd(func=func, alias=cmd_pattern)
-            cls.cmdRegistry.append(cmd)
+            cls._addCommand(cmd)
             return func
         
         # 如果第一个参数不是函数，说明装饰器有参数
@@ -125,39 +129,58 @@ class _CmdMgr_:
                 pattern = pattern[:-3]
             # 记录日志，帮助调试
             # log.i(f"{pattern}<=>\n{new_pattern}")
-            # 清除同名或同模块同函数名的旧命令
-            cls._clearOldCommand(pattern, func.__module__, func.__name__)
-
-            # 创建命令对象并添加到注册表
+             # 创建命令对象并添加到注册表
             cmd = Cmd(
                 func=func, 
                 alias=pattern,
                 doc=func.__doc__
             )
-            cls.cmdRegistry.append(cmd)
+            cls._addCommand(cmd)
             return func
         return decorator
     
     @classmethod
-    def _clearOldCommand(cls, alias, module_name, func_name):
-        """清除旧命令
+    def _addCommand(cls, cmd):
+        """添加命令到模块命令集合
         
         Args:
-            alias: 命令别名
-            module_name: 模块名
-            func_name: 函数名
+            cmd: 命令对象
         """
-        # 使用列表推导式过滤掉要删除的命令
-        cls.cmdRegistry = [
-            cmd for cmd in cls.cmdRegistry 
-            if not (cmd.alias == alias or 
-                   (cmd.module == module_name and cmd.name == func_name))
-        ]
+        module_name = cmd.module
+        func_name = cmd.name
+        
+        # 查找模块在列表中的位置
+        module_dict = None
+        for i, (name, cmds) in enumerate(cls.cmdModules):
+            if name == module_name:
+                module_dict = cmds
+                break
+                
+        # 如果模块不存在，创建新的模块命令集合
+        if module_dict is None:
+            module_dict = {}
+            cls.cmdModules.append((module_name, module_dict))
+            
+        # 添加命令到模块命令集合
+        module_dict[func_name] = cmd
+    
     
     @classmethod
     def clear(cls):
-        """清除命令"""
-        cls.cmdRegistry.clear()
+        """清除所有命令"""
+        cls.cmdModules.clear()
+        cls.modulePriority.clear()
+
+    @classmethod
+    def _sort(cls):
+        """按优先级对模块进行排序"""
+        # 更新所有模块的默认优先级
+        for module_name, _ in cls.cmdModules:
+            if module_name not in cls.modulePriority:
+                cls.modulePriority[module_name] = 100
+        
+        # 按优先级排序模块
+        cls.cmdModules.sort(key=lambda x: cls.modulePriority.get(x[0], 999))
 
     @classmethod
     def _findCommand(cls, cmdName):
@@ -174,15 +197,19 @@ class _CmdMgr_:
         
         cmdName = cmdName.lower()
         
-        # 1. 精确匹配别名
-        for cmd in cls.cmdRegistry:
-            if cmd.alias.lower() == cmdName:
-                return cmd
-        
-        # 2. 匹配函数名
-        for cmd in cls.cmdRegistry:
-            if cmd.name.lower() == cmdName:
-                return cmd
+        # 使用已排序的模块列表
+        for module_name in cls.cmdModules:
+            module_cmds = module_name[1]
+            
+            # 遍历模块中的所有命令
+            for cmd in module_cmds.values():
+                # 1. 精确匹配别名
+                if cmd.alias.lower() == cmdName:
+                    return cmd
+                
+                # 2. 匹配函数名
+                if cmd.name.lower() == cmdName:
+                    return cmd
         
         return None
     
@@ -221,22 +248,30 @@ class _CmdMgr_:
         try:
             findCmd = None
             m = None
+            
             # 尝试匹配所有命令的正则表达式，找到最长的匹配
             bestMatch = None
             bestMatchLength = -1
-            for cmd in cls.cmdRegistry:
-                try:
-                    match = re.fullmatch(cmd.alias, cmdStr)
-                except Exception as e:
-                    log.ex(e, f"命令: {cmdStr} 正则表达式错误: {cmd.alias}")
-                    continue
-                if match:
-                    cmdMatch = match.groupdict().get(cls.CmdKey)
-                    matchLength = len(cmdMatch) if cmdMatch else 0
-                    if matchLength > bestMatchLength:
-                        bestMatch = cmd
-                        m = match
-                        bestMatchLength = matchLength
+            
+            # 使用已排序的模块列表
+            for module_name in cls.cmdModules:
+                module_cmds = module_name[1]
+                
+                # 遍历模块中的所有命令
+                for cmd in module_cmds.values():
+                    try:
+                        match = re.fullmatch(cmd.alias, cmdStr)
+                    except Exception as e:
+                        log.ex(e, f"命令: {cmdStr} 正则表达式错误: {cmd.alias}")
+                        continue
+                    if match:
+                        cmdMatch = match.groupdict().get(cls.CmdKey)
+                        matchLength = len(cmdMatch) if cmdMatch else 0
+                        if matchLength > bestMatchLength:
+                            bestMatch = cmd
+                            m = match
+                            bestMatchLength = matchLength
+                            
             findCmd = bestMatch
             if findCmd is None:
                 log.e(f"找不到命令: {cmdStr}")
@@ -381,49 +416,14 @@ class _CmdMgr_:
             _Log._Log_.ex(e, "清除模块缓存失败")
 
     @classmethod
-    def regAllCmds_(cls):
-        g = _G._G_
-        log = g.Log()
-        log.i("开始重新注册命令...")
-        try:
-            # 1. 清除所有命令注册
-            cls.clear()            
-            modules = g.getScriptNames()
-            success_count = 0
-            # 加载所有为加载的模块，加载模块时模块本身会执行registerCommands方法
-            for module in modules:
-                try:
-                    # 直接使用模块名，不添加前缀
-                    full_module_name = module                    
-                    # 加载模块
-                    try:
-                        if full_module_name not in sys.modules:
-                            module = importlib.import_module(full_module_name)
-                    except Exception as e:
-                        log.ex(e, f"加载模块失败: {full_module_name}")
-                        continue
-                    success_count += 1
-                except Exception as e:
-                    log.ex(e, f"注册模块 {module} 的命令失败")
-        except Exception as e:
-            log.ex(e, "命令重新注册失败")
-            return False
-       
-    @classmethod
     def regAllCmds(cls):
-        """清除已注册的命令并重新注册所有命令
-        
-        Returns:
-            bool: 是否成功
-        """
         g = _G._G_
         log = g.Log()
-        log.i("开始重新注册命令...")
+        log.i("注册所有命令...")
         try:
-            # 1. 清除所有命令注册
-            cls.clear()            
             modules = g.getScriptNames()
             success_count = 0
+            # 加载所有未加载的模块，加载模块时模块本身会执行registerCommands方法
             for module in modules:
                 try:
                     # 直接使用模块名，不添加前缀
@@ -432,25 +432,31 @@ class _CmdMgr_:
                     try:
                         if full_module_name not in sys.modules:
                             module = importlib.import_module(full_module_name)
-                        else:
-                            module = sys.modules[full_module_name]
                     except Exception as e:
                         log.ex(e, f"加载模块失败: {full_module_name}")
                         continue
-                    # 查找模块中的registerCommands类方法
-                    g.CallMethod(module, 'registerCommands')
                     success_count += 1
                 except Exception as e:
                     log.ex(e, f"注册模块 {module} 的命令失败")
             
-            # 5. 输出重新注册结果
-            cmd_count = len(cls.cmdRegistry)
-            log.i(f"命令重新注册完成，成功注册{success_count}/{len(modules)}个模块，"
-                 f"共{cmd_count}个命令")
-            return success_count == len(modules)
+            # 对模块进行排序
+            cls._sort()
+            
         except Exception as e:
             log.ex(e, "命令重新注册失败")
             return False
+    
+    @classmethod
+    def setModulePriority(cls, module_name, priority):
+        """设置模块优先级
+        
+        Args:
+            module_name: 模块名
+            priority: 优先级，数字越小优先级越高
+        """
+        cls.modulePriority[module_name] = priority
+        # 重新排序模块
+        cls._sort()
     
     @classmethod
     def registerCommands(cls):
@@ -505,8 +511,12 @@ class _CmdMgr_:
             示例：命令列表
             """
             result = "可用命令:\n"
-            for cmd in sorted(cls.cmdRegistry, key=lambda x: x.name):
-                result += f"{cmd.name}\t\t: {cmd.alias}\n"
+            # 按模块分组显示命令
+            for module_name, module_cmds in cls.cmdModules:
+                if module_cmds:
+                    result += f"\n[模块: {module_name} (优先级: {cls.modulePriority.get(module_name, 999)})]\n"
+                    for cmd_name, cmd in sorted(module_cmds.items()):
+                        result += f"  {cmd.name}\t\t: {cmd.alias}\n"
             return result
         
         @cls.reg(r"#帮助|bz|help (?P<command>\S+)?")
@@ -539,15 +549,14 @@ class _CmdMgr_:
                     服务端指令列表用：cl 查询
                 """
             # 获取命令信息
-            cmd_info = cls._findCommand(command)
-            if not cmd_info:
+            cmd = cls._findCommand(command)
+            if not cmd:
                 return "e~无效指令"
             # 获取命令的描述
-            desc = cmd_info.doc
+            desc = f'{cmd.name}\n{cmd.alias}\n{cmd.doc}'
             return desc
 
-
-
+ 
     @classmethod
     def onLoad(cls, clone):
         log = _G._G_.Log()

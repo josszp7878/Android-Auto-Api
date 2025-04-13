@@ -568,8 +568,7 @@ class CChecker_:
     
     @classmethod
     def onLoad(cls, oldCls):
-        """克隆时重新注册指令"""
-        log.i("克隆CChecker并注册指令")
+        log.i("加载CChecker")
         cls.registerCommands()
         if oldCls:
             # 保留原有克隆逻辑
