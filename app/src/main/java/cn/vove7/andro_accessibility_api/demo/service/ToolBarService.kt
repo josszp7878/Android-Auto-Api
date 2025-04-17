@@ -101,7 +101,7 @@ class ToolBarService : LifecycleService() {
                     if (tag.isNotEmpty()) {
                         tagStr = "[$tag]"
                     }
-                    val logEntry = "$timestamp $tagStr $content"
+                    val logEntry = "$timestamp $tagStr $content\n"
                     val spannable = SpannableString(logEntry)
                     val color = when (level.lowercase()) {
                         "e", "error" -> Color.RED

@@ -605,7 +605,7 @@ class PythonServices {
                 Timber.tag(TAG).e(e, "控制光标显示失败")
             }
         }
-        
+
         @JvmStatic
         fun showClick(visible: Boolean) {
             val service = ToolBarService.getInstance()?.get()
@@ -796,7 +796,11 @@ class PythonServices {
                 if (inputCallback != null) {
                     // 直接调用Python函数
                     val result = inputCallback!!.call(command)
-                    result.toJava(Any::class.java)
+                    if(result != null) {
+                        result.toJava(Any::class.java)
+                    } else {
+                        null
+                    }
                 } else {
                     logE("输入回调未注册")
                     null
