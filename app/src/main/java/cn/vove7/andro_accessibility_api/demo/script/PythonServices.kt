@@ -11,7 +11,6 @@ import android.os.Handler
 import android.os.Looper
 import android.widget.Toast
 import android.view.Gravity
-import android.util.Log
 import cn.vove7.andro_accessibility_api.demo.MainActivity
 import cn.vove7.andro_accessibility_api.demo.service.ScreenCapture
 import cn.vove7.auto.AutoApi
@@ -33,7 +32,6 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.app.usage.UsageStats
 import android.app.usage.UsageStatsManager
 import androidx.annotation.RequiresApi
-import cn.vove7.andro_accessibility_api.demo.utils.UIUtils
 import java.lang.ref.WeakReference
 import android.os.Process
 
@@ -393,28 +391,7 @@ class PythonServices {
             }
         }
 
-        /**
-         * 控制应用界面的显示和隐藏
-         * 
-         * @param visible true表示显示界面，false表示隐藏界面
-         * @return 操作是否成功
-         */
-        @JvmStatic
-        fun showUI(visible: Boolean): Boolean {
-            try {
-                val service = ToolBarService.getInstance()?.get()
-                if (service != null) {
-                    Handler(Looper.getMainLooper()).post {
-                        service.setUIVisibility(visible)
-                    }
-                    return true
-                }
-                return false
-            } catch (e: Exception) {
-                Timber.tag(TAG).e(e, "控制界面显示失败")
-                return false
-            }
-        }
+ 
 
         /**
          * 截屏
@@ -602,19 +579,75 @@ class PythonServices {
         }
 
         @JvmStatic
-        fun showClick(enable: Boolean) {
+        fun showUI(visible: Boolean) {
+            try {
+                val service = ToolBarService.getInstance()?.get()
+                if (service != null) {
+                    Handler(Looper.getMainLooper()).post {
+                        service.showUI(visible)
+                    }
+                }
+            } catch (e: Exception) {
+                Timber.tag(TAG).e(e, "控制界面显示失败")
+            }
+        }
+
+        @JvmStatic
+        fun showCursor(visible: Boolean) {
+            try {
+                val service = ToolBarService.getInstance()?.get()
+                if (service != null) {
+                    Handler(Looper.getMainLooper()).post {
+                        service.showCursor(visible)
+                    }
+                }
+            } catch (e: Exception) {
+                Timber.tag(TAG).e(e, "控制光标显示失败")
+            }
+        }
+        
+        @JvmStatic
+        fun showClick(visible: Boolean) {
             val service = ToolBarService.getInstance()?.get()
             if (service != null) {
                 // 在主线程上执行UI操作
                 Handler(Looper.getMainLooper()).post {
-                    service.showClick(enable)
-                    logI("调用showClick完成: $enable")
+                    service.showClick(visible)
+                    logI("调用showClick完成: $visible")
                 }
             } else {
                 logE("ToolBarService实例不可用")
             }
         }
 
+
+        @JvmStatic
+        fun showLog(visible: Boolean) {
+            val service = ToolBarService.getInstance()?.get()
+            if (service != null) {
+                // 在主线程上执行UI操作
+                Handler(Looper.getMainLooper()).post {
+                    service.showLog(visible)
+                    logI("调用showLog完成: $visible")
+                }
+            } else {
+                logE("ToolBarService实例不可用")
+            }
+        }
+
+        @JvmStatic
+        fun showToolbar(visible: Boolean) {
+            val service = ToolBarService.getInstance()?.get()
+            if (service != null) {  
+                Handler(Looper.getMainLooper()).post {
+                    service.showToolbar(visible)
+                    logI("调用showToolbar完成: $visible")
+                }
+            } else {
+                logE("ToolBarService实例不可用")
+            }
+        }
+        
         /**
          * 获取当前前台应用的包名
          */
@@ -831,36 +864,36 @@ class PythonServices {
          * @param result 可选的结果信息
          */
         @JvmStatic
-        fun log(content: String, tag: String = "", level: String = "i", result: String? = null) {
+        fun log(content: String, tag: String = "", level: String = "i") {
             // 调用ToolBarService的addLog方法
-            ToolBarService.log(content, tag, level, result)
+            ToolBarService.log(content, tag, level)
         }
         @JvmStatic
-        fun logE(content: String, tag: String = "", result: String? = null) {
-            ToolBarService.log(content, tag, "e", result)
+        fun logE(content: String, tag: String = "") {
+            ToolBarService.log(content, tag, "e")
         }
         @JvmStatic
-        fun logW(content: String, tag: String = "", result: String? = null) {
-            ToolBarService.log(content, tag, "w", result)
+        fun logW(content: String, tag: String = "") {
+            ToolBarService.log(content, tag, "w")
         }
         @JvmStatic
-        fun logD(content: String, tag: String = "", result: String? = null) {
-            ToolBarService.log(content, tag, "d", result)
+        fun logD(content: String, tag: String = "") {
+            ToolBarService.log(content, tag, "d")
         }
         @JvmStatic
-        fun logI(content: String, tag: String = "", result: String? = null) {
-            ToolBarService.log(content, tag, "i", result)
-        }
-
-        @JvmStatic
-        fun logC(content: String, tag: String = "", result: String? = null) {
-            ToolBarService.log(content, tag, "c", result)
+        fun logI(content: String, tag: String = "") {
+            ToolBarService.log(content, tag, "i")
         }
 
         @JvmStatic
-        fun logEx(e: Exception, content: String = "", tag: String = "", result: String? = null) {
+        fun logC(content: String, tag: String = "") {
+            ToolBarService.log(content, tag, "c")
+        }
+
+        @JvmStatic
+        fun logEx(e: Exception, content: String = "", tag: String = "") {
             val msg = "${content}\n${e.message}\n${e.stackTrace.joinToString("\n")}"
-            ToolBarService.log(msg, tag, "e", result)
+            ToolBarService.log(msg, tag, "e")
         }
         
         /**
@@ -901,11 +934,5 @@ class PythonServices {
             }
         }
 
-        // 保留这个方法作为兼容性支持
-        @JvmStatic
-        fun enableTouchMonitor(enable: Boolean) {
-            logI("Python调用enableTouchMonitor (已废弃): $enable")
-            showClick(enable)
-        }
     }
 } 

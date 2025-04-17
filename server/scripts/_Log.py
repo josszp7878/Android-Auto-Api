@@ -192,18 +192,17 @@ class _Log_:
     @classmethod
     def createLogData(cls, tag, content, level='i', result=None)->dict:
         """创建日志数据"""
-        time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        # time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        time = datetime.now().strftime('%H:%M:%S')
         level, content = cls._parseLevel(content, level)
         if content is None:
             return None
-        res = cls._parseLevel(result,level)
-        # print(f'res@@@@: {res}')
         return {
             'time': time,
             'tag': tag,
             'level': level,
             'message': content,
-            'result': res,
+            'result': result,
             'count': 1
         }   
     
@@ -247,18 +246,16 @@ class _Log_:
             android = g.CTools().android
         tag = tag if tag else ''    
         level = level if level else 'i'
-        if not isinstance(result, tuple):
-            result = ('i', str(result) if result else None)
-        res = result[1]
-        if isinstance(res, tuple):
-            res = res[1]
         if android:    
-            android.log(content, tag, level, f'{result[0]}-{res}' if res else '')
+            android.log(content, tag, level)
         else:
             cls._PCLog_(content, tag, level)
-            # print(f'res: {res}')
-            if res:
-                cls._PCLog_(f' => {res}', '', result[0])
+        if result is not None and result != '':
+            level, result = cls._parseLevel(result, 'i')
+            if android:
+                android.log(f' => {result}', '', level)
+            else:
+                cls._PCLog_(f' => {result}', '', level)
             
     @classmethod
     def ex_(cls, e, message=None, tag=None):

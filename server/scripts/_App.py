@@ -25,6 +25,17 @@ class _App_:
         self.description = info.get("description", '')
         self.timeout = info.get("timeout",5)
 
+    def getCheckName(self, checkName: str) -> str:
+        """获取检查器名称"""
+        if not checkName or checkName.strip() == '':
+            return None
+        
+        if checkName.startswith('@'):
+            #页面匹配
+            checkName = checkName[1:]
+            checkName = self.name + '-' + checkName
+        return checkName
+
     @property
     def currentPage(self):
         return self._currentPage
@@ -37,49 +48,96 @@ class _App_:
         log.i(f"当前页面: {page.name if page else 'None'}")
         Checker = _G._G_.Checker()
         Checker.uncheckPage(self._currentPage)
-        # 将页面检测器添加到全局列表
-        if page is not None:
-            page.check()
+        checkerName = self.getCheckName(page.name)
+        self.checkPage(checkerName)
+    
+    def checkPage(self, checkerName: str):
+        """检查页面"""
+        try:
+            if checkerName is None: 
+                return
+            g = _G._G_
+            log = g.Log()
+            Checker = g.Checker()
+            checkerName = self.getCheckName(checkerName)
+            Checker.check(checkerName, self)
+        except Exception as e:
+            log.ex(e, f"检查页面失败: {checkerName}")
     
     def detectPage(self, pageName, delay:int=3)->bool:
         """客户端实现：通过屏幕检测当前页面"""
-        log = _G._G_.Log()
-        if delay > 0:
-            time.sleep(delay)
-        ret = True
-        if pageName is not None:
-            #检测特定页面
-            if isinstance(pageName, str):
-                page = self.getPage(pageName)
-                if page is None:
-                    log.e(f"找不到页面: {pageName}")
-                    return False
+        try:
+            g = _G._G_
+            log = g.Log()
+            if delay > 0:
+                time.sleep(delay)
+            ret = True
+            if pageName is not None:
+                #检测特定页面
+                if isinstance(pageName, str):
+                    page = self.getPage(pageName)
+                    if page is None:
+                        log.e(f"找不到页面: {pageName}")
+                        return False
+                else:
+                    page = pageName
+                ret = _App_._doMatchPage(page)             
             else:
-                page = pageName
-            ret = page.match()
+                #获取当前页面，可能不是目标页面
+                tools = _G._G_.CTools()  
+                if tools.android is not None:
+                    tools.refreshScreenInfos()
+                    page = _App_._matchPage(self.rootPage)
+                    if page is None:
+                        # log.e("检测当前页面失败")
+                        return False
+                else:
+                    page = self._currentPage
+            self._setCurrentPage(page)
+            return ret
+        except Exception as e:
+            _G._G_.Log().ex(e, f"检测页面失败: {pageName}")
+            return False
+    
+    def _doMatchPage(self, page: "_Page._Page_") -> bool:
+        """检测页面是否匹配"""
+        g = _G._G_
+        log = g.Log()
+        Checker = g.Checker()
+        checkerName = self.getCheckName(page.name)
+        checker = Checker.getTemplate(checkerName, create=False)
+        ret = False
+        if checker:
+            ret = checker.match()
             if not ret:
-                log.e(f"页面{pageName}不匹配")
+                log.e(f"页面{page.name}不匹配")
                 return False
-        else:
-            #获取当前页面，可能不是目标页面
-            tools = _G._G_.CTools()  
-            if tools.android is not None:
-                tools.refreshScreenInfos()
-                page = self.rootPage.detectPage()
-                if page is None:
-                    # log.e("检测当前页面失败")
-                    return False
-            else:
-                page = self._currentPage
-        self._setCurrentPage(page)
         return ret
+    
+    @classmethod
+    def _matchPage(cls, page: "_Page._Page_", depth=0) -> Optional["_Page._Page_"]:
+        """递归检测页面
+        Args:   
+            page: 要检测的页面
+            depth: 当前递归深度
+        """
+        try:
+            if _App_._doMatchPage(page):
+                return page
+            for child in page.children.values():
+                page = child._matchPage(depth + 1)
+                if page:
+                    return page
+        except Exception as e:
+            _G._G_.Log().ex(e, f"检测页面失败: {page.name}")
+        return None 
     
     @classmethod
     def getAppPage(cls, pageName)->Optional["_Page._Page_"]:
         g = _G._G_
         log = g.Log()
         appName, pageName = g.Tools().toAppPageName(pageName)
-        App = g.CApp()
+        App = g.App()
         app = App.currentApp()
         if appName:
             app = App.getApp(appName, True)
@@ -240,7 +298,7 @@ class _App_:
                 log.i(f"已加载{len(topCheckers)}个checker模板")
             
             # 创建根页面
-            root = Page.createPage("Top", None, [], None, None)
+            root = Page.createPage("Top", None, None, None)
             
             # 递归处理配置树
             def processNode(node, parentPage, parentName):
@@ -250,11 +308,9 @@ class _App_:
                         continue
                     # 创建页面对象
                     pageName = pageName.lower()
-                    match = pageConfig.get("match", [])
                     inAction = pageConfig.get("in", None)
                     outAction = pageConfig.get("out", None)
-                    checkers = pageConfig.get("checkers", None)
-                    currentPage = Page.createPage(pageName, parentPage, match, inAction, outAction, checkers)
+                    currentPage = Page.createPage(pageName, parentPage, inAction, outAction)
                     # 识别应用根节点（Top的直接子节点）
                     if parentName == "Top":
                         appInfo = pageConfig.get("app_info", {})

@@ -295,11 +295,10 @@ public class ScreenCapture extends Service {
 
         WeakReference<ToolBarService> toolBarServiceRef = ToolBarService.getInstance();
         ToolBarService toolBarService = toolBarServiceRef != null ? toolBarServiceRef.get() : null;
-
+        Image image = null;
         try {
-            Image image = null;
             if (toolBarService != null) {
-                toolBarService.hideCursor();
+                toolBarService.showUI(false);
                 // 等待UI更新完成
                 Thread.sleep(100);
             }
@@ -332,20 +331,14 @@ public class ScreenCapture extends Service {
                 Log.e("ScreenCapture", "Failed to acquire image after " + maxAttempts + " attempts");
             }
 
-            if (toolBarService != null) {
-                // 在主线程中恢复光标显示
-                toolBarService.showCursor();
-            }
-
             return image;
         } catch (Exception e) {
             Log.e("ScreenCapture", "Screenshot failed", e);
-            if (toolBarService != null) {
-                // 确保在发生异常时也能恢复光标显示
-                toolBarService.showCursor();
-            }
-            return null;
         }
+        if (toolBarService != null) {
+            toolBarService.showCursor(true);
+        }
+        return image;
     }
 
     private void releaseLastCapture() {

@@ -634,11 +634,6 @@ class SCmds_:
         @regCmd('#移除设备|ycsb (?P<taskID>\S+)\s+(?P<deviceIDs>.+)')
         def removeDevice(taskID, deviceIDs):
             """功能：从任务中移除设备
-            指令名：removeDevice
-            中文名：移除设备
-            参数：
-               taskID - 任务ID
-               deviceIDs - 设备ID列表，用空格分隔
             示例：移除设备 任务1 设备1 设备2
             """
             try:
@@ -655,5 +650,30 @@ class SCmds_:
             except Exception as e:
                 _Log._Log_.ex(e, "从任务中移除设备失败")
                 return f"e~从任务中移除设备失败: {str(e)}"
+
+        @regCmd(r'#检查列表|jclb')
+        def checKerList():
+            """功能：列出所有可用的检查器
+            指令名：checker_list
+            中文名：检查器列表
+            参数：无
+            示例：检查器列表
+            """
+            try:
+                checker = _G._G_.Checker()
+                templates = checker.templates()
+                
+                if not templates:
+                    return "没有可用的检查器"
+                
+                # 格式化输出
+                result = "可用的检查器列表:\n"
+                for template in templates:
+                    result += f"- {template.name}: {template.match}\n"
+                
+                return result
+            except Exception as e:
+                _G._G_.Log().ex(e, "获取检查器列表失败")
+                return f"e~获取检查器列表失败: {str(e)}"
 
     

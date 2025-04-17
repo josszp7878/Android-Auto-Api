@@ -31,9 +31,8 @@ def device(device_id):
 def serve_file(filename):
     """处理文件请求"""
     g = _G._G_
-    log = g.Log()
     file_path = os.path.join(g.rootDir(), filename)
-    log.i('Server', f'处理文件请求: {file_path}')
+    # log.i('Server', f'处理文件请求: {file_path}')
     return send_file(file_path)
 
 
@@ -42,7 +41,7 @@ def get_timestamps():
     """处理时间戳请求"""
     g = _G._G_
     log = g.Log()
-    log.i('Server', "处理时间戳请求")
+    # log.i('Server', "处理时间戳请求")
     timestamps = {}
     dir = g.rootDir()
     log.i(f'获取目录文件版本:{dir}')

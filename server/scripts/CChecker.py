@@ -64,6 +64,7 @@ class CChecker_:
         # 核心属性（会被序列化）
         self.name = name.lower()  # 名称，必填
         self._match = name        # 默认匹配规则为名称
+        self._checks = None      # 检查器列表
         self.do = {}        # 默认操作为空
         self.interval = 0         # 默认检查间隔为0
         self.timeout = 5          # 默认超时为5秒
@@ -85,8 +86,10 @@ class CChecker_:
         """从字典更新属性，只更新存在的字段"""
         if 'do' in config and config['do']:
             self.do = config['do'].copy() if isinstance(config['do'], dict) else {}
-        if 'check' in config and config['check']:
-            self._match = config['check']
+        if 'match' in config and config['match']:
+            self._match = config['match']
+        if 'checks' in config and config['checks']:
+            self._checks = config['checks']
         if 'interval' in config:
             self.interval = config['interval']
         if 'timeout' in config:
@@ -104,8 +107,9 @@ class CChecker_:
         
         # 检查和保存非默认值字段
         if self._match != self.name:
-            result['check'] = self._match
-        
+            result['match'] = self._match
+        if self._checks:
+            result['checks'] = self._checks        
         if self.do:  # 只有当有操作时才保存
             result['do'] = self.do.copy()
             
@@ -143,6 +147,14 @@ class CChecker_:
     @match.setter
     def match(self, value: str):
         self._match = value
+
+    @property
+    def checks(self) -> List[str]:
+        return self._checks
+
+    @checks.setter
+    def checks(self, value: List[str]):
+        self._checks = value
 
     @enabled.setter
     def enabled(self, value: bool):
@@ -240,7 +252,9 @@ class CChecker_:
             if template.name.lower() == name:
                 return template
         return None
-
+    
+    
+    
     @classmethod
     def getTemplate(cls, checkName: str, create: bool = False) -> Optional["CChecker_"]:
         """获取指定名称的模板        
@@ -250,15 +264,8 @@ class CChecker_:
         Returns:
             CChecker_: 模板对象，如果不存在且不创建则返回None
         """
-        if checkName.startswith('@'):
-            #页面匹配
-            checkName = checkName[1:]
-            #加上当前的应用名作为前缀
-            curApp = g.App().currentApp()
-            if not curApp:
-                log.e(f"当前应用为空，无法编辑页面检查器: {checkName}")
-                return None
-            checkName = curApp.name + '-' + checkName
+        if not checkName:
+            return None
         for template in cls.templates():
             if template.name.lower() == checkName:
                 return template
@@ -293,23 +300,21 @@ class CChecker_:
             log.ex(e, "保存Checks.json失败")
 
     @classmethod
-    def check(cls, checkName: str, param: dict = None):
+    def check(cls, checkName: str, data: Any):
         """启动指定检查器并覆盖参数"""
-        checker = cls.get(checkName, param, True)
-        if checker:
-            # 覆盖参数
-            if param:
-                for k, v in param.items():
-                    if hasattr(checker, k):
-                        setattr(checker, k, v)
+        config = cls.getTemplate(checkName, False)
+        if not config:
+            return
+        checks = config.checks
+        if checks is None or checks.strip() == '':
+            return
+        for check in checks.split(','):
+            checker = cls.get(check, create=True)
+            if checker is None:
+                log.w(f"添加页面检查器：{checkName} -> {check} 失败")
+                continue
+            checker.data = data
             checker.enabled = True
-            return checker
-        return None
-    
-    @classmethod
-    def edit(cls, checkName: str) -> "CChecker_":
-        """启动编辑检查器"""
-        return cls.getTemplate(checkName, True)
 
     def save(self, save: bool = False) -> bool:
         """结束编辑，可选保存编辑结果"""
@@ -419,7 +424,7 @@ class CChecker_:
                 cls._running = False
                 if cls._checkThread and cls._checkThread.is_alive():
                     cls._checkThread.join(1.0)  # 等待线程结束，最多1秒
-                log.i("停止检查线程")
+                # log.i("停止检查线程")
                 return True
         except Exception as e:
             log.ex(e, "停止检查线程失败")

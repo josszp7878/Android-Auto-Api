@@ -161,7 +161,7 @@ class CCmds_:
             参数: appName - 应用名称
             示例: 打开 微信
             """
-            App = _G._G_.CApp()
+            App = _G._G_.App()
             ret = App.goApp(appName)
             if not ret:
                 return f"打开应用 {appName} 失败"
@@ -413,30 +413,34 @@ class CCmds_:
             from _App import _App_
             return _App_.printTopology(appName)
         
-        @regCmd(r"#显示坐标|xszb(?P<enable>\S+)?")
-        def sHowClick(enable=None):
+        @regCmd(r"#显示|xs(?P<uiName>\S+)(?P<enable>\S+)?")
+        def sHow(uiName:str, enable=None):
             """
             功能：启用/关闭显示坐标， 启用后点击屏幕会显示坐标
-            示例: xszb 1
+            示例: 
+            xs 坐标 1
+            xs 工具栏 1
+            xs 日志 1
             """
             g = _G._G_
             log = g.Log()
+            enable = g.Tools().toBool(enable, True)
             android = g.CTools().android
-            
-            # 默认为True
-            enable_value = g.Tools().toBool(enable, True)
-            log.i(f"设置触摸监控: {enable_value}")
-            
-            if android:
-                try:
-                    android.showClick(enable_value)
-                    return f"触控监控{'开启' if enable_value else '关闭'}"
-                except Exception as e:
-                    log.ex(e, "设置触摸监控失败")
-                    return f"设置触摸监控失败: {str(e)}"
+            log.i(f"显示{uiName}: {enable}")
+            if not android:
+                return
+            if uiName == '坐标' or uiName == 'zb':
+                android.showClick(enable)
+            elif uiName == '工具栏' or uiName == 'gjl':
+                android.showToolbar(enable)
+            elif uiName == '日志' or uiName == 'rz':
+                android.showLog(enable)
+            elif uiName == 'UI':
+                android.showUI(enable)
+            elif uiName == '光标' or uiName == 'gb':
+                android.showCursor(enable)
             else:
-                return f"触控监控{'开启' if enable_value else '关闭'}"
-
+                log.e(f"显示{uiName} {'开启' if enable else '关闭'}失败")
 
         @regCmd(r"#退出|tc")
         def eXit():
@@ -499,6 +503,58 @@ class CCmds_:
                 return f"e~设置属性: {param} 失败"
             return f"设置参数 {param}={value}"
 
+        @regCmd(r"#\+|添加|tj(?P<param>\w+) (?P<value>.+)?")
+        def add(param, value=None):
+            """
+            添加数组类型参数里面的某个ITEM，match, checks等
+            示例：
+            add match {'.*签到'}
+            add checks {'签到'}
+            """
+            target = cls._editTarget
+            if not target:
+                return "e~请先开始编辑检查器"
+            value = g.Tools().fromStr(value)
+            # 使用setattr设置普通属性
+            try:
+                val = getattr(target, param) or ''
+                if isinstance(val, str):
+                    if value not in val:
+                        val = f'{val},{value}'
+                elif isinstance(val, list):
+                    if value not in val:
+                        val.append(value)
+                setattr(target, param, val)
+            except AttributeError:
+                return f"e~设置属性: {param} 失败"
+            return f"添加参数 {param}={value}"
+
+        @regCmd(r"#\-|移除|yc(?P<checkName>\S+)?")
+        def reMove(param, value=None):
+            """
+            删除数组类型参数里面的某个ITEM，match, checks等
+            示例：
+            remove match {'.*签到'}
+            remove checks {'签到'}
+            """ 
+            target = cls._editTarget
+            if not target:
+                return "e~请先开始编辑检查器"
+            value = g.Tools().fromStr(value)
+            # 使用setattr设置普通属性
+            try:
+                val = getattr(target, param) or ''
+                if isinstance(val, str):
+                    if value in val:
+                        val = val.replace(value, '')
+                elif isinstance(val, list):
+                    if value in val:
+                        val.remove(value)   
+                setattr(target, param, val)
+            except AttributeError:
+                return f"e~设置属性: {param} 失败"
+            return f"删除参数 {param}={value}"  
+
         @regCmd(r"#保存|bc(?P<save>[01])?")
         def sAve(save='1'):
             target = cls._editTarget
@@ -529,24 +585,32 @@ class CCmds_:
                 return f"{checkName} 不存在"
             return "\n".join(f"{json.dumps(t.to_dict(), indent=2, ensure_ascii=False)}" for t in checkers)
 
-        @regCmd(r"#检查|jc (?P<checkerName>\S+)(?:\s+(?P<enabled>\S+))?")
-        def check(checkerName, enabled=None):
+        @regCmd(r"#匹配|pp (?P<name>\S+)(?:\s+(?P<enabled>\S+))?")
+        def maTch(name, enabled=None):
             """
-            功能：停止指定名称的检查器
-            指令名: check-c
-            中文名: 检查-jc
-            参数: checkerName - 检查器名称
-            示例: 检查 每日签到
+            功能：匹配指定名称的检查器
+            示例: 匹配 每日签到
             """ 
+            g = _G._G_
             enabled = g.Tools().toBool(enabled, True)
             # 检查器
-            checker = g.Checker().get(checkerName, create=True)
+            name = g.App().currentApp().getCheckName(name)
+            checker = g.Checker().get(name, create=True)
             if checker:
                 checker.enabled = enabled
-                return f"检查器 {checkerName} 已设置为 {enabled}"
+                return f"检查器 {name} 已设置为 {enabled}"
             else:
-                return f"e~无效检查器: {checkerName}"
-
- 
+                return f"e~无效检查器: {name}"
+            
+        @regCmd(r"#检查|jc(?P<name>\S+)")
+        def checK(name):
+            """
+            功能：检查指定名称的检查器
+            示例: 检查 每日签到
+            """
+            g = _G._G_
+            name = g.App().currentApp().getCheckName(name)
+            g.Checker().check(name, g.App().currentApp())
+            return f"检查器 {name} 已检查"
 
     

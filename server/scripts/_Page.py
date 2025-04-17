@@ -32,7 +32,7 @@ class _Page_:
     
     
     @classmethod
-    def createPage(cls, name, parent=None, matches=None, inAction=None, outAction=None, checkers=None, timeout=2)->"_Page_":
+    def createPage(cls, name, parent=None, inAction=None, outAction=None)->"_Page_":
         """创建页面对象
         
         Args:
@@ -47,7 +47,7 @@ class _Page_:
             return parent.children[name]
             
         # 创建新页面
-        page = _Page_(name, parent, matches, inAction, outAction, checkers, timeout)  # 提供空规则列表作为默认值
+        page = _Page_(name, parent, inAction, outAction)  # 提供空规则列表作为默认值
         
         # 设置父子关系
         if parent:
@@ -56,18 +56,12 @@ class _Page_:
             
         return page
     
-    def __init__(self, name, parent=None, matches=None, inAction=None, outAction=None, checkers=None, timeout=30):
+    def __init__(self, name, parent=None, inAction=None, outAction=None):
         self.name = name
-        self.matches: list[str] = matches if matches else [] 
         self.parent: Optional["_Page_"] = parent  # 父页面对象
         self.children: dict[str, "_Page_"] = {}  # {name: CPage_对象}
         self.inAction: str = inAction if inAction else ''
         self.outAction: str = outAction if outAction else ''
-        
-        # 处理checkers配置
-        self.checkers = checkers      
-        self.timeout: int = timeout  # 默认超时时间
-        
         # 如果有父页面，将自己添加为父页面的子页面
         if parent and isinstance(parent, _Page_):
             parent.addChild(self)
@@ -285,64 +279,6 @@ class _Page_:
         # 如果没有找到，返回None
         return None
     
-    def check(self): 
-        """添加检查器"""
-        checkers = self.checkers
-        if checkers is None or len(checkers) == 0:
-            return
-        for checkerName, config in checkers.items():
-            config = config if isinstance(config, dict) else None
-            checker = g.Checker().get(checkerName, config, True)
-            if checker is None:
-                log.w(f"添加页面检查器：{self.name} -> {checkerName} 失败")
-                continue
-            checker.data = self
-            checker.enabled = True
-
-    def match(self) -> bool: 
-        """检查页面规则是否匹配当前屏幕"""
-        g = _G._G_
-        tools = g.CTools()
-        log = g.Log()
-        if not self.matches:
-            return True
-        try:
-            # 刷新屏幕信息
-            tools.refreshScreenInfos()        
-            # 检查所有规则
-            all_passed = True
-            for rule in self.matches:
-                try:
-                    result = tools.check(self, rule)
-                    if not result:
-                        all_passed = False
-                        break
-                except Exception as e:
-                    log.ex(e, f"规则处理失败: {rule}")
-                    all_passed = False
-                    break
-            
-            return all_passed
-        except Exception as e:
-            log.ex(e, f"检查页面规则失败: {self.name}")
-            return False
-    
-    def detectPage(self, depth=0) -> Optional["_Page_"]:
-        """递归检测页面
-        Args:   
-            page: 要检测的页面
-            depth: 当前递归深度
-        """
-        try:
-            if self.match():
-                return self
-            for child in self.children.values():
-                page = child.detectPage(depth + 1)
-                if page:
-                    return page
-        except Exception as e:
-            log.ex(e, f"检测页面失败: {self.name}")
-        return None 
     
     def go(self, targetPage: "_Page_") -> bool:
         """跳转到目标页面并验证结果"""
