@@ -2,7 +2,6 @@ from typing import List, Optional, Tuple, Callable
 from CTask import CTask_
 import _G
 import _Log
-from _CmdMgr import regCmd
 import threading
 from datetime import datetime
 from _Tools import TaskState, _Tools_
@@ -230,15 +229,11 @@ class CTaskMgr_:
         def taskList():
             """
             功能：获取任务列表
-            指令名: taskList-tL
-            中文名: 任务列表
-            参数: 无
-            示例: 任务列表
             """
             # 命令实现...
         
         @regCmd(r"#启动任务(?P<taskName>.+)")
-        def startTask(taskName):
+        def startTasK(taskName):
             """
             功能：启动指定任务
             指令名: startTask-sT
@@ -249,12 +244,5 @@ class CTaskMgr_:
             # 命令实现...
         
 
-    @classmethod
-    def onLoad(cls, old):
-        log = _G._G_.Log()
-        log.i("加载CTaskMgr")
-        cls.registerCommands()
-        return True
-    
-CTaskMgr_.onLoad(None)
+
 taskMgr = CTaskMgr_.getInstance()

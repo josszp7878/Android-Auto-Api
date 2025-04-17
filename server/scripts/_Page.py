@@ -197,8 +197,8 @@ class _Page_:
         
         # 如果这是根页面且没找到，尝试搜索其他应用
         if not self.parent and name != "Top":
-            from CApp import CApp_
-            for app in CApp_.apps.values():
+            from _App import App_
+            for app in App_.apps.values():
                 if app.rootPage != self and app.rootPage not in visited:
                     result = app.rootPage._findPageByName(name, visited)
                     if result:

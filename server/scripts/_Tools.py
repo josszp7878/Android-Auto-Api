@@ -1,3 +1,4 @@
+import ast
 import json
 from enum import Enum
 import re
@@ -119,6 +120,7 @@ class _Tools_:
         }
         result = eval(code, cls.gl, locals)
         return result
+    
     @classmethod
     def check(cls, this, str:str) -> bool:
         """检查规则"""
@@ -189,6 +191,25 @@ class _Tools_:
         if match:
             return int(match.group(1)), int(match.group(2))
         return None
+    @classmethod
+    def fromStr(cls, str: str) -> Any:
+        """将位置字符串转换为坐标"""
+        if str is None:
+            return None
+        str = cls.replaceSymbols(str)
+        try:
+            if ':' in str:
+                if '"' in str:
+                    return dict(json.loads(str))
+                else:
+                    return ast.literal_eval(str)
+            elif ',' in str:
+                return tuple(str.split(','))
+            else:
+                return int(str)
+        except (ValueError, SyntaxError):
+            pass
+        return str
     
     @classmethod
     def toBool(cls, value, default=False):
@@ -211,9 +232,9 @@ class _Tools_:
         if not name or not name.strip():
             return None, None
         
-        # 使用正则表达式匹配 "应用名.页面名" 格式
+        # 使用正则表达式匹配 "应用名-页面名" 格式
         import re
-        match = re.match(r'^([^.。]*)(?:[\.。](.*))?$', name.strip())
+        match = re.match(r'^([^.。-]*)(?:[\.。-](.*))?$', name.strip())
         
         if not match:
             return None, None
@@ -225,88 +246,127 @@ class _Tools_:
 
     @classmethod
     def toPos(cls, strPos: str) -> Tuple[str, tuple]:
-        """解析位置字符串
+        """解析位置字符串，支持多种格式
         
-        支持多种配置：
-        1. 单轴坐标: text(axis100,-300) 其中axis是x或y, 坐标值分别对应x0,x1或y0,y1
-        2. 双轴坐标: text(100,-200,300,400) 坐标值分别对应x0,y0,x1,y1
-        3. 单值坐标: text(100) 单个值
-        4. 纯坐标: 100,200 直接作为坐标处理
+        格式说明:
+        - 纯坐标: "100,200" -> (None, (100,200,None,None))
+        - 文本+坐标: "文本100,-50" -> ("文本", (100,-50,None,None))
+        - 单轴坐标: "文本y-100" -> ("文本", (None,-100,None,None))
+        - 单轴多值: "文本y-100,50" -> ("文本", (None,-100,None,50)) (50也解析为y轴)
+        - 双轴坐标: "文本x100,y-50" -> ("文本", (100,-50,None,None))
+        - 多坐标: "文本100,200,300,400" -> ("文本", (100,200,300,400))
         
         Args:
-            strPos: 位置字符串
+            strPos: 位置字符串，支持有无括号
             
         Returns:
-            (text, (x0,y0,x1,y1)): 文本和坐标元组，坐标可能是None
+            (text, (x0,y0,x1,y1)): 文本和坐标元组，坐标不存在的部分为None
         """
         try:
-            if strPos is None:
+            if not strPos or not strPos.strip():
                 return None, None
-            strPos = strPos.strip()
-            if strPos == '':
-                return None, None
-            import re
-            # 检查是否是纯坐标形式 (如 "100,200,300,400")
-            pure_coords_match = re.match(r'^([\s,xX\d]+)$', strPos)
-            if pure_coords_match:
-                values = [v.strip() for v in pure_coords_match.group(1).split(',')]
-                values = [int(v) if v and re.match(r'[+-]?\d+', v) else None for v in values]
-                if len(values) == 1:
-                    # 单个数字，不当成坐标处理。
-                    return strPos, None
-                return None, tuple(values)
-            # 检查是否有括号
-            bracket_match = re.match(r'(.*?)\s*[\(（](.*?)[\)）]', strPos)
-            if not bracket_match:
-                # 没有括号，返回None
-                return strPos, None
             
-            text = bracket_match.group(1).strip()
-            content = bracket_match.group(2).strip()
+            # 1. 预处理：去掉所有括号和空格
+            text = strPos.strip()
+            # 去掉所有括号
+            text = re.sub(r'[\(（\)）]', '', text)
             
-            # 处理括号内容
-            if not content:
-                return text, (None, None, None, None)
+            # 2. 检查是否是纯坐标形式 (如 "100,200")
+            if re.match(r'^\d+\s*,\s*\d+$', text):
+                values = [int(v.strip()) for v in text.split(',')]
+                return None, (values[0], values[1], None, None)
             
-            # 检查是否有轴标识
-            axis_match = re.match(r'([xXyY])\s*(.*)', content)
-            axis = None
-            if axis_match:
-                axis = axis_match.group(1).upper()
-                content = axis_match.group(2)
+            # 3. 查找第一个坐标标识出现的位置
+            coords_match = re.search(r'([xXyY][-+]?\d+)|(\d+,)', text)
             
-            # 分割逗号分隔的值
-            values = [v.strip() for v in content.split(',')]
-            values = [int(v) if v and re.match(r'[+-]?\d+', v) else None for v in values]
+            if not coords_match:
+                # 检查是否有单个数字结尾
+                num_match = re.search(r'(\d+)$', text)
+                if num_match:
+                    # 提取文本和坐标
+                    pos = num_match.start()
+                    coord_part = text[pos:]
+                    text_part = text[:pos].strip()
+                    
+                    # 处理单个数字结尾
+                    values = [int(coord_part), None, None, None]
+                    return text_part, tuple(values)
+                # 无坐标信息
+                return text, None
+                
+            # 4. 分离文本和坐标
+            pos = coords_match.start()
+            coord_part = text[pos:]
+            text_part = text[:pos].strip()
             
-            # 根据值的数量和轴标识处理不同情况
-            if len(values) == 1:
-                # 单个值
-                val = values[0]
-                if axis == 'X':
-                    return text, (val, None, None, None)
-                elif axis == 'Y':
-                    return text, (None, val, None, None)
+            # 5. 初始化坐标数组
+            coords = [None, None, None, None]
+            
+            # 6. 查找所有轴标识和数字
+            axis_values = re.findall(r'([xXyY])([-+]?\d+)', coord_part)
+            
+            # 7. 处理所有轴标识
+            has_x = False
+            has_y = False
+            
+            for axis, value in axis_values:
+                value = int(value)
+                if axis.upper() == 'X':
+                    has_x = True
+                    # 放入第一个空的X轴位置
+                    if coords[0] is None:
+                        coords[0] = value
+                    elif coords[2] is None:
+                        coords[2] = value
+                else:  # Y轴
+                    has_y = True
+                    # 放入第一个空的Y轴位置
+                    if coords[1] is None:
+                        coords[1] = value
+                    elif coords[3] is None:
+                        coords[3] = value
+            
+            # 8. 正确提取纯数字
+            # 排除跟在x或y后面的数字，只提取独立的数字
+            all_numbers = re.findall(r'([-+]?\d+)', coord_part)
+            axis_numbers = [match[1] for match in axis_values]  # 已处理的带轴标识的数字
+            
+            # 只保留不是轴标识一部分的数字
+            plain_values = []
+            for num in all_numbers:
+                if num not in axis_numbers:
+                    plain_values.append(num)
+            
+            # 9. 处理这些数字
+            if plain_values:
+                # 单轴模式
+                if has_x and not has_y:
+                    # 只有X轴，其他数字也视为X轴
+                    x_idx = 0 if coords[0] is None else 2
+                    for val in plain_values:
+                        if x_idx <= 2:
+                            coords[x_idx] = int(val)
+                            x_idx += 2
+                elif has_y and not has_x:
+                    # 只有Y轴，其他数字也视为Y轴
+                    y_idx = 1 if coords[1] is None else 3
+                    for val in plain_values:
+                        if y_idx <= 3:
+                            coords[y_idx] = int(val)
+                            y_idx += 2
                 else:
-                    return text, (val, None, None, None)  # 默认为X轴
+                    # 无轴或双轴模式，按顺序填充
+                    idx = 0
+                    for val in plain_values:
+                        while idx < 4 and coords[idx] is not None:
+                            idx += 1
+                        if idx < 4:
+                            coords[idx] = int(val)
+                            idx += 1
             
-            elif len(values) == 2:
-                # 两个值
-                val1, val2 = values
-                if axis == 'X':
-                    return text, (val1, None, val2, None)
-                elif axis == 'Y':
-                    return text, (None, val1, None, val2)
-                else:
-                    return text, (val1, val2, None, None)  # 默认为X,Y坐标
+            # 10. 返回结果
+            return text_part, tuple(coords)
             
-            elif len(values) == 4:
-                # 四个值 - 完整的矩形
-                return text, tuple(values)
-            
-            # 其他情况，返回尽可能多的值，其余为None
-            result = values + [None] * (4 - len(values))
-            return text, tuple(result[:4])
         except Exception as e:
             _G._G_.Log().ex(e, f"解析位置字符串失败: {strPos}")
             return None, None
@@ -379,16 +439,82 @@ class _Tools_:
         return retItem, maxSim
     
     @classmethod
-    def regexMatch(cls, pattern, items):
-        log = _G._G_.Log()
+    def regexMatch(cls, pattern, strs):
+        if strs is None or len(strs) == 0:
+            return None
         if pattern is None or pattern.strip() == '':
             return None
         # log.i(f"regexMatch: {pattern}")
-        for item in items:
-            if isinstance(item, str):
-                text = item
-            else:
-                text = item['t']
-            if re.search(pattern, text):
-                return item
+        for str in strs:
+            if re.search(pattern, str):
+                return str
         return None
+    
+    @classmethod
+    def regexMatchItems(cls, pattern, items):
+        if items is None or len(items) == 0:
+            return None
+        pattern = pattern.strip() if pattern else ''
+        if pattern == '':
+            return None
+        # log.i(f"regexMatch: {pattern}")
+        retItems = []
+        for item in items:
+            text = item['t']
+            if re.search(pattern, text):
+                retItems.append(item)
+        return retItems
+
+    @classmethod
+    def replaceSymbols(cls, text: str, symbol_map: dict = None) -> str:
+        """高效替换字符串中的符号
+        
+        Args:
+            text: 要处理的字符串
+            symbol_map: 符号映射字典，如果不提供将使用默认映射
+            
+        Returns:
+            str: 替换后的字符串
+        """
+        if text is None or text == '':
+            return text
+        
+        # 默认符号映射表（中文符号 -> 英文符号）
+        default_map = {
+            '：': ':',
+            '，': ',',
+            '；': ';',
+            '。': '.',
+            '？': '?',
+            '！': '!',
+            '（': '(',
+            '）': ')',
+            '【': '[',
+            '】': ']',
+            '“': '"',
+            '”': '"',
+            '’': "'",
+            '‘': "'",
+            '`': "'",
+            '《': '<',
+            '》': '>',
+            '—': '-',
+            '。': '.',
+            '　': ' '  # 全角空格转半角空格
+        }
+        
+        # 使用传入的符号映射表或默认表
+        map_to_use = symbol_map if symbol_map is not None else default_map
+        
+        # 如果没有需要替换的符号，直接返回原字符串
+        if not map_to_use:
+            return text
+        
+        # 使用列表构建结果字符串，比字符串拼接更高效
+        result = []
+        for char in text:
+            # 如果字符在映射表中，则替换为对应的符号
+            result.append(map_to_use.get(char, char))
+        
+        # 将结果列表连接为字符串
+        return ''.join(result)

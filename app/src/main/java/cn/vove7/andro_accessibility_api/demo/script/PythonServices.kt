@@ -81,7 +81,7 @@ class PythonServices {
             this.context = context
             loadInstalledApps()
             contextRef = WeakReference(context.applicationContext)
-            Log.d(TAG, "PythonServices 初始化完成")
+            logI("PythonServices 初始化完成")
         }
 
         @JvmStatic
@@ -102,9 +102,7 @@ class PythonServices {
             
             // 如果权限被拒绝，但还没有显示过提示，则显示一次提示
             if (!result && !permissionAlertShown) {
-                UIUtils.runOnUiThread {
-                    Toast.makeText(context, "Permission denied: ${permission.substringAfterLast(".")}", Toast.LENGTH_SHORT).show()
-                }
+                toast("Permission denied: ${permission.substringAfterLast(".")}")
                 permissionAlertShown = true // 标记已经显示过提示
             }
             
@@ -525,15 +523,23 @@ class PythonServices {
          * 显示Toast消息
          */
         @JvmStatic
-        fun showToast(
+        fun toast(
             msg: String, 
             duration: Int = Toast.LENGTH_SHORT, 
             gravity: Int = Gravity.BOTTOM, 
             xOffset: Int = 0, 
             yOffset: Int = 0
         ) {
-            contextRef?.get()?.let { context ->
-                Toast.makeText(context, msg, duration).show()
+            Handler(Looper.getMainLooper()).post {
+                try {
+                    contextRef?.get()?.let { context ->
+                        val toast = Toast.makeText(context, msg, duration)
+                        toast.setGravity(gravity, xOffset, yOffset)
+                        toast.show()
+                    }
+                } catch (e: Exception) {
+                    logEx(e, "显示Toast失败")
+                }
             }
         }
 
@@ -558,7 +564,7 @@ class PythonServices {
             val swipeDirection = try {
                 SwipeDirection.valueOf(direction.toUpperCase())
             } catch (e: IllegalArgumentException) {
-                Timber.tag("PythonServices").e(e, "Invalid direction: $direction")
+                logEx(e, "Invalid direction: $direction")
                 return false
             }
 
@@ -581,10 +587,10 @@ class PythonServices {
                 runBlocking {
                     gestureSwipe(startX, startY, endX, endY, duration)
                 }
-                Timber.tag("PythonServices").i("Sweep $swipeDirection successful")
+                logI("Sweep $swipeDirection successful")
                 true
             } catch (e: Exception) {
-                Timber.tag("PythonServices").e(e, "Sweep $swipeDirection failed")
+                logEx(e, "Sweep $swipeDirection failed")
                 false
             }
         }
@@ -597,16 +603,15 @@ class PythonServices {
 
         @JvmStatic
         fun showClick(enable: Boolean) {
-            Timber.d("Python调用showClick: $enable")
             val service = ToolBarService.getInstance()?.get()
             if (service != null) {
                 // 在主线程上执行UI操作
                 Handler(Looper.getMainLooper()).post {
                     service.showClick(enable)
-                    Timber.d("调用showClick完成: $enable")
+                    logI("调用showClick完成: $enable")
                 }
             } else {
-                Timber.e("ToolBarService实例不可用")
+                logE("ToolBarService实例不可用")
             }
         }
 
@@ -615,13 +620,13 @@ class PythonServices {
          */
         @JvmStatic
         fun getCurrentPackage(): String {
-            Timber.tag(TAG).i("Getting current package name")
+            // Timber.tag(TAG).i("Getting current package name")
             return try {
                 // 尝试通过无障碍服务获取
                 val rootNode = AutoApi.AutoImpl?.rootInActiveWindow()
                 if (rootNode != null) {
                     val packageName = rootNode.packageName?.toString()
-                    Timber.tag(TAG).d("Current package from accessibility: %s", packageName)
+                    logI("Current package from accessibility: $packageName")
                     rootNode.recycle()
                     return packageName ?: ""
                 }
@@ -630,19 +635,19 @@ class PythonServices {
                 val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                     val foregroundApp = am.appTasks.firstOrNull()?.taskInfo?.topActivity?.packageName
-                    Timber.tag(TAG).d("Current package from ActivityManager: %s", foregroundApp)
+                    logI("Current package from ActivityManager: $foregroundApp")
                     foregroundApp ?: ""
                 } else {
                     // 旧版本Android上的备用方法
                     val tasks = am.getRunningTasks(1)
                     if (!tasks.isNullOrEmpty()) {
                         val packageName = tasks[0].topActivity?.packageName
-                        Timber.tag(TAG).d("Current package from getRunningTasks: %s", packageName)
+                        logI("Current package from getRunningTasks: $packageName")
                         packageName ?: ""
                     } else ""
                 }
             } catch (e: Exception) {
-                Timber.tag(TAG).e(e, "Failed to get current package")
+                logEx(e, "Failed to get current package")
                 ""
             }
         }
@@ -656,7 +661,7 @@ class PythonServices {
             return try {
                 AutoApi.AutoImpl?.rootInActiveWindow()
             } catch (e: Exception) {
-                Timber.tag(TAG).e(e, "Failed to get root node")
+                logEx(e, "Failed to get root node")
                 null
             }
         }
@@ -671,7 +676,7 @@ class PythonServices {
         @RequiresApi(Build.VERSION_CODES.LOLLIPOP_MR1)
         @JvmStatic
         fun getCurrentApp(period: Int = 60): Map<String, Any>? {
-            Timber.tag(TAG).i("获取当前运行应用信息")
+            // Timber.tag(TAG).i("获取当前运行应用信息")
             return try {
                 // 获取Android上下文
                 val appContext = context.applicationContext
@@ -679,7 +684,7 @@ class PythonServices {
                 // 获取UsageStatsManager
                 val usageStatsManager = appContext.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
                 if (usageStatsManager == null) {
-                    Timber.tag(TAG).e("获取UsageStatsManager失败，请重新启动应用获取查看应用使用权限")
+                    logE("获取UsageStatsManager失败，请重新启动应用获取查看应用使用权限")
                     return null
                 }
                 
@@ -692,7 +697,7 @@ class PythonServices {
                     UsageStatsManager.INTERVAL_DAILY, startTime, endTime)
                 
                 if (usageStatsList.isNullOrEmpty()) {
-                    Timber.tag(TAG).w("${period}秒内无最近应用使用记录")
+                    logW("${period}秒内无最近应用使用记录")
                 }
                 
                 // 找出最近使用的应用
@@ -707,7 +712,7 @@ class PythonServices {
                 }
                 
                 if (recentStats == null) {
-                    Timber.tag(TAG).w("未找到最近使用的应用")
+                    logW("未找到最近使用的应用")
                     return null
                 }
                 
@@ -723,7 +728,7 @@ class PythonServices {
                     }
                     
                     val appName = pm.getApplicationLabel(appInfo).toString()
-                    Timber.tag(TAG).i("当前应用: %s (%s)", appName, packageName)
+                    logI("当前应用: $appName ($packageName)")
                     
                     return mapOf(
                         "packageName" to packageName,
@@ -731,11 +736,11 @@ class PythonServices {
                         "lastUsed" to recentStats.lastTimeUsed
                     )
                 } catch (e: Exception) {
-                    Timber.tag(TAG).e(e, "获取应用信息失败")
+                    logEx(e, "获取应用信息失败")
                     return null
                 }
             } catch (e: Exception) {
-                Timber.tag(TAG).e(e, "获取当前应用失败")
+                logEx(e, "获取当前应用失败")
                 return null
             }
         }
@@ -780,7 +785,7 @@ class PythonServices {
                     return topActivity?.packageName == context.packageName
                 }
             } catch (e: Exception) {
-                Timber.tag(TAG).e(e, "检查应用前台状态失败")
+                logEx(e, "检查应用前台状态失败")
             }
             return false
         }
@@ -813,7 +818,7 @@ class PythonServices {
                            packageName.contains("home", ignoreCase = true)
                 }
             } catch (e: Exception) {
-                Timber.tag(TAG).e(e, "检查是否在桌面失败")
+                logEx(e, "检查是否在桌面失败")
             }
             return false
         }
@@ -892,14 +897,14 @@ class PythonServices {
                     }, 200)
                 }
             } catch (e: Exception) {
-                Timber.e(e, "退出应用失败")
+                logEx(e, "退出应用失败")
             }
         }
 
         // 保留这个方法作为兼容性支持
         @JvmStatic
         fun enableTouchMonitor(enable: Boolean) {
-            Timber.d("Python调用enableTouchMonitor (已废弃): $enable")
+            logI("Python调用enableTouchMonitor (已废弃): $enable")
             showClick(enable)
         }
     }

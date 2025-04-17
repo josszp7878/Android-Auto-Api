@@ -16,7 +16,6 @@ if TYPE_CHECKING:
     from _Page import _Page_
     from CDevice import CDevice_ 
     from CChecker import CChecker_
-    from CApp import CApp_  
     from SDeviceMgr import SDeviceMgr_
     from SCommandHistory import SCommandHistory_
 TOP = "top"
@@ -162,9 +161,6 @@ class _G_:
     def App(cls) -> '_App_':
         return cls.getClass('_App')
     
-    @classmethod
-    def CApp(cls) -> 'CApp_':
-        return cls.getClass('CApp')
     
     @classmethod
     def Page(cls) -> '_Page_':

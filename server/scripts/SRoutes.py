@@ -120,3 +120,57 @@ def batch_operation():
             })
     
     return jsonify({'results': results})
+
+@bp.route('/api/upload', methods=['POST'])
+def upload_file():
+    """处理文件上传请求
+    
+    文件内容在请求体中，文件路径通过查询参数提供
+    
+    请求格式:
+    POST /api/upload?path=data/example.txt
+    Content-Type: application/octet-stream
+    [二进制文件内容]
+    
+    返回格式:
+    {
+        "success": true,
+        "message": "文件上传成功",
+        "path": "data/example.txt",
+        "size": 1024
+    }
+    """
+    try:
+        # 获取目标路径
+        file_path = request.args.get('path')
+        if not file_path:
+            return jsonify({
+                "success": False,
+                "message": "未指定文件路径"
+            }), 400
+            
+        # 确保目标目录存在
+        file_path = os.path.join(_G.g.rootDir(), file_path)
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        
+        # 获取文件内容
+        file_content = request.get_data()
+        file_size = len(file_content)
+        
+        # 写入文件
+        with open(file_path, 'wb') as f:
+            f.write(file_content)
+            
+        return jsonify({
+            "success": True,
+            "message": "文件上传成功",
+            "path": file_path,
+            "size": file_size
+        }), 200
+        
+    except Exception as e:
+        app.logger.error(f"文件上传失败：{str(e)}")
+        return jsonify({
+            "success": False,
+            "message": f"文件上传失败：{str(e)}"
+        }), 500

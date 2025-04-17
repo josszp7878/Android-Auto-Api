@@ -18,13 +18,6 @@ class RegionCheck:
 
     @classmethod
     def parse(cls, text: str) -> tuple['RegionCheck', str]:
-        """
-        支持新格式：
-        - 传统格式：[x1,x2,y1,y2]
-        - Y轴简写：y<min>,<max> 或 y<value>
-        - X轴简写：x<min>,<max> 或 x<value>
-        - 支持正负数值
-        """
         check = RegionCheck()
         text1, coords = _Tools._Tools_.toPos(text)
         if coords is None:
@@ -251,39 +244,70 @@ class CTools_(_Tools._Tools_):
 
     @classmethod
     def matchText(cls, str: str, refresh=False):
+        """匹配文本，并可选择在特定区域内查找
+        
+        Args:
+            str: 要匹配的文本或带区域的文本表达式
+            refresh: 是否刷新屏幕信息
+            
+        Returns:
+            匹配成功的第一个元素或None
+        """
         try:
-            if str.strip() == '':
+            if not str or str.strip() == '':
                 return None
-            # 使用缓存的屏幕信息
-            log = _G._G_.Log()            
-            # log.i(f"aaa匹配文本: {str} matchExact={matchExact}")
-            region, text = RegionCheck.parse(str) 
-            item = None
-            # log.i(f"匹配文本: {text} region={region} matchExact={matchExact}")
+                
+            log = _G._G_.Log()
+            
+            # 解析区域信息
+            region, text = RegionCheck.parse(str)
+            
+            # 获取屏幕信息
             items = cls.getScreenInfo(refresh)
             if not items or len(items) == 0:
-                log.w(f"屏幕信息空空如也")
+                log.w("屏幕信息为空")
                 return None
-            textMatchedItems = []
+                
+            # 先匹配文本
+            matchedItems = cls.regexMatchItems(text, items)            
+            # 没有匹配到文本
+            if not matchedItems:
+                log.w(f"未找到匹配文本: {text}")
+                return None
+                
+            # 确保matchedItems是列表
+            if not isinstance(matchedItems, list):
+                matchedItems = [matchedItems]
+                
+            # 如果需要区域过滤
             if region:
-                # 检查区域
-                for item in items:
+                # 过滤在指定区域内的项
+                inRegionItems = []
+                for item in matchedItems:
                     b = item['b']
                     bounds = [int(x) for x in b.split(',')]
-                    isIn = region.isRectIn(
-                        bounds[0], bounds[1], bounds[2], bounds[3])
+                    isIn = region.isRectIn(bounds[0], bounds[1], bounds[2], bounds[3])
                     if isIn:
-                        textMatchedItems.append(item)
-            else:
-                textMatchedItems = items
-            item = cls.regexMatch(text, textMatchedItems)
-            if item is None:
-                log.w(f"匹配文本失败: {text}")
-                return None
-            log.i(f"匹配文本: {text} 结果为: {item.get('t')}")
-            return item
+                        inRegionItems.append(item)
+                        
+                matchedItems = inRegionItems
+                if len(matchedItems) == 0:
+                    log.w("区域匹配失败")
+                    return None
+                log.i(f"区域匹配成功，共{len(matchedItems)}个结果")
+            
+            # 打印调试信息，如果匹配到多个结果
+            if len(matchedItems) > 1:
+                log.i(f"匹配到多个文本: {[item.get('t') for item in matchedItems]}")
+            
+            # 返回第一个匹配项
+            if matchedItems:
+                log.i(f"匹配到文本: {matchedItems[0].get('t')}")
+                return matchedItems[0]
+            return None
+            
         except Exception as e:
-            log.ex(e, f"匹配文本:{str}失败")
+            log.ex(e, f"匹配文本失败: {str}")
             return None
 
     
@@ -364,7 +388,7 @@ class CTools_(_Tools._Tools_):
         """
         try:
             if cls.android:
-                cls.android.showToast(str(msg),
+                cls.android.toast(str(msg),
                                       duration or cls.TOAST_LENGTH_LONG,
                                       gravity or cls.TOAST_GRAVITY_BOTTOM,
                                       xOffset, yOffset)
@@ -593,22 +617,13 @@ class CTools_(_Tools._Tools_):
     @classmethod
     def click(cls, text: str, direction: str = None, waitTime: int = 1) -> bool:
         """点击文本（支持偏移）
-        
-        支持格式：
-        - 普通文本: "按钮"
-        - 带偏移: "按钮x100" (向右偏移100像素)
-        - 带偏移: "按钮y-50" (向上偏移50像素)
-        - 带偏移: "按钮x100y-50" (向右偏移100像素，向上偏移50像素)
-        - 坐标格式: "100,200" (直接点击坐标)
-        - 新格式: "按钮(x100,-300)" (单轴坐标)
-        - 新格式: "按钮(100,-200,300,400)" (双轴坐标)
         """
         
         log = _G._G_.Log()
         # 尝试使用parsePos解析带括号的格式
         parsed_text, coords = _Tools._Tools_.toPos(text)
         offset = (0, 0)
-        # log.i(f"click: {text} 解析结果: {parsed_text}, {coords}")
+        log.i(f"click: {text} 解析结果: {parsed_text}, {coords}")
         if parsed_text is None:
             #纯坐标
             if coords is None:
@@ -619,27 +634,27 @@ class CTools_(_Tools._Tools_):
                 y = coords[1] if len(coords) > 1 else 0
                 pos = (x, y)
         else:
+            offset = None
             if coords:
-                offset = coords
+                offset = (coords[0], coords[1])
             # 查找文本位置
             pos = cls.findTextPos(parsed_text, direction)
             if pos is None:
                 log.w(f"{parsed_text} 位置未找到")
-                return False
+                return cls.android is None
         return cls.clickPos(pos, offset)
     
     @classmethod
-    def clickPos(cls, pos, offset=None):
+    def clickPos(cls, pos, offset=(0, 0)):
         """点击文本（支持偏移）"""
         log = _G._G_.Log()
         try:
             log.i(f"点击位置: {pos}，偏移:{offset}")
-            offsetX= offset[0] if offset else 0
-            offsetX= offsetX if offsetX else 0
-            offsetY= offset[1] if offset else 0
-            offsetY= offsetY if offsetY else 0
-            x = pos[0] + offsetX 
-            y = pos[1] + offsetY
+            x = pos[0]
+            y = pos[1]
+            if offset:
+                x += offset[0] or 0
+                y += offset[1] or 0
             android = cls.android
             if android:
                 return android.click(x, y)

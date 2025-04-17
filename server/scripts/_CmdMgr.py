@@ -8,9 +8,9 @@ from typing import Any, Tuple
 class Cmd:
     """命令类，存储命令信息"""
     
-    def __init__(self, func, alias=None, doc=None):
+    def __init__(self, func, match=None, doc=None):
         self.func = func      # 命令函数
-        self.alias = alias or func.__name__  # 命令别名，默认为函数名
+        self.match = match or func.__name__  # 命令匹配，默认为函数名
         self.doc = doc or func.__doc__      # 命令文档
         self.module = func.__module__       # 命令所属模块
         self.name = func.__name__           # 函数名
@@ -33,8 +33,6 @@ class _CmdMgr_:
     
     # 预编译正则表达式
     _SPACE_PATTERN = re.compile(r'\s+')
-    _PUNCT_QUOTE_PATTERN = re.compile(r'[,，。.、?？!！;；:：]$|["""'']')
-    
 
     @classmethod
     def processParamSpaces(cls, cmdStr):
@@ -80,6 +78,10 @@ class _CmdMgr_:
         """
         log = _G._G_.Log()
         
+        # 存储所有已注册的模式项，用于检测雷同
+        if not hasattr(cls, 'registered_patterns'):
+            cls.registered_patterns = {}
+        
         # 如果第一个参数是函数，说明装饰器没有参数
         if callable(pattern):
             func = pattern
@@ -89,10 +91,21 @@ class _CmdMgr_:
             abbr = func_name[0] + ''.join(c for c in func_name[1:] if c.isupper())
             
             # 创建命令模式，使用函数名和缩写
-            cmd_pattern = f"(?P<{cls.CmdKey}>{func_name}|{abbr.lower()})"
+            cmd_pattern = f"(?P<{cls.CmdKey}>{func_name.lower()}|{abbr.lower()})"
+            
+            # 检查是否有雷同匹配
+            items = [func_name, abbr.lower()]
+            for item in items:
+                if item in cls.registered_patterns:
+                    existing_cmd = cls.registered_patterns[item]
+                    # 避免与自己比较
+                    if existing_cmd != func_name:
+                        log.e(f"命令匹配模式雷同: '{item}' 在 {func_name} 和 {existing_cmd} 之间重复")
+                else:
+                    cls.registered_patterns[item] = func_name
             
             # 创建命令对象并添加到注册表
-            cmd = Cmd(func=func, alias=cmd_pattern)
+            cmd = Cmd(func=func, match=cmd_pattern)
             cls._addCommand(cmd)
             return func
         
@@ -114,6 +127,22 @@ class _CmdMgr_:
                 if m:
                     cmd_pattern = m.group(0)
                     cmdName = m.group(1)
+                    # 提取命令名的每个部分进行雷同检查
+                    cmd_parts = cmdName.split('|')
+                    # 添加函数名和缩写到检查列表
+                    cmd_parts.extend([func_name.lower(), abbr.lower()])
+                    
+                    # 检查是否有雷同匹配
+                    for item in cmd_parts:
+                        item = item.strip().lower()
+                        if item in cls.registered_patterns:
+                            existing_cmd = cls.registered_patterns[item]
+                            # 避免与自己比较
+                            if existing_cmd != func_name:
+                                log.e(f"命令匹配模式雷同: '{item}' 在 {func_name} 和 {existing_cmd} 之间重复")
+                        else:
+                            cls.registered_patterns[item] = func_name
+                    
                     # 始终添加函数名和缩写到命令别名中，不考虑是否已有别名
                     cmdName = f"{cmdName}|{func_name}|{abbr.lower()}"
                     # 在替换命令名时添加忽略大小写标记
@@ -132,7 +161,7 @@ class _CmdMgr_:
              # 创建命令对象并添加到注册表
             cmd = Cmd(
                 func=func, 
-                alias=pattern,
+                match=pattern,
                 doc=func.__doc__
             )
             cls._addCommand(cmd)
@@ -203,26 +232,23 @@ class _CmdMgr_:
             
             # 遍历模块中的所有命令
             for cmd in module_cmds.values():
-                # 1. 精确匹配别名
-                if cmd.alias.lower() == cmdName:
+                # 1. 匹配别名
+                if cmdName in cmd.match:
                     return cmd
-                
                 # 2. 匹配函数名
-                if cmd.name.lower() == cmdName:
+                if cmd.name == cmdName:
                     return cmd
         
         return None
     
     @classmethod
     def _cleanParam(cls, value:str)->str:
-        """清理参数值，去除多余空格和标点符号"""
+        """清理参数值，去除多余空格"""
         if value is not None:
             # 去除前后空格
             value = value.strip()        
             # 替换多余空格为单个空格
             value = cls._SPACE_PATTERN.sub(' ', value)
-            # 去除末尾标点符号和所有引号
-            value = cls._PUNCT_QUOTE_PATTERN.sub('', value)
         return value
     
     CmdKey = "CC"
@@ -260,9 +286,9 @@ class _CmdMgr_:
                 # 遍历模块中的所有命令
                 for cmd in module_cmds.values():
                     try:
-                        match = re.fullmatch(cmd.alias, cmdStr)
+                        match = re.fullmatch(cmd.match, cmdStr)
                     except Exception as e:
-                        log.ex(e, f"命令: {cmdStr} 正则表达式错误: {cmd.alias}")
+                        log.ex(e, f"命令: {cmdStr} 正则表达式错误: {cmd.match}")
                         continue
                     if match:
                         cmdMatch = match.groupdict().get(cls.CmdKey)
@@ -424,26 +450,45 @@ class _CmdMgr_:
             modules = g.getScriptNames()
             success_count = 0
             # 加载所有未加载的模块，加载模块时模块本身会执行registerCommands方法
-            for module in modules:
+            for module_name in modules:
                 try:
                     # 直接使用模块名，不添加前缀
-                    full_module_name = module                    
+                    full_module_name = module_name                    
                     # 加载模块
                     try:
                         if full_module_name not in sys.modules:
                             module = importlib.import_module(full_module_name)
+                        else:
+                            module = sys.modules[full_module_name]
+                        # 尝试查找模块中的类并调用类的registerCommands方法
+                        cls_name = f'{module_name}_'  # 假设类名是模块名加下划线
+                        if hasattr(module, cls_name):
+                            cls_obj = getattr(module, cls_name)
+                            # 安全地获取registerCommands方法
+                            # 不使用inspect.getmembers避免触发属性延迟加载
+                            regMethodName = 'registerCommands'
+                            if hasattr(cls_obj, regMethodName):
+                                register_method = getattr(cls_obj, regMethodName)
+                                if callable(register_method):
+                                    # log.i(f"加载类指令: {cls_name}")
+                                    try:
+                                        register_method()
+                                        success_count += 1
+                                        log.i(f"注册指令模块: {cls_name}")
+                                    except Exception as e:
+                                        log.ex(e, f"注册指令模块失败: {cls_name}")
                     except Exception as e:
-                        log.ex(e, f"加载模块失败: {full_module_name}")
-                        continue
-                    success_count += 1
+                        log.ex(e, f"加载模块 {full_module_name} 失败")
                 except Exception as e:
-                    log.ex(e, f"注册模块 {module} 的命令失败")
+                    log.ex(e, f"导入模块 {module_name} 出错")
             
             # 对模块进行排序
             cls._sort()
             
+            log.i(f"成功注册了 {success_count} 个模块的命令")
+            return True
         except Exception as e:
-            log.ex(e, "命令重新注册失败")
+            log.ex(e, "注册命令失败")
             return False
     
     @classmethod
@@ -472,7 +517,7 @@ class _CmdMgr_:
             return cls._reset()
         
         @cls.reg(r"#加载|jz (?P<moduleName>.+)")
-        def reload(moduleName):
+        def reLoad(moduleName):
             """功能：重新加载指定模块
             指令名：reload
             中文名：加载
@@ -516,10 +561,10 @@ class _CmdMgr_:
                 if module_cmds:
                     result += f"\n[模块: {module_name} (优先级: {cls.modulePriority.get(module_name, 999)})]\n"
                     for cmd_name, cmd in sorted(module_cmds.items()):
-                        result += f"  {cmd.name}\t\t: {cmd.alias}\n"
+                        result += f"  {cmd.name}\t\t: {cmd.match}\n"
             return result
         
-        @cls.reg(r"#帮助|bz|help (?P<command>\S+)?")
+        @cls.reg(r"#帮助|bz(?P<command>\S+)?")
         def help(command=None):
             """功能：显示命令帮助信息
             指令名：help
@@ -553,17 +598,17 @@ class _CmdMgr_:
             if not cmd:
                 return "e~无效指令"
             # 获取命令的描述
-            desc = f'{cmd.name}\n{cmd.alias}\n{cmd.doc}'
+            desc = f'{cmd.name}\n{cmd.match}\n{cmd.doc}'
             return desc
 
  
     @classmethod
-    def onLoad(cls, clone):
+    def onLoad(cls, old):
         log = _G._G_.Log()
         log.i("注册指令 _CmdMgr_")
-        cls.registerCommands()
+        if old is not None:
+            cls.regAllCmds()
         return True
     
-_CmdMgr_.onLoad(None)
 # 创建全局单例实例
 regCmd = _CmdMgr_.reg

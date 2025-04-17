@@ -247,15 +247,16 @@ class _Log_:
             android = g.CTools().android
         tag = tag if tag else ''    
         level = level if level else 'i'
-        res = None
         if not isinstance(result, tuple):
-            result = ('i', str(result))
-        if result:
-            res = result[1]
-        if android:            
+            result = ('i', str(result) if result else None)
+        res = result[1]
+        if isinstance(res, tuple):
+            res = res[1]
+        if android:    
             android.log(content, tag, level, f'{result[0]}-{res}' if res else '')
         else:
             cls._PCLog_(content, tag, level)
+            # print(f'res: {res}')
             if res:
                 cls._PCLog_(f' => {res}', '', result[0])
             

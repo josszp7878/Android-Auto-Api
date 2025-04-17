@@ -1,9 +1,9 @@
+from ctypes import cast
 from datetime import datetime
-import threading
-import time as time_module
 import json
 import _G
-from _CmdMgr import regCmd
+# import typing
+# if typing.TYPE_CHECKING:
 
 g = _G._G_
 log = g.Log()
@@ -21,13 +21,11 @@ class CCmds_:
     def android(cls):
         return _G._G_.Tools().android
     
-
-    
+    _editTarget = None
 
 
     @classmethod
     def registerCommands(cls):
-        _G._G_.Log().i("注册CCmds模块命令...")
         # 导入 regCmd
         from _CmdMgr import regCmd
         
@@ -65,7 +63,7 @@ class CCmds_:
         
         # 注册状态命令
         @regCmd(r"#状态|zt")
-        def status():
+        def staTus():
             """
             功能：查看设备连接状态
             指令名: status-s
@@ -127,7 +125,7 @@ class CCmds_:
             return False
 
         @regCmd(r"#安装|az (?P<pkgName>\S+)")
-        def install(pkgName):
+        def inStall(pkgName):
             """
             功能：安装指定应用
             指令名: install-i
@@ -141,7 +139,7 @@ class CCmds_:
             return False
 
         @regCmd(r"#卸载|xs (?P<pkgName>\S+)")
-        def uninstall(pkgName):
+        def unInstall(pkgName):
             """
             功能：卸载指定应用
             指令名: uninstall-u
@@ -213,7 +211,7 @@ class CCmds_:
         
 
         @regCmd(r"#滑动|hd (?P<param>.+)")
-        def swipe(param):
+        def sWipe(param):
             """
             功能：在屏幕上滑动
             指令名: swipe
@@ -283,7 +281,7 @@ class CCmds_:
             return _Page._Page_.currentPathTo(target)
         
         @regCmd(r"#桌面|zm|home")
-        def home():
+        def hoMe():
             """
             功能：返回手机桌面
             指令名: home-h
@@ -335,7 +333,7 @@ class CCmds_:
        
 
         @regCmd(r"#下载|xz (?P<fileName>.+)?")
-        def download(fileName):
+        def downLoad(fileName):
             """
             功能：下载指定文件
             指令名: download-d
@@ -394,17 +392,6 @@ class CCmds_:
                 log.ex(e, f"执行代码失败: {code}")
                 return None
 
-        @regCmd(r"#重载配置|zlpz")
-        def loadConfig():
-            """
-            功能：加载环境配置
-            指令名: loadConfig-l
-            中文名: 加载配置-jzpz
-            参数: 无
-            示例: 加载配置
-            """
-            g = _G._G_
-            g.CFileServer().download('config/pages.json', lambda result: g.App().loadConfig())
 
         @regCmd(r"#设置坐标修正范围|szzbxz (?P<scope>\d+)")
         def setPosFixScope(scope):
@@ -422,22 +409,15 @@ class CCmds_:
         def appTopology(appName=None):
             """
             功能：打印应用页面拓扑结构图
-            指令名: appTopology-aT
-            中文名: 拓扑图-tpt
-            参数: appName - 应用名称(可选)，不提供则使用当前应用
-            示例: 拓扑图 [微信]
             """
             from _App import _App_
             return _App_.printTopology(appName)
         
         @regCmd(r"#显示坐标|xszb(?P<enable>\S+)?")
-        def showClick(enable=None):
+        def sHowClick(enable=None):
             """
-            功能：启用/关闭显示坐标
-            指令名: enableTouchMonitor
-            中文名: 显示坐标
-            参数: enable - 是否启用
-            示例: 触摸监控 [true]
+            功能：启用/关闭显示坐标， 启用后点击屏幕会显示坐标
+            示例: xszb 1
             """
             g = _G._G_
             log = g.Log()
@@ -457,38 +437,10 @@ class CCmds_:
             else:
                 return f"触控监控{'开启' if enable_value else '关闭'}"
 
-        @regCmd(r"#匹配|pp (?P<rule>\S+)")
-        def match(rule):
-            """
-            功能：匹配当前屏幕上查找文字或者页面
-            指令名: match-m
-            中文名: 匹配-pp
-            参数: rule - 文字规则或者页面名
-            示例: 匹配 确定
-            """
-            g = _G._G_
-            log = g.Log()
-            try:
-                if rule.startswith('@'):
-                    rule = rule[1:].strip()
-                    # 检查应用和页面，格式为app.page
-                    page = g.App().getAppPage(rule)
-                    if page:
-                        return page.match()
-                result = g.CTools().matchTexts(rule, True)
-                return result
-            except Exception as e:
-                log.ex(e, "查找文字失败")
-                return None
-
 
         @regCmd(r"#退出|tc")
-        def exit():
+        def eXit():
             """退出应用
-            指令名: exit
-            中文名: 退出应用
-            参数: 无
-            示例: exit
             """
             try:
                 # 获取Android对象
@@ -503,11 +455,98 @@ class CCmds_:
                 log.ex(e, "退出应用失败")
                 return f"退出应用失败: {str(e)}"
 
-    @classmethod
-    def onLoad(cls, old):
-        log = _G._G_.Log()
-        log.i("加载CCmds")
-        cls.registerCommands()
-        return True
+        # === 检查器相关命令 ===
+        @regCmd(r"#编辑|bj(?P<checkName>\S+)")
+        def eDit(checkName):  
+            """
+            功能：开始编辑检查器,以@开头表示页面检测器，否则是普通弹出界面检查器
+            检测器有以下参数可以设置：
+                match: 匹配规则
+                do: 匹配 + 操作 对
+                timeout: 超时时间
+                interval: 检测间隔
+                示例:
+                "name": "每日打.+好礼",
+                "do": {"点我.取": "click"}
+            示例：
+            @编辑 每日打.+好礼
+            """
+            if not checkName.strip():
+                return "e~检查器名称不能为空"
+            checker = g.Checker().edit(checkName)
+            cls._editTarget = checker
+            if checker:
+                return f"开始编辑检查器... {checker.name}"
+
+        @regCmd(r"#设置|sz (?P<param>\w+) (?P<value>.+)?")
+        def set(param, value=None):
+            """
+            设置检查器参数，如interval、timeout,match,do等
+            其中do的格式为：{匹配, 操作}
+            示例：
+            set do {'.*签到', 'click'}
+            set match {'.*签到'}
+            set timeout {10}
+            """
+            target = cls._editTarget
+            if not target:
+                return "e~请先开始编辑检查器"
+            value = g.Tools().fromStr(value)
+            # 使用setattr设置普通属性
+            try:
+                setattr(target, param, value)
+            except AttributeError:
+                return f"e~设置属性: {param} 失败"
+            return f"设置参数 {param}={value}"
+
+        @regCmd(r"#保存|bc(?P<save>[01])?")
+        def sAve(save='1'):
+            target = cls._editTarget
+            if not target:
+                return "e~当前没有编辑的对象"
+            if not target.save(save=g.Tools().toBool(save, True)):
+                return f"e~保存{target.name} 失败"
+            cls._editTarget = None
+            return f"保存{target.name} 成功"
+
+        @regCmd(r"#删除|sc(?P<checkName>\S+)?")
+        def dElete(checkName=None):
+            if not checkName:                
+                if cls._editTarget:
+                    checkName = cls._editTarget.name
+            if g.Checker().delete(checkName):
+                return f"删除检查器 {checkName} 成功"
+
+        @regCmd(r"#检查列表|jclb")
+        def listChecK():
+            checker = g.Checker()
+            return "当前检查器列表：\n" + "\n".join(f'{t.name}' for t in checker.templates())
+        
+        @regCmd(r"#显示检查|xsjc (?P<checkName>\S+)")
+        def sHowChEck(checkName):
+            checkers = g.Checker().getTemplates(checkName)
+            if not checkers:
+                return f"{checkName} 不存在"
+            return "\n".join(f"{json.dumps(t.to_dict(), indent=2, ensure_ascii=False)}" for t in checkers)
+
+        @regCmd(r"#检查|jc (?P<checkerName>\S+)(?:\s+(?P<enabled>\S+))?")
+        def check(checkerName, enabled=None):
+            """
+            功能：停止指定名称的检查器
+            指令名: check-c
+            中文名: 检查-jc
+            参数: checkerName - 检查器名称
+            示例: 检查 每日签到
+            """ 
+            enabled = g.Tools().toBool(enabled, True)
+            # 检查器
+            checker = g.Checker().get(checkerName, create=True)
+            if checker:
+                checker.enabled = enabled
+                return f"检查器 {checkerName} 已设置为 {enabled}"
+            else:
+                return f"e~无效检查器: {checkerName}"
+
+ 
+
     
-CCmds_.onLoad(None)

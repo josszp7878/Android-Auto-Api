@@ -162,12 +162,13 @@ class _App_:
             # 获取目标应用
             if appName is not None and appName != self.name:
                 app = self.getApp(appName, True)
+                appName = app.name
                 if app is None:
                     log.e(f"应用 {appName} 没配置")
                     return False
                 ret = self.goApp(appName)
                 if not ret:
-                    log.e(f"跳转失败: => {appName}")
+                    log.e(f"打开应用失败: => {appName}")
                     return False
             if pageName is None:
                 return True
@@ -217,16 +218,13 @@ class _App_:
             cls.apps: dict[str, "_App_"] = {}
             Page = _Page._Page_
             root = Page.Root()
-            if g.isServer():
-                from SApp import SApp_
-                AppClass = SApp_
-            else:
-                from CApp import CApp_
-                AppClass = CApp_
-            cls.Top = AppClass("Top", root, {})
+            
+            # 直接使用_App_类创建顶层App，无需区分服务端和客户端
+            cls.Top = cls("Top", root, {})
+            
             # 尝试加载配置文件
             try:
-                configFile = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config", "pages.json")
+                configFile = os.path.join(_G.g.rootDir(), 'config', 'pages.json')
                 with open(configFile, 'r', encoding='utf-8') as f:
                     configData = json.load(f)
             except Exception as e:
@@ -238,7 +236,6 @@ class _App_:
             import CChecker
             Checker = CChecker.CChecker_
             if topCheckers:
-                Checker.loadTemplates(topCheckers)
                 Checker.start()
                 log.i(f"已加载{len(topCheckers)}个checker模板")
             
@@ -262,7 +259,7 @@ class _App_:
                     if parentName == "Top":
                         appInfo = pageConfig.get("app_info", {})
                         # 使用传入的AppClass创建实例
-                        cls.apps[pageName] = AppClass(
+                        cls.apps[pageName] = _App_(
                             name=appInfo.get("name", pageName),
                             rootPage=currentPage,
                             info=appInfo
@@ -549,6 +546,18 @@ class _App_:
     def getAllApps(cls) -> List[str]:
         """获取所有应用名称"""
         return list(cls.apps.keys())
+    
+
+    @classmethod
+    def registerCommands(cls):
+        """注册命令"""
+        from _CmdMgr import regCmd
+        @regCmd(r"#加载配置|jzpz")
+        def loadConfig(cls):
+            """加载配置"""
+            g = _G._G_
+            g.CFileServer().download('config/pages.json', lambda result: g.App().loadConfig())
+
 
 
     @classmethod

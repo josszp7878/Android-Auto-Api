@@ -4,6 +4,25 @@
 
 ## 更新日志
 
+### 2023-10-20
+#### 代码优化
+1. 将CChecker中的registerCommands方法合并到CCmds中
+   - 提高代码维护性
+   - 使热加载更加方便
+   - 集中管理命令注册逻辑
+
+2. 修复Flask应用上下文错误
+   - 添加_safe_db_import函数安全导入数据库模块
+   - 改进_CmdMgr的错误处理机制
+   - 增强registerCommands方法对异常的捕获和处理
+   - 防止单个模块的错误影响整个命令注册流程
+
+3. 修复inspect.getmembers导致的SQLAlchemy错误
+   - 移除对inspect.getmembers的依赖，使用直接的属性访问代替
+   - 优化对registerCommands方法的获取逻辑
+   - 在处理SQLAlchemy相关错误时提供更明确的错误消息
+   - 确保在没有Flask应用上下文时也能正常注册命令
+
 ### 2024-12-19
 #### 新增功能
 1. 系统智能适配

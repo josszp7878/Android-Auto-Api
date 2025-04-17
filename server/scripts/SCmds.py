@@ -1,6 +1,5 @@
 from datetime import datetime
 import _Log
-from _CmdMgr import regCmd
 from flask_socketio import emit
 from SDeviceMgr import deviceMgr, SDeviceMgr_
 from STask import STask_, TaskState
@@ -17,6 +16,7 @@ class SCmds_:
     def registerCommands(cls):
         """注册服务器命令"""
         _G._G_.Log().i("注册SCmds模块命令...")
+        from _CmdMgr import regCmd
         @regCmd(r"#服务器信息|fwqxx")
         def serverInfo():
             """
@@ -61,7 +61,7 @@ class SCmds_:
             return '服务器运行正常aa'
 
         @regCmd('#清空日志')
-        def clearLog():
+        def cLearLog():
             """功能：清除控制台日志缓存
             指令名：clearLog
             中文名：清除
@@ -148,57 +148,8 @@ class SCmds_:
                 return f"e~查询任务进度失败: {str(e)}"
 
 
-        @regCmd('#调试')
-        def debug():
-            """功能：显示当前设备的详细调试信息
-            指令名：debug
-            中文名：调试
-            参数：无
-            示例：调试
-            """
-            try:
-                # 获取当前设备
-                device_id = deviceMgr.curDeviceID
-                if not device_id:
-                    return "e~未选择设备"
-                    
-                device = deviceMgr.get(device_id)
-                if not device:
-                    return "e~设备不存在"
-                    
-                # 获取设备信息
-                info = device.to_dict()
-                
-                # 格式化输出
-                debug_info = "调试信息:\n"
-                debug_info += f"设备ID: {device_id}\n"
-                debug_info += f"状态: {info['status']}\n"
-                debug_info += f"连接时间: {info.get('connected_at', 'N/A')}\n"
-                debug_info += f"最后活动: {info.get('last_activity', 'N/A')}\n"
-                
-                # 获取任务信息
-                if device.taskMgr:
-                    debug_info += f"当前应用: {device.taskMgr._currentApp or 'N/A'}\n"
-                    
-                    # 获取正在运行的任务
-                    task = STask_.query.filter_by(
-                        deviceId=device_id,
-                        state=TaskState.RUNNING.value
-                    ).order_by(STask_.time.desc()).first()
-                    
-                    if task:
-                        debug_info += f"当前任务: {task.appName}/{task.taskName}\n"
-                        debug_info += f"进度: {task.progress * 100:.1f}%\n"
-                        debug_info += f"开始时间: {task.time}\n"
-                
-                return debug_info
-                
-            except Exception as e:
-                _Log._Log_.ex(e, "获取调试信息失败")
-                return f"e~获取调试信息失败: {str(e)}"
-
         @regCmd(r"#任务列表|rwlb (?P<deviceId>[^ ]+)?(?P<state>[^ ]+)?")
-        def show_tasks(deviceId, state):
+        def showTaskS(deviceId, state):
             """功能：显示设备的任务列表
             指令名：show_tasks
             中文名：任务列表
@@ -240,45 +191,6 @@ class SCmds_:
                 _Log._Log_.ex(e, "获取任务列表失败")
                 return f"e~获取任务列表失败: {str(e)}"
 
-        @regCmd('#设置日期 (?P<date>[^ ]+)')
-        def set_date(date):
-            """功能：设置任务管理器的执行日期
-            指令名：set_date
-            中文名：设置日期
-            参数：
-               date - 日期字符串，格式为YY-M-D
-            示例：设置日期 23-11-30
-            """
-            try:
-                parts = date.split('-')
-                if len(parts) != 3:
-                    return "e~日期格式错误，应为: YY-M-D"
-                    
-                year, month, day = int(parts[0]), int(parts[1]), int(parts[2])
-                # 补全年份
-                if year < 100:
-                    year += 2000
-                    
-                # 创建日期对象
-                date_obj = datetime(year, month, day)
-                
-                # 设置任务管理器日期
-                device_id = deviceMgr.curDeviceID
-                if not device_id:
-                    return "e~未选择设备"
-                    
-                device = deviceMgr.get(device_id)
-                if not device or not device.taskMgr:
-                    return "e~设备或任务管理器不存在"
-                    
-                device.taskMgr.setDate(date_obj)
-                return f"已设置日期为: {date_obj.strftime('%Y-%m-%d')}"
-                
-            except ValueError as e:
-                return f"e~日期格式错误: {str(e)}"
-            except Exception as e:
-                _Log._Log_.ex(e, "设置日期失败")
-                return f"e~设置日期失败: {str(e)}"
 
         @regCmd(r"(?:停止|tz)(?P<taskName>[^ ]+)?")
         def stop(taskName=None):
@@ -394,7 +306,7 @@ class SCmds_:
                 _Log._Log_.ex(e, "执行屏幕分析失败")
                 return f"e~{str(e)}"
 
-        @regCmd(r'截屏(?P<pageName>[^ ]+)?')
+        @regCmd(r'#截屏(?P<pageName>[^ ]+)?')
         def getScreenInfo(pageName=None):
             """功能：获取当前设备的屏幕信息并缓存
             指令名：getScreenInfo
@@ -522,18 +434,9 @@ class SCmds_:
                 _Log._Log_.ex(e, "打印拓扑结构失败")
                 return f"e~打印拓扑结构失败: {str(e)}"
 
-        @regCmd('#加载|jz')
-        def load():
-            """功能：加载环境配置
-            指令名：load
-            中文名：无 (使用函数名)
-            参数：无
-            示例：load
-            """
-            _G._G_.load()
 
         @regCmd('#选择设备|xzsb (?P<target>\S+)')
-        def select(target=None):
+        def seLect(target=None):
             """功能：根据目标描述选择设备
             指令名：select
             中文名：选择
@@ -684,7 +587,7 @@ class SCmds_:
                 return f"e~启动任务失败: {str(e)}"
 
         @regCmd('#停止任务|tzrw (?P<taskID>\S+)')
-        def stopTask(taskID):
+        def stOpTask(taskID):
             """功能：停止任务
             指令名：stopTask
             中文名：停止任务
@@ -753,11 +656,4 @@ class SCmds_:
                 _Log._Log_.ex(e, "从任务中移除设备失败")
                 return f"e~从任务中移除设备失败: {str(e)}"
 
-    @classmethod
-    def onLoad(cls, clone):
-        log = _G._G_.Log()
-        log.i("注册指令 SCmds")
-        cls.registerCommands()
-        return True
     
-SCmds_.onLoad(None) 
