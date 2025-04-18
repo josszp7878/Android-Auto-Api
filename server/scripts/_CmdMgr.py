@@ -1,3 +1,4 @@
+from datetime import datetime
 import re
 import _Log
 import _G
@@ -601,7 +602,36 @@ class _CmdMgr_:
             desc = f'{cmd.name}\n{cmd.match}\n{cmd.doc}'
             return desc
 
- 
+        @cls.reg(r"#时间|sj")
+        def time():
+            """
+            功能：获取当前时间
+            """ 
+            return str(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+
+        @regCmd(r"#信息|xx")
+        def info():
+            """
+            功能：查看设备连接状态
+            """  
+            g = _G._G_
+            if g.isServer():
+                return
+                {
+                    'IP': g.getIP(),
+                    'Port': g.getPort(),
+                    'Version': g.getVersion(),
+                    'Timestamp': str(datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
+                }
+            else:
+                device = g.CDevice()
+                return {
+                    "deviceID": device.deviceID if device else "未知",
+                    "status": "已连接" if device.connected else "未连接",
+                    "timestamp": str(datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
+                }
+    
+
     @classmethod
     def onLoad(cls, old):
         log = _G._G_.Log()

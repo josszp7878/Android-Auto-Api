@@ -31,34 +31,7 @@ class SCmds_:
                 "timestamp": str(datetime.now()),
                 "devices": len(deviceMgr.devices),
             }
-        
-        @regCmd(r"#日期|rq (?P<format>\S+)?")
-        def date(format=None):
-            """功能：获取当前日期和时间
-            指令名：date
-            中文名：日期
-            参数：
-              format - 日期格式字符串 (可选)
-            示例：日期 %Y年%m月%d日
-            """
-            try:
-                date_format = format or "%Y-%m-%d %H:%M:%S"
-                current_time = datetime.now().strftime(date_format)
-                return f"当前日期和时间: {current_time}"
-            except Exception as e:
-                _Log._Log_.ex(e, "获取日期时间失败")
-                return f"e~获取日期时间失败: {str(e)}"
 
-
-        @regCmd('#状态')
-        def status():
-            """功能：显示服务器运行状态
-            指令名：status
-            中文名：状态
-            参数：无
-            示例：状态
-            """
-            return '服务器运行正常aa'
 
         @regCmd('#清空日志')
         def cLearLog():

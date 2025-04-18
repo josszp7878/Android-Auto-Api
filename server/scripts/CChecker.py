@@ -299,7 +299,7 @@ class CChecker_:
     Exit = 'exit'
     # 执行操作
     # 返回True表示执行完成，可以退出，False表示执行失败，继续check.直到TIMEOUT
-    def action(self) -> bool:
+    def execute(self) -> bool:
         try:
             endDo = len(self.do) <= 1
             actions = self.do
@@ -543,7 +543,7 @@ class CChecker_:
                         checker.lastTime = currentTime
                         ret = checker.Match()
                         if ret:
-                            if checker.action():
+                            if checker.execute():
                                 if checker.type == 'temp':
                                     checkers.remove(checker)
                                 elif checker.type == 'once':

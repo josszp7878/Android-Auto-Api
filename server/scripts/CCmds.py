@@ -28,62 +28,11 @@ class CCmds_:
     def registerCommands(cls):
         # 导入 regCmd
         from _CmdMgr import regCmd
-        
-        @regCmd(r"#信息|xx")
-        def info():
-            """
-            功能：获取设备基本信息
-            指令名: info-i
-            中文名: 信息
-            参数: 无
-            示例: 信息
-            """
-            try:
-                g = _G._G_
-                device = g.getClass('CDevice').instance()
-                return {
-                    "deviceID": device.deviceID if device else "未知",
-                    "version": "1.0.0",
-                    "timestamp": str(datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
-                }
-            except Exception as e:
-                return f"e~获取设备信息失败: {str(e)}"
-        
-        # 注册时间命令
-        @regCmd(r"#时间|sj")
-        def date():
-            """
-            功能：获取当前时间
-            指令名: date-d
-            中文名: 时间
-            参数: 无
-            示例: 时间
-            """ 
-            return str(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-        
-        # 注册状态命令
-        @regCmd(r"#状态|zt")
-        def staTus():
-            """
-            功能：查看设备连接状态
-            指令名: status-s
-            中文名: 状态
-            参数: 无
-            示例: 状态
-            """  
-            g = _G._G_
-            device = g.CDevice()
-            status = "已连接" if device.connected else "未连接"
-            return f"设备状态: {status}"
-        
-
 
         @regCmd(r"(?P<text>.+?)#的位置|dwz")
         def pos(text):
             """
             功能：获取指定位置或文本的位置
-            指令名: pos-w
-            中文名: 位置-wz
             参数: text - 要获取位置的文本或坐标
             示例: 位置 确定
             """
@@ -374,7 +323,7 @@ class CCmds_:
                 log.ex(e, f'检查文件 {fileName} 是否存在时出错')
                 return f"e~{str(e)}"
 
-        @regCmd(r"#执行|zx (?P<code>.+)")
+        @regCmd(r"#执行代码|zxdm (?P<code>.+)")
         def eval(code):
             """
             功能：执行代码并返回结果
@@ -484,26 +433,9 @@ class CCmds_:
             if checker:
                 return f"开始编辑... {name}"
             
-        # @regCmd(r"#设置匹配|szpp(?P<match>\S+)?(?:\s+(?P<x>\d+))?(?:\s+(?P<y>\d+))?")
-        # def setMatch(match=None, x=0, y=0):
-        #     """
-        #     功能：设置匹配规则文字
-        #     参数：match - 要设置的匹配规则文字， 如果为空则清空匹配规则
-        #     示例：
-        #     jpp 发现 100 100
-        #     """
-        #     target = cls._editTarget
-        #     if not target:
-        #         return "e~请先开始编辑检查器"
-        #     range = None
-        #     if match:   
 
-        #     oldMatch = target.match
-        #     target.setMatch(match, range)
-        #     return f"匹配: {oldMatch} => {target.match}"
-
-        @regCmd(r"#设置|sz (?P<param>\w+)(?P<value>.+)?")
-        def set(param, value=None):
+        @regCmd(r"#设置属性|szsx (?P<param>\w+)(?P<value>.+)?")
+        def setProp(param, value=None):
             """
             设置检查器参数，如interval、timeout,match,do等
             其中do的格式为：{匹配, 操作}
@@ -523,8 +455,8 @@ class CCmds_:
                 return f"e~设置属性: {param} 失败"
             return f"设置参数 {param}={value}"
 
-        @regCmd(r"#\+|添加|tj(?P<param>\w+)(?P<value>.+)?(?P<postfix>.+)?")
-        def add(param, value=None, postfix=None):
+        @regCmd(r"#\+|添加属性|tjsx(?P<param>\w+)(?P<value>.+)?(?P<postfix>.+)?")
+        def addProp(param, value=None, postfix=None):
             """
             添加数组类型参数里面的某个ITEM，match, checks等
             示例：
@@ -537,8 +469,8 @@ class CCmds_:
             value = g.Tools().fromStr(value)
             target.addProp(param, value, postfix)
 
-        @regCmd(r"#\-|移除|yc(?P<param>\S+)(?P<value>\S+)?")
-        def reMove(param, value=None):
+        @regCmd(r"#\-|移除属性|ycsx(?P<param>\S+)(?P<value>\S+)?")
+        def removeProp(param, value=None):
             """
             删除数组类型参数里面的某个ITEM，match, checks等
             示例：
@@ -587,20 +519,17 @@ class CCmds_:
                 return f"{checkName} 不存在"
             return "\n".join(f"{json.dumps(t.to_dict(), indent=2, ensure_ascii=False)}" for t in checkers)
 
-        @regCmd(r"#匹配|pp (?P<name>\S+)(?:\s+(?P<enabled>\S+))?")
+        @regCmd(r"#匹配|pp(?P<name>\S+)")
         def maTch(name, enabled=None):
             """
             功能：匹配指定名称的检查器
             示例: 匹配 每日签到
             """ 
             g = _G._G_
-            enabled = g.Tools().toBool(enabled, True)
-            # 检查器
             name = g.App().getCheckName(name)
-            checker = g.Checker().get(name, create=True)
+            checker = g.Checker().getTemplate(name, False)
             if checker:
-                checker.enabled = enabled
-                return f"检查器 {name} 已设置为 {enabled}"
+                checker.Match()
             else:
                 return f"e~无效检查器: {name}"
             
@@ -615,4 +544,16 @@ class CCmds_:
             g.Checker().check(name, g.App().currentApp())
             return f"检查器 {name} 已检查"
 
-    
+        @regCmd(r"#执行|zx(?P<name>\S+)")
+        def do(name):
+            """
+            功能：执行指定名称的检查器
+            示例: 执行 每日签到
+            """
+            g = _G._G_
+            name = g.App().getCheckName(name)
+            checker = g.Checker().getTemplate(name, False)
+            if checker:
+                checker.execute()
+            else:
+                return f"e~无效检查器: {name}"
