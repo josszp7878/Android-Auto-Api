@@ -623,7 +623,7 @@ class CTools_(_Tools._Tools_):
         # 尝试使用parsePos解析带括号的格式
         parsed_text, coords = _Tools._Tools_.toPos(text)
         offset = (0, 0)
-        log.i(f"click: {text} 解析结果: {parsed_text}, {coords}")
+        # log.i(f"click: {text} 解析结果: {parsed_text}, {coords}")
         if parsed_text is None:
             #纯坐标
             if coords is None:
@@ -639,30 +639,28 @@ class CTools_(_Tools._Tools_):
                 offset = (coords[0], coords[1])
             # 查找文本位置
             pos = cls.findTextPos(parsed_text, direction)
-            if pos is None:
-                log.w(f"{parsed_text} 位置未找到")
-                return cls.android is None
         return cls.clickPos(pos, offset)
     
     @classmethod
     def clickPos(cls, pos, offset=(0, 0)):
         """点击文本（支持偏移）"""
         log = _G._G_.Log()
+        ret = True
         try:
             log.i(f"点击位置: {pos}，偏移:{offset}")
-            x = pos[0]
-            y = pos[1]
-            if offset:
-                x += offset[0] or 0
-                y += offset[1] or 0
-            android = cls.android
-            if android:
-                return android.click(x, y)
-            else:
-                return True
+            if pos:
+                x = pos[0]
+                y = pos[1]
+                if offset:
+                    x += offset[0] or 0
+                    y += offset[1] or 0
+                android = cls.android
+                if android:
+                    ret = android.click(x, y)
         except Exception as e:
             log.ex(e,f"点击失败")
-            return False
+            ret = False
+        return ret
 
     @classmethod
     def switchToProfile(cls):
@@ -836,6 +834,11 @@ class CTools_(_Tools._Tools_):
         
         similarity = len(common) / total
         return similarity > 0.7  # 相似度阈值
+
+    @classmethod
+    def isAndroid(cls):
+        """判断是否是Android设备"""
+        return cls.android is not None
 
     @classmethod
     def onLoad(cls, old):

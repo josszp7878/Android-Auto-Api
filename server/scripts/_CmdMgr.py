@@ -312,7 +312,8 @@ class _CmdMgr_:
             if data:
                 kwargs[cls.DataKey] = data
             result = findCmd.func(**kwargs)
-            log.log_(f'cmdStr<{findCmd.name.lower()}>', '', 'c', result or '')
+            sResult = str(result) if result is not None else ''
+            log.log_(findCmd.name.lower(), '', 'c', sResult)
             return result, findCmd.name
         except Exception as e:
             log.ex(e, f'执行命令出错: {cmdStr}')

@@ -554,6 +554,6 @@ class CCmds_:
             name = g.App().getCheckName(name)
             checker = g.Checker().getTemplate(name, False)
             if checker:
-                checker.execute()
+                checker.Do()
             else:
                 return f"e~无效检查器: {name}"

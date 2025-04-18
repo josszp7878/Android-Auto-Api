@@ -71,8 +71,7 @@ class _App_:
         log.i(f"当前页面: {page.name if page else 'None'}")
         Checker = _G._G_.Checker()
         Checker.uncheckPage(self._currentPage)
-        checkerName = _App_.getCheckName(page.name)
-        self.checkPage(checkerName)
+        Checker.check(page.name, self)
     
     def checkPage(self, checkerName: str):
         """检查页面"""
@@ -81,9 +80,7 @@ class _App_:
                 return
             g = _G._G_
             log = g.Log()
-            Checker = g.Checker()
-            checkerName = _App_.getCheckName(checkerName)
-            Checker.check(checkerName, self)
+
         except Exception as e:
             log.ex(e, f"检查页面失败: {checkerName}")
     

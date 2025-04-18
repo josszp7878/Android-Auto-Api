@@ -74,7 +74,6 @@ class CChecker_:
         self.pastTime = 0         # 已运行时间
         self.startTime = 0        # 开始时间
         self.lastTime = 0         # 上次检查时间
-        self.onResult = None      # 回调函数
         self._enabled = False     # 是否启用
 
         # 如果有配置，则更新属性
@@ -282,42 +281,34 @@ class CChecker_:
             match = self.match
             if match == '':
                 return True
-            log.d(f"执行检查器: {self.name}")
+            log.d(f"匹配: {match}")
             result = tools.check(self, match)
             if not result:
                 # 否则检查文本规则
                 result = tools.matchText(match)
         except Exception as e:
-            log.ex(e, f"执行检查器失败: {match}")
+            log.ex(e, f"匹配失败: {match}")
             result = False
-        if result and self.onResult:
-            # 如果检查器结果为True，则执行回调函数,否则继续check.直到TIMEOUT
-            self.onResult(result)
-            self.onResult = None
         return result
 
     Exit = 'exit'
     # 执行操作
     # 返回True表示执行完成，可以退出，False表示执行失败，继续check.直到TIMEOUT
-    def execute(self) -> bool:
+    def Do(self) -> bool:
         try:
             endDo = len(self.do) <= 1
             actions = self.do
-            if not actions:  # 更安全的空检查
-                # 没有操作，默认就还是点击match
-                tools.click(self.match)
+            if not actions: 
                 return True
-                
             for actionName, action in self.do.items():
                 # 以$结尾的DO操作，表示执行后退出
                 actionName = actionName.strip()
-                if actionName.startswith('@'):
+                if actionName.endswith('$'):
                     endDo = True
-                    actionName = actionName[1:]
-                if actionName != '' and tools.matchText(actionName) is None:  # 更安全的None比较
+                    actionName = actionName[:-1]
+                if tools.matchText(actionName) is None and tools.isAndroid():
                     continue
-                    
-                action = action.strip()
+                action = action.strip() if action else ''
                 ret = False
                 if action == '':
                     ret = tools.click(actionName)
@@ -367,7 +358,8 @@ class CChecker_:
         Returns:
             CChecker_: 模板对象，如果不存在且不创建则返回None
         """
-        if not checkName:
+        checkName = checkName.strip() if checkName else ''
+        if checkName == '' :
             return None
         for template in cls.templates():
             if template.name.lower() == checkName:
@@ -407,19 +399,31 @@ class CChecker_:
     @classmethod
     def check(cls, checkName: str, data: Any):
         """启动指定检查器并覆盖参数"""
-        config = cls.getTemplate(checkName, False)
-        if not config:
+        try:
+            config = cls.getTemplate(checkName, False)
+            if not config:
+                return
+            checks = config.checks
+            if checks is None or checks.strip() == '':
+                return
+            for check in checks.split(','):
+                cls._addCheck(check, data)
+        except Exception as e:
+            log.ex(e, f"启动检查器 {checkName} 失败")
+
+
+    @classmethod
+    def _addCheck(cls, checkName: str, data: Any):
+        """启动指定检查器并覆盖参数"""
+        g = _G._G_
+        checkName = g.App().getCheckName(checkName)
+        checker = cls.get(checkName, create=True)
+        if checker is None:
+            log.w(f"创建checker失败: {checkName}")
             return
-        checks = config.checks
-        if checks is None or checks.strip() == '':
-            return
-        for check in checks.split(','):
-            checker = cls.get(check, create=True)
-            if checker is None:
-                log.w(f"添加页面检查器：{checkName} -> {check} 失败")
-                continue
-            checker.data = data
-            checker.enabled = True
+        checker.data = data
+        checker.enabled = True
+        log.w(f"+ checker: {checkName}")
 
     def save(self, save: bool = False) -> bool:
         """结束编辑，可选保存编辑结果"""
@@ -543,7 +547,7 @@ class CChecker_:
                         checker.lastTime = currentTime
                         ret = checker.Match()
                         if ret:
-                            if checker.execute():
+                            if checker.Do():
                                 if checker.type == 'temp':
                                     checkers.remove(checker)
                                 elif checker.type == 'once':
@@ -572,24 +576,24 @@ class CChecker_:
     def get(cls, checkerName: str, config: Dict[str, Any] = None, create: bool = True) -> Optional["CChecker_"]:
         """获取指定名称的检查器"""
         checkerName = checkerName.lower()
+        template = cls.getTemplate(checkerName,False)
+        if not template:
+            log.e(f"{checkerName} 未定义")
+            return None
         # 先查找已存在的运行时检查器
         checker = next(
             (checker for checker in cls._checkers if checker.name == checkerName), None)
-            
         if checker is None and create:
-            # 没有运行时检查器，从模板创建
-            template = cls.getTemplate(checkerName, create)
-            if template:
-                # 创建新的运行时检查器
-                checker = cls(checkerName)
-                # 只复制非默认值属性
-                config_dict = template.to_dict()
-                checker.update_from_dict(config_dict)
-                # 添加到运行时检查器列表
-                cls._checkers.append(checker)
-                # 覆盖额外参数
-                if config:
-                    for k, v in config.items():
-                        if hasattr(checker, k):
-                            setattr(checker, k, v)
+            # 创建新的运行时检查器
+            checker = cls(checkerName)
+            # 只复制非默认值属性
+            config_dict = template.to_dict()
+            checker.update_from_dict(config_dict)
+            # 添加到运行时检查器列表
+            cls._checkers.append(checker)
+            # 覆盖额外参数
+            if config:
+                for k, v in config.items():
+                    if hasattr(checker, k):
+                        setattr(checker, k, v)
         return checker
