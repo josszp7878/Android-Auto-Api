@@ -1,9 +1,9 @@
+import re
 import time
 import threading
 import json
 from typing import Dict, Any, List, Callable, Optional, TYPE_CHECKING
 import _G
-import _Log
 if TYPE_CHECKING:
     from _Page import _Page_
     from CTools import CTools_
@@ -63,7 +63,7 @@ class CChecker_:
         """
         # 核心属性（会被序列化）
         self.name = name.lower()  # 名称，必填
-        self._match = name        # 默认匹配规则为名称
+        self._match = None        # 默认匹配规则为名称
         self._checks = None      # 检查器列表
         self.do = {}        # 默认操作为空
         self.interval = 0         # 默认检查间隔为0
@@ -106,7 +106,7 @@ class CChecker_:
         default = self.get_default()
         
         # 检查和保存非默认值字段
-        if self._match != self.name:
+        if self._match:
             result['match'] = self._match
         if self._checks:
             result['checks'] = self._checks        
@@ -144,9 +144,21 @@ class CChecker_:
     def match(self) -> str:
         return self._match or self.name.split('-')[-1]
 
-    @match.setter
-    def match(self, value: str):
-        self._match = value
+    def setMatch(self, value: str, range: str = None):
+        #为了支持已有ITEM的替换，先将match转换为列表
+        range = range.strip() if range else ''
+        if self._match:
+            m = re.search(rf'{value}[^&|]*', self._match)
+            newValue = f'{value}{range}' if range != '' else value
+            if m:
+                if m.group(0) == value:
+                    return
+                # 替换匹配到的内容
+                self._match = self._match.replace(m.group(0), newValue)
+            else:
+                self._match = f'{self._match}&{newValue}'
+        else:
+            self._match = value
 
     @property
     def checks(self) -> List[str]:
@@ -292,7 +304,9 @@ class CChecker_:
             
             # 将模板列表转换为可序列化的字典列表
             saveConfig = [template.to_dict() for template in cls.templates()]
-                    
+            # 删除重复的模板
+            saveConfig = [t for n, t in enumerate(saveConfig) if t not in saveConfig[n + 1:]]
+            saveConfig.sort(key=lambda x: x['name'])        
             with open(configPath, 'w', encoding='utf-8') as f:
                 json.dump(saveConfig, f, indent=2, ensure_ascii=False)
             log.i(f"保存{len(saveConfig)}个checker配置")

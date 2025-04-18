@@ -309,10 +309,6 @@ class SCmds_:
         @regCmd(r'#截屏(?P<pageName>[^ ]+)?')
         def getScreenInfo(pageName=None):
             """功能：获取当前设备的屏幕信息并缓存
-            指令名：getScreenInfo
-            中文名：截屏
-            参数：
-               pageName - 保存的页面名称 (可选，默认为'Last')
             示例：截屏 登录页
             """
             try:

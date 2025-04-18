@@ -138,7 +138,7 @@ class CCmds_:
                 return android.installApp(pkgName)
             return False
 
-        @regCmd(r"#卸载|xs (?P<pkgName>\S+)")
+        @regCmd(r"#卸载|xz(?P<pkgName>\S+)")
         def unInstall(pkgName):
             """
             功能：卸载指定应用
@@ -332,7 +332,7 @@ class CCmds_:
             return "未找到匹配文字"
        
 
-        @regCmd(r"#下载|xz (?P<fileName>.+)?")
+        @regCmd(r"#下载 (?P<fileName>.+)?")
         def downLoad(fileName):
             """
             功能：下载指定文件
@@ -460,10 +460,10 @@ class CCmds_:
                 return f"退出应用失败: {str(e)}"
 
         # === 检查器相关命令 ===
-        @regCmd(r"#编辑|bj(?P<checkName>\S+)")
-        def eDit(checkName):  
+        @regCmd(r"#编辑|bj(?P<name>\S+)")
+        def eDit(name):  
             """
-            功能：开始编辑检查器,以@开头表示页面检测器，否则是普通弹出界面检查器
+            功能：开始编辑
             检测器有以下参数可以设置：
                 match: 匹配规则
                 do: 匹配 + 操作 对
@@ -475,12 +475,46 @@ class CCmds_:
             示例：
             @编辑 每日打.+好礼
             """
-            if not checkName.strip():
+            if not name.strip():
                 return "e~检查器名称不能为空"
-            checker = g.Checker().edit(checkName)
+            g = _G._G_
+            name = g.App().getCheckName(name)
+            checker = g.Checker().getTemplate(name, True)
             cls._editTarget = checker
             if checker:
-                return f"开始编辑检查器... {checker.name}"
+                return f"开始编辑... {name}"
+            
+        @regCmd(r"#设置匹配|szpp(?P<match>\S+)?(?:\s+(?P<x>\d+))?(?:\s+(?P<y>\d+))?")
+        def setMatch(match=None, x=0, y=0):
+            """
+            功能：设置匹配规则文字
+            参数：match - 要设置的匹配规则文字， 如果为空则清空匹配规则
+            示例：
+            jpp 发现 100 100
+            """
+            target = cls._editTarget
+            if not target:
+                return "e~请先开始编辑检查器"
+            range = None
+            if match:   
+                tools = g.CTools()
+                x = int(x) if x else 0
+                y = int(y) if y else 0
+                if x > 0 or y > 0:
+                    #从当前屏幕获取match文字对应的坐标
+                    pos = tools.findTextPos(match)
+                    if pos:
+                        if x > 0 and y > 0:
+                            range = f'{pos[0] - x},{pos[1]-y},{pos[0]+x},{pos[1]+y}'
+                        elif x > 0:
+                            range = f'{pos[0] - x},{pos[0]+x}'
+                        elif y > 0:
+                            range = f'{pos[1] - y},{pos[1]+y}'
+                    else:
+                        return f"e~当前页面未找到{match}文字"
+            oldMatch = target.match
+            target.setMatch(match, range)
+            return f"匹配: {oldMatch} => {target.match}"
 
         @regCmd(r"#设置|sz (?P<param>\w+) (?P<value>.+)?")
         def set(param, value=None):
@@ -594,7 +628,7 @@ class CCmds_:
             g = _G._G_
             enabled = g.Tools().toBool(enabled, True)
             # 检查器
-            name = g.App().currentApp().getCheckName(name)
+            name = g.App().getCheckName(name)
             checker = g.Checker().get(name, create=True)
             if checker:
                 checker.enabled = enabled
@@ -609,7 +643,7 @@ class CCmds_:
             示例: 检查 每日签到
             """
             g = _G._G_
-            name = g.App().currentApp().getCheckName(name)
+            name = g.App().getCheckName(name)
             g.Checker().check(name, g.App().currentApp())
             return f"检查器 {name} 已检查"
 

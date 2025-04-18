@@ -25,16 +25,39 @@ class _App_:
         self.description = info.get("description", '')
         self.timeout = info.get("timeout",5)
 
-    def getCheckName(self, checkName: str) -> str:
+    @classmethod
+    def splitAppName(cls, str: str) -> Tuple[str, str]:
+        """解析应用和页面名称
+        Args:
+                str: 应用和名称，格式为 "应用名-名称"
+        Returns:
+            Tuple[str, str]: (应用名, 名称)
+        """
+        # print(f"解析应用和页面名称: {name}")
+        if not str or not str.strip():
+            return None, None
+        # 使用正则表达式匹配 "appName-name" 格式
+        import re
+        if '-' in str:
+            match = re.match(r'(?P<appName>\S+)?\s*-\s*(?P<name>\S+)?', str)
+            appName = match.group('appName')
+            if appName is None:
+                appName = _G._G_.App().currentApp().name
+            return appName, match.group('name')
+        else:
+            return None, str
+
+    @classmethod
+    def getCheckName(cls, checkName: str) -> str:
         """获取检查器名称"""
-        if not checkName or checkName.strip() == '':
+        g = _G._G_
+        tools = g.Tools()
+        appName, name = _App_.splitAppName(checkName)
+        if not name or name.strip() == '':
             return None
-        
-        if checkName.startswith('@'):
-            #页面匹配
-            checkName = checkName[1:]
-            checkName = self.name + '-' + checkName
-        return checkName
+        if appName:
+            name = f'{appName}-{name}'
+        return name
 
     @property
     def currentPage(self):
@@ -48,7 +71,7 @@ class _App_:
         log.i(f"当前页面: {page.name if page else 'None'}")
         Checker = _G._G_.Checker()
         Checker.uncheckPage(self._currentPage)
-        checkerName = self.getCheckName(page.name)
+        checkerName = _App_.getCheckName(page.name)
         self.checkPage(checkerName)
     
     def checkPage(self, checkerName: str):
@@ -59,7 +82,7 @@ class _App_:
             g = _G._G_
             log = g.Log()
             Checker = g.Checker()
-            checkerName = self.getCheckName(checkerName)
+            checkerName = _App_.getCheckName(checkerName)
             Checker.check(checkerName, self)
         except Exception as e:
             log.ex(e, f"检查页面失败: {checkerName}")
@@ -104,7 +127,7 @@ class _App_:
         g = _G._G_
         log = g.Log()
         Checker = g.Checker()
-        checkerName = self.getCheckName(page.name)
+        checkerName = _App_.getCheckName(page.name)
         checker = Checker.getTemplate(checkerName, create=False)
         ret = False
         if checker:
@@ -136,7 +159,7 @@ class _App_:
     def getAppPage(cls, pageName)->Optional["_Page._Page_"]:
         g = _G._G_
         log = g.Log()
-        appName, pageName = g.Tools().toAppPageName(pageName)
+        appName, pageName = _App_.splitAppName(pageName)
         App = g.App()
         app = App.currentApp()
         if appName:
@@ -216,7 +239,7 @@ class _App_:
             app = self
             page = None
             # 使用正则表达式匹配 appName.pageName 格式
-            appName, pageName = tools.toAppPageName(tarName)
+            appName, pageName = _App_.splitAppName(tarName)
             # 获取目标应用
             if appName is not None and appName != self.name:
                 app = self.getApp(appName, True)

@@ -218,32 +218,7 @@ class _Tools_:
             return default
         return value.lower() in ['true', '1', 'yes', 'y', 'on','开']
 
-    @classmethod
-    def toAppPageName(cls, name: str) -> Tuple[str, str]:
-        """解析应用和页面名称
-        
-        Args:
-            name: 应用和页面名称，格式为 "应用名.页面名" 或 "应用名"
-            
-        Returns:
-            Tuple[str, str]: (应用名, 页面名)，如果未提供则返回 (None, None)
-        """
-        # print(f"解析应用和页面名称: {name}")
-        if not name or not name.strip():
-            return None, None
-        
-        # 使用正则表达式匹配 "应用名-页面名" 格式
-        import re
-        match = re.match(r'^([^.。-]*)(?:[\.。-](.*))?$', name.strip())
-        
-        if not match:
-            return None, None
-        
-        appName = match.group(1).strip() or None
-        pageName = match.group(2).strip() if match.group(2) else None
-        
-        return appName, pageName
-
+   
     @classmethod
     def toPos(cls, strPos: str) -> Tuple[str, tuple]:
         """解析位置字符串，支持多种格式
