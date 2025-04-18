@@ -1,7 +1,11 @@
 [
   {
-    "name": "-发现",
-    "match": "-发现&发现"
+    "name": "top-发现",
+    "match": "oo|qq",
+    "checks": "haha",
+    "do": {
+      "dodod": null
+    }
   },
   {
     "name": "发现"

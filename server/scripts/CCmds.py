@@ -484,39 +484,25 @@ class CCmds_:
             if checker:
                 return f"开始编辑... {name}"
             
-        @regCmd(r"#设置匹配|szpp(?P<match>\S+)?(?:\s+(?P<x>\d+))?(?:\s+(?P<y>\d+))?")
-        def setMatch(match=None, x=0, y=0):
-            """
-            功能：设置匹配规则文字
-            参数：match - 要设置的匹配规则文字， 如果为空则清空匹配规则
-            示例：
-            jpp 发现 100 100
-            """
-            target = cls._editTarget
-            if not target:
-                return "e~请先开始编辑检查器"
-            range = None
-            if match:   
-                tools = g.CTools()
-                x = int(x) if x else 0
-                y = int(y) if y else 0
-                if x > 0 or y > 0:
-                    #从当前屏幕获取match文字对应的坐标
-                    pos = tools.findTextPos(match)
-                    if pos:
-                        if x > 0 and y > 0:
-                            range = f'{pos[0] - x},{pos[1]-y},{pos[0]+x},{pos[1]+y}'
-                        elif x > 0:
-                            range = f'{pos[0] - x},{pos[0]+x}'
-                        elif y > 0:
-                            range = f'{pos[1] - y},{pos[1]+y}'
-                    else:
-                        return f"e~当前页面未找到{match}文字"
-            oldMatch = target.match
-            target.setMatch(match, range)
-            return f"匹配: {oldMatch} => {target.match}"
+        # @regCmd(r"#设置匹配|szpp(?P<match>\S+)?(?:\s+(?P<x>\d+))?(?:\s+(?P<y>\d+))?")
+        # def setMatch(match=None, x=0, y=0):
+        #     """
+        #     功能：设置匹配规则文字
+        #     参数：match - 要设置的匹配规则文字， 如果为空则清空匹配规则
+        #     示例：
+        #     jpp 发现 100 100
+        #     """
+        #     target = cls._editTarget
+        #     if not target:
+        #         return "e~请先开始编辑检查器"
+        #     range = None
+        #     if match:   
 
-        @regCmd(r"#设置|sz (?P<param>\w+) (?P<value>.+)?")
+        #     oldMatch = target.match
+        #     target.setMatch(match, range)
+        #     return f"匹配: {oldMatch} => {target.match}"
+
+        @regCmd(r"#设置|sz (?P<param>\w+)(?P<value>.+)?")
         def set(param, value=None):
             """
             设置检查器参数，如interval、timeout,match,do等
@@ -537,57 +523,33 @@ class CCmds_:
                 return f"e~设置属性: {param} 失败"
             return f"设置参数 {param}={value}"
 
-        @regCmd(r"#\+|添加|tj(?P<param>\w+) (?P<value>.+)?")
-        def add(param, value=None):
+        @regCmd(r"#\+|添加|tj(?P<param>\w+)(?P<value>.+)?(?P<postfix>.+)?")
+        def add(param, value=None, postfix=None):
             """
             添加数组类型参数里面的某个ITEM，match, checks等
             示例：
-            add match {'.*签到'}
-            add checks {'签到'}
+            add match 发现 100
+            add checks 签到
             """
             target = cls._editTarget
             if not target:
                 return "e~请先开始编辑检查器"
             value = g.Tools().fromStr(value)
-            # 使用setattr设置普通属性
-            try:
-                val = getattr(target, param) or ''
-                if isinstance(val, str):
-                    if value not in val:
-                        val = f'{val},{value}'
-                elif isinstance(val, list):
-                    if value not in val:
-                        val.append(value)
-                setattr(target, param, val)
-            except AttributeError:
-                return f"e~设置属性: {param} 失败"
-            return f"添加参数 {param}={value}"
+            target.addProp(param, value, postfix)
 
-        @regCmd(r"#\-|移除|yc(?P<checkName>\S+)?")
+        @regCmd(r"#\-|移除|yc(?P<param>\S+)(?P<value>\S+)?")
         def reMove(param, value=None):
             """
             删除数组类型参数里面的某个ITEM，match, checks等
             示例：
-            remove match {'.*签到'}
-            remove checks {'签到'}
+            remove match 签到
+            remove checks 签到
             """ 
             target = cls._editTarget
             if not target:
                 return "e~请先开始编辑检查器"
             value = g.Tools().fromStr(value)
-            # 使用setattr设置普通属性
-            try:
-                val = getattr(target, param) or ''
-                if isinstance(val, str):
-                    if value in val:
-                        val = val.replace(value, '')
-                elif isinstance(val, list):
-                    if value in val:
-                        val.remove(value)   
-                setattr(target, param, val)
-            except AttributeError:
-                return f"e~设置属性: {param} 失败"
-            return f"删除参数 {param}={value}"  
+            target.removeProp(param, value)
 
         @regCmd(r"#保存|bc(?P<save>[01])?")
         def sAve(save='1'):
@@ -614,6 +576,12 @@ class CCmds_:
         
         @regCmd(r"#显示检查|xsjc (?P<checkName>\S+)")
         def sHowChEck(checkName):
+            """
+            功能：显示检查器
+            示例：
+            xsjc -发现
+            """
+            checkName = g.App().getCheckName(checkName)
             checkers = g.Checker().getTemplates(checkName)
             if not checkers:
                 return f"{checkName} 不存在"

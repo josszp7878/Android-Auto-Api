@@ -22,7 +22,6 @@ class CChecker_:
     _running: bool = False  # 线程运行状态
     _lock = threading.Lock()  # 线程安全锁
     _checkInterval: int = 3  # 默认检查间隔(秒)
-    editChecker: Optional["CChecker_"] = None  # 当前编辑的检查器
     
     # 默认值实例，在类初始化时创建
     DEFAULT = None
@@ -143,22 +142,119 @@ class CChecker_:
     @property
     def match(self) -> str:
         return self._match or self.name.split('-')[-1]
-
-    def setMatch(self, value: str, range: str = None):
-        #为了支持已有ITEM的替换，先将match转换为列表
-        range = range.strip() if range else ''
-        if self._match:
-            m = re.search(rf'{value}[^&|]*', self._match)
-            newValue = f'{value}{range}' if range != '' else value
-            if m:
-                if m.group(0) == value:
-                    return
-                # 替换匹配到的内容
-                self._match = self._match.replace(m.group(0), newValue)
+        
+    def addProp(self, prop: str, value: str, value1: str = None)->bool:
+        log = _G.g.Log()
+        try:    
+            if 'mat' in prop:
+                oldVal = self._match
+                split = '&|'
+                if value.startswith('|'):
+                    split = '|&'
+                    value = value[1:]
+                elif value.startswith('&'):
+                    value = value[1:]
+                range = CChecker_.parseMatchRange(self._match, value1)
+                value = CChecker_._addStrListProp(self._match, split, value, range)
+                if value:
+                    self._match = value
+                    log.d(f"_match: {oldVal} => {self._match}")
+            elif 'che' in prop:
+                oldVal = self._checks
+                value = CChecker_._addStrListProp(self._checks, ',', value, value1)
+                if value:
+                    self._checks = value
+                    log.d(f"_checks: {oldVal} => {self._checks}")
+            elif 'do' in prop:
+                oldVal = self.do
+                self.do[value] = value1
+                log.d(f"do: {oldVal} => {self.do}")
             else:
-                self._match = f'{self._match}&{newValue}'
+                log.e(f"不支持add的属性: {prop}")
+                return False
+            return True
+        except Exception as e:
+            log.ex(e, f"add{prop}失败: {value}")
+            return False
+        
+    def removeProp(self, prop: str, value: str)->bool:
+        log = _G.g.Log()
+        try:    
+            if 'mat' in prop:
+                oldVal = self._match
+                value = value.strip('&').strip('|')
+                value = CChecker_._delStrListProp(self._match, '&|', value)
+                if value:
+                    self._match = value
+                    log.d(f"_match: {oldVal} => {self._match}")
+            elif 'che' in prop:
+                oldVal = self._checks
+                split = ','
+                value = value.strip(split)
+                value = CChecker_._delStrListProp(self._checks, split, value)
+                if value:
+                    self._checks = value
+                    log.d(f"_checks: {oldVal} => {self._checks}")
+            elif 'do' in prop:
+                oldVal = self.do
+                self.do.pop(value)
+                log.d(f"do: {oldVal} => {self.do}")
+            else:
+                log.e(f"不支持remove的属性: {prop}")
+                return False
+            return True
+        except Exception as e:
+            log.ex(e, f"remove{prop}失败: {value}")
+            return False
+  
+
+        
+    @classmethod
+    def parseMatchRange(cls, match: str, range: str = None):
+        if not range:
+            return range    
+        tools = g.CTools()
+        sX, sY = range.split(',') if range else (0, 0)
+        x = int(sX) if sX else 0
+        y = int(sY) if sY else 0
+        if x > 0 or y > 0:
+            #从当前屏幕获取match文字对应的坐标
+            pos = tools.findTextPos(match)
+            if pos:
+                if x > 0 and y > 0:
+                    range = f'{pos[0] - x},{pos[1]-y},{pos[0]+x},{pos[1]+y}'
+                elif x > 0:
+                    range = f'{pos[0] - x},{pos[0]+x}'
+                elif y > 0:
+                    range = f'{pos[1] - y},{pos[1]+y}'
+            else:
+                return f"e~当前页面未找到{match}文字"
+        return range
+    
+    @classmethod
+    def _addStrListProp(cls, curVal:str, split:str, value: str, range: str = None):
+        #为了支持已有ITEM的替换，先将match转换为列表
+        newValue = f'{value}{range}' if range else value
+        if newValue == curVal:
+            return None
+        if curVal:
+            m = re.search(rf'[{split}\s]*{value}[^{split}]*', curVal)
+            newValue = f'{split[0]}{newValue}'
+            if m:
+                curVal = curVal.replace(m.group(0), newValue)
+            else:                
+                curVal = f'{curVal}{newValue}'
         else:
-            self._match = value
+            curVal = newValue
+        return curVal
+    
+    @classmethod
+    def _delStrListProp(cls, curVal:str, split:str, value: str):
+        #为了支持已有ITEM的替换，先将match转换为列表
+        if curVal:
+            return re.sub(rf'[{split}\s]*{value}', '', curVal)
+        return curVal
+
 
     @property
     def checks(self) -> List[str]:
@@ -175,12 +271,7 @@ class CChecker_:
         if value:
             self.startTime = time.time()
             self.lastTime = 0
-
-    def _addDo(self, check: str, action: str) -> bool:
-        """添加操作"""
-        self.do[check] = action
-        return True
-
+    
     def Match(self):
         """执行检查逻辑
         Returns:
@@ -346,25 +437,6 @@ class CChecker_:
             log.ex(e, f"保存检查器失败: {self.name}")
             return False
             
-    @classmethod
-    def _setParam(cls, param: str, value: Any) -> bool:
-        """设置检查器参数"""
-        if not cls.editChecker or not hasattr(cls.editChecker, param):
-            return False
-        setattr(cls.editChecker, param, value)
-        return True
-        
-    @classmethod
-    def _addDo(cls, check: str, action: str) -> bool:
-        """添加操作到编辑中的检查器"""
-        if not cls.editChecker:
-            return False
-        # 特殊符号转义
-        if action == '点击':
-            action = 'click'
-        # 更新操作集
-        cls.editChecker.do[check] = action
-        return True
 
     @classmethod
     def delete(cls, checkName: str = None) -> bool:
@@ -391,15 +463,6 @@ class CChecker_:
             cls.DEFAULT = oldCls.DEFAULT
         cls._templates = None  # 清空模板缓存强制重新加载
         cls.start()
-    
-    @classmethod
-    def _add(cls, checkerName: str, config: Dict[str, Any] = None) -> Optional["CChecker_"]:
-        """创建并注册checker到全局列表"""
-        checker = cls(checkerName, config)
-        log.d(f"添加checker: {checkerName}")
-        with cls._lock:
-            cls._checkers.append(checker)
-        return checker
 
     @classmethod
     def remove(cls, checker: "CChecker_"):
