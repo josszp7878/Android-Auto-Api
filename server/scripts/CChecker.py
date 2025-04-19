@@ -271,7 +271,7 @@ class CChecker_:
             self.startTime = time.time()
             self.lastTime = 0
     
-    def Match(self):
+    def Match(self)->bool:
         """执行检查逻辑
         Returns:
             bool: 检查是否通过
@@ -282,15 +282,16 @@ class CChecker_:
             if match == '':
                 return True
             log.d(f"匹配: {match}")
-            result = tools.check(self, match)
+            result = tools.do(self, match, False)
             if not result:
                 # 否则检查文本规则
-                result = tools.matchText(match)
+                text = tools.matchText(match)
+                result = text is not None
         except Exception as e:
             log.ex(e, f"匹配失败: {match}")
             result = False
         return result
-
+    
     Exit = 'exit'
     # 执行操作
     # 返回True表示执行完成，可以退出，False表示执行失败，继续check.直到TIMEOUT

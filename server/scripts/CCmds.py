@@ -507,7 +507,7 @@ class CCmds_:
             return "当前检查器列表：\n" + "\n".join(f'{t.name}' for t in checker.templates())
         
         @regCmd(r"#显示检查|xsjc (?P<checkName>\S+)")
-        def sHowChEck(checkName):
+        def sHowCheck(checkName):
             """
             功能：显示检查器
             示例：

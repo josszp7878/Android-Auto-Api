@@ -145,7 +145,7 @@ class _App_:
             if _App_._doMatchPage(page):
                 return page
             for child in page.children.values():
-                page = child._matchPage(depth + 1)
+                page = cls._matchPage(child, depth + 1)
                 if page:
                     return page
         except Exception as e:

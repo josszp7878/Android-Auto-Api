@@ -122,14 +122,9 @@ class _Tools_:
         return result
     
     @classmethod
-    def check(cls, this, str:str) -> bool:
-        """检查规则"""
-        return cls._eval(this, str, False)
-
-    @classmethod
-    def do(cls, this, str:str):
+    def do(cls, this, str:str, doAction:bool=True):
         """执行规则"""
-        return cls._eval(this, str, True)
+        return cls._eval(this, str, doAction)
     
     @classmethod
     def _eval(cls, this, str:str, doAction:bool=True):

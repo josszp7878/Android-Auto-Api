@@ -180,19 +180,19 @@ class _CmdMgr_:
         func_name = cmd.name
         
         # 查找模块在列表中的位置
-        module_dict = None
+        cmdMap = None
         for i, (name, cmds) in enumerate(cls.cmdModules):
             if name == module_name:
-                module_dict = cmds
+                cmdMap = cmds
                 break
                 
         # 如果模块不存在，创建新的模块命令集合
-        if module_dict is None:
-            module_dict = {}
-            cls.cmdModules.append((module_name, module_dict))
+        if cmdMap is None:
+            cmdMap = {}
+            cls.cmdModules.append((module_name, cmdMap))
             
         # 添加命令到模块命令集合
-        module_dict[func_name] = cmd
+        cmdMap[func_name] = cmd
     
     
     @classmethod
@@ -362,6 +362,8 @@ class _CmdMgr_:
                 g.clear()
                 # log.d(f'清除全局引用: {moduleName}')    
                 g.CallMethod(module, 'onLoad', oldCls)
+                # 重新注册命令
+                cls._regCmd(module, log)
             else:
                 # 首次加载直接使用import_module
                 try:
@@ -424,22 +426,22 @@ class _CmdMgr_:
     @classmethod
     def clearModules(cls):
         try:
-            modules_to_reload = []
+            g = _G._G_
+            log = g.Log()
+            # 获取所有用户脚本模块名称
+            script_modules = g.getScriptNames()
+            modules_cleared = 0
+            
+            # 遍历sys.modules中的所有模块
             for module_name in list(sys.modules.keys()):
-                # 只处理我们自己的脚本模块，不处理系统模块
-                if (not module_name.startswith('_') and 
-                        not module_name.startswith('sys') and 
-                        not module_name.startswith('builtins') and
-                        not module_name.startswith('java') and
-                        not module_name.startswith('importlib') and
-                        not module_name.startswith('threading')):
-                        # 记录模块名并从sys.modules中移除
-                    modules_to_reload.append(module_name)
-                    
-            # 从sys.modules中移除所有自定义模块
-            for module_name in modules_to_reload:
-                if module_name in sys.modules:
-                    del sys.modules[module_name]
+                # 检查是否是用户脚本模块（以任一脚本模块名结尾）
+                for script_name in script_modules:
+                    if module_name.endswith(script_name):
+                        del sys.modules[module_name]
+                        modules_cleared += 1
+                        break
+            
+            log.i(f"已清理{modules_cleared}个脚本模块")
         except Exception as e:
             _Log._Log_.ex(e, "清除模块缓存失败")
 
@@ -449,40 +451,20 @@ class _CmdMgr_:
         log = g.Log()
         log.i("注册所有命令...")
         try:
+            cls.cmdMap = {}
             modules = g.getScriptNames()
             success_count = 0
             # 加载所有未加载的模块，加载模块时模块本身会执行registerCommands方法
-            for module_name in modules:
+            for moduleName in modules:
                 try:
                     # 直接使用模块名，不添加前缀
-                    full_module_name = module_name                    
-                    # 加载模块
-                    try:
-                        if full_module_name not in sys.modules:
-                            module = importlib.import_module(full_module_name)
-                        else:
-                            module = sys.modules[full_module_name]
-                        # 尝试查找模块中的类并调用类的registerCommands方法
-                        cls_name = f'{module_name}_'  # 假设类名是模块名加下划线
-                        if hasattr(module, cls_name):
-                            cls_obj = getattr(module, cls_name)
-                            # 安全地获取registerCommands方法
-                            # 不使用inspect.getmembers避免触发属性延迟加载
-                            regMethodName = 'registerCommands'
-                            if hasattr(cls_obj, regMethodName):
-                                register_method = getattr(cls_obj, regMethodName)
-                                if callable(register_method):
-                                    # log.i(f"加载类指令: {cls_name}")
-                                    try:
-                                        register_method()
-                                        success_count += 1
-                                        log.i(f"注册指令模块: {cls_name}")
-                                    except Exception as e:
-                                        log.ex(e, f"注册指令模块失败: {cls_name}")
-                    except Exception as e:
-                        log.ex(e, f"加载模块 {full_module_name} 失败")
+                    if moduleName not in sys.modules:
+                        module = importlib.import_module(moduleName)
+                    else:
+                        module = sys.modules[moduleName]
+                    cls._regCmd(module, log)
                 except Exception as e:
-                    log.ex(e, f"导入模块 {module_name} 出错")
+                    log.ex(e, f"导入模块 {moduleName} 出错")
             
             # 对模块进行排序
             cls._sort()
@@ -492,6 +474,29 @@ class _CmdMgr_:
         except Exception as e:
             log.ex(e, "注册命令失败")
             return False
+        
+    @classmethod
+    def _regCmd(cls, module, log):
+        if not module:
+            return
+        # 尝试查找模块中的类并调用类的registerCommands方法
+        moduleName = module.__name__
+        clsName = f'{moduleName}_'
+        if hasattr(module, clsName):
+            cls_obj = getattr(module, clsName)
+            # 安全地获取registerCommands方法
+            # 不使用inspect.getmembers避免触发属性延迟加载
+            methodName = 'registerCommands'
+            if hasattr(cls_obj, methodName):
+                regist = getattr(cls_obj, methodName)
+                if callable(regist):
+                    # log.i(f"加载类指令: {cls_name}")
+                    try:
+                        regist()
+                        log.i(f"注册指令模块: {clsName}")
+                    except Exception as e:
+                        log.ex(e, f"注册指令模块失败: {clsName}")
+
     
     @classmethod
     def setModulePriority(cls, module_name, priority):

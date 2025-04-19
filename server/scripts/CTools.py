@@ -272,7 +272,7 @@ class CTools_(_Tools._Tools_):
             matchedItems = cls.regexMatchItems(text, items)            
             # 没有匹配到文本
             if not matchedItems:
-                log.w(f"未找到匹配文本: {text}")
+                # log.w(f"未找到匹配文本: {text}")
                 return None
                 
             # 确保matchedItems是列表
