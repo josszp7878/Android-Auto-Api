@@ -23,7 +23,6 @@ class CCmds_:
     
     _editTarget = None
 
-
     @classmethod
     def registerCommands(cls):
         # 导入 regCmd
@@ -365,7 +364,7 @@ class CCmds_:
         @regCmd(r"#显示|xs(?P<uiName>\S+)(?P<enable>\S+)?")
         def sHow(uiName:str, enable=None):
             """
-            功能：启用/关闭显示坐标， 启用后点击屏幕会显示坐标
+            功能：启用/关闭显示UI组件
             示例: 
             xs 坐标 1
             xs 工具栏 1
@@ -376,20 +375,32 @@ class CCmds_:
             enable = g.Tools().toBool(enable, True)
             android = g.CTools().android
             log.i(f"显示{uiName}: {enable}")
+            
             if not android:
                 return
-            if uiName == '坐标' or uiName == 'zb':
-                android.showClick(enable)
-            elif uiName == '工具栏' or uiName == 'gjl':
-                android.showToolbar(enable)
-            elif uiName == '日志' or uiName == 'rz':
-                android.showLog(enable)
-            elif uiName == 'UI':
-                android.showUI(enable)
-            elif uiName == '光标' or uiName == 'gb':
-                android.showCursor(enable)
-            else:
-                log.e(f"显示{uiName} {'开启' if enable else '关闭'}失败")
+            
+            # UI组件配置：[别名1, 别名2, ..., 方法名]
+            showConfig = [
+                ['坐标', 'zb', 'pos', 'showClick'],
+                ['工具栏', 'gjl', 'toolbar', 'showToolbar'],
+                ['日志', 'rz', 'log', 'showLog'],
+                ['界面', 'ui', 'showUI'],
+                ['光标', 'gb', 'cursor', 'showCursor']
+            ]
+            # 在配置中查找匹配的UI组件
+            for component in showConfig:
+                # 最后一个元素是方法名，其余都是别名
+                method_name = component[-1]
+                aliases = component[:-1]
+                if uiName in aliases:
+                    # 动态调用对应的方法
+                    if hasattr(android, method_name):
+                        method = getattr(android, method_name)
+                        method(enable)
+                        return
+            
+            # 未找到匹配的组件
+            log.e(f"显示{uiName} {'开启' if enable else '关闭'}失败")
 
         @regCmd(r"#退出|tc")
         def eXit():

@@ -468,8 +468,6 @@ class _CmdMgr_:
             
             # 对模块进行排序
             cls._sort()
-            
-            log.i(f"成功注册了 {success_count} 个模块的命令")
             return True
         except Exception as e:
             log.ex(e, "注册命令失败")
