@@ -229,6 +229,30 @@ class CFileServer_:
             """
             return cls.uploadFile(fileName)
         
+        @regCmd(r"#上传配置|scpz(?P<config>\w+)?")
+        def uploadConfig(config = None):
+            """功能：上传配置文件
+            指令名：uploadConfig
+            中文名：上传配置
+            参数：
+            config - 配置类型，例如: checks, pages
+            示例：上传配置 checks
+            """
+            g = _G._G_
+            log = g.Log()        
+            files = ['checks', 'pages']
+            if config:
+                files = [config]
+            # 上传配置文件
+            try:
+                fileServer = g.CFileServer()
+                for file in files:
+                    result = fileServer.upload(file)
+                    return f"配置{file}{('上传成功' if result else '上传失败')}"
+            except Exception as e:
+                log.ex(e, f"上传配置失败")
+                return f"上传失败: {str(e)}"    
+            
     @classmethod
     def uploadFileContent(cls, server_path, file_content):
         """将文件内容上传到服务器

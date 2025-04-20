@@ -466,7 +466,7 @@ class CCmds_:
                 return f"e~设置属性: {param} 失败"
             return f"设置参数 {param}={value}"
 
-        @regCmd(r"#\+|添加属性|tjsx(?P<param>\w+)(?P<value>.+)?(?P<postfix>.+)?")
+        @regCmd(r"#\+|添加属性|tjsx(?P<param>\w+)(?P<value>\S+)?(?P<postfix>\S+)?")
         def addProp(param, value=None, postfix=None):
             """
             添加数组类型参数里面的某个ITEM，match, checks等
@@ -494,7 +494,7 @@ class CCmds_:
             value = g.Tools().fromStr(value)
             target.removeProp(param, value)
 
-        @regCmd(r"#保存|bc(?P<save>[01])?")
+        @regCmd(r"#保存|bc(?P<save>[01]*)?")
         def sAve(save='1'):
             target = cls._editTarget
             if not target:

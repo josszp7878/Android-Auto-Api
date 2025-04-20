@@ -177,6 +177,13 @@ class CChecker_:
             return False
         
     def removeProp(self, prop: str, value: str)->bool:
+        """删除指定属性
+        Args:
+            prop: 属性名
+            value: 要删除的值
+        Returns:
+            bool: 删除是否成功
+        """
         log = _G.g.Log()
         try:    
             if 'mat' in prop:
@@ -210,15 +217,26 @@ class CChecker_:
         
     @classmethod
     def parseMatchRange(cls, match: str, range: str = None):
+        """解析match的范围
+        Args:
+            match: 要解析的范围的文字
+            range: 范围，可以是坐标，也可以是偏移量. 如果为'_'，则从当前屏幕获取match文字对应的坐标
+        Returns:
+            str: 范围
+        """
         if not range:
-            return range    
+            return range  
         tools = g.CTools()
+        #从当前屏幕获取match文字对应的坐标
+        pos = tools.findTextPos(match)
+        DEF = 75
+        if range == '_':
+            return f'{pos[0]-DEF},{pos[1]-DEF},{pos[0]+DEF},{pos[1]+DEF}'
         sX, sY = range.split(',') if range else (0, 0)
         x = int(sX) if sX else 0
         y = int(sY) if sY else 0
         if x > 0 or y > 0:
-            #从当前屏幕获取match文字对应的坐标
-            pos = tools.findTextPos(match)
+
             if pos:
                 if x > 0 and y > 0:
                     range = f'{pos[0] - x},{pos[1]-y},{pos[0]+x},{pos[1]+y}'
@@ -300,7 +318,8 @@ class CChecker_:
             endDo = len(self.do) <= 1
             actions = self.do
             if not actions: 
-                return True
+                #没有操作，直接点击match
+                return tools.click(self.match)
             for actionName, action in self.do.items():
                 # 以$结尾的DO操作，表示执行后退出
                 actionName = actionName.strip()

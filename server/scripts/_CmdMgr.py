@@ -11,10 +11,31 @@ class Cmd:
     
     def __init__(self, func, match=None, doc=None):
         self.func = func      # 命令函数
-        self.match = match or func.__name__  # 命令匹配，默认为函数名
+        self.match = match    # 命令匹配，默认为函数名
         self.doc = doc or func.__doc__      # 命令文档
         self.module = func.__module__       # 命令所属模块
         self.name = func.__name__           # 函数名
+        
+        # 预编译完整正则表达式
+        self.matchRegex = re.compile(match) if match else None
+        
+        # 预编译命令名正则表达式(从match中提取)
+        self.nameRegex = None
+        if match:
+            try:
+                from _CmdMgr import _CmdMgr_
+                # 提取命令名部分
+                key = _CmdMgr_.CmdKey
+                cmdMatches = re.search(fr'\(\?P<{key}>(.*?)\)', match)
+                if cmdMatches:
+                    searchPattern = cmdMatches.group(1)
+                    # 创建搜索正则，用于_findCommand
+                    self.nameRegex = re.compile(
+                        f"({searchPattern})", 
+                        re.IGNORECASE
+                    )
+            except Exception:
+                pass
 
 
 class _CmdMgr_:
@@ -39,28 +60,53 @@ class _CmdMgr_:
     def processParamSpaces(cls, cmdStr):
         """处理参数之间的空格"""
         # 查找所有命名捕获组 (?P<name>pattern) 包括可选参数
-        param_groups = list(re.finditer(r'\(\?P<([^>]+)>[^)]+\)\??', cmdStr))
+        regex = r'\(\?P<([^>]+)>[^)]+\)(\??)'
+        param_groups = list(re.finditer(regex, cmdStr))
         
         # 过滤掉命令关键字参数，并按出现顺序记录参数位置
         params = []
         for match in param_groups:
             param_name = match.group(1)
+            is_optional = match.group(2) == '?'
             if param_name != cls.CmdKey:
-                params.append((match.start(), match.end()))
+                # 记录参数的位置、名称和是否可选
+                params.append((
+                    match.start(), 
+                    match.end(), 
+                    param_name, 
+                    is_optional
+                ))
         
         # 在参数之间添加\s+（最后一个参数不添加）
         modified = cmdStr
         offset = 0  # 用于跟踪插入空格后的位置偏移
         for i in range(len(params)-1):
-            current_end = params[i][1] + offset
-            next_start = params[i+1][0] + offset
+            current_param = params[i]
+            next_param = params[i+1]
+            
+            # 确定空格应该插入的位置
+            # 对于可选参数，空格应该插入在")"之后，"?"之前（如果存在）
+            current_end = current_param[1] + offset
+            optional_char_pos = current_end
+            
+            # 检查当前参数结束后是否有可选符号"?"
+            if current_param[3]:  # 当前参数是可选的
+                optional_char_pos = current_end - 1
+            
+            next_start = next_param[0] + offset
             
             # 检查当前参数结束到下一个参数开始之间是否有其他字符
-            between = modified[current_end:next_start]
-            if not re.search(r'\\s', between):  # 如果没有已有的空格匹配
-                # 在当前位置插入\s+
-                modified = modified[:current_end] + r'\s*' + modified[current_end:]
-                offset += 4  # 插入4个字符(\s+)
+            between = modified[optional_char_pos:next_start]
+            # 如果没有已有的空格匹配
+            if not re.search(r'\\s', between):
+                # 在当前位置插入\s*
+                space_insertion_pos = optional_char_pos
+                modified = (
+                    modified[:space_insertion_pos] + 
+                    r'\s*' + 
+                    modified[space_insertion_pos:]
+                )
+                offset += 3  # 插入3个字符(\s*)
         
         return modified
 
@@ -92,7 +138,7 @@ class _CmdMgr_:
             abbr = func_name[0] + ''.join(c for c in func_name[1:] if c.isupper())
             
             # 创建命令模式，使用函数名和缩写
-            cmd_pattern = f"(?P<{cls.CmdKey}>{func_name.lower()}|{abbr.lower()})"
+            namePattern = f"(?P<{cls.CmdKey}>{func_name.lower()}|{abbr.lower()})"
             
             # 检查是否有雷同匹配
             items = [func_name, abbr.lower()]
@@ -106,7 +152,7 @@ class _CmdMgr_:
                     cls.registered_patterns[item] = func_name
             
             # 创建命令对象并添加到注册表
-            cmd = Cmd(func=func, match=cmd_pattern)
+            cmd = Cmd(func=func, match=namePattern)
             cls._addCommand(cmd)
             return func
         
@@ -146,10 +192,11 @@ class _CmdMgr_:
                     
                     # 始终添加函数名和缩写到命令别名中，不考虑是否已有别名
                     cmdName = f"{cmdName}|{func_name}|{abbr.lower()}"
+                    namePattern = f"(?P<{cls.CmdKey}>{cmdName})(?i)\s+"
                     # 在替换命令名时添加忽略大小写标记
                     pattern = pattern.replace(
                         cmd_pattern, 
-                        f'(?P<{cls.CmdKey}>{cmdName})(?i)\s*'  # 添加(?i)忽略大小写
+                        namePattern
                     )
                 else:
                     log.e(f"{pattern} 没有匹配指令名")
@@ -157,9 +204,8 @@ class _CmdMgr_:
             # 如果pattern结尾是\s+,应该去掉
             if pattern.endswith(r'\s+'):
                 pattern = pattern[:-3]
-            # 记录日志，帮助调试
-            # log.i(f"{pattern}<=>\n{new_pattern}")
-             # 创建命令对象并添加到注册表
+                
+            # 创建命令对象并添加到注册表
             cmd = Cmd(
                 func=func, 
                 match=pattern,
@@ -213,12 +259,12 @@ class _CmdMgr_:
         cls.cmdModules.sort(key=lambda x: cls.modulePriority.get(x[0], 999))
 
     @classmethod
-    def _findCommand(cls, cmdName):
+    def _findCommand(cls, cmdName, moduleName=None):
         """查找命令
         
         Args:
             cmdName: 命令名称
-            
+            moduleName: 模块名称
         Returns:
             Cmd: 找到的命令对象，如果未找到则返回None
         """
@@ -227,23 +273,40 @@ class _CmdMgr_:
         
         cmdName = cmdName.lower()
         
+        # 尝试匹配所有命令的正则表达式，找到最长的匹配
+        bestMatch = None
+        bestMatchLength = -1
+        
+        log = _G._G_.Log()        
         # 使用已排序的模块列表
-        for module_name in cls.cmdModules:
-            module_cmds = module_name[1]
-            
+        for module_name, module_cmds in cls.cmdModules:
+            if moduleName and module_name != moduleName:
+                continue
             # 遍历模块中的所有命令
             for cmd in module_cmds.values():
-                # 1. 匹配别名
-                if cmdName in cmd.match:
-                    return cmd
-                # 2. 匹配函数名
-                if cmd.name == cmdName:
-                    return cmd
+                # 使用预编译的正则表达式
+                if cmd.nameRegex:
+                    try:
+                        cmdMatches = cmd.nameRegex.search(cmdName)
+                        if cmdMatches:
+                            matchLength = len(cmdMatches.group(0))
+                            if matchLength > bestMatchLength:
+                                bestMatch = cmd
+                                bestMatchLength = matchLength
+                    except Exception as e:
+                        log.ex(e, f"命令名匹配失败: {cmd.name}")
+                else:
+                    # 如果没有预编译的正则表达式，尝试匹配函数名
+                    if cmd.name.lower() == cmdName:
+                        matchLength = len(cmd.name)
+                        if matchLength > bestMatchLength:
+                            bestMatch = cmd
+                            bestMatchLength = matchLength
         
-        return None
+        return bestMatch
     
     @classmethod
-    def _cleanParam(cls, value:str)->str:
+    def _cleanParam(cls, value: str) -> str:
         """清理参数值，去除多余空格"""
         if value is not None:
             # 去除前后空格
@@ -256,7 +319,7 @@ class _CmdMgr_:
     DataKey = 'DD'
 
     @classmethod
-    def do(cls, cmdStr, data=None)->Tuple[Any, str]:
+    def do(cls, cmdStr, data=None) -> Tuple[Any, str]:
         """执行命令
         
         Args:
@@ -287,7 +350,11 @@ class _CmdMgr_:
                 # 遍历模块中的所有命令
                 for cmd in module_cmds.values():
                     try:
-                        match = re.fullmatch(cmd.match, cmdStr)
+                        # 使用预编译的正则表达式
+                        if cmd.matchRegex:
+                            match = cmd.matchRegex.fullmatch(cmdStr)
+                        else:
+                            match = re.fullmatch(cmd.match, cmdStr)
                     except Exception as e:
                         log.ex(e, f"命令: {cmdStr} 正则表达式错误: {cmd.match}")
                         continue
@@ -552,34 +619,8 @@ class _CmdMgr_:
                 # 如果没有文件服务器，直接重载
                 cls._reloadModule(moduleName)
         
-        @cls.reg(r"#命令列表|mjlb|cl") 
-        def cmdList():
-            """功能：列出所有可用命令
-            指令名：cmdList
-            中文名：命令列表
-            参数：无
-            示例：命令列表
-            """
-            result = "可用命令:\n"
-            # 按模块分组显示命令
-            for module_name, module_cmds in cls.cmdModules:
-                if module_cmds:
-                    result += f"\n[模块: {module_name} (优先级: {cls.modulePriority.get(module_name, 999)})]\n"
-                    for cmd_name, cmd in sorted(module_cmds.items()):
-                        result += f"  {cmd.name}\t\t: {cmd.match}\n"
-            return result
-        
-        @cls.reg(r"#帮助|bz(?P<command>\S+)?")
-        def help(command=None):
-            """功能：显示命令帮助信息
-            指令名：help
-            中文名：帮助
-            参数：
-              command - 要查询的命令名称
-            示例：帮助 重启
-            """
-            if not command:
-                return """
+
+        cls.HelpStr = """
                 指令使用说明：
 
                 格式：[设备ID][>]指令名 [参数] 
@@ -598,13 +639,40 @@ class _CmdMgr_:
                     客户端指令列表用：>cl 查询
                     服务端指令列表用：cl 查询
                 """
-            # 获取命令信息
-            cmd = cls._findCommand(command)
-            if not cmd:
-                return "e~无效指令"
-            # 获取命令的描述
-            desc = f'{cmd.name}\n{cmd.match}\n{cmd.doc}'
-            return desc
+        
+        @cls.reg(r"#帮助|bz(?P<command>\S+)?(?P<moduleName>\S+)?") 
+        def help(command=None, moduleName=None):
+            """功能：列出所有可用命令
+            参数：
+              moduleName - 要查询的模块名, 为空时查询所有模块
+              command - 要查询的命令名称, 为空时查询所有命令
+            示例：帮助
+            示例：帮助 _CmdMgr
+            示例：帮助 重启
+            示例：帮助 CCmds 加载
+            """
+            result = "可用命令:\n"
+            if command == '_':
+                command = None
+            if command:
+                #具体某个指令的帮助
+                cmd = cls._findCommand(command, moduleName)
+                if not cmd:
+                    return f"e~无效指令{moduleName}.{command}"
+                desc = f'{cmd.name}\n{cmd.match}\n{cmd.doc}'
+                return desc
+            elif moduleName:
+                # 按模块分组显示命令列表
+                for module_name, module_cmds in cls.cmdModules:
+                    if moduleName and module_name.lower() != moduleName.lower():
+                        continue
+                    result += f"\n[模块: {module_name} (优先级: {cls.modulePriority.get(module_name, 999)})]\n"
+                    for cmd_name, cmd in sorted(module_cmds.items()):
+                        result += f"  {cmd.name}\t\t: {cmd.match}\n"
+            else:
+                result = cls.HelpStr
+            return result
+        
 
         @cls.reg(r"#时间|sj")
         def time():
