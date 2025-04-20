@@ -229,14 +229,14 @@ class CFileServer_:
             """
             return cls.uploadFile(fileName)
         
-        @regCmd(r"#上传配置|scpz(?P<config>\w+)?")
-        def uploadConfig(config = None):
-            """功能：上传配置文件
-            指令名：uploadConfig
-            中文名：上传配置
+        @regCmd(r"#保存配置|bcpz(?P<config>\w+)?")
+        def saveConfig(config = None):
+            """功能：保存配置文件
+            指令名：saveConfig
+            中文名：保存配置
             参数：
             config - 配置类型，例如: checks, pages
-            示例：上传配置 checks
+            示例：保存配置 checks
             """
             g = _G._G_
             log = g.Log()        
@@ -245,14 +245,34 @@ class CFileServer_:
                 files = [config]
             # 上传配置文件
             try:
-                fileServer = g.CFileServer()
                 for file in files:
-                    result = fileServer.upload(file)
-                    return f"配置{file}{('上传成功' if result else '上传失败')}"
+                    cls.uploadFile(file)
+                    return f"配置{file}上传成功"
             except Exception as e:
                 log.ex(e, f"上传配置失败")
                 return f"上传失败: {str(e)}"    
-            
+            return "上传配置成功"
+
+        @regCmd(r"#加载配置|jzpz(?P<config>\w+)?")
+        def loadConfig(config = None):
+            """功能：从服务器加载配置文件
+            参数：
+            config - 配置类型，例如: checks, pages
+            示例：加载配置 checks
+            """
+            g = _G._G_
+            files = ['checks', 'pages']
+            if config:
+                files = [config]
+            for file in files:
+                if file == 'pages':
+                    g.CFileServer().download('config/pages.json',
+                                              lambda result: g.App().loadConfig())
+                elif file == 'checks':
+                    g.CFileServer().download('config/Checks.json', 
+                                             lambda result: g.Checker().loadConfig())
+
+
     @classmethod
     def uploadFileContent(cls, server_path, file_content):
         """将文件内容上传到服务器

@@ -25,6 +25,7 @@ class _App_:
         self.description = info.get("description", '')
         self.timeout = info.get("timeout",5)
 
+    PathSplit = '_'
     @classmethod
     def splitAppName(cls, str: str) -> Tuple[str, str]:
         """解析应用和页面名称
@@ -38,8 +39,8 @@ class _App_:
             return None, None
         # 使用正则表达式匹配 "appName-name" 格式
         import re
-        if '-' in str:
-            match = re.match(r'(?P<appName>\S+)?\s*-\s*(?P<name>\S+)?', str)
+        if '_' in str:
+            match = re.match(fr'(?P<appName>\S+)?\s*{cls.PathSplit}\s*(?P<name>\S+)?', str)
             appName = match.group('appName')
             if appName is None:
                 appName = _G._G_.App().currentApp().name
@@ -51,12 +52,11 @@ class _App_:
     def getCheckName(cls, checkName: str) -> str:
         """获取检查器名称"""
         g = _G._G_
-        tools = g.Tools()
         appName, name = _App_.splitAppName(checkName)
         if not name or name.strip() == '':
             return None
         if appName:
-            name = f'{appName}-{name}'
+            name = f'{appName}{cls.PathSplit}{name}'
         return name
 
     @property
@@ -119,7 +119,8 @@ class _App_:
             _G._G_.Log().ex(e, f"检测页面失败: {pageName}")
             return False
     
-    def _doMatchPage(self, page: "_Page._Page_") -> bool:
+    @classmethod
+    def _doMatchPage(cls, page: "_Page._Page_") -> bool:
         """检测页面是否匹配"""
         g = _G._G_
         log = g.Log()
@@ -628,12 +629,7 @@ class _App_:
     def registerCommands(cls):
         """注册命令"""
         from _CmdMgr import regCmd
-        @regCmd(r"#加载配置|jzpz")
-        def loadConfig(cls):
-            """加载配置"""
-            g = _G._G_
-            g.CFileServer().download('config/pages.json', lambda result: g.App().loadConfig())
-
+        
 
 
     @classmethod

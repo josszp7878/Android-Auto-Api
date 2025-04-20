@@ -131,31 +131,8 @@ class _CmdMgr_:
         
         # 如果第一个参数是函数，说明装饰器没有参数
         if callable(pattern):
-            func = pattern
-            # 获取函数名和函数名缩写
-            func_name = func.__name__
-            # 生成函数名缩写: 取第一个字母和所有大写字母
-            abbr = func_name[0] + ''.join(c for c in func_name[1:] if c.isupper())
-            
-            # 创建命令模式，使用函数名和缩写
-            namePattern = f"(?P<{cls.CmdKey}>{func_name.lower()}|{abbr.lower()})"
-            
-            # 检查是否有雷同匹配
-            items = [func_name, abbr.lower()]
-            for item in items:
-                if item in cls.registered_patterns:
-                    existing_cmd = cls.registered_patterns[item]
-                    # 避免与自己比较
-                    if existing_cmd != func_name:
-                        log.e(f"命令匹配模式雷同: '{item}' 在 {func_name} 和 {existing_cmd} 之间重复")
-                else:
-                    cls.registered_patterns[item] = func_name
-            
-            # 创建命令对象并添加到注册表
-            cmd = Cmd(func=func, match=namePattern)
-            cls._addCommand(cmd)
-            return func
-        
+            log.e(f"目前不支持没有参数的装饰器: {pattern.__name__}")
+            return None
         # 如果第一个参数不是函数，说明装饰器有参数
         def decorator(func):
             nonlocal pattern  # 声明pattern为非局部变量，引用外部作用域的pattern
@@ -192,7 +169,7 @@ class _CmdMgr_:
                     
                     # 始终添加函数名和缩写到命令别名中，不考虑是否已有别名
                     cmdName = f"{cmdName}|{func_name}|{abbr.lower()}"
-                    namePattern = f"(?P<{cls.CmdKey}>{cmdName})(?i)\s+"
+                    namePattern = f"(?P<{cls.CmdKey}>{cmdName})(?i)\s*"
                     # 在替换命令名时添加忽略大小写标记
                     pattern = pattern.replace(
                         cmd_pattern, 
@@ -201,10 +178,10 @@ class _CmdMgr_:
                 else:
                     log.e(f"{pattern} 没有匹配指令名")
                     return func
-            # 如果pattern结尾是\s+,应该去掉
-            if pattern.endswith(r'\s+'):
+            # 如果pattern结尾是\s+或者\s*,应该去掉
+            if pattern.endswith(r'\s*'):
                 pattern = pattern[:-3]
-                
+
             # 创建命令对象并添加到注册表
             cmd = Cmd(
                 func=func, 

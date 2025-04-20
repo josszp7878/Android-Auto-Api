@@ -251,9 +251,18 @@ def handle_2S_Cmd(data):
             # 没有指定执行者，使用选中的设备
             targets = [_Log.TAG.Server.value]        
         params = data.get('params', {})        
+        
+        # 先发送命令执行的日志，不包含结果
+        Log.log(strCommand, None, 'c')
+        
+        # 执行命令
         result = deviceMgr.sendCmd(targets, command, params)
+        
+        # 如果有结果，再发送结果日志
         if result:
-            Log.log(strCommand, None, 'c', result)       
+            # 使用命令结果的日志级别
+            level, content = Log._parseLevel(result, 'i')
+            Log.log(f"=>{content}" if content else "", None, level)
     except Exception as e:
         Log.ex(e, '执行命令失败')
 

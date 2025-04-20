@@ -121,18 +121,25 @@ class _Log_:
     def add(cls, logDict):
         """添加日志到缓存并发送到前端"""      
         try:
-            cls.log_(logDict.get('message'), logDict.get('tag'), logDict.get('level'),  logDict.get('result'))          
+            cls.log_(
+                logDict.get('message'), 
+                logDict.get('tag'), 
+                logDict.get('level'),  
+                logDict.get('result')
+            )          
             logs = cls._cache
             from app import socketio
             # 检查是否与最后一条日志内容相同
             lastLog = logs[-1] if len(logs) > 0 else None
             if lastLog:
-                # 检查标签、级别和消息是否相同
+                # 检查标签、级别、消息和结果是否相同
                 tagEqual = lastLog.get('tag') == logDict.get('tag')
                 levelEqual = lastLog.get('level') == logDict.get('level')
                 msgEqual = lastLog.get('message') == logDict.get('message')
+                resultEqual = lastLog.get('result') == logDict.get('result')
                 
-                if (tagEqual and levelEqual and msgEqual):  # 去除可能的重复标记
+                # 去除可能的重复标记
+                if (tagEqual and levelEqual and msgEqual and resultEqual):
                     # 更新重复计数
                     count = lastLog.get('count', 1) + 1
                     lastLog['count'] = count
@@ -142,10 +149,10 @@ class _Log_:
                     try:
                         # 确保发送完整的日志对象，包括时间戳
                         socketio.emit('S2B_EditLog', lastLog)
-                    except Exception as e:
-                        cls.ex_(e, '发送EditLog事件失败')
+                    except Exception:
+                        cls.ex_(None, '发送EditLog事件失败')
                     return
-                  # 打印带颜色的日志到终端
+                # 打印带颜色的日志到终端
             # 确保新日志有count字段
             if 'count' not in logDict:
                 logDict['count'] = 1
@@ -155,7 +162,7 @@ class _Log_:
                 try:
                     socketio.emit('S2B_AddLog', logDict)
                 except Exception as e:
-                    cls.ex_(e,'发送AddLog事件失败')
+                    cls.ex_(e, '发送AddLog事件失败')
         except Exception as e:
             cls.ex_(e, '发送日志到控制台失败')
 

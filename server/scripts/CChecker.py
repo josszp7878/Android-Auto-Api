@@ -30,11 +30,11 @@ class CChecker_:
     def templates(cls):
         """获取模板列表，如果未加载则先加载"""
         if not cls._templates:
-            cls._load()
+            cls.loadConfig()
         return cls._templates
     
     @classmethod
-    def _load(cls):
+    def loadConfig(cls):
         """加载checker配置文件"""
         import os
         try:
@@ -326,8 +326,15 @@ class CChecker_:
                 if actionName.endswith('$'):
                     endDo = True
                     actionName = actionName[:-1]
-                if tools.matchText(actionName) is None and tools.isAndroid():
-                    continue
+                if actionName != '':
+                    item = tools.matchText(actionName)
+                    if item is None and tools.isAndroid():
+                        continue
+                    if '(?P<' in actionName:
+                        m = re.search(actionName, item['t'])
+                        #将m里面的参数设置只能怪self.data里面去
+                        for k, v in m.groupdict().items():
+                            self.data[k] = v
                 action = action.strip() if action else ''
                 ret = False
                 if action == '':
@@ -387,7 +394,6 @@ class CChecker_:
         if create:
             # 创建新模板（默认值直接在构造函数中设置）
             template = cls(checkName)
-            template.type = 'temp'
             cls.templates().append(template)
             return template
         return None
@@ -399,7 +405,7 @@ class CChecker_:
         return [t for t in cls.templates() if pattern in t.name.lower()]
 
     @classmethod
-    def _save(cls):
+    def save(cls):
         """保存checker配置到文件"""
         import os
         try:
@@ -445,22 +451,6 @@ class CChecker_:
         checker.enabled = True
         log.w(f"+ checker: {checkName}")
 
-    def save(self, save: bool = False) -> bool:
-        """结束编辑，可选保存编辑结果"""
-        try:
-            if not save:
-                if self.type == 'temp':
-                    templates = CChecker_.templates()
-                    templates.remove(self)
-            else:
-                self.type = 'once'
-                # 保存到配置文件
-                CChecker_._save()
-            return True
-        except Exception as e:
-            log.ex(e, f"保存检查器失败: {self.name}")
-            return False
-            
 
     @classmethod
     def delete(cls, checkName: str = None) -> bool:

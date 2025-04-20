@@ -30,7 +30,7 @@ class SDeviceMgr_:
             self.initialized = True
             self.result = None
             self.onCmdResult: Callable[[str], None] = None
-            self.cmdTimeout = 10  # 命令超时时间(秒)
+            self.cmdTimeout = 15  # 命令超时时间(秒)
             self.pendingCmds = {}  # 存储待处理的命令 {cmd_id: timer}
             self.cmdResults = {}  # 存储命令结果 {cmd_id: result}
             self.cmdEvents = {}   # 存储命令完成事件 {cmd_id: Event}
@@ -232,6 +232,11 @@ class SDeviceMgr_:
                             else:
                                 result = '截图更新失败'
 
+                # 记录命令结果日志
+                if result:
+                    import _Log
+                    # 解析结果中可能包含的级别信息
+                    level, content = _Log._Log_._parseLevel(result, 'i')
                 # 存储结果并设置事件
                 self.cmdResults[cmd_id] = result
                 if cmd_id in self.cmdEvents:
@@ -381,7 +386,7 @@ class SDeviceMgr_:
             _Log._Log_.ex(e, f"设置设备 {device_id} 分组失败")
             return False
 
-    def sendCmd(self, targets, command, data=None)->str:
+    def sendCmd(self, targets, command, data=None) -> str:
         """发送命令"""
         result = ''            
         try:

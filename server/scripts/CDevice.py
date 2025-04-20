@@ -216,16 +216,22 @@ class CDevice_:
             cmdData = data.get('data', {})
             cmd_id = data.get('cmd_id')  # 获取命令ID
             
-            # log.d(f'收到命令: {command} from {sender} data: {cmdData}')
+            # 先记录执行命令的日志
+            log.log(command, cls._deviceID, 'c')
+            
             # 使用 CmdMgr 执行命令
             result, cmdName = g.CmdMgr().do(command, cmdData)
+            
             if cmdName is None:
                 return result
+                
             # 特殊处理reset命令
             if cmdName and cmdName.lower() == 'reset':
                 log.i(f'收到重置命令: {command}，不发送结果')
                 # 不发送结果，但也不抛出异常
                 return
+                
+            # 发送命令结果，无需在这里单独记录日志，因为CmdResult会在服务端被处理并记录
             cls.emit('C2S_CmdResult', {
                 'result': result,
                 'device_id': cls._deviceID,

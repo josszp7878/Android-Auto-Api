@@ -28,7 +28,7 @@ class CCmds_:
         # 导入 regCmd
         from _CmdMgr import regCmd
 
-        @regCmd(r"(?P<text>.+?)#的位置|dwz")
+        @regCmd(r"#位置|wz(?P<text>.+?)")
         def pos(text):
             """
             功能：获取指定位置或文本的位置
@@ -180,7 +180,7 @@ class CCmds_:
             """
             _G._G_.CDevice().TakeScreenshot()
 
-        @regCmd(r"#当前页面|dqym(?P<appName>\S+)?")
+        @regCmd(r"#当前页面|dqym(?P<appName>\S*)?")
         def curPage(appName=None):
             """
             功能：获取当前页面信息
@@ -420,8 +420,8 @@ class CCmds_:
                 return f"退出应用失败: {str(e)}"
 
         # === 检查器相关命令 ===
-        @regCmd(r"#编辑|bj(?P<name>\S+)")
-        def eDit(name):  
+        @regCmd(r"#编辑|ksbj(?P<name>\S+)")
+        def startEdit(name):  
             """
             功能：开始编辑
             检测器有以下参数可以设置：
@@ -438,12 +438,34 @@ class CCmds_:
             if not name.strip():
                 return "e~检查器名称不能为空"
             g = _G._G_
+            log = g.Log()
+            pos = g.CTools().findTextPos(name.strip('_'))
+            if pos is None:
+                log.w(f"未找到{name}的位置")
             name = g.App().getCheckName(name)
-            checker = g.Checker().getTemplate(name, True)
+            Checker = g.Checker()
+            checker = Checker.getTemplate(name, False)
+            if not checker:
+                checker = Checker.getTemplate(name, True)
+                checker.type = 'temp'
             cls._editTarget = checker
             if checker:
                 return f"开始编辑... {name}"
-            
+
+        @regCmd(r"#结束编辑|jsbc(?P<save>[01]*)?")
+        def endEdit(save='1'):
+            target = cls._editTarget
+            if not target:
+                return "e~当前没有编辑的对象"
+            bSave = g.Tools().toBool(save, True)
+            Checker = g.Checker()
+            if bSave:
+                Checker.save()
+            else:
+                if target.type == 'temp':
+                    Checker.templates().remove(target)
+            cls._editTarget = None
+            return f"保存{target.name} 成功"      
 
         @regCmd(r"#设置属性|szsx (?P<param>\w+)(?P<value>.+)?")
         def setProp(param, value=None):
@@ -494,18 +516,8 @@ class CCmds_:
             value = g.Tools().fromStr(value)
             target.removeProp(param, value)
 
-        @regCmd(r"#保存|bc(?P<save>[01]*)?")
-        def sAve(save='1'):
-            target = cls._editTarget
-            if not target:
-                return "e~当前没有编辑的对象"
-            if not target.save(save=g.Tools().toBool(save, True)):
-                return f"e~保存{target.name} 失败"
-            cls._editTarget = None
-            return f"保存{target.name} 成功"
-
-        @regCmd(r"#删除|sc(?P<checkName>\S+)?")
-        def dElete(checkName=None):
+        @regCmd(r"#删除(?P<checkName>\S+)?")
+        def dELete(checkName=None):
             if not checkName:                
                 if cls._editTarget:
                     checkName = cls._editTarget.name
@@ -568,3 +580,19 @@ class CCmds_:
                 checker.Do()
             else:
                 return f"e~无效检查器: {name}"
+    
+        @regCmd(r"#检测")
+        def deTecT():
+            """
+            功能：检测当前应用和当前页面
+            示例：
+            jc
+            """
+            g = _G._G_
+            App = g.App()
+            App.detect()
+            curApp = App.currentApp()
+            if curApp:
+                return f"当前应用: {curApp.name} 当前页面: {curApp.curPage.name}"
+            else:
+                return "e~检测不到当前应用"
