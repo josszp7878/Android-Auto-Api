@@ -395,7 +395,9 @@ class SDeviceMgr_:
             cmdMgr = g.CmdMgr()
             for target in targets:
                 if target == _Log.TAG.Server.value:
-                    result, _ = cmdMgr.do(command, data)
+                    cmdID = self.genCmdId('@', command)
+                    cmd = {'id': cmdID, 'data': data, 'cmd': command}
+                    cmdMgr.do(cmd)
                     g.SCommandHistory().add(command, target, result)
                 else:
                     devices = self.gets(target) 

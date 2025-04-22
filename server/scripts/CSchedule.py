@@ -1,11 +1,13 @@
 from enum import Enum
-from typing import Dict, Any
 import _G
 import datetime
 import os
 import json
 import threading
 import time
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from CChecker import CChecker_
 
 g = _G.g
 log = g.Log()
@@ -78,7 +80,7 @@ class CSchedule_:
             return False
     
     @classmethod
-    def batchRun(cls, checker, policy) -> threading.Thread:
+    def batchRun(cls, checker: "CChecker_", policy: dict) -> threading.Thread:
         """批量执行检查器
         根据策略参数执行检查器，只通过schedule配置支持定时执行、指定次数或指定时长
         Args:
@@ -119,7 +121,7 @@ class CSchedule_:
         return thread
     
     @classmethod
-    def _runSchedule(cls, checker, schedule):
+    def _runSchedule(cls, checker: "CChecker_", schedule: dict) -> bool:
         """按照时间表执行
         Args:
             checker: 要执行的检查器对象
@@ -153,7 +155,7 @@ class CSchedule_:
         return False
     
     @classmethod
-    def _onOneTime(cls, checker, config):
+    def _onOneTime(cls, checker: "CChecker_", config: dict) -> bool:
         """处理一次性执行的配置项
         Args:
             checker: 要执行的检查器对象
@@ -172,7 +174,7 @@ class CSchedule_:
         return False
     
     @classmethod
-    def _onInterval(cls, checker, minutes, config):
+    def _onInterval(cls, checker: "CChecker_", minutes: int, config: dict) -> bool:
         """处理间隔执行的配置项
         Args:
             checker: 要执行的检查器对象
@@ -200,7 +202,7 @@ class CSchedule_:
             time.sleep(intervalSeconds)
     
     @classmethod
-    def _onTimePoint(cls, checker, timePointSchedule):
+    def _onTimePoint(cls, checker: "CChecker_", timePointSchedule: dict) -> bool:
         """执行时间点计划
         
         Args:
@@ -276,7 +278,7 @@ class CSchedule_:
         return executed
 
     @classmethod
-    def _run(cls, checker, config) -> eDoRet:
+    def _run(cls, checker: "CChecker_", config: dict) -> eDoRet:
         """按照次数或时长执行
         Args:
             checker: 要执行的检查器对象

@@ -5,6 +5,7 @@ import _G
 import sys
 import importlib
 from typing import Any, Tuple
+import inspect
 
 class Cmd:
     """命令类，存储命令信息"""
@@ -293,29 +294,28 @@ class _CmdMgr_:
         return value
     
     CmdKey = "CC"
-    DataKey = 'DD'
-
     @classmethod
-    def do(cls, cmdStr, data=None) -> Tuple[Any, str]:
+    def do(cls, cmd:dict):
         """执行命令
-        
         Args:
-            cmdStr: 命令字符串
-            data: 额外的数据参数
-        
-        Returns:
-            Tuple[Any, str]: 命令执行结果和命令名称
+            cmd: dict 成员如下：
+                id: 命令ID
+                name: 命令名称
+                data: 命令数据
+                cmd: 命令字符串
         """
+        if cmd is None:
+            return None
         g = _G._G_
         log = g.Log()
+        cmdStr = cmd.get('cmd')
         cmdStr = cmdStr.strip() if cmdStr else ''
         if cmdStr == '':
-            return None, None
+            return
         cmdStr = cmdStr.lower()
         try:
             findCmd = None
             m = None
-            
             # 尝试匹配所有命令的正则表达式，找到最长的匹配
             bestMatch = None
             bestMatchLength = -1
@@ -342,26 +342,29 @@ class _CmdMgr_:
                             bestMatch = cmd
                             m = match
                             bestMatchLength = matchLength
-                            
             findCmd = bestMatch
             if findCmd is None:
                 log.e(f"找不到命令: {cmdStr}")
-                return "", None
+                return
             # 提取命名捕获组作为参数
             kwargs = {}
             for key, value in m.groupdict().items():
                 # 跳过命令关键字,这个不能作为参数
                 if key != cls.CmdKey:
                     kwargs[key] = cls._cleanParam(value)
-            if data:
-                kwargs[cls.DataKey] = data
+            cmdName = findCmd.name.lower()
+            cmd = {'name': cmdName}
+            # 检查目标函数是否有cmd参数
+            sig = inspect.signature(findCmd.func)
+            if 'cmd' in sig.parameters:
+                kwargs['cmd'] = cmd
+            log.log_(f'<{cmdName}>:{cmdStr}', '', 'c')
             result = findCmd.func(**kwargs)
             sResult = str(result) if result is not None else ''
-            log.log_(findCmd.name.lower(), '', 'c', sResult)
-            return result, findCmd.name
+            cmd['result'] = sResult
+            log.log_(f' => {sResult}')
         except Exception as e:
             log.ex(e, f'执行命令出错: {cmdStr}')
-            return None, None
         
     @classmethod
     def _reloadModule(cls, moduleName: str) -> bool:

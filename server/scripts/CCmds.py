@@ -322,25 +322,7 @@ class CCmds_:
             except Exception as e:
                 log.ex(e, f'检查文件 {fileName} 是否存在时出错')
                 return f"e~{str(e)}"
-
-        @regCmd(r"#执行代码|zxdm (?P<code>.+)")
-        def eval(code):
-            """
-            功能：执行代码并返回结果
-            指令名: eval-e
-            中文名: 执行-zx
-            参数: code - 要执行的代码
-            示例: 执行 print("Hello")
-            """
-            g = _G._G_
-            log = g.Log()
-            try:
-                result = g.Tools().doEval(g,code)
-                return g.Tools().toNetStr(result)
-            except Exception as e:
-                log.ex(e, f"执行代码失败: {code}")
-                return None
-
+       
 
         @regCmd(r"#设置坐标修正范围|szzbxz (?P<scope>\d+)")
         def setPosFixScope(scope):
@@ -566,18 +548,37 @@ class CCmds_:
             g.Checker().check(name, g.App().currentApp())
             return f"检查器 {name} 已检查"
 
-        @regCmd(r"#执行|zx(?P<name>\S+)")
-        def do(name):
+            
+        @regCmd(r"#执行|zx(?P<content>\S+)")
+        def runCheck(content, cmd):
             """
-            功能：执行指定名称的检查器
-            示例: 执行 每日签到
+            执行检查器或代码
+                $开头：则认为是代码或者指令
+                @开头：则认为是纯代码
+                否则：认为是检查器名称
+            示例：
+                执行$@print("Hello")
+                执行$back
+                执行看广告
             """
-            g = _G._G_
-            checker = g.Checker().getTemplate(name, False)
-            if checker:
-                checker.Do()
+            if content.startswith('$'):
+                # 执行指令或者代码
+                content = content[1:]
+                return eval(content)
+            elif content.startswith('@'):
+                # 执行纯代码
+                return eval(content)
             else:
-                return f"e~无效检查器: {name}"
+                # 执行检查器
+                Checker = g.Checker()
+                checker = Checker.get(content, create=True)
+                if not checker:
+                    return f"e~未找到检查器: {content}"
+                #异步执行checker.begin()
+                thread = threading.Thread(target=checker.begin)
+                thread.start()
+                return f"执行检查器 {content} 成功"
+                
     
         @regCmd(r"#检测")
         def deTecT():
@@ -595,18 +596,7 @@ class CCmds_:
             else:
                 return "e~检测不到当前应用"
 
-        @regCmd(r"#执行检测|zxjc (?P<checkName>\S+)")
-        def runCheck(checkName):
-            """
-            执行检查器
-            示例：#执行检测 看广告
-            """
-            Checker = g.Checker()
-            checker = Checker.get(checkName, create=True)
-            if not checker:
-                return f"e~未找到检查器: {checkName}"
-            return checker.begin()
-                
+                       
         @regCmd(r"#更新|gx (?P<checkName>\S+)")
         def update(checkName):
             """

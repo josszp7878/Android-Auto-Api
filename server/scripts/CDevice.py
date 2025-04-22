@@ -213,35 +213,41 @@ class CDevice_:
         log = g.Log()
         try:
             command = data.get('command')
-            cmdData = data.get('data', {})
+            cmdData = data.get('data', None)
             cmd_id = data.get('cmd_id')  # 获取命令ID
             
             # 先记录执行命令的日志
-            log.log(command, cls._deviceID, 'c')
-            
+            log.log(command, cls._deviceID, 'c')            
             # 使用 CmdMgr 执行命令
-            result, cmdName = g.CmdMgr().do(command, cmdData)
-            
-            if cmdName is None:
-                return result
-                
-            # 特殊处理reset命令
-            if cmdName and cmdName.lower() == 'reset':
+            cmd = {'id': cmd_id, 'data': cmdData, 'cmd': command}
+            g.CmdMgr().do(cmd)
+            cmdName = cmd.get('name')
+            if cmdName == 'reset':
                 log.i(f'收到重置命令: {command}，不发送结果')
                 # 不发送结果，但也不抛出异常
                 return
-                
             # 发送命令结果，无需在这里单独记录日志，因为CmdResult会在服务端被处理并记录
-            cls.emit('C2S_CmdResult', {
-                'result': result,
-                'device_id': cls._deviceID,
-                'command': command,
-                'cmdName': cmdName,
-                'cmd_id': cmd_id  # 返回命令ID
-            })  
-            
+            cls._sendCmdResult(cmd)
         except Exception as e:
             log.ex(e, f'执行命令出错: {command}')
+    
+    @classmethod
+    def _sendCmdResult(cls, cmd):
+        """发送命令结果"""
+        cls.emit('C2S_CmdResult', {
+            'result': cmd.get('result'),
+            'device_id': cls._deviceID,
+            'cmdName': cmd.get('name'),
+            'cmd_id': cmd.get('id')  # 返回命令ID
+        }) 
+      
+    @classmethod
+    def sendCmdResult(cls, cmd, result):    
+        """发送命令结果"""
+        if cmd is None:
+            return
+        cmd['result'] = result
+        cls._sendCmdResult(cmd) 
 
     @classmethod
     def on_connect(cls):
@@ -320,7 +326,7 @@ class CDevice_:
             cls.sio.emit(event, data)
             return True
         except Exception as e:
-            log.printException(e, f'发送事件失败: {event}')
+            log.ex_(e, f'发送事件失败: {event}')
             return False
 
     @classmethod

@@ -225,7 +225,7 @@ class _Log_:
             return None
 
     @classmethod
-    def _clientLog(cls, tag, level, content, result=None)->dict:
+    def _clientLog(cls, tag, level, content, result='')->dict:
         """发送日志到前端"""
         try:
             CDevice = _G._G_.CDevice()
@@ -235,8 +235,10 @@ class _Log_:
                 logData = cls.createLogData(tag, content, level, result)
                 if CDevice.connected():
                     CDevice.emit('C2S_Log', logData)
-                cls.log_(logData.get('message'), logData.get('tag'),
-                         logData.get('level'), logData.get('result'))
+                cls.log_(content, tag, logData.get('level'))
+                if result != '':
+                    level, result = cls._parseLevel(result, level)
+                    cls.log_(f' =>{result}', tag, level)
                 return logData
         except Exception as e:
             cls.ex_(e, '发送日志到服务器失败')
@@ -244,25 +246,19 @@ class _Log_:
         
         
     @classmethod
-    def log_(cls, content, tag=None, level=None, result=None):
+    def log_(cls, content, tag=None, level='i'):
         """打印日志到终端"""
         g = _G._G_
         server = g.isServer()
         android = None
         if not server:
             android = g.CTools().android
-        tag = tag if tag else ''    
-        level = level if level else 'i'
+        tag = tag if tag else '' 
+        level, content = cls._parseLevel(content, level)
         if android:    
             android.log(content, tag, level)
         else:
             cls._PCLog_(content, tag, level)
-        if result is not None and result != '':
-            level, result = cls._parseLevel(result, 'i')
-            if android:
-                android.log(f' => {result}', '', level)
-            else:
-                cls._PCLog_(f' => {result}', '', level)
             
     @classmethod
     def ex_(cls, e, message=None, tag=None):
@@ -324,6 +320,7 @@ class _Log_:
             isServer = _G._G_.isServer()
             logData = None
             tag = f'[{tag}]' if tag else ''
+            result = str(result) if result else ''
             if isServer:
                 logData = cls._serverLog(tag, level, content, result)
             else:

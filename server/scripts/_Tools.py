@@ -109,7 +109,6 @@ class _Tools_:
             return None
         # 创建安全的执行环境
         locals = {
-            'doCmd': g.CmdMgr().do,
             'app': g.App(),
             'T': g.Tools(),
             'ct': g.CTools(),

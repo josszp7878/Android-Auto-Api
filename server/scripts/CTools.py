@@ -111,7 +111,7 @@ class CTools_(_Tools._Tools_):
     # 简化的输入处理函数
     @classmethod
     def onInput(cls, inputText):
-        _G._G_().CmdMgr().do(inputText)
+        _G._G_().CmdMgr().do({'cmd': inputText})
         
     
     _screenInfoCache = None
