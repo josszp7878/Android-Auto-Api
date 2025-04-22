@@ -6,20 +6,20 @@
   {
     "name": "back",
     "match": "く _",
-    "do": {
+    "event": {
       "_ back": null
     }
   },
   {
     "name": "top-aa",
-    "do": {
+    "event": {
       "签到": null
     }
   },
   {
     "name": "top-发现",
-    "checks": "-aa,haha,bb",
-    "do": {
+    "childs": "-aa,haha,bb",
+    "event": {
       "签到": null
     }
   },
@@ -29,13 +29,13 @@
   },
   {
     "name": "今日头条极速版_明日签到可.*金币",
-    "do": {
-      "看视频(.*)金币": null,
+    "event": {
+      "看视频(.*)金币": null
     }
   },
   {
     "name": "今日签到可.*金币",
-    "do": {
+    "event": {
       "直.领取": null,
       "翻倍领取": null
     }
@@ -65,7 +65,7 @@
   },
   {
     "name": "恭喜累计获得奖励",
-    "do": {
+    "event": {
       "评价": "click"
     }
   },
@@ -74,7 +74,7 @@
   },
   {
     "name": "抖音-任务中心",
-    "do": {
+    "event": {
       "我们": "dd"
     }
   },
@@ -83,19 +83,19 @@
   },
   {
     "name": "明日签到",
-    "do": {
+    "event": {
       "@看视频再": "click;detect"
     }
   },
   {
     "name": "每日打.+好礼",
-    "do": {
+    "event": {
       "点我.取": "click"
     }
   },
   {
     "name": "每日签到",
-    "do": {
+    "event": {
       "立即签到\\+": ""
     }
   },
@@ -105,11 +105,15 @@
   },
   {
     "name": "看广告",
-    "match": "广告&领取成功",
-    "do": {
-      "": "{T.goBack()}"
+    "entry": {
+      "": "@click('看广告')"
     },
-    "timeout": 40
+    "match": "广告(0,0,300,300)",
+    "event": {
+      "领取成功》next": "back",
+      "%30》养机": "@click(1,-300,-1,-1)"
+    },
+    "timeout": 10
   },
   {
     "name": "看视频再得\\d+金币"
@@ -122,5 +126,70 @@
   },
   {
     "name": "签到领金币"
+  },
+  {
+    "name": ".取成功"
+  },
+  {
+    "name": "弹窗处理",
+    "match": "继续使用|稍后再说|知道了|确定",
+    "event": {
+      "继续使用": "click",
+      "稍后再说": "click",
+      "知道了": "click",
+      "确定": "click"
+    },
+    "type": "deamon",
+    "interval": 5,
+    "timeout": 20
+  },
+  {
+    "name": "广告-跳过",
+    "match": "跳过广告|跳过",
+    "event": {
+      "跳过广告": "click",
+      "跳过": "click"
+    },
+    "timeout": 6
+  },
+  {
+    "name": "任务-签到",
+    "match": "每日签到",
+    "event": {
+      "去签到": "click",
+      "签到成功": "exit"
+    },
+    "entry": {
+      "任务页面": "{ T.click('签到') }",
+      "主页": "{ T.click('任务中心') }"
+    },
+    "exit": "主页",
+    "childs": "广告-跳过",
+    "timeout": 15
+  },
+  {
+    "name": "领取奖励",
+    "match": "领取奖励|立即领取",
+    "event": {
+      "领取奖励": "click",
+      "立即领取": "click",
+      "成功领取": "exit"
+    },
+    "timeout": 10
+  },
+  {
+    "name": "看广告",
+    "match": "观看广告|看广告",
+    "event": {
+      "观看广告": "click",
+      "看广告": "click",
+      "领取成功": "exit"
+    },
+    "entry": {
+      "奖励页面": "{ log.i('等待广告页面') }"
+    },
+    "exit": "back",
+    "childs": "广告-跳过",
+    "timeout": 5
   }
 ]

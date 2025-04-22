@@ -1,15 +1,17 @@
-import re
-import time
-import threading
-import json
-from typing import Dict, Any, List, Callable, Optional, TYPE_CHECKING
+from enum import Enum
+from typing import Dict, Any, List,  Optional, TYPE_CHECKING
 import _G
+import datetime
+import os
 if TYPE_CHECKING:
     from _Page import _Page_
-    from CTools import CTools_
+import json
+import re
+import threading
+import time
+from CSchedule import CSchedule_
 g = _G.g
 log = g.Log()
-tools: "CTools_" = g.Tools()
 
 
 class CChecker_:
@@ -63,11 +65,13 @@ class CChecker_:
         # 核心属性（会被序列化）
         self.name = name.lower()  # 名称，必填
         self._match = None        # 默认匹配规则为名称
-        self._checks = None      # 检查器列表
-        self.do = {}        # 默认操作为空
+        self._childs = None      # 子检查器列表
+        self.event = {}        # 默认事件处理为空
         self.interval = 0         # 默认检查间隔为0
         self.timeout = 5          # 默认超时为5秒
         self.type = 'once'        # 默认类型为一次性
+        self.entry = {}          # 新增：入口代码，页面名为键，执行代码为值
+        self.exit = ""           # 新增：出口逻辑，页面名或代码
 
         # 运行时属性（不会被序列化）
         self.data = data          # 附加数据
@@ -75,28 +79,39 @@ class CChecker_:
         self.startTime = 0        # 开始时间
         self.lastTime = 0         # 上次检查时间
         self._enabled = False     # 是否启用
+        self.children = []        # 存储由当前检查器启动的子检查器
+        self.childThreads = []    # 存储子检查器的线程
 
         # 如果有配置，则更新属性
         if config:
-            self.update_from_dict(config)
+            self.fromConfig(config)
 
-    def update_from_dict(self, config: Dict[str, Any]):
+    def fromConfig(self, config: Dict[str, Any]):
         """从字典更新属性，只更新存在的字段"""
-        if 'do' in config and config['do']:
-            self.do = config['do'].copy() if isinstance(config['do'], dict) else {}
+        if 'event' in config and config['event']:
+            self.event = config['event'].copy() \
+                if isinstance(config['event'], dict) else {}
         if 'match' in config and config['match']:
             self._match = config['match']
-        if 'checks' in config and config['checks']:
-            self._checks = config['checks']
+        if 'childs' in config and config['childs']:
+            self._childs = config['childs']
+        # 兼容旧配置
+        elif 'checks' in config and config['checks']:
+            self._childs = config['checks']
         if 'interval' in config:
             self.interval = config['interval']
         if 'timeout' in config:
             self.timeout = config['timeout']
         if 'type' in config:
             self.type = config['type']
+        if 'entry' in config and config['entry']:
+            self.entry = config['entry'].copy() \
+                if isinstance(config['entry'], dict) else {}
+        if 'exit' in config and config['exit']:
+            self.exit = config['exit']
         return self
 
-    def to_dict(self) -> Dict[str, Any]:
+    def toConfig(self) -> Dict[str, Any]:
         """将对象转换为可序列化的字典，只保存非默认值"""
         result = {'name': self.name}  # 名称是必须的
         
@@ -106,10 +121,10 @@ class CChecker_:
         # 检查和保存非默认值字段
         if self._match:
             result['match'] = self._match
-        if self._checks:
-            result['checks'] = self._checks        
-        if self.do:  # 只有当有操作时才保存
-            result['do'] = self.do.copy()
+        if self._childs:
+            result['childs'] = self._childs        
+        if self.event:  # 只有当有操作时才保存
+            result['event'] = self.event.copy()
             
         # 其他属性只有当不是默认值时才保存
         if self.interval != default.interval:
@@ -120,6 +135,13 @@ class CChecker_:
             
         if self.type != default.type:
             result['type'] = self.type
+            
+        # 保存entry和exit属性
+        if self.entry:
+            result['entry'] = self.entry.copy()
+            
+        if self.exit:
+            result['exit'] = self.exit
             
         return result
 
@@ -142,7 +164,7 @@ class CChecker_:
     def match(self) -> str:
         return self._match or self.name.split('-')[-1]
         
-    def addProp(self, prop: str, value: str, value1: str = None)->bool:
+    def addProp(self, prop: str, value: str, value1: str = None) -> bool:
         log = _G.g.Log()
         try:    
             if 'mat' in prop:
@@ -154,20 +176,30 @@ class CChecker_:
                 elif value.startswith('&'):
                     value = value[1:]
                 range = CChecker_.parseMatchRange(self._match, value1)
-                value = CChecker_._addStrListProp(self._match, split, value, range)
+                value = CChecker_._addStrListProp(
+                    self._match, split, value, range)
                 if value:
                     self._match = value
                     log.d(f"_match: {oldVal} => {self._match}")
-            elif 'che' in prop:
-                oldVal = self._checks
-                value = CChecker_._addStrListProp(self._checks, ',', value, value1)
+            elif 'chi' in prop or 'che' in prop:  # 兼容旧命令
+                oldVal = self._childs
+                value = CChecker_._addStrListProp(
+                    self._childs, ',', value, value1)
                 if value:
-                    self._checks = value
-                    log.d(f"_checks: {oldVal} => {self._checks}")
-            elif 'do' in prop:
-                oldVal = self.do
-                self.do[value] = value1
-                log.d(f"do: {oldVal} => {self.do}")
+                    self._childs = value
+                    log.d(f"_childs: {oldVal} => {self._childs}")
+            elif 'event' in prop:
+                oldVal = self.event
+                self.event[value] = value1
+                log.d(f"event: {oldVal} => {self.event}")
+            elif 'entry' in prop:
+                oldVal = self.entry
+                self.entry[value] = value1
+                log.d(f"entry: {oldVal} => {self.entry}")
+            elif 'exit' in prop:
+                oldVal = self.exit
+                self.exit = value
+                log.d(f"exit: {oldVal} => {self.exit}")
             else:
                 log.e(f"不支持add的属性: {prop}")
                 return False
@@ -176,7 +208,7 @@ class CChecker_:
             log.ex(e, f"add{prop}失败: {value}")
             return False
         
-    def removeProp(self, prop: str, value: str)->bool:
+    def removeProp(self, prop: str, value: str) -> bool:
         """删除指定属性
         Args:
             prop: 属性名
@@ -193,18 +225,26 @@ class CChecker_:
                 if value:
                     self._match = value
                     log.d(f"_match: {oldVal} => {self._match}")
-            elif 'che' in prop:
-                oldVal = self._checks
+            elif 'chi' in prop or 'che' in prop:  # 兼容旧命令
+                oldVal = self._childs
                 split = ','
                 value = value.strip(split)
-                value = CChecker_._delStrListProp(self._checks, split, value)
+                value = CChecker_._delStrListProp(self._childs, split, value)
                 if value:
-                    self._checks = value
-                    log.d(f"_checks: {oldVal} => {self._checks}")
-            elif 'do' in prop:
-                oldVal = self.do
-                self.do.pop(value)
-                log.d(f"do: {oldVal} => {self.do}")
+                    self._childs = value
+                    log.d(f"_childs: {oldVal} => {self._childs}")
+            elif 'event' in prop:
+                oldVal = self.event
+                self.event.pop(value)
+                log.d(f"event: {oldVal} => {self.event}")
+            elif 'entry' in prop:
+                oldVal = self.entry
+                self.entry.pop(value)
+                log.d(f"entry: {oldVal} => {self.entry}")
+            elif 'exit' in prop:
+                oldVal = self.exit
+                self.exit = ""
+                log.d(f"exit: {oldVal} => {self.exit}")
             else:
                 log.e(f"不支持remove的属性: {prop}")
                 return False
@@ -227,7 +267,7 @@ class CChecker_:
         if not range:
             return range  
         tools = g.CTools()
-        #从当前屏幕获取match文字对应的坐标
+        # 从当前屏幕获取match文字对应的坐标
         pos = tools.findTextPos(match)
         DEF = 75
         if range == '_':
@@ -249,8 +289,9 @@ class CChecker_:
         return range
     
     @classmethod
-    def _addStrListProp(cls, curVal:str, split:str, value: str, range: str = None):
-        #为了支持已有ITEM的替换，先将match转换为列表
+    def _addStrListProp(cls, curVal: str, split: str, value: str, 
+                        range: str = None):
+        # 为了支持已有ITEM的替换，先将match转换为列表
         newValue = f'{value}{range}' if range else value
         if newValue == curVal:
             return None
@@ -266,20 +307,29 @@ class CChecker_:
         return curVal
     
     @classmethod
-    def _delStrListProp(cls, curVal:str, split:str, value: str):
-        #为了支持已有ITEM的替换，先将match转换为列表
+    def _delStrListProp(cls, curVal: str, split: str, value: str):
+        # 为了支持已有ITEM的替换，先将match转换为列表
         if curVal:
             return re.sub(rf'[{split}\s]*{value}', '', curVal)
         return curVal
 
 
     @property
+    def childs(self) -> List[str]:
+        return self._childs
+
+    @childs.setter
+    def childs(self, value: List[str]):
+        self._childs = value
+
+    # 兼容旧代码
+    @property
     def checks(self) -> List[str]:
-        return self._checks
+        return self._childs
 
     @checks.setter
     def checks(self, value: List[str]):
-        self._checks = value
+        self._childs = value
 
     @enabled.setter
     def enabled(self, value: bool):
@@ -289,13 +339,15 @@ class CChecker_:
             self.startTime = time.time()
             self.lastTime = 0
     
-    def Match(self)->bool:
+    def Match(self) -> bool:
         """执行检查逻辑
         Returns:
             bool: 检查是否通过
         """
         result = False
         try:
+            tools = g.CTools()
+            log.d(f"{self.name}.Match")
             match = self.match
             if match == '':
                 return True
@@ -310,60 +362,77 @@ class CChecker_:
             result = False
         return result
     
-    Exit = 'exit'
+    class eDoRet(Enum):
+        # 无操作
+        none = ''
+        # 结束schedule
+        endSchedule = 'endSchedule'
+        # 结束本次check，继续schedule
+        end = 'end'
+        # 出错
+        error = 'error'
+    
     # 执行操作
-    # 返回True表示执行完成，可以退出，False表示执行失败，继续check.直到TIMEOUT
-    def Do(self) -> bool:
+    def Do(self) -> eDoRet:
         try:
-            endDo = len(self.do) <= 1
-            actions = self.do
-            if not actions: 
-                #没有操作，直接点击match
-                return tools.click(self.match)
-            for actionName, action in self.do.items():
-                # 以$结尾的DO操作，表示执行后退出
-                actionName = actionName.strip()
-                if actionName.endswith('$'):
-                    endDo = True
-                    actionName = actionName[:-1]
-                if actionName != '':
-                    item = tools.matchText(actionName)
-                    if item is None and tools.isAndroid():
-                        continue
-                    if '(?P<' in actionName:
-                        m = re.search(actionName, item['t'])
-                        #将m里面的参数设置只能怪self.data里面去
-                        for k, v in m.groupdict().items():
-                            self.data[k] = v
-                action = action.strip() if action else ''
-                ret = False
-                if action == '':
-                    ret = tools.click(actionName)
-                else:
-                    codes = action.split(';')
-                    for code in codes:
-                        code = code.strip()
-                        if code.lower() == self.Exit:
-                            ret = self.Exit
-                        elif code.lower() == 'click':
-                            ret = tools.click(actionName)
-                        elif code.lower() == 'back':
-                            ret = tools.goBack()
-                        elif code.lower() == 'home':
-                            ret = tools.goHome()
-                        elif code.lower() == 'detect':
-                            ret = g.App().detect()
-                        else:
-                            if not code.startswith('{'):
-                                code = f'{{ {code} }}'
-                            ret = tools.do(self, code)
-                if ret == self.Exit:
-                    return True
-                if ret:
-                    return endDo
+            events = self.event.items() if self.event else []
+            ret = self.eDoRet.none
+            tools = g.CTools()
+            log.d(f"{self.name}.Do")
+            if len(events) == 0: 
+                # 没有操作，直接点击match
+                if tools.click(self.match):
+                    ret = self.eDoRet.end
+                return ret                    
+            else:
+                for actionName, action in events:
+                    # 以$结尾的操作，表示执行后退出
+                    actionName = actionName.strip()
+                    strs = actionName.split('》')
+                    next = self.eDoRet.none
+                    if len(strs) > 1:
+                        actionName = strs[0]
+                        next = self.eDoRet(strs[1])                    
+                    if actionName != '':
+                        item = tools.matchText(actionName)
+                        if item is None and tools.isAndroid():
+                            continue
+                        if '(?P<' in actionName:
+                            m = re.search(actionName, item['t'])
+                            # 将m里面的参数设置只能怪self.data里面去
+                            for k, v in m.groupdict().items():
+                                self.data[k] = v
+                    action = action.strip() if action else ''
+                    ret = False
+                    if action == '':
+                        ret = tools.click(actionName)
+                    else:
+                        codes = action.split(';')
+                        for code in codes:
+                            code = code.strip()
+                            if code.lower() == 'exit':
+                                ret = 3
+                            elif code.lower() == 'click':
+                                ret = tools.click(actionName)
+                            elif code.lower() == 'back':
+                                ret = tools.goBack()
+                            elif code.lower() == 'home':
+                                ret = tools.goHome()
+                            elif code.lower() == 'detect':
+                                ret = g.App().detect()
+                            else:
+                                if not code.startswith('@'):
+                                    code = f'@ {code}'
+                                ret = tools.do(self, code)
+                if isinstance(ret, str):
+                    # 将ret转换为eDoRet
+                    ret = self.eDoRet(ret)
+                elif not isinstance(ret, self.eDoRet):
+                    ret = next if ret else self.eDoRet.none
+                return ret
         except Exception as e:
-            log.ex(e, f"执行操作失败: {self.do}")
-        return False
+            log.ex(e, f"执行操作失败: {self.event}")
+            return self.eDoRet.error
 
     @classmethod
     def _findTemplate(cls, name: str) -> Optional["CChecker_"]:
@@ -374,10 +443,23 @@ class CChecker_:
                 return template
         return None
     
-    
-    
     @classmethod
     def getTemplate(cls, checkName: str, create: bool = False) -> Optional["CChecker_"]:
+        """获取指定名称的模板        
+        Args:
+            checkName: checker模板名称
+            create: 如果不存在是否创建
+        Returns:
+            CChecker_: 模板对象，如果不存在且不创建则返回None
+        """
+        checkerName = checkName.strip() if checkName else ''
+        if checkerName == '':
+            return None
+        checkerName = g.App().getCheckName(checkerName)
+        return cls._getTemplate(checkerName, create=False)
+    
+    @classmethod
+    def _getTemplate(cls, checkName: str, create: bool = False) -> Optional["CChecker_"]:
         """获取指定名称的模板        
         Args:
             checkName: checker模板名称
@@ -412,7 +494,7 @@ class CChecker_:
             configPath = os.path.join(_G.g.rootDir(), 'config', 'Checks.json')
             
             # 将模板列表转换为可序列化的字典列表
-            saveConfig = [template.to_dict() for template in cls.templates()]
+            saveConfig = [template.toConfig() for template in cls.templates()]
             # 删除重复的模板
             saveConfig = [t for n, t in enumerate(saveConfig) if t not in saveConfig[n + 1:]]
             saveConfig.sort(key=lambda x: x['name'])        
@@ -426,14 +508,14 @@ class CChecker_:
     def check(cls, checkName: str, data: Any):
         """启动指定检查器并覆盖参数"""
         try:
-            config = cls.getTemplate(checkName, False)
+            config = cls._getTemplate(checkName, False)
             if not config:
                 return
-            checks = config.checks
-            if checks is None or checks.strip() == '':
+            childsList = config.childs
+            if childsList is None or childsList.strip() == '':
                 return
-            for check in checks.split(','):
-                cls._addCheck(check, data)
+            for childName in childsList.split(','):
+                cls._addCheck(childName, data)
         except Exception as e:
             log.ex(e, f"启动检查器 {checkName} 失败")
 
@@ -476,7 +558,7 @@ class CChecker_:
             # 转移DEFAULT实例
             cls.DEFAULT = oldCls.DEFAULT
         cls._templates = None  # 清空模板缓存强制重新加载
-        cls.start()
+        # cls.start()
 
     @classmethod
     def remove(cls, checker: "CChecker_"):
@@ -484,94 +566,6 @@ class CChecker_:
         with cls._lock:
             if checker in cls._checkers:
                 cls._checkers.remove(checker)
-
-    @classmethod
-    def start(cls, interval: int = None):
-        """启动定期检查线程
-        Args:
-            interval: 检查间隔(秒)，如果为None则使用默认值
-        """
-        try:
-            if cls._checkThread and cls._checkThread.is_alive():
-                return False
-
-            if interval is not None:
-                cls._checkInterval = max(1, interval)  # 确保间隔至少为1秒
-            cls._checkers = []
-            cls._running = True
-            cls._checkThread = threading.Thread(target=cls._loop, daemon=True)
-            cls._checkThread.start()
-            log.i(f"启动检查线程，间隔{cls._checkInterval}秒")
-            return True
-        except Exception as e:
-            log.ex(e, "启动检查线程失败")
-            return False
-
-    @classmethod
-    def end(cls):
-        """停止定期检查线程"""
-        try:
-            with cls._lock:
-                cls._running = False
-                if cls._checkThread and cls._checkThread.is_alive():
-                    cls._checkThread.join(1.0)  # 等待线程结束，最多1秒
-                # log.i("停止检查线程")
-                return True
-        except Exception as e:
-            log.ex(e, "停止检查线程失败")
-            return False
-
-    @classmethod
-    def _loop(cls):
-        """检查线程主循环"""
-        log.i("检查线程开始运行")
-        while cls._running:
-            try:
-                # 复制检查器列表以避免迭代时修改
-                checkers = cls._checkers
-                currentTime = time.time()
-
-                i = 0  # 初始化i变量
-                while i < len(checkers):
-                    checker = checkers[i]
-                    if not cls._running:
-                        break
-                    if not checker.enabled:
-                        i += 1
-                        continue
-                    # 检查是否到达检查间隔时间
-                    deltaTime = currentTime - checker.lastTime
-                    if checker.interval > 0 and deltaTime < checker.interval:
-                        i += 1  # 增加索引
-                        continue  # 未到达检查间隔，跳过此检查器
-                    # 检查是否超时
-                    checker.pastTime = currentTime - checker.startTime
-                    if checker.type != 'deamon':
-                        if checker.timeout > 0 and checker.pastTime > checker.timeout:
-                            log.d(f"检查器 {checker.name} 超时")
-                            checker.enabled = False
-                            i += 1
-                            continue    # 跳过此检查器
-                    try:
-                        # 更新上次检查时间
-                        checker.lastTime = currentTime
-                        ret = checker.Match()
-                        if ret:
-                            if checker.Do():
-                                if checker.type == 'temp':
-                                    checkers.remove(checker)
-                                elif checker.type == 'once':
-                                    checker.enabled = False
-                        i += 1  # 增加索引
-                    except Exception as e:
-                        log.ex(e, f"执行检查器 {checker.name} 出错")
-                        i += 1  # 即使出错也要增加索引
-
-                time.sleep(1)
-            except Exception as e:
-                log.ex(e, "检查线程异常")
-                time.sleep(1)  # 发生异常时短暂暂停
-        log.i("检查线程已停止")
 
     @classmethod
     def uncheckPage(cls, page: "_Page_"):
@@ -597,8 +591,8 @@ class CChecker_:
             # 创建新的运行时检查器
             checker = cls(checkerName)
             # 只复制非默认值属性
-            config_dict = template.to_dict()
-            checker.update_from_dict(config_dict)
+            config_dict = template.toConfig()
+            checker.fromConfig(config_dict)
             # 添加到运行时检查器列表
             cls._checkers.append(checker)
             # 覆盖额外参数
@@ -607,3 +601,157 @@ class CChecker_:
                     if hasattr(checker, k):
                         setattr(checker, k, v)
         return checker
+    
+    def begin(self, params: Dict[str, Any] = None) -> eDoRet:
+        """执行检查器
+        """
+        if params:
+            for k, v in params.items():
+                setattr(self, k, v)
+        self._stopAllChildren()
+        if self._onEnter():
+            ret = self._update()
+            self._onExit()
+            # 停止所有子检查器
+            self._stopAllChildren()
+            return ret
+        return self.eDoRet.error
+
+    def _onExit(self):
+        """执行出口逻辑"""
+        exitCode = self.exit
+        if exitCode:
+            try:
+                log.d(f"执行出口逻辑: {exitCode}")
+                if exitCode.startswith('@'):
+                    # 作为代码执行
+                    tools.do(self, exitCode)
+                else:
+                    # 作为页面名称，进行跳转
+                    g.App().gotoPage(self.exit)
+            except Exception as e:
+                log.ex(e, f"执行出口逻辑失败: {exitCode}") 
+
+    def _onEnter(self) -> bool:
+        """执行入口代码
+        根据当前页面名称执行对应的entry代码，然后进行match匹配
+        Returns:
+            bool: 入口执行是否成功
+        """
+        try:
+            entryList = self.entry
+            if entryList:
+                # 匹配并执行entry代码
+                curPageName = g.App().currentApp().currentPage.name
+                entryCode = next((code for pageName, code in entryList.items() 
+                            if re.search(pageName, curPageName)), None) or entryList.get('', None)
+                if entryCode:
+                    tools = g.CTools()
+                    # 执行入口代码
+                    ret = tools.do(self, entryCode)
+                    log.d(f"执行入口代码: {entryCode}=>{ret}")
+                    if not ret:
+                        log.w(f"执行入口代码失败: {entryCode}")
+                        return False
+            # 如果entry执行成功，延时3秒后进行匹配
+            time.sleep(3)
+            return self.Match()
+        except Exception as e:
+            log.ex(e, f"执行入口代码异常: {self.name}")
+            return False
+    
+    def _update(self) -> eDoRet:
+        """执行检查器更新逻辑
+        0. 循环判定基于checker的enable属性
+        1. 匹配event是否存在，成功则执行对应逻辑
+        2. 匹配childs里的子检查器，匹配成功则异步执行对应update()
+        3. 如果timeout为正数，判定超时，超时直接跳出更新循环
+        4. 通过设置enable为False可以结束checker生命周期
+        5. 循环跳出后，停止所有子检查器并执行出口逻辑
+        Returns:
+            eDoRet: 执行结果
+        """
+        startTime = time.time()
+        self.enabled = True
+        self.children = []
+        self.childThreads = []
+        try:
+            log.i(f"开始执行checker {self.name} 更新循环")
+            ret = self.eDoRet.none
+            # 主循环，条件是检查器启用状态
+            while self.enabled:
+                # 处理超时逻辑
+                if self.timeout > 0:
+                    currentTime = time.time()
+                    elapsedTime = currentTime - startTime
+                    if elapsedTime > self.timeout:
+                        log.d(f"checker {self.name} 超时")
+                        break
+                # 执行检查器操作
+                ret = self.Do()
+                if ret == self.eDoRet.end or ret == self.eDoRet.endSchedule:
+                    log.d(f"checker {self.name} 结束")
+                    break
+                elif ret == self.eDoRet.error:
+                    raise Exception(f"checker {self.name} 执行出错")
+                # 启动子检查器
+                self._startChildren()
+                # 等待间隔
+                time.sleep(1) 
+            self._exit()
+            return ret
+        except Exception as e:
+            log.ex(e, f"执行检查器更新循环异常: {self.name}")
+            return self.eDoRet.error
+        finally:
+            # 确保更新结束时禁用检查器
+            self.enabled = False
+            # 再次确保所有子检查器都被停止
+            self._stopAllChildren()
+
+    
+    def _startChildren(self):
+        """启动子检查器"""
+        if self._childs:
+            for childName in self._childs.split(','):
+                childName = childName.strip()
+                if not childName:
+                    continue
+                
+                try:
+                    # 获取检查器
+                    checker = CChecker_.get(childName, create=True)
+                    if checker and checker.Match():
+                        log.d(f"匹配到子检查器: {childName}")
+                        
+                        # 添加到当前检查器的子检查器列表
+                        if checker not in self.children:
+                            self.children.append(checker)
+                        
+                        # 异步启动子检查器的update方法
+                        thread = threading.Thread(
+                            target=checker._update,
+                            daemon=True
+                        )
+                        self.childThreads.append(thread)
+                        thread.start()
+                except Exception as e:
+                    log.ex(e, f"执行子检查器失败: {childName}")
+
+    def _stopAllChildren(self):
+        """停止所有子检查器"""
+        # 停止所有子检查器
+        for child in self.children:
+            child.enabled = False        
+        # 等待所有子线程结束
+        for thread in self.childThreads:
+            if thread.is_alive():
+                thread.join(1)  # 等待最多1秒
+        # 清空子检查器和线程列表
+        self.children = []
+        self.childThreads = []
+
+    
+
+
+

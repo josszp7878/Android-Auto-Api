@@ -60,7 +60,7 @@ class _App_:
         return name
 
     @property
-    def currentPage(self):
+    def currentPage(self)->"_Page._Page_":
         return self._currentPage
     
     def _setCurrentPage(self, page: "_Page._Page_"):
@@ -125,8 +125,7 @@ class _App_:
         g = _G._G_
         log = g.Log()
         Checker = g.Checker()
-        checkerName = _App_.getCheckName(page.name)
-        checker = Checker.getTemplate(checkerName, create=False)
+        checker = Checker.getTemplate(page.name, create=False)
         ret = False
         if checker:
             ret = checker.match()

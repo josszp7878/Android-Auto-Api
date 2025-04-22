@@ -138,7 +138,8 @@ class _Tools_:
             g = _G._G_
             log = g.Log()
             # str = cls._replaceVars(this, str)
-            evaled = re.match(r'^\s*\{(.*)\}\s*$', str)
+            # evaled = re.match(r'^\s*\{(.*)\}\s*$', str)
+            evaled = re.match(r'^\s*@(.*)\s*$', str)
             result = None
             if evaled:
                 code = evaled.group(1)

@@ -1,6 +1,7 @@
 from ctypes import cast
 from datetime import datetime
 import json
+import threading
 import _G
 # import typing
 # if typing.TYPE_CHECKING:
@@ -426,12 +427,12 @@ class CCmds_:
             功能：开始编辑
             检测器有以下参数可以设置：
                 match: 匹配规则
-                do: 匹配 + 操作 对
+                event: 匹配 + 操作 对
                 timeout: 超时时间
                 interval: 检测间隔
                 示例:
                 "name": "每日打.+好礼",
-                "do": {"点我.取": "click"}
+                "event": {"点我.取": "click"}
             示例：
             @编辑 每日打.+好礼
             """
@@ -442,7 +443,6 @@ class CCmds_:
             pos = g.CTools().findTextPos(name.strip('_'))
             if pos is None:
                 log.w(f"未找到{name}的位置")
-            name = g.App().getCheckName(name)
             Checker = g.Checker()
             checker = Checker.getTemplate(name, False)
             if not checker:
@@ -470,10 +470,10 @@ class CCmds_:
         @regCmd(r"#设置属性|szsx (?P<param>\w+)(?P<value>.+)?")
         def setProp(param, value=None):
             """
-            设置检查器参数，如interval、timeout,match,do等
-            其中do的格式为：{匹配, 操作}
+            设置检查器参数，如interval、timeout,match,event等
+            其中event的格式为：{匹配, 操作}
             示例：
-            set do {'.*签到', 'click'}
+            set event {'.*签到', 'click'}
             set match {'.*签到'}
             set timeout {10}
             """
@@ -540,7 +540,7 @@ class CCmds_:
             checkers = g.Checker().getTemplates(checkName)
             if not checkers:
                 return f"{checkName} 不存在"
-            return "\n".join(f"{json.dumps(t.to_dict(), indent=2, ensure_ascii=False)}" for t in checkers)
+            return "\n".join(f"{json.dumps(t.toConfig(), indent=2, ensure_ascii=False)}" for t in checkers)
 
         @regCmd(r"#匹配|pp(?P<name>\S+)")
         def maTch(name, enabled=None):
@@ -549,7 +549,6 @@ class CCmds_:
             示例: 匹配 每日签到
             """ 
             g = _G._G_
-            name = g.App().getCheckName(name)
             checker = g.Checker().getTemplate(name, False)
             if checker:
                 checker.Match()
@@ -574,7 +573,6 @@ class CCmds_:
             示例: 执行 每日签到
             """
             g = _G._G_
-            name = g.App().getCheckName(name)
             checker = g.Checker().getTemplate(name, False)
             if checker:
                 checker.Do()
@@ -596,3 +594,66 @@ class CCmds_:
                 return f"当前应用: {curApp.name} 当前页面: {curApp.curPage.name}"
             else:
                 return "e~检测不到当前应用"
+
+        @regCmd(r"#执行检测|zxjc (?P<checkName>\S+)")
+        def runCheck(checkName):
+            """
+            执行检查器
+            示例：#执行检测 看广告
+            """
+            Checker = g.Checker()
+            checker = Checker.get(checkName, create=True)
+            if not checker:
+                return f"e~未找到检查器: {checkName}"
+            return checker.begin()
+                
+        @regCmd(r"#更新|gx (?P<checkName>\S+)")
+        def update(checkName):
+            """
+            测试检查器的更新逻辑
+            示例：#更新 看广告
+            """
+            Checker = g.Checker()
+            checker = Checker.get(checkName, create=True)
+            if not checker:
+                return f"e~未找到检查器: {checkName}"
+            return checker._update()
+        
+        # 新增批量执行相关命令
+        @regCmd(r"#批量执行|plzx (?P<checkName>\S+)(?P<data>.+)?")
+        def batchRun(self, checkName:str, data:str):
+            """批量执行检查器
+            参数: data
+            [次数] [间隔秒数]
+            次数默认为1，间隔默认为5秒
+            """
+            Checker = g.Checker()
+            checker = Checker.get(checkName, create=True)
+            if not checker:
+                return f'找不到检查器：{checkName}'
+            policy = {}
+            if data:
+                # 将DATA转换成字典
+                data = data.replace(' ', '')
+                datas = data.split(',')
+                for d in datas:
+                    if d.isdigit():
+                        times = int(d)
+                        policy["t"] = times
+                    else:
+                        interval = int(d)
+                        policy["i"] = interval
+            from CSchedule import CSchedule_
+            CSchedule_.batchRun(checker, policy)
+            return f'批量执行: {checkName} 成功'
+        
+        @regCmd(r"执行所有")
+        def runAll(self):
+            """根据策略文件批量执行检查器
+            策略执行 [策略文件路径]
+            默认使用config/Policy.json
+            """
+            from CSchedule import CSchedule_
+            CSchedule_.runAll()
+            return '执行所有策略完成'
+                

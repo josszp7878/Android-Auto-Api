@@ -639,6 +639,7 @@ class CTools_(_Tools._Tools_):
                 offset = (coords[0], coords[1])
             # 查找文本位置
             pos = cls.findTextPos(parsed_text, direction)
+            log.i(f"click: {text} 找到位置: {pos}")
         return cls.clickPos(pos, offset)
     
     @classmethod
@@ -647,7 +648,7 @@ class CTools_(_Tools._Tools_):
         log = _G._G_.Log()
         ret = True
         try:
-            log.i(f"点击位置: {pos}，偏移:{offset}")
+            # log.i(f"点击位置: {pos}，偏移:{offset}")
             if pos:
                 x = pos[0]
                 y = pos[1]
