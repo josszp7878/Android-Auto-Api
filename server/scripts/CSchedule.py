@@ -16,17 +16,7 @@ log = g.Log()
 class CSchedule_:
     """调度器类，用于按照策略执行检查器"""
     
-    # 导入eDoRet枚举类型，与CChecker_保持一致
-    class eDoRet(Enum):
-        # 无操作
-        none = ''
-        # 结束schedule
-        endSchedule = 'endSchedule'
-        # 结束本次check，继续schedule
-        end = 'end'
-        # 出错
-        error = 'error'
-    
+   
     @classmethod
     def runAll(cls, policyFile: str = None):
         """根据策略文件批量执行所有配置的检查器
@@ -166,12 +156,7 @@ class CSchedule_:
         log = g.Log()
         
         log.i(f"一次性执行检查器 {checker.name}")
-        ret = cls._run(checker, config)
-        if ret == cls.eDoRet.endSchedule or ret == cls.eDoRet.end:
-            return True
-        
-        log.w(f"一次性执行失败，返回：{ret}")
-        return False
+        cls._run(checker, config)
     
     @classmethod
     def _onInterval(cls, checker: "CChecker_", minutes: int, config: dict) -> bool:
@@ -193,10 +178,9 @@ class CSchedule_:
         
         while True:
             ret = cls._run(checker, config)
-            if ret == cls.eDoRet.endSchedule:
+            if ret == CChecker_.eDoRet.exit.value:
                 log.i("间隔执行收到终止信号，停止执行")
                 return True
-                
             # 等待到下一个间隔
             log.i(f"等待 {intervalSeconds} 秒后执行下一次检查")
             time.sleep(intervalSeconds)
@@ -265,71 +249,105 @@ class CSchedule_:
                 ret = cls._run(checker, config)
                 executed = True
                 
-                if ret == cls.eDoRet.endSchedule:
+                if ret == CChecker_.eDoRet.exit.value:
                     log.i(f"时间点 {timeStr} 执行收到终止信号，停止后续执行")
                     return True
-                
                 # 更新基准时间为当前时间
                 now = datetime.datetime.now()
-                
             except Exception as e:
                 log.ex(e, f"执行时间点 {timeStr} 出错")
-                
         return executed
 
     @classmethod
-    def _run(cls, checker: "CChecker_", config: dict) -> eDoRet:
-        """按照次数或时长执行
+    def _run(cls, checker: "CChecker_", config: dict) -> str:
+        """执行检查器并处理结果
+        
         Args:
             checker: 要执行的检查器对象
-            config: 配置字典，包含以下可选参数：
-                - t/tim/times: 执行次数
-                - d/dur/duration: 执行时长（秒）
-                - i/int/interval: 执行间隔（秒）
+            config: 执行配置参数
+            
         Returns:
-            eDoRet: 执行结果
+            str: 执行结果，如果是特殊结果则返回对应的字符串
         """
         log = g.Log()
-        
         try:
-            # 从配置中提取参数
-            times = cls._getConfigValue(config, 't', 'tim', 'times', defaultValue=1)
-            duration = cls._getConfigValue(
-                config, 'd', 'dur', 'duration', defaultValue=0)
-            interval = cls._getConfigValue(
-                config, 'i', 'int', 'interval', defaultValue=5)
+            # 获取执行参数（支持多种键名和简写）
+            times = cls._getConfigValue(config, 't', 'tim', 'times', 
+                                      defaultValue=1)
+            interval = cls._getConfigValue(config, 'i', 'int', 'interval', 
+                                         defaultValue=0)
+            duration = cls._getConfigValue(config, 'd', 'dur', 'duration', 
+                                         defaultValue=0)
             
-            log.i(f"执行配置: times={times}, duration={duration}, interval={interval}")
+            # 处理参数
+            times = int(times) if times else 1
+            interval = int(interval) if interval else 0
+            duration = int(duration) if duration else 0
             
-            # 记录开始时间
-            startTime = time.time()
-            count = 0
+            # 如果指定了times，优先按次数执行
+            if times > 0:
+                for i in range(times):
+                    log.i(f"执行第 {i+1}/{times} 次")
+                    checker.begin()
+                    ret = ''
+                    # 等待结果
+                    while ret == '':
+                        # 如果有返回值，根据返回值处理
+                        if hasattr(checker, 'ret') and checker.ret:
+                            ret = checker.ret
+                        time.sleep(1)
+                    if ret == CChecker_.eDoRet.exit.value:
+                        log.i("执行收到终止信号，停止后续执行")
+                        return ret
+                    # 执行间隔
+                    if i < times - 1 and interval > 0:
+                        log.i(f"等待 {interval} 秒后执行下一次")
+                        time.sleep(interval)
+                return ret
             
-            while True:
-                ret = checker.begin()
-                count += 1
-                log.i(f"执行检查器 {checker.name} 第 {count} 次")
-                if ret == cls.eDoRet.endSchedule:
-                    log.i(f"检查器 {checker.name} 返回终止schedule信号，停止执行")
-                    return ret
-                # 判断是否达到次数限制
-                if times > 0 and count >= times:
-                    log.i(f"已完成指定次数 {times} 次执行")
-                    break
-                # 判断是否达到时长限制
-                elif (times <= 0 and duration > 0 and 
-                      (time.time() - startTime) >= duration):
-                    log.i(f"已完成指定时长 {duration} 秒执行")
-                    break
-                # 如果既没有指定次数也没有指定时长，执行一次就退出
-                elif times <= 0 and duration <= 0:
-                    break
-                time.sleep(interval)
-            return cls.eDoRet.end
+            # 时长优先级低于次数，只有未指定次数时才按时长执行
+            elif duration > 0:
+                end_time = time.time() + duration
+                i = 0
+                while time.time() < end_time:
+                    i += 1
+                    log.i(f"按时长执行第 {i} 次，剩余时间: {int(end_time - time.time())} 秒")
+                    checker.begin()
+                    ret = ''
+                    # 等待结果
+                    while ret == '':
+                        # 如果有返回值，根据返回值处理
+                        if hasattr(checker, 'ret') and checker.ret:
+                            ret = checker.ret
+                        time.sleep(1)
+                    if ret == CChecker_.eDoRet.exit.value:
+                        log.i("执行收到终止信号，停止后续执行")
+                        return ret
+                    # 执行间隔
+                    if time.time() + interval < end_time and interval > 0:
+                        log.i(f"等待 {interval} 秒后执行下一次")
+                        time.sleep(interval)
+                    else:
+                        # 如果剩余时间不足以执行下一次，结束循环
+                        break
+                return ret
             
+            # 没有设置次数和时长，执行一次
+            else:
+                log.i("执行一次")
+                checker.begin()
+                ret = ''
+                # 等待结果
+                while ret == '':
+                    # 如果有返回值，根据返回值处理
+                    if hasattr(checker, 'ret') and checker.ret:
+                        ret = checker.ret
+                    time.sleep(1)
+                return ret
+                
         except Exception as e:
-            log.ex(e, f"执行检查器 {checker.name} 出错")
-            return cls.eDoRet.error
+            log.ex(e, f"执行检查器 {checker.name} 失败")
+            return CChecker_.eDoRet.error.value
 
     @classmethod
     def _getConfigValue(cls, config, *keys, defaultValue=None):

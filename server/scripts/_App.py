@@ -24,6 +24,7 @@ class _App_:
         self.ratio = info.get("ratio", 10000)
         self.description = info.get("description", '')
         self.timeout = info.get("timeout",5)
+        self._checkers = []  # 应用级的检查器列表
 
     PathSplit = '_'
     @classmethod
@@ -66,24 +67,26 @@ class _App_:
     def _setCurrentPage(self, page: "_Page._Page_"):
         if page == self._currentPage:
             return
+        # 保存旧页面引用，用于后续停止相关检查器
+        oldPage = self._currentPage
+        # 更新当前页面
         self._currentPage = page
         log = _G._G_.Log()
         log.i(f"当前页面: {page.name if page else 'None'}")
+        
+        # 停止与旧页面关联的所有检查器
+        if oldPage:
+            for checker in self._checkers[:]:  # 使用副本避免迭代中修改列表
+                if getattr(checker, 'data', None) == oldPage:
+                    self.stop(checker.name)
+        
+        # 获取并启动新页面的检查器
         Checker = _G._G_.Checker()
-        Checker.uncheckPage(self._currentPage)
-        Checker.check(page.name, self)
+        checker = Checker.get(page.name)
+        if checker:
+            checker.begin()
     
-    def checkPage(self, checkerName: str):
-        """检查页面"""
-        try:
-            if checkerName is None: 
-                return
-            g = _G._G_
-            log = g.Log()
-
-        except Exception as e:
-            log.ex(e, f"检查页面失败: {checkerName}")
-    
+   
     def detectPage(self, pageName, delay:int=3)->bool:
         """客户端实现：通过屏幕检测当前页面"""
         try:
@@ -629,12 +632,112 @@ class _App_:
         """注册命令"""
         from _CmdMgr import regCmd
         
-
-
     @classmethod
-    def onLoad(cls, oldCls):
+    def onLoad(cls, oldCls=None):
         """克隆"""
         if oldCls:
             cls.loadConfig()
+
+    def run(self, checkName: str) -> bool:
+        """启动指定名称的检查器
+        
+        在同一应用中，同名检查器只能同时运行一个
+        如果检查器已在运行，会先停止当前运行的检查器再启动新实例
+        
+        Args:
+            checkName: 检查器名称
+            
+        Returns:
+            bool: 是否成功启动
+        """
+        try:
+            g = _G._G_
+            log = g.Log()
+            Checker = g.Checker()
+            
+            # 获取完整检查器名称(包含应用前缀)
+            fullName = Checker.getTemplate(checkName, False).name if checkName else None
+            if not fullName:
+                log.e(f"检查器 {checkName} 未定义")
+                return False
+                
+            # 先停止同名检查器
+            self.stop(checkName)
+            
+            # 创建并启动新检查器
+            checker = Checker.get(fullName, create=True)
+            if not checker:
+                log.e(f"创建检查器 {fullName} 失败")
+                return False
+                
+            # 将检查器添加到应用自己的缓存中
+            self._checkers.append(checker)
+            
+            # 启动检查器
+            checker.begin()
+            log.i(f"启动检查器 {fullName}")
+            return True
+            
+        except Exception as e:
+            log.ex(e, f"启动检查器 {checkName} 失败")
+            return False
+    
+    def stop(self, checkName = None, cancel=False) -> bool:
+        """停止检查器执行
+        
+        Args:
+            checkName: 要停止的检查器名称，如果为None则停止所有检查器
+            cancel: 是否以cancel方式停止，True表示强制取消，不执行退出逻辑
+            
+        Returns:
+            bool: 是否成功停止
+        """
+        log = _G._G_.Log()
+        try:
+            # 如果没有指定名称，停止所有检查器
+            if not checkName:
+                # 停止所有检查器
+                for checker in self._checkers[:]:
+                    self._stopChecker(checker, cancel)
+                return True
+            
+            # 转为小写方便比较
+            checkName = checkName.lower()
+            # 查找并停止指定的检查器
+            checker_found = False
+            for checker in self._checkers[:]:
+                if checker.name.lower() == checkName:
+                    self._stopChecker(checker, cancel)
+                    checker_found = True
+            
+            if not checker_found:
+                log.d(f"未找到检查器: {checkName}")
+                
+            return checker_found
+        except Exception as e:
+            log.ex(e, f"停止检查器 {checkName} 失败")
+            return False
+
+    def _stopChecker(self, checker, cancel=False):
+        """停止单个检查器
+        
+        Args:
+            checker: 要停止的检查器对象
+            cancel: 是否以cancel方式停止
+        """
+        if cancel:
+            # 以cancel方式停止，不执行退出逻辑
+            checker.ret = checker.eDoRet.cancel.value
+            checker.forceCancelled = True  # 设置强制取消标志
+        else:
+            # 正常停止方式
+            checker.ret = checker.eDoRet.end.value
+        
+        # 无论哪种方式都禁用检查器
+        checker.enabled = False
+        
+        # 从检查器列表中移除
+        if checker in self._checkers:
+            self._checkers.remove(checker)
 
 _App_.onLoad(None)

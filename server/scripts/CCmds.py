@@ -251,7 +251,7 @@ class CCmds_:
             """           
             return _G._G_.Tools().goBack()
 
-
+        
 
         @regCmd(r"#查找|cz (?P<text>\S+)(?:\s+(?P<dir>[LRUDNONE]+))?(?:\s+(?P<distance>\d+))?")
         def findText(text, dir=None, distance=None):
@@ -445,7 +445,7 @@ class CCmds_:
                 Checker.save()
             else:
                 if target.type == 'temp':
-                    Checker.templates().remove(target)
+                    Checker.delTemplate(target.name)
             cls._editTarget = None
             return f"保存{target.name} 成功"      
 
@@ -503,7 +503,7 @@ class CCmds_:
             if not checkName:                
                 if cls._editTarget:
                     checkName = cls._editTarget.name
-            if g.Checker().delete(checkName):
+            if g.Checker().delTemplate(checkName):
                 return f"删除检查器 {checkName} 成功"
 
         @regCmd(r"#检查列表|jclb")
@@ -537,20 +537,9 @@ class CCmds_:
             else:
                 return f"e~无效检查器: {name}"
             
-        @regCmd(r"#检查|jc(?P<name>\S+)")
-        def checK(name):
-            """
-            功能：检查指定名称的检查器
-            示例: 检查 每日签到
-            """
-            g = _G._G_
-            name = g.App().getCheckName(name)
-            g.Checker().check(name, g.App().currentApp())
-            return f"检查器 {name} 已检查"
-
             
         @regCmd(r"#执行|zx(?P<content>\S+)")
-        def runCheck(content, cmd):
+        def run(content, cmd):
             """
             执行检查器或代码
                 $开头：则认为是代码或者指令
@@ -561,25 +550,42 @@ class CCmds_:
                 执行$back
                 执行看广告
             """
-            if content.startswith('$'):
-                # 执行指令或者代码
-                content = content[1:]
-                return eval(content)
-            elif content.startswith('@'):
+            if content.startswith('@'):
                 # 执行纯代码
-                return eval(content)
+                return g.Tools().do(content)
             else:
                 # 执行检查器
-                Checker = g.Checker()
-                checker = Checker.get(content, create=True)
-                if not checker:
-                    return f"e~未找到检查器: {content}"
-                #异步执行checker.begin()
-                thread = threading.Thread(target=checker.begin)
-                thread.start()
+                g.App().currentApp().run(content)
                 return f"执行检查器 {content} 成功"
-                
-    
+
+        @regCmd(r"#停止|tz(?:(?P<checkName>[^\s]+|_))?(?:\s+(?P<cancel>[01]))?")
+        def stop(checkName=None, cancel=None):
+            """
+            功能：停止检查器
+            指令名: stop
+            中文名: 停止
+            参数: checkName - 要停止的检查器名称，不指定则停止当前应用所有检查器，使用 _ 表示占位符
+                  cancel - 可选，1表示强制取消不执行退出逻辑，0表示正常退出
+            示例: 停止 page1 - 停止page1检查器
+            示例: 停止 page1 1 - 强制取消page1检查器，不执行退出逻辑
+            示例: 停止 _ 1 - 强制取消当前应用所有检查器，不执行退出逻辑
+            示例: 停止 - 停止当前应用所有检查器
+            """
+            App = _G._G_.App()
+            curApp = App.currentApp()
+            if not curApp:
+                log.e("未找到当前应用")
+                return False
+            # 将 _ 视为空值，处理占位符情况
+            if checkName == "_":
+                checkName = None
+            cancel = g.Tools().toBool(cancel, False)
+            result = curApp.stop(checkName, cancel)
+            if not result:
+                log.e(f"停止检查器 {checkName} 失败")
+                return False
+            return True
+        
         @regCmd(r"#检测")
         def deTecT():
             """
@@ -596,18 +602,6 @@ class CCmds_:
             else:
                 return "e~检测不到当前应用"
 
-                       
-        @regCmd(r"#更新|gx (?P<checkName>\S+)")
-        def update(checkName):
-            """
-            测试检查器的更新逻辑
-            示例：#更新 看广告
-            """
-            Checker = g.Checker()
-            checker = Checker.get(checkName, create=True)
-            if not checker:
-                return f"e~未找到检查器: {checkName}"
-            return checker._update()
         
         # 新增批量执行相关命令
         @regCmd(r"#批量执行|plzx (?P<checkName>\S+)(?P<data>.+)?")
@@ -647,3 +641,21 @@ class CCmds_:
             CSchedule_.runAll()
             return '执行所有策略完成'
                 
+
+        @regCmd(r"#添加屏幕信息|tjpmxx (?P<text>.+) (?P<bound>.+)?")
+        def addScreenInfo(text, bound=None):
+            """功能：添加模拟屏幕文字块用于PC端测试
+            指令名：addScreenInfo
+            中文名：添加屏幕信息
+            参数：
+               text - 文字内容
+               bound - 边界坐标，格式为"x,y,width,height"
+            示例：添加屏幕信息 登录 74,163,98,208
+            """
+            g = _G._G_
+            ctools = g.CTools()
+            if hasattr(ctools, 'addScreenInfo'):
+                result = ctools.addScreenInfo(text, bound)
+                return f"添加屏幕信息成功: {text}, {bound}" if result else "添加屏幕信息失败"
+            else:
+                return "CTools模块不支持addScreenInfo方法"

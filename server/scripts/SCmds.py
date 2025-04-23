@@ -334,7 +334,7 @@ class SCmds_:
                 # 获取屏幕信息
                 screenInfo = device.getScreenInfo(pageName)
                 if not screenInfo:
-                    return f"e~屏幕信息为空"
+                    return f"e~信息为空"
                     
                 # 使用三引号包裹多行JSON字符串
                 cmd = f"eval T.setScreenInfo('''{screenInfo}''')"
@@ -619,30 +619,3 @@ class SCmds_:
             except Exception as e:
                 _Log._Log_.ex(e, "从任务中移除设备失败")
                 return f"e~从任务中移除设备失败: {str(e)}"
-
-        @regCmd(r'#检查列表|jclb')
-        def checKerList():
-            """功能：列出所有可用的检查器
-            指令名：checker_list
-            中文名：检查器列表
-            参数：无
-            示例：检查器列表
-            """
-            try:
-                checker = _G._G_.Checker()
-                templates = checker.templates()
-                
-                if not templates:
-                    return "没有可用的检查器"
-                
-                # 格式化输出
-                result = "可用的检查器列表:\n"
-                for template in templates:
-                    result += f"- {template.name}: {template.match}\n"
-                
-                return result
-            except Exception as e:
-                _G._G_.Log().ex(e, "获取检查器列表失败")
-                return f"e~获取检查器列表失败: {str(e)}"
-
-    

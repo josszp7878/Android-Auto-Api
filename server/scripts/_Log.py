@@ -121,23 +121,24 @@ class _Log_:
     def add(cls, logDict):
         """添加日志到缓存并发送到前端"""      
         try:
-            cls.log_(
-                logDict.get('message'), 
-                logDict.get('tag'), 
-                logDict.get('level'),  
-                logDict.get('result')
-            )          
+            tag = logDict.get('tag')
+            message = logDict.get('message')
+            level = logDict.get('level')
+            cls.log_(message, tag, level)
+            result = logDict.get('result')
+            if result:
+                level, result = cls._parseLevel(result, level)
+                cls.log_(f' =>{result}', tag, level)
             logs = cls._cache
             from app import socketio
             # 检查是否与最后一条日志内容相同
             lastLog = logs[-1] if len(logs) > 0 else None
             if lastLog:
                 # 检查标签、级别、消息和结果是否相同
-                tagEqual = lastLog.get('tag') == logDict.get('tag')
-                levelEqual = lastLog.get('level') == logDict.get('level')
-                msgEqual = lastLog.get('message') == logDict.get('message')
-                resultEqual = lastLog.get('result') == logDict.get('result')
-                
+                tagEqual = lastLog.get('tag') == tag
+                levelEqual = lastLog.get('level') == level
+                msgEqual = lastLog.get('message') == message
+                resultEqual = lastLog.get('result') == result
                 # 去除可能的重复标记
                 if (tagEqual and levelEqual and msgEqual and resultEqual):
                     # 更新重复计数

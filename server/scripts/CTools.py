@@ -8,8 +8,6 @@ import _Tools
 if TYPE_CHECKING:
     import _App
 
-    
-
 class RegionCheck:
     """区域检查工具类"""
 
@@ -44,8 +42,8 @@ class RegionCheck:
         """判断坐标是否在区域内（支持负值）"""
         # 转换负值坐标
         x_min = self._convertValue(self.region[0], True)
-        x_max = self._convertValue(self.region[1], True)
-        y_min = self._convertValue(self.region[2], False)
+        x_max = self._convertValue(self.region[2], True)
+        y_min = self._convertValue(self.region[1], False)
         y_max = self._convertValue(self.region[3], False)
         log = _G._G_.Log()
         x_ok = True
@@ -139,8 +137,8 @@ class CTools_(_Tools._Tools_):
         Args:
             screenInfo: 屏幕信息，可以是JSON字符串或对象
         """
+        log = _G._G_.Log()
         try:
-            log = _G._G_.Log()
             if screenInfo is None or screenInfo.strip() == '':
                 return False
             # 如果是字符串，尝试解析为JSON
@@ -156,14 +154,56 @@ class CTools_(_Tools._Tools_):
             log.i(f"屏幕信息已设置，共{len(screenInfo)}个元素")
             return True
         except Exception as e:
-            log = _G._G_.Log()
             log.ex(e, "设置屏幕信息失败")
             return False
 
+    @classmethod
+    def addScreenInfo(cls, text, bound):
+        """添加模拟屏幕文字块
+        Args:
+            text: 文字内容
+            bound: 边界坐标，格式为"x,y,width,height"
+        Returns:
+            bool: 是否成功添加
+        """
+        log = _G._G_.Log()
+        try:
+            if cls._screenInfoCache is None:
+                cls._screenInfoCache = []
+            
+            # 解析边界坐标
+            bounds = None
+            if bound:
+                bound = bound.strip(' ').strip('(').strip(')')
+                bounds = [int(x) for x in bound.split(',')]
+                l = len(bounds)
+                if l < 2:
+                    log.e(f"边界坐标格式错误: {bound}")
+                    return False
+                elif l == 2:
+                    bounds.append(bounds[0])
+                    bounds.append(bounds[1])
+                elif l == 3:
+                    bounds.append(bounds[2])
 
+            # 创建屏幕信息对象
+            screenInfo = {
+                "t": text,
+                "b": bounds
+            }
+            # 添加到缓存
+            cls._screenInfoCache.append(screenInfo)
+            #log _screenInfoCache
+            log.i(f"屏幕信息:\n {cls._screenInfoCache}")
+            return True
+        except Exception as e:
+            log.ex(e, "添加屏幕信息失败")
+            return False
+    
     @classmethod
     def toPos(cls, item: dict):
-        bounds = [int(x) for x in item['b'].split(',')]
+        # bounds = [int(x) for x in item['b'].split(',')]
+        bounds = item['b']
         centerX = (bounds[0] + bounds[2]) // 2
         centerY = (bounds[1] + bounds[3]) // 2
         return (centerX, centerY)
@@ -187,9 +227,19 @@ class CTools_(_Tools._Tools_):
             # print(f"获取屏幕信息 size={size}")
             for i in range(size):
                 item = info.get(i)
+                t = item.get('t').replace('\n', ' ').replace('\r', '')
+                if t.strip('') == '':
+                    continue
+                b = item.get('b')
+                if b:
+                    try:
+                        b = [int(d) for d in b.split(',')]
+                    except Exception as e:
+                        log.ex(e, f"解析边界坐标失败: {b}")
+                        b = None
                 result.append({
-                    't': item.get('t').replace('\n', ' ').replace('\r', ''),
-                    'b': item.get('b')
+                    't': t,
+                    'b': b or ''
                 })
             # log.i(f"获取屏幕信息 info={result}")
             # 更新缓存
@@ -257,7 +307,8 @@ class CTools_(_Tools._Tools_):
             if not str or str.strip() == '':
                 return None
                 
-            log = _G._G_.Log()
+            g = _G._G_
+            log = g.Log()
             
             # 解析区域信息
             region, text = RegionCheck.parse(str)
@@ -265,8 +316,8 @@ class CTools_(_Tools._Tools_):
             # 获取屏幕信息
             items = cls.getScreenInfo(refresh)
             if not items or len(items) == 0:
-                log.w("屏幕信息为空")
-                return None
+                # log.w("屏幕信息为空")
+                return None if cls.isAndroid() else g.PASS
                 
             # 先匹配文本
             matchedItems = cls.regexMatchItems(text, items)            
@@ -285,8 +336,9 @@ class CTools_(_Tools._Tools_):
                 inRegionItems = []
                 for item in matchedItems:
                     b = item['b']
-                    bounds = [int(x) for x in b.split(',')]
-                    isIn = region.isRectIn(bounds[0], bounds[1], bounds[2], bounds[3])
+                    #已经是列表了，不需要再转换
+                    # bounds = [int(x) for x in b.split(',')]
+                    isIn = region.isRectIn(b[0], b[1], b[2], b[3])
                     if isIn:
                         inRegionItems.append(item)
                         
@@ -760,8 +812,8 @@ class CTools_(_Tools._Tools_):
             找到文本的坐标元组(x,y)或None
         """
         # 尝试在当前屏幕查找
-        log = _G._G_.Log()
-        log.i(f"查找文本: {text}")
+        # log = _G._G_.Log()
+        # log.i(f"查找文本: {text}")
         pos = cls._findTextPos(text)
         if pos is None:
             return None
@@ -790,14 +842,17 @@ class CTools_(_Tools._Tools_):
         text = text.strip() if text else ''
         if text == '':
             return None
-        log = _G._G_.Log()
+        g = _G._G_
+        log = g.Log()
         try:
             # 使用matchText查找文本
             result = cls.matchText(text, True)
+            if result == g.PASS:
+                return None
             # log.i(f"匹配{text}结果: {result}")
             if result:
                 # 从匹配结果中获取坐标
-                bounds = [int(x) for x in result['b'].split(',')]
+                bounds = [int(d) for d in result['b'].split(',')]
                 x = (bounds[0] + bounds[2]) // 2
                 y = (bounds[1] + bounds[3]) // 2
                 # log.i(f"修正比例: {cls._fixFactor}")
@@ -858,5 +913,13 @@ class CTools_(_Tools._Tools_):
         except Exception as _:
             pass    
         return True
-   
+
+
+    @classmethod
+    def getScreenInfoCache(cls):
+        """获取屏幕信息缓存"""
+        if not hasattr(cls, '_screenInfoCache'):
+            cls._screenInfoCache = []
+        return cls._screenInfoCache
+
 CTools_.onLoad(None)

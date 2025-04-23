@@ -22,6 +22,7 @@ class TaskState(Enum):
 class _Tools_:
 
     _TopStr = ["top", "主屏幕", "桌面"]
+    
     @classmethod
     def isTop(cls, appName: str) -> bool:
         """判断是否是主屏幕"""
@@ -93,59 +94,38 @@ class _Tools_:
         return re.sub(r'\$\s*([\w\.\(\)]+)', replacer, s)
 
     @classmethod
-    def doEval(cls, this, code:str) -> Any:
-        """安全执行代码
-        Args:
-            code: 要执行的代码，可以是多行
-            globals: 全局命名空间
-            locals: 局部命名空间
-            
-        Returns:
-            执行结果
-        """
-        g = _G._G_
-        # 检查代码是否为空
-        if not code or code.strip() == '':
-            return None
-        # 创建安全的执行环境
-        locals = {
-            'app': g.App(),
-            'T': g.Tools(),
-            'ct': g.CTools(),
-            'log': g.Log(),
-            'this': this,
-            'g': g,
-            'click': g.CTools().click,
-        }
-        result = eval(code, cls.gl, locals)
-        return result
-    
-    @classmethod
     def do(cls, this, str:str, doAction:bool=True):
-        """执行规则"""
-        return cls._eval(this, str, doAction)
-    
-    @classmethod
-    def _eval(cls, this, str:str, doAction:bool=True):
         """执行规则（内部方法）"""
         try:
-            if str is None:
-                return False
-            str = str.strip()
+            str = str.strip() if str else ''
             if str == '':
                 return False
             g = _G._G_
             log = g.Log()
-            # str = cls._replaceVars(this, str)
-            # evaled = re.match(r'^\s*\{(.*)\}\s*$', str)
-            evaled = re.match(r'^\s*@(.*)\s*$', str)
+            firstChar = str[0]
             result = None
-            if evaled:
-                code = evaled.group(1)
+            if firstChar == '@':
+                code = str[1:]
+                if code == '':
+                    return False
                 try:
-                    result = cls.doEval(this, code)
+                     # 创建安全的执行环境
+                    locals = {
+                        'app': g.App(),
+                        'T': g.Tools(),
+                        'ct': g.CTools(),
+                        'log': g.Log(),
+                        'this': this,
+                        'g': g,
+                        'click': g.CTools().click,
+                    }
+                    result = eval(code, cls.gl, locals)
                 except Exception as e:
                     log.ex(e, f"执行规则失败: {str}")
+            elif firstChar == '>':
+                #代码规则
+                code = str[1:]
+                result = g.App().gotoPage(code)
             else:
                 #非代码规则
                 if doAction:

@@ -557,8 +557,10 @@ class _CmdMgr_:
     
     @classmethod
     def registerCommands(cls):
-        """注册命令管理器自身的命令"""
-        @cls.reg(r"#重启")
+        """注册命令"""
+        regCmd = cls.reg
+        
+        @regCmd(r"#重启")
         def reset():
             """功能：重新加载所有脚本并重启脚本引擎
             指令名：reloadAll
@@ -568,7 +570,7 @@ class _CmdMgr_:
             """
             return cls._reset()
         
-        @cls.reg(r"#加载|jz (?P<moduleName>.+)")
+        @regCmd(r"#加载|jz (?P<moduleName>.+)")
         def reLoad(moduleName):
             """功能：重新加载指定模块
             指令名：reload
@@ -599,7 +601,7 @@ class _CmdMgr_:
                 # 如果没有文件服务器，直接重载
                 cls._reloadModule(moduleName)
         
-
+ 
         cls.HelpStr = """
                 指令使用说明：
 
@@ -620,7 +622,7 @@ class _CmdMgr_:
                     服务端指令列表用：cl 查询
                 """
         
-        @cls.reg(r"#帮助|bz(?P<command>\S+)?(?P<moduleName>\S+)?") 
+        @regCmd(r"#帮助|bz(?P<command>\S+)?(?P<moduleName>\S+)?") 
         def help(command=None, moduleName=None):
             """功能：列出所有可用命令
             参数：
@@ -654,7 +656,7 @@ class _CmdMgr_:
             return result
         
 
-        @cls.reg(r"#时间|sj")
+        @regCmd(r"#时间|sj")
         def time():
             """
             功能：获取当前时间

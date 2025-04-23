@@ -54,6 +54,8 @@ class _G_:
     log = None
     _scriptNamesCache = None  # 添加脚本名称缓存
 
+    PASS = "pass"
+
     @classmethod
     def isServer(cls):
         """是否是服务器端"""    
