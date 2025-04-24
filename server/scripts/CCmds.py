@@ -34,7 +34,7 @@ class CCmds_:
             示例: 位置 确定
             """
             g = _G._G_
-            tools = g.CTools()
+            tools = g.Tools()
             pos = tools.findTextPos(text)
             if pos:
                 return f"{pos}"
@@ -50,7 +50,7 @@ class CCmds_:
             示例: 点[击] 确定
             """
             g = _G._G_
-            tools = g.CTools()
+            tools = g.Tools()
             pos = tools.strToPos(text)
             if pos:
                 return tools.clickPos(pos)
@@ -142,7 +142,7 @@ class CCmds_:
             try:
                 g = _G._G_
                 log = g.Log()
-                screen_data = g.CTools().refreshScreenInfos()
+                screen_data = g.Tools().refreshScreenInfos()
                 if screen_data:
                     # 确保返回标准JSON
                     return json.dumps([
@@ -165,7 +165,7 @@ class CCmds_:
             参数: param - 滑动参数，格式为"起点x,起点y,终点x,终点y"或方向
             示例: 滑动 100,200,300,400
             """
-            return _G._G_.CTools().swipe(param)
+            return _G._G_.Tools().swipe(param)
 
         @regCmd(r"#快照|kz")
         def takeScreenshot():
@@ -330,7 +330,7 @@ class CCmds_:
             参数: scope - 修正范围
             示例: 设置坐标修正范围 100
             """
-            _G._G_.CTools().setPosFixScope(int(scope))
+            _G._G_.Tools().setPosFixScope(int(scope))
 
 
         @regCmd(r"#拓扑图|tpt (?P<appName>\S+)?")
@@ -353,7 +353,7 @@ class CCmds_:
             g = _G._G_
             log = g.Log()
             enable = g.Tools().toBool(enable, True)
-            android = g.CTools().android
+            android = g.Tools().android
             log.i(f"显示{uiName}: {enable}")
             
             if not android:
@@ -419,7 +419,7 @@ class CCmds_:
                 return "e~检查器名称不能为空"
             g = _G._G_
             log = g.Log()
-            pos = g.CTools().findTextPos(name.strip('_'))
+            pos = g.Tools().findTextPos(name.strip('_'))
             if pos is None:
                 log.w(f"未找到{name}的位置")
             Checker = g.Checker()
@@ -650,9 +650,11 @@ class CCmds_:
             示例：添加屏幕信息 登录 74,163,98,208
             """
             g = _G._G_
-            ctools = g.CTools()
-            if hasattr(ctools, 'addScreenInfo'):
-                result = ctools.addScreenInfo(text, bound)
-                return f"添加屏幕信息成功: {text}, {bound}" if result else "添加屏幕信息失败"
-            else:
-                return "CTools模块不支持addScreenInfo方法"
+            tools = g.Tools()
+            if hasattr(tools, 'addScreenInfo'):
+                result = tools.addScreenInfo(text, bound)
+                if result:
+                    log.i(f"添加屏幕信息成功: {text}")
+                    return True
+            log.e(f"添加屏幕信息失败")
+            return False

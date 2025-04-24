@@ -3,14 +3,14 @@
 """
 import threading
 import os
-from typing import TYPE_CHECKING, List, Callable, Optional, Union
+import sys  # 添加sys模块导入
+from typing import TYPE_CHECKING, List, Optional
 
 if TYPE_CHECKING:
     from CFileServer import CFileServer_
     from CClient import CClient_
     from _Log import _Log_
     from _CmdMgr import _CmdMgr_
-    from CTools import CTools_
     from _Tools import _Tools_
     from _App import _App_  
     from _Page import _Page_
@@ -29,15 +29,19 @@ def checkPermission(permission):
     global _permission_alert_shown
     
     try:
-        android = _G_.Tools().android
+        # 直接使用_G_类的android对象检查权限
+        android = _G_.android
         if android:
             result = android.checkPermission(permission)
             
             # 如果权限被拒绝，但还没有显示过提示，则记录一条日志
             if not result and not _permission_alert_shown:
                 from _Log import _Log_
-                _Log_.w(f"Permission denied: {permission.split('.')[-1]}", "Permission")
-                _permission_alert_shown = True # 标记已经显示过提示
+                _Log_.w(
+                    f"Permission denied: {permission.split('.')[-1]}", 
+                    "Permission"
+                )
+                _permission_alert_shown = True  # 标记已经显示过提示
                 
             return result
         return False
@@ -53,22 +57,30 @@ class _G_:
     _isServer = True    
     log = None
     _scriptNamesCache = None  # 添加脚本名称缓存
+    
+    android = None   # Android服务对象，由客户端设置
 
     PASS = "pass"
 
+    @classmethod
+    def isAndroid(cls):
+        """检查是否是Android环境"""
+        return cls.android is not None
+        
     @classmethod
     def isServer(cls):
         """是否是服务器端"""    
         return cls._isServer
     
     @classmethod
-    def load(cls, isServer:bool = None):
+    def load(cls, isServer: bool = None):
         """设置是否是服务器端"""
-        # print(f"设置是否是服务器端YYYYYYYYf: {isServer}")
         if isServer is not None:
             cls._isServer = isServer
         from _App import _App_
         _App_.loadConfig()
+
+        # 不在这里初始化android对象，由客户端调用setAndroid方法设置
     
     @classmethod
     def rootDir(cls):
@@ -77,8 +89,8 @@ class _G_:
             return cls._dir
         dir = None
         if not cls._isServer:
-            import CTools
-            android = CTools.CTools_.android
+            # 直接使用android对象获取应用私有目录
+            android = cls.android
             if android:
                 # Android环境下使用应用私有目录
                 dir = android.getFilesDir(None, False)
@@ -88,9 +100,6 @@ class _G_:
                 os.path.dirname(os.path.abspath(__file__)))
         cls._dir = dir
         return cls._dir
-
-        
-
 
     @classmethod
     def scriptDir(cls):
@@ -137,97 +146,62 @@ class _G_:
     @classmethod
     def CClient(cls) -> 'CClient_':
         """获取客户端"""
-        return cls.getClass('CClient')
+        return cls.getClassLazy('CClient')
 
     @classmethod
     def Log(cls) -> '_Log_':
-        return cls.getClass('_Log')
+        return cls.getClassLazy('_Log')
     
     @classmethod
     def Checker(cls) -> 'CChecker_':
-        return cls.getClass('CChecker')
+        return cls.getClassLazy('CChecker')
         
     @classmethod
-    def CTools(cls) -> 'CTools_':
-        return cls.getClass('CTools')    
-    @classmethod
-    def STools(cls) -> '_Tools_':
-        return cls.getClass('_Tools')   
-    @classmethod
     def Tools(cls) -> '_Tools_':
-        if cls.isServer():
-            return cls.getClass('_Tools')    
-        else:
-            return cls.getClass('CTools')
+        """获取统一工具类实例"""
+        return cls.getClassLazy('_Tools')
+        
     @classmethod
     def App(cls) -> '_App_':
-        return cls.getClass('_App')
-    
+        return cls.getClassLazy('_App')
     
     @classmethod
     def Page(cls) -> '_Page_':
-        return cls.getClass('_Page')
+        return cls.getClassLazy('_Page')
     
     @classmethod
     def CFileServer(cls) -> 'CFileServer_':
-        return cls.getClass('CFileServer')
+        return cls.getClassLazy('CFileServer')
     
     @classmethod
     def CmdMgr(cls) -> '_CmdMgr_':
-        return cls.getClass('_CmdMgr')
+        """获取命令管理器"""
+        return cls.getClassLazy('_CmdMgr')
     
     @classmethod
     def CDevice(cls) -> 'CDevice_':
-        return cls.getClass('CDevice')
+        return cls.getClassLazy('CDevice')
     
     @classmethod
     def SDeviceMgr(cls) -> 'SDeviceMgr_':
-        return cls.getClass('SDeviceMgr')
+        return cls.getClassLazy('SDeviceMgr')
 
     @classmethod
     def SCommandHistory(cls) -> 'SCommandHistory_':
-        return cls.getClass('SCommandHistory')
+        return cls.getClassLazy('SCommandHistory')
 
     @classmethod
     def CallMethod(cls, module, methodName, *args, **kwargs):
         try:
             if module is None:
                 return
-            klass = cls.getClass(module.__name__)
+            klass = cls.getClassLazy(module.__name__)
             if klass:
                 method = getattr(klass, methodName, None)
                 if method and callable(method):
                     return method(*args, **kwargs)
         except Exception as e:
             cls.log.ex(e, f"获取类方法失败: {methodName}")
-
-    @classmethod
-    def getClass(cls, moduleName):
-        """通用类获取方法
-        Args:
-            module_name: 模块名（如'_Log'）
-            class_name: 类名（如'Log_'）
-            store_key: 存储键（默认使用类名）
-        """
-        moduleName = cls.getScriptName(moduleName)
-        if not moduleName:
-            return None
-        # 从完整路径中提取文件名（不含扩展名）
-        className = cls.getClassName(moduleName)
-        if className not in cls._store:
-            try:
-                module = __import__(moduleName, fromlist=[className])
-                klass = None
-                try:
-                    klass = getattr(module, className)
-                except Exception as e:
-                    cls.log.w(e, f"获取类失败: {className}")
-                    return None
-                cls._store[className] = klass
-            except Exception as e:
-                cls.log.ex(e, f"导入{moduleName}失败")
-                return None
-        return cls._store[className]
 
     @classmethod
     def getScriptName(cls, fileName: str):
@@ -258,20 +232,27 @@ class _G_:
             for file in files:
                 if ext and not file.endswith(ext):
                     continue
+                # 处理模块前缀过滤，允许下划线开头的模块
                 firstChar = file[0]
                 if firstChar != prefix and firstChar != '_':
                     continue
+                
+                # 调试输出，找到匹配的文件
+                print(f"找到脚本: {file}")
+                
                 module = file[:-3]  # 去掉.py后缀
                 fileNames.append(module)
         except Exception as e:
             # 避免使用日志，直接打印错误
             print(f"扫描脚本目录失败: {e}")
         
+        # 输出找到的所有脚本
+        print(f"找到的所有脚本: {fileNames}")
+        
         # 缓存结果
         cls._scriptNamesCache = fileNames
         
         return fileNames
-    
 
     @classmethod
     def findFileName(cls, fileName: str, subDir: Optional[str] = None) -> Optional[str]:
@@ -301,11 +282,10 @@ class _G_:
         for file in files:
             # 忽略大小写比较文件名
             fileLower = file.lower()
-            #if fileNameLower in fileLower:
+            # if fileNameLower in fileLower:
             if fileNameLower == fileLower:
                 return file
         return None
-    
     
     @classmethod
     def getAllFiles(cls, subDir: Optional[str] = None) -> List[str]:
@@ -338,13 +318,105 @@ class _G_:
         return all_files
 
     @classmethod
+    def setAndroid(cls, androidService):
+        """设置Android服务对象
+        
+        该方法由客户端调用，传入已初始化的androidService对象
+        """
+        cls.android = androidService
+        if cls.log:
+            cls.log.i(f"设置Android服务对象: {androidService}")
+        else:
+            print(f"设置Android服务对象: {androidService}")
+
+    @classmethod
     def onLoad(cls, oldCls):
         if oldCls:  
             cls._isServer = oldCls._isServer
             cls._dir = oldCls._dir
             cls._store = oldCls._store
+            cls.android = oldCls.android  # 保留android对象
         import _Log
-        cls.log = _Log._Log_()    
+        cls.log = _Log._Log_()
+        
+        # 如果是客户端环境，尝试初始化android对象
+        if not cls._isServer and cls.android is None:
+            try:
+                # 尝试初始化Android对象
+                from java import jclass
+                android = jclass(
+                    "cn.vove7.andro_accessibility_api.demo.script.PythonServices")
+                
+                # 设置输入回调函数
+                def onInput(text):
+                    """Android输入回调函数"""
+                    try:
+                        log = cls.log
+                        log.i(f"收到Android输入: {text}")
+                        cls.CmdMgr().do({'cmd': text})
+                    except Exception as e:
+                        print(f"处理Android输入失败: {e}")
+                    return True
+                
+                android.onInput(onInput)
+                cls.android = android
+                cls.log.i("成功初始化Android服务")
+            except ImportError:
+                # 如果不是Android环境，忽略错误
+                pass
+            except Exception as e:
+                if cls.log:
+                    cls.log.ex(e, "初始化Android服务失败")
+                else:
+                    print(f"初始化Android服务失败: {e}")
+
+    @classmethod
+    def getClassLazy(cls, moduleName):
+        """延迟导入机制获取类，避免循环引用
+        
+        Args:
+            moduleName: 模块名称
+            
+        Returns:
+            对应的类对象
+        """
+        # 检查模块是否已缓存
+        className = cls.getClassName(moduleName)
+        if className in cls._store:
+            return cls._store[className]
+        
+        try:
+            # 先尝试直接导入
+            try:
+                __import__(moduleName)
+                module = sys.modules[moduleName]
+            except ImportError:
+                # 如果直接导入失败，尝试通过getScriptName查找
+                scriptName = cls.getScriptName(moduleName)
+                if not scriptName:
+                    if cls.log:
+                        cls.log.w(f"找不到模块: {moduleName}")
+                    return None
+                
+                __import__(scriptName)
+                module = sys.modules[scriptName]
+                moduleName = scriptName
+            
+            # 获取类
+            className = cls.getClassName(moduleName)
+            klass = getattr(module, className, None)
+            if klass is None:
+                if cls.log:
+                    cls.log.w(f"获取类失败: {className}")
+                return None
+            
+            # 缓存并返回
+            cls._store[className] = klass
+            return klass
+        except Exception as e:
+            if cls.log:
+                cls.log.ex(e, f"延迟导入{moduleName}失败")
+            return None
 
 _G_.onLoad(None)
 g = _G_

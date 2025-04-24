@@ -45,8 +45,8 @@ class _Log_:
     def clientScriptDir(cls):
         dir = None
         import _G
-        tools = _G._G_.Tools()
-        android = tools.android
+        # 直接使用_G_.android而不是通过Tools获取
+        android = _G._G_.android
         if android:
             # Android环境下使用应用私有目录
             dir = android.getFilesDir('scripts', True)
@@ -294,20 +294,22 @@ class _Log_:
         try:
             # 强制转换非字符串内容
             content = str(content)
-            isServer = _G._G_.isServer()
+            g = _G._G_
+            isServer = g.isServer()
             logData = None
             if isServer:
                 logData = cls.createLogData(tag, content, level)
                 cls.Blog(content, tag, level)
                 cls.log_(content, tag, level)
             else:
-                CDevice = _G._G_.CDevice()
-                if CDevice:
-                    devID = CDevice.deviceID()
+                # 使用_G_.android直接访问android对象
+                android = g.android
+                if android:
+                    devID = android.deviceID()
                     tag = f'{devID}{tag}' if tag else devID
                     logData = cls.createLogData(tag, content, level)
-                    if CDevice.connected():
-                        CDevice.emit('C2S_Log', logData)
+                    if android.connected():
+                        android.emit('C2S_Log', logData)
             return logData
         except Exception as e:
             cls.ex_(e, '记录日志失败')
@@ -318,9 +320,8 @@ class _Log_:
         """打印日志到终端"""
         g = _G._G_
         server = g.isServer()
-        android = None
-        if not server:
-            android = g.CTools().android
+        # 直接从_G_获取android对象
+        android = g.android if not server else None
         tag = tag if tag else ''
         level, content = cls._parseLevel(content, level)
         if android:

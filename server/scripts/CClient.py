@@ -38,7 +38,6 @@ class CClient_:
             while True:
                 try:
                     cmd_input = input(f"{CDevice.deviceID()}> ").strip()
-                    # Use CmdMgr directly instead of going through CTools
                     g.CmdMgr().do({'cmd': cmd_input})
                 except EOFError:
                     cls.fromAndroid = True

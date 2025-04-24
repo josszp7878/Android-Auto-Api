@@ -285,7 +285,7 @@ class _Page_:
         try:
             g = _G._G_
             log = g.Log()
-            tools = g.CTools()
+            tools = g.Tools()
             # 判断跳转方向
             pageName = targetPage.name
             success = False

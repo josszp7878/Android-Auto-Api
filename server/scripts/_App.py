@@ -9,6 +9,11 @@ if TYPE_CHECKING:
 class _App_:
     """应用管理类：整合配置与实例"""
     _curAppName = _G.TOP  # 当前应用名称
+    @classmethod
+    def CurAppName(cls):
+        """获取当前应用名称"""
+        return cls._curAppName
+    
     apps = {}  # 存储应用实例 {appName: _App_实例}
     Top: "_App_" = None
 
@@ -44,7 +49,7 @@ class _App_:
             match = re.match(fr'(?P<appName>\S+)?\s*{cls.PathSplit}\s*(?P<name>\S+)?', str)
             appName = match.group('appName')
             if appName is None:
-                appName = _G._G_.App().currentApp().name
+                appName = cls.currentApp().name
             return appName, match.group('name')
         else:
             return None, str
@@ -107,8 +112,8 @@ class _App_:
                 ret = _App_._doMatchPage(page)             
             else:
                 #获取当前页面，可能不是目标页面
-                tools = _G._G_.CTools()  
-                if tools.android is not None:
+                tools = g.Tools()  
+                if g.android is not None:
                     tools.refreshScreenInfos()
                     page = _App_._matchPage(self.rootPage)
                     if page is None:
@@ -159,11 +164,10 @@ class _App_:
     def getAppPage(cls, pageName)->Optional["_Page._Page_"]:
         g = _G._G_
         log = g.Log()
-        appName, pageName = _App_.splitAppName(pageName)
-        App = g.App()
-        app = App.currentApp()
+        appName, pageName = cls.splitAppName(pageName)
+        app = cls.currentApp()
         if appName:
-            app = App.getApp(appName, True)
+            app = cls.getApp(appName, True)
             if not app:
                 log.e(f"找不到应用: {appName}")
                 return None
@@ -231,7 +235,7 @@ class _App_:
             g = _G._G_
             log = g.Log()
             tarName = tarName.lower()
-            tools = g.CTools()
+            tools = g.Tools()
             if tools.isTop(tarName):
                 # 返回主屏幕，使用Top应用
                 return self.goHome()
@@ -475,7 +479,7 @@ class _App_:
         tools = g.Tools()
         try:
             # log.d("检测当前运行的应用")
-            if tools.android is None:
+            if g.android is None:
                 return cls.getCurAppName()
             # 获取当前运行的应用信息
             appInfo = g.Tools().getCurrentAppInfo()
@@ -520,7 +524,7 @@ class _App_:
     def isHome(cls) -> bool:
         """检查是否在主屏幕"""
         tools = _G._G_.Tools()
-        if tools.android is None:
+        if g.android is None:
             return cls.getCurAppName() == _G.TOP
         return tools.isHome()
     
@@ -540,7 +544,7 @@ class _App_:
                 app = appName
                 appName = appName.name
             else:
-                app = g.App().getApp(appName, True)
+                app = cls.getApp(appName, True)
             if app is None:
                 log.e(f"打开未知应用{appName}")
             else:
@@ -548,7 +552,7 @@ class _App_:
             # 如果已经在目标应用，直接返回成功
             if cls.getCurAppName() == appName:
                 return True
-            tools = g.CTools()
+            tools = g.Tools()
             ret = tools.openApp(appName)
             if not ret:
                 log.e(f"打开应用 {appName} 失败")

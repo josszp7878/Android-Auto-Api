@@ -1,8 +1,6 @@
 from enum import Enum
 from typing import Dict, Any, List,  Optional, TYPE_CHECKING
 import _G
-import datetime
-import os
 if TYPE_CHECKING:
     from _Page import _Page_
 import json
@@ -12,7 +10,6 @@ import time
 
 g = _G.g
 log = g.Log()
-tools = g.CTools()
 
 class CChecker_:
     """页面检查器类，用于验证页面状态并执行相应操作"""
@@ -254,7 +251,7 @@ class CChecker_:
         """
         if not range:
             return range  
-        tools = g.CTools()
+        tools = g.Tools()
         # 从当前屏幕获取match文字对应的坐标
         pos = tools.findTextPos(match)
         DEF = 75
@@ -334,7 +331,7 @@ class CChecker_:
         """
         result = False
         try:
-            tools = g.CTools()
+            tools = g.Tools()
             log.d(f"{self.name}.Match")
             match = self.match
             if match == '':
@@ -366,7 +363,7 @@ class CChecker_:
         try:
             events = self.event.items() if self.event else []
             ret = ''
-            tools = g.CTools()
+            tools = g.Tools()
             
             if len(events) == 0: 
                 # 没有操作，直接点击match
@@ -420,7 +417,7 @@ class CChecker_:
                         # 屏幕匹配文本，如果匹配到则执行
                         text_match = tools.matchText(key)
                         execute = text_match is not None
-                        if not execute and tools.isAndroid():
+                        if not execute and g.isAndroid():
                             log.d(f"匹配文本失败: {key}")
                             continue
                         # 处理正则表达式捕获组
@@ -490,7 +487,7 @@ class CChecker_:
         """
         try:
             code_lower = code.lower()
-            tools = g.CTools()
+            tools = g.Tools()
             
             # 支持>>Ret格式指令，直接返回对应的eDoRet枚举
             if code.startswith('>>'):
@@ -743,20 +740,15 @@ class CChecker_:
             bool: 入口执行是否成功
         """
         try:
-            entryList = self.entry
-            if entryList:
-                # 匹配并执行entry代码
-                curPageName = g.App().currentApp().currentPage.name
-                entryCode = next((code for pageName, code in entryList.items() 
-                            if re.search(pageName, curPageName)), None) or entryList.get('', None)
-                if entryCode:
-                    tools = g.CTools()
-                    # 执行入口代码
-                    ret = tools.do(self, entryCode)
-                    log.d(f"执行入口代码: {entryCode}=>{ret}")
-                    if not ret:
-                        log.w(f"执行入口代码失败: {entryCode}")
-                        return False
+            entryMap = self.entry
+            #对entryMap里面的KEY进行tools.do(),根据返回决定是否执行对应的value.
+            #如果key为空，则直接执行。
+            tools = g.Tools()
+            for key, code in entryMap.items():
+                ret = key == '' or tools.check(self, key)
+                if ret:
+                    tools.do(self, code)
+                    log.d(f"执行入口代码: {key}=>{code}=>{ret}")
             # 如果entry执行成功，延时3秒后进行匹配
             time.sleep(3)
             return self.Match()

@@ -384,7 +384,7 @@ class _CmdMgr_:
             # 检查模块是否已加载
             if moduleName in sys.modules:
                 module = sys.modules[moduleName]
-                oldCls = g.getClass(moduleName)
+                oldCls = g.getClassLazy(moduleName)
                 # 获取模块对应的类（假设类名为模块名加下划线）
                 if hasattr(oldCls, 'onUnload'):
                     oldCls.onUnload()
