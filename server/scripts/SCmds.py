@@ -11,7 +11,7 @@ import os
 from _App import _App_
 
 class SCmds_:
-    
+
     @classmethod
     def registerCommands(cls):
         """注册服务器命令"""
@@ -42,12 +42,15 @@ class SCmds_:
             示例：清除
             """
             try:
+                # 获取日志对象
+                log = _G._G_.Log()
                 # 清空日志缓存
                 log.clear()
                 # 使用覆盖模式保存
-                log.save(mode='w')            
+                log.save(mode='w')
                 # 通知前端清空日志显示
-                emit('clear_logs')            
+                from app import socketio
+                socketio.emit('clear_logs')
                 return '控制台日志已清除'
             except Exception as e:
                 _Log._Log_.ex(e, '清除日志缓存出错')
@@ -65,7 +68,7 @@ class SCmds_:
             device_manager = SDeviceMgr_()
             devices = device_manager.toDict()
             return '\n'.join([
-                f"{id}: {dev['status']}" 
+                f"{id}: {dev['status']}"
                 for id, dev in devices.items()
             ])
 
@@ -86,36 +89,36 @@ class SCmds_:
                     deviceId = deviceMgr.curDeviceID
                     if not deviceId:
                         return "e~未选择设备"
-                
+
                 # 处理最近任务
                 if appName == '_' or taskName == '_':
                     # 从数据库获取最近任务
                     last_task = STask_.query.filter_by(
                         deviceId=deviceId
                     ).order_by(STask_.time.desc()).first()
-                    
+
                     if not last_task:
                         return "未找到最近任务记录"
-                    
+
                     if appName == '_':
                         appName = last_task.appName
                     if taskName == '_':
                         taskName = last_task.taskName
-                
+
                 # 从数据库查询任务
                 task = STask_.query.filter_by(
                     deviceId=deviceId,
                     appName=appName,
                     taskName=taskName,
                 ).order_by(STask_.time.desc()).first()
-                
+
                 if not task:
                     return "未找到正在运行的任务"
-                    
+
                 # 格式化输出任务信息（转换为百分比）
                 progress_percent = task.progress * 100
                 return f"任务进度: {progress_percent:.1f}%"
-                
+
             except Exception as e:
                 _Log._Log_.ex(e, "查询任务进度失败")
                 return f"e~查询任务进度失败: {str(e)}"
@@ -135,31 +138,31 @@ class SCmds_:
                 # 解析参数
                 device_id = deviceId if deviceId else deviceMgr.curDeviceID
                 state = state.lower() if state else 'all'
-                
+
                 if not device_id:
                     return "e~未指定设备ID"
-                    
+
                 # 构建查询
                 query = STask_.query.filter_by(deviceId=device_id)
-                
+
                 # 根据状态过滤
                 if state != 'all':
                     query = query.filter_by(state=state)
-                    
+
                 # 获取任务列表
                 tasks = query.order_by(STask_.time.desc()).limit(10).all()
-                
+
                 if not tasks:
                     return f"设备 {device_id} 没有{state}任务记录"
-                    
+
                 # 格式化输出
                 result = f"设备 {device_id} 的任务列表 ({state}):\n"
                 for task in tasks:
                     progress = task.progress * 100
                     result += f"{task.appName}/{task.taskName}: {progress:.1f}% [{task.state}]\n"
-                    
+
                 return result
-                
+
             except Exception as e:
                 _Log._Log_.ex(e, "获取任务列表失败")
                 return f"e~获取任务列表失败: {str(e)}"
@@ -178,24 +181,24 @@ class SCmds_:
                 device_id = deviceMgr.curDeviceID
                 if not device_id:
                     return "e~未选择设备"
-                    
+
                 # 获取正在运行的任务
                 task = STask_.query.filter_by(
                     deviceId=device_id,
                     state=TaskState.RUNNING.value
                 ).order_by(STask_.time.desc()).first()
-                
+
                 if not task:
                     return "未找到正在运行的任务"
-                    
+
                 if task.state != TaskState.RUNNING.value:
                     return 'w~当前任务不在运行状态'
                 deviceMgr.sendClientCmd(device_id, f"stopTask {task.appName} {task.taskName}")
-                
+
             except Exception as e:
                 _Log._Log_.ex(e, "停止任务失败")
                 return f"e~停止任务失败: {str(e)}"
-            
+
             return f"已发送停止命令: {task.appName} {task.taskName}"
 
         @regCmd('#保存结果|bcjg')
@@ -211,7 +214,7 @@ class SCmds_:
                 result = g.lastResult
                 if not result:
                     return "e~没有可保存的结果"
-                    
+
                 # 尝试将结果转换为JSON格式
                 try:
                     # 如果结果已经是字典或列表，直接使用
@@ -223,25 +226,25 @@ class SCmds_:
                 except (json.JSONDecodeError, TypeError):
                     # 如果不是JSON，则将结果转换为字符串并包装在字典中
                     data = {"result": str(result)}
-                    
+
                 # 使用漂亮的格式序列化
                 formatted_json = json.dumps(
-                    data, 
-                    ensure_ascii=False, 
+                    data,
+                    ensure_ascii=False,
                     indent=4,
                     sort_keys=True
                 )
-                
+
                 # 保存到文件
                 with open("result.json", "w", encoding="utf-8") as f:
                     f.write(formatted_json)
-                    
+
                 return f"结果已保存到 result.json"
             except Exception as e:
                 _Log._Log_.ex(e, "保存结果失败")
                 return f"e~保存结果失败: {str(e)}"
 
-       
+
         @regCmd('#快照|kz')
         def takeScreenshot():
             """功能：对当前设备进行屏幕截图
@@ -290,25 +293,25 @@ class SCmds_:
                 if not device:
                     return "e~请先选择设备"
                 pageName = pageName or 'Last'
-                
+
                 # 回调函数处理客户端返回的屏幕信息
                 def handleScreenInfo(result):
                     try:
                         if _Log._Log_.isError(result):
                             log.e(f"获取屏幕信息失败: {result}")
                             return
-                        
+
                         # 检查结果是否为空
                         if not result or result == "None" or result == "[]":
                             log.e("获取到空的屏幕信息")
                             return
-                            
+
                         # 保存到设备对象中
                         device.setScreenInfo(pageName, result)
                         # log.i(f"屏幕信息保存成功: {pageName}, 共{len(result)}个元素")
                     except Exception as e:
                         log.ex(e, "处理屏幕信息失败")
-                
+
                 # 发送客户端命令获取屏幕信息
                 res = deviceMgr.sendClientCmd(device.deviceID, "eval T.getScreenInfo(True)", None, 10)
                 handleScreenInfo(res)
@@ -335,11 +338,11 @@ class SCmds_:
                 screenInfo = device.getScreenInfo(pageName)
                 if not screenInfo:
                     return f"e~信息为空"
-                    
+
                 # 使用三引号包裹多行JSON字符串
                 cmd = f"eval T.setScreenInfo('''{screenInfo}''')"
                 deviceMgr.sendClientCmd(device.deviceID, cmd)
-                
+
                 return f"i-成功设置屏幕信息: {pageName}"
             except Exception as e:
                 log.ex(e, "设置屏幕信息失败")
@@ -356,33 +359,33 @@ class SCmds_:
             """
             try:
                 log = _G._G_.Log()
-                
+
                 # 检查文件是否存在
                 if not os.path.exists(fileName):
                     return f"e~文件不存在: {fileName}"
-                    
+
                 # 读取文件内容
                 with open(fileName, 'r', encoding='utf-8') as f:
                     content = f.read()
-                    
+
                 # 解析JSON
                 try:
                     data = json.loads(content)
                 except json.JSONDecodeError as e:
                     return f"e~JSON解析错误: {str(e)}"
-                    
+
                 # 使用漂亮的格式重新序列化
                 formatted_json = json.dumps(
-                    data, 
-                    ensure_ascii=False, 
+                    data,
+                    ensure_ascii=False,
                     indent=4,
                     sort_keys=True
                 )
-                
+
                 # 保存回文件
                 with open(fileName, 'w', encoding='utf-8') as f:
                     f.write(formatted_json)
-                    
+
                 return f"文件已格式化: {fileName}"
             except Exception as e:
                 log.ex(e, f"格式化JSON文件失败: {fileName}")
@@ -411,7 +414,7 @@ class SCmds_:
             中文名：选择
             参数：
                target - 目标描述 (可选)
-            
+
             target 解析规则:
             1. 为空: 只打印当前选中的设备名，不做选择动作
             2. @: 表示选择服务端
@@ -424,7 +427,7 @@ class SCmds_:
               选择 device001 # 选择指定设备
               选择 测试组     # 选择指定分组的所有设备
             """
-            from SDeviceMgr import deviceMgr            
+            from SDeviceMgr import deviceMgr
             target = target.strip() if target else ''
             # 如果目标是@，选择服务端
             if target == "@" or target == '':
@@ -434,7 +437,7 @@ class SCmds_:
                 return f"选中设备为: {deviceMgr.curDeviceIDs}"
             elif target == 'all':
                 deviceMgr.curDeviceIDs = list(deviceMgr.devices.keys())
-            else:                
+            else:
                 # 尝试作为设备ID查找
                 device = deviceMgr.get(target)
                 if device:
@@ -448,7 +451,7 @@ class SCmds_:
                         deviceMgr.curDeviceIDs = group_devices
                     else:
                         return f"e~无效目标: {target}"
-            
+
             # 通知前端更新选择
             deviceMgr.emit2B('S2B_UpdateSelection', {'device_ids': deviceMgr.curDeviceIDs})
 
@@ -504,7 +507,7 @@ class SCmds_:
                 device_ids = deviceIDs.split() if deviceIDs else []
                 if not device_ids:
                     return "e~未指定设备ID"
-                
+
                 task = STask_(
                     appName=taskName,
                     deviceIds=device_ids
@@ -591,7 +594,7 @@ class SCmds_:
                     device_ids = deviceIDs.split()
                     if not device_ids:
                         return "e~未指定设备ID"
-                    
+
                     task.addDevices(device_ids)
                     return f"已添加设备到任务: {taskID}, 设备: {', '.join(device_ids)}"
                 else:
@@ -611,7 +614,7 @@ class SCmds_:
                     device_ids = deviceIDs.split()
                     if not device_ids:
                         return "e~未指定设备ID"
-                    
+
                     task.removeDevices(device_ids)
                     return f"已从任务中移除设备: {taskID}, 设备: {', '.join(device_ids)}"
                 else:

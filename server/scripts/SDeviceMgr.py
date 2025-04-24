@@ -88,7 +88,7 @@ class SDeviceMgr_:
     def get(self, id) -> Optional[SDevice_]:
         """获取设备"""
         return self.devices.get(id.lower())
-    
+
     def gets(self, idOrGroup) -> List[SDevice_]:
         """获取设备"""
         if idOrGroup is None or idOrGroup == '':
@@ -97,7 +97,7 @@ class SDeviceMgr_:
         if device:
             return [device]
         return self.GetByGroup(idOrGroup)
-    
+
     def getBySID(self, sid) -> Optional[SDevice_]:
         """根据sid获取设备"""
         for device in self.devices.values():
@@ -211,6 +211,7 @@ class SDeviceMgr_:
 ##########################################################
     def handleCmdResult(self, data):
         """处理命令响应"""
+        log = _G._G_.Log()
         try:
             result = str(data.get('result', ''))
             device_id = data.get('device_id')
@@ -231,12 +232,6 @@ class SDeviceMgr_:
                                 result = '截图已更新'
                             else:
                                 result = '截图更新失败'
-
-                # 记录命令结果日志
-                if result:
-                    import _Log
-                    # 解析结果中可能包含的级别信息
-                    level, content = _Log._Log_._parseLevel(result, 'i')
                 # 存储结果并设置事件
                 self.cmdResults[cmd_id] = result
                 if cmd_id in self.cmdEvents:
@@ -262,7 +257,7 @@ class SDeviceMgr_:
             self.cmdResults[cmd_id] = timeout_result
             if cmd_id in self.cmdEvents:
                 self.cmdEvents[cmd_id].set()
-            
+
     def sendClientCmd(self, deviceID, command, data=None, timeout=10):
         if deviceID is None:
             return False
@@ -332,10 +327,10 @@ class SDeviceMgr_:
 
     def GetByGroup(self, group_name) -> List[SDevice_]:
         """按分组获取设备列表
-        
+
         Args:
             group_name: 分组名称
-            
+
         Returns:
             list: 设备列表
         """
@@ -348,10 +343,10 @@ class SDeviceMgr_:
         except Exception as e:
             _Log._Log_.ex(e, f"获取分组 {group_name} 的设备失败")
             return []
-        
+
     def GetAllGroups(self):
         """获取所有设备分组
-        
+
         Returns:
             list: 分组名称列表
         """
@@ -388,23 +383,28 @@ class SDeviceMgr_:
 
     def sendCmd(self, targets, command, data=None) -> str:
         """发送命令"""
-        result = ''            
+        result = ''
         try:
             g = _G._G_
             log = g.Log()
             cmdMgr = g.CmdMgr()
             for target in targets:
                 if target == _Log.TAG.Server.value:
+                    # 记录服务端命令日志
                     cmdID = self.genCmdId('@', command)
                     cmd = {'id': cmdID, 'data': data, 'cmd': command}
+                    log.Blog(command, '', 'c')
                     cmdMgr.do(cmd)
+                    result = cmd.get('result', '')
                     g.SCommandHistory().add(command, target, result)
                 else:
-                    devices = self.gets(target) 
+                    devices = self.gets(target)
                     if len(devices) == 0:
                         log.w(f'设备 {target} 不存在')
                         continue
                     for device in devices:
+                        # 记录客户端命令日志
+                        log.log(command, device.device_id, 'c')
                         result = self._sendClientCmd(device, command, data)
                         g.SCommandHistory().add(command, target, result)
             return result

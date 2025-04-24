@@ -9,16 +9,16 @@ class CDevice_:
     _server = None
     _deviceID = None
     _connected = False
-    
+
     @classmethod
     def connected(cls):
         return cls._connected
 
-        
+
     @classmethod
     def deviceID(cls):
         return cls._deviceID
-    
+
     @classmethod
     def server(cls):
         return cls._server
@@ -38,14 +38,14 @@ class CDevice_:
                 logger=False,  # 关闭详细日志
                 engineio_logger=False  # 关闭 Engine.IO 日志
             )
-            
+
             # 注册事件处理器
             cls.sio.on('connect')(cls.on_connect)
             cls.sio.on('S2C_DoCmd')(cls.onS2C_DoCmd)
             cls.sio.on('S2C_CmdResult')(cls.onS2C_CmdResult)
             cls.sio.on('disconnect')(cls.on_disconnect)
             cls.sio.on('connect_error')(cls.on_connect_error)
-            
+
             # 添加通用事件监听器，捕获所有事件
             # self.sio.on('*')(self.on_any_event)
             cls.initialized = True
@@ -63,8 +63,8 @@ class CDevice_:
     #         if event not in ['connect', 'S2C_DoCmd', 'S2C_CmdResult', 'disconnect', 'connect_error']:
     #             _Log._Log_.i(f'收到未处理的事件: {event}, 数据: {data}')
     #     except Exception as e:
-    #         _Log._Log_.ex(e, f'处理事件 {event} 出错')    
-        
+    #         _Log._Log_.ex(e, f'处理事件 {event} 出错')
+
 
     @classmethod
     def disconnect(cls):
@@ -103,7 +103,7 @@ class CDevice_:
             print(".", end="", flush=True)
 
         if not cls._connected:
-            tools.toast("无法连接到服务器")            
+            tools.toast("无法连接到服务器")
 
     @classmethod
     def _connect(cls, callback=None):
@@ -117,7 +117,7 @@ class CDevice_:
                 return
             connect_url = f"{g.Tools().getServerURL(cls._server)}?device_id={cls._deviceID}"
             # log.i(f"开始连接: {connect_url}")
-            
+
             def connect_async():
                 try:
                     # log.i("正在创建连接...")
@@ -128,7 +128,7 @@ class CDevice_:
                     #     host = server_url.split('://')[1].split(':')[0]
                     #     port = int(server_url.split(':')[-1].split('?')[0])
                     #     log.i(f"正在测试连接到主机: {host}:{port}")
-                        
+
                     #     # 创建socket连接测试
                     #     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
                     #         sock.settimeout(5)
@@ -158,10 +158,10 @@ class CDevice_:
                     log.e(f"连接过程发生异常: {str(e)}")
                     if callback:
                         callback(False)
-            
+
             threading.Thread(target=connect_async, daemon=True).start()
             return True
-            
+
         except Exception as e:
             log.ex(e, '启动连接失败')
             if callback:
@@ -176,7 +176,7 @@ class CDevice_:
         if not cls._connected:
             log.w(f"设备 {cls._deviceID} 未连接，无法登录")
             return False
-        
+
         retry_count = 3
         while retry_count > 0:
             try:
@@ -204,7 +204,7 @@ class CDevice_:
             'device_id': cls._deviceID
         })
         log.i("设备已注销")
-    
+
 
     @classmethod
     def onS2C_DoCmd(cls, data):
@@ -215,9 +215,9 @@ class CDevice_:
             command = data.get('command')
             cmdData = data.get('data', None)
             cmd_id = data.get('cmd_id')  # 获取命令ID
-            
-            # 先记录执行命令的日志
-            log.log(command, cls._deviceID, 'c')            
+
+            # 不再记录执行命令的日志，避免重复记录
+            # log.log(command, cls._deviceID, 'c')
             # 使用 CmdMgr 执行命令
             cmd = {'id': cmd_id, 'data': cmdData, 'cmd': command}
             g.CmdMgr().do(cmd)
@@ -230,7 +230,7 @@ class CDevice_:
             cls._sendCmdResult(cmd)
         except Exception as e:
             log.ex(e, f'执行命令出错: {command}')
-    
+
     @classmethod
     def _sendCmdResult(cls, cmd):
         """发送命令结果"""
@@ -239,15 +239,15 @@ class CDevice_:
             'device_id': cls._deviceID,
             'cmdName': cmd.get('name'),
             'cmd_id': cmd.get('id')  # 返回命令ID
-        }) 
-      
+        })
+
     @classmethod
-    def sendCmdResult(cls, cmd, result):    
+    def sendCmdResult(cls, cmd, result):
         """发送命令结果"""
         if cmd is None:
             return
         cmd['result'] = result
-        cls._sendCmdResult(cmd) 
+        cls._sendCmdResult(cmd)
 
     @classmethod
     def on_connect(cls):
@@ -257,7 +257,7 @@ class CDevice_:
         sid = cls.sio.sid
         log.i(f'已连接到服务器, server: {cls._server}')
         cls._connected = True
-        
+
         # 连接成功后在新线程中执行登录
         def do_login():
             try:
@@ -267,7 +267,7 @@ class CDevice_:
                     log.e("登录失败")
             except Exception as e:
                 log.ex(e, "登录过程出错")
-        
+
         threading.Thread(target=do_login, daemon=True).start()
 
     @classmethod
@@ -279,7 +279,7 @@ class CDevice_:
         # 尝试记录更详细的错误信息
         if hasattr(data, 'args') and len(data.args) > 0:
             log.e(f'连接错误详情: {data.args[0]}')
-        
+
         # 如果是认证错误，可能是设备ID冲突
         error_msg = str(data)
         if 'authentication' in error_msg.lower() or 'auth' in error_msg.lower():
@@ -321,7 +321,7 @@ class CDevice_:
                 return False
             if not cls.sio.connected:
                 log.log_('e', "未连接到服务器")
-                return False                
+                return False
             data['device_id'] = cls._deviceID
             cls.sio.emit(event, data)
             return True
@@ -335,7 +335,7 @@ class CDevice_:
         g = _G._G_
         log = g.Log()
         try:
-            android = g.Tools().android   
+            android = g.Tools().android
             if not android:
                 log.e("Android环境未初始化")
                 return False
@@ -350,7 +350,7 @@ class CDevice_:
     @classmethod
     def onUnload(cls):
         cls.uninit()
-        
+
     @classmethod
     def onLoad(cls, oldCls):
         if oldCls:

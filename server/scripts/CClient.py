@@ -19,31 +19,32 @@ class CClient_:
             log.i("脚本更新完成")
 
     @classmethod
-    def Begin(cls, deviceID=None, server=None, fromAndroid=None):  
+    def Begin(cls, deviceID=None, server=None, fromAndroid=None):
         """初始化客户端"""
         g = _G._G_
         log = g.Log()
         # 如果fromAndroid为None，则用现成的。这个在reloadAll指令时会用到
         if fromAndroid is not None:
             cls.fromAndroid = fromAndroid
-        log.d(f"初始化客户端: deviceID={deviceID}, server={server}, fromAndroid={fromAndroid}")      
+        log.d(f"初始化客户端: deviceID={deviceID}, server={server}, fromAndroid={fromAndroid}")
         try:
             CDevice = g.CDevice()
             CDevice.init(deviceID or 'TEST1', server)
             CDevice.connect()
             g.CFileServer().init(server)
-            g.CmdMgr().regAllCmds()            
+            g.CmdMgr().regAllCmds()
             # g.Checker().start()
-            print("按Ctrl+C退出")    
+            print("按Ctrl+C退出")
             while True:
                 try:
                     cmd_input = input(f"{CDevice.deviceID()}> ").strip()
-                    g.CTools().onInput(cmd_input)
+                    # Use CmdMgr directly instead of going through CTools
+                    g.CmdMgr().do({'cmd': cmd_input})
                 except EOFError:
                     cls.fromAndroid = True
                     break
                 except KeyboardInterrupt:
-                    log.i('\n正在退出...') 
+                    log.i('\n正在退出...')
                     cls.End()
                     break
                 except Exception as e:
@@ -51,7 +52,7 @@ class CClient_:
         except Exception as e:
             log.ex(e, '初始化失败')
 
-   
+
     @classmethod
     def End(cls):
         """清理函数"""
@@ -79,5 +80,5 @@ class CClient_:
         if clone is not None:
             cls.fromAndroid = clone.fromAndroid
         return True
-    
+
 CClient_.onLoad(None)

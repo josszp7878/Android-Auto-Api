@@ -12,7 +12,7 @@ class DateTimeEncoder(json.JSONEncoder):
         if isinstance(obj, datetime):
             return obj.isoformat()
         return super().default(obj)
-    
+
 
 @socketio.on('connect')
 def handle_connect(auth=None):
@@ -21,14 +21,14 @@ def handle_connect(auth=None):
         device_id = request.args.get('device_id')
         client_type = request.args.get('client_type')
         _Log._Log_.i(f'收到连接请求: {device_id} {client_type}')
-        
+
         if client_type == 'console':
             deviceMgr.addConsole(request.sid)
             # 刷新所有设备状态
             for device in deviceMgr.devices.values():
                 device.refresh()
             return True
-            
+
         elif device_id:
             with current_app.app_context():
                 device = deviceMgr.get(device_id)
@@ -38,7 +38,7 @@ def handle_connect(auth=None):
                 device.info['connected_at'] = str(datetime.now())
                 device.onConnect()  # onConnect 内部会调用 refresh
                 return True
-                
+
     except Exception as e:
         _Log._Log_.ex(e, '处理连接时出错')
     return False
@@ -47,7 +47,7 @@ def handle_connect(auth=None):
 def handle_disconnect():
     """处理客户端断开连接"""
     try:
-        # _Log._Log_.i(f'Client disconnected: {request.sid}')    
+        # _Log._Log_.i(f'Client disconnected: {request.sid}')
         # 检查是否是控制台断开
         if request.sid in deviceMgr.consoles:
             # _Log._Log_.i(f'控制台断开连接: {request.sid}')
@@ -117,7 +117,10 @@ def handle_C2S_Log(data):
     """处理客户端日志"""
     Log = _Log._Log_
     try:
-        Log.add(data)
+        message = data.get('message')
+        tag = data.get('tag')
+        level = data.get('level', 'i')
+        Log.log(message, tag, level)
     except Exception as e:
         Log.ex(e, '处理客户端日志失败')
 
@@ -139,7 +142,7 @@ def handle_C2S_StartTask(data):
         device_id = data.get('device_id')
         app_name = data.get('app_name')
         task_name = data.get('task_name')
-        
+
         device = deviceMgr.get(device_id)
         if not device:
             _Log._Log_.e(f'设备不存在: {device_id}')
@@ -158,7 +161,7 @@ def handle_C2S_UpdateTask(data):
         app_name = data.get('app_name')
         task_name = data.get('task_name')
         progress = data.get('progress', 0)
-        
+
         device = deviceMgr.get(device_id)
         if not device:
             _Log._Log_.e(f'设备不存在: {device_id}')
@@ -194,7 +197,7 @@ def handle_task_end(data):
         task_name = data.get('task_name')
         score = data.get('score', 0)
         result = data.get('result', True)  # 获取执行结果
-        
+
         device = deviceMgr.get(device_id)
         if not device:
             _Log._Log_.e(f'设备不存在: {device_id}')
@@ -230,7 +233,7 @@ def handle_2S_Cmd(data):
         # _Log._Log_.i(f'目标: {selectedIDs}')
         strCommand = data.get('command', '')
         deviceMgr.curDeviceIDs = selectedIDs
-        
+
         # 检查命令是否指定了executor
         clientTag = re.match(r'^\s*([^>》]*)[>》]+\s*(.+)$', strCommand)
         targets = []
@@ -239,7 +242,7 @@ def handle_2S_Cmd(data):
             # 命令中指定了executor
             deviceList = clientTag.group(1).strip()
             deviceList = deviceList.lower()
-            command = clientTag.group(2).strip()            
+            command = clientTag.group(2).strip()
             # 处理不同类型的执行者指定
             if not deviceList:
                 # 空值，使用当前选中的设备或服务器
@@ -248,21 +251,17 @@ def handle_2S_Cmd(data):
                 # 处理可能的多个执行者，用逗号分隔
                 targets = re.split(r'[,，]', deviceList)
         else:
-            # 没有指定执行者，使用选中的设备
-            targets = [_Log.TAG.Server.value]        
-        params = data.get('params', {})        
-        
-        # 先发送命令执行的日志，不包含结果
-        Log.log(strCommand, None, 'c')
-        
+            # 没有指定执行者，使用当前选中的设备或服务器
+            targets = [_Log.TAG.Server.value]
+        params = data.get('params', {})
         # 执行命令
         result = deviceMgr.sendCmd(targets, command, params)
-        
+
         # 如果有结果，再发送结果日志
         if result:
             # 使用命令结果的日志级别
             level, content = Log._parseLevel(result, 'i')
-            Log.log(f"=>{content}" if content else "", None, level)
+            Log.Blog(f"  => {content}" if content else "", None, level)
     except Exception as e:
         Log.ex(e, '执行命令失败')
 
@@ -282,10 +281,10 @@ def handle_B2S_FilterLogs(data):
     try:
         filter_str = data.get('filter', '')
         page = data.get('page', 1)
-        
+
         # 应用过滤器
         _Log._Log_.Filter(filter_str)
-        
+
         # 刷新日志显示
         _Log._Log_.show(page=page)
     except Exception as e:
@@ -297,16 +296,16 @@ def handle_get_available_dates():
     try:
         from app import APP_LOGS
         import os
-        
+
         # 获取日志目录中的所有日志文件
         log_files = [f for f in os.listdir(APP_LOGS) if f.endswith('.log')]
-        
+
         # 提取日期（去掉.log后缀）
         dates = [f[:-4] for f in log_files]
-        
+
         # 按日期排序（最新的在前）
         dates.sort(reverse=True)
-        
+
         # 发送到前端
         socketio.emit('S2B_AvailableDates', {'dates': dates})
     except Exception as e:

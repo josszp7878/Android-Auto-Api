@@ -314,7 +314,7 @@ class _CmdMgr_:
             return
         cmdStr = cmdStr.lower()
         try:
-            findCmd = None
+            find = None
             m = None
             # 尝试匹配所有命令的正则表达式，找到最长的匹配
             bestMatch = None
@@ -325,25 +325,25 @@ class _CmdMgr_:
                 module_cmds = module_name[1]
                 
                 # 遍历模块中的所有命令
-                for cmd in module_cmds.values():
+                for cmdObj in module_cmds.values():
                     try:
                         # 使用预编译的正则表达式
-                        if cmd.matchRegex:
-                            match = cmd.matchRegex.fullmatch(cmdStr)
+                        if cmdObj.matchRegex:
+                            match = cmdObj.matchRegex.fullmatch(cmdStr)
                         else:
-                            match = re.fullmatch(cmd.match, cmdStr)
+                            match = re.fullmatch(cmdObj.match, cmdStr)
                     except Exception as e:
-                        log.ex(e, f"命令: {cmdStr} 正则表达式错误: {cmd.match}")
+                        log.ex(e, f"命令: {cmdStr} 正则表达式错误: {cmdObj.match}")
                         continue
                     if match:
                         cmdMatch = match.groupdict().get(cls.CmdKey)
                         matchLength = len(cmdMatch) if cmdMatch else 0
                         if matchLength > bestMatchLength:
-                            bestMatch = cmd
+                            bestMatch = cmdObj
                             m = match
                             bestMatchLength = matchLength
-            findCmd = bestMatch
-            if findCmd is None:
+            find = bestMatch
+            if find is None:
                 log.e(f"找不到命令: {cmdStr}")
                 return
             # 提取命名捕获组作为参数
@@ -352,17 +352,20 @@ class _CmdMgr_:
                 # 跳过命令关键字,这个不能作为参数
                 if key != cls.CmdKey:
                     kwargs[key] = cls._cleanParam(value)
-            cmdName = findCmd.name.lower()
-            cmd = {'name': cmdName}
+            cmdName = find.name.lower()
+            cmd['name'] = cmdName
             # 检查目标函数是否有cmd参数
-            sig = inspect.signature(findCmd.func)
+            sig = inspect.signature(find.func)
             if 'cmd' in sig.parameters:
-                kwargs['cmd'] = cmd
+                kwargs['cmd'] = cmd 
             log.log_(f'<{cmdName}>:{cmdStr}', '', 'c')
-            result = findCmd.func(**kwargs)
-            sResult = str(result) if result is not None else ''
-            cmd['result'] = sResult
-            log.log_(f' => {sResult}')
+            result = find.func(**kwargs)
+            result = str(result) if result is not None else ''
+            if result:
+                cmd['result'] = result
+                # 解析结果中可能包含的级别信息
+                level, result= log._parseLevel(result)
+                log.log_(f'  => {result}', '', level)
         except Exception as e:
             log.ex(e, f'执行命令出错: {cmdStr}')
         
@@ -670,11 +673,7 @@ class _CmdMgr_:
             """  
             g = _G._G_
             if g.isServer():
-                return
-                {
-                    'IP': g.getIP(),
-                    'Port': g.getPort(),
-                    'Version': g.getVersion(),
+                return{
                     'Timestamp': str(datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
                 }
             else:
