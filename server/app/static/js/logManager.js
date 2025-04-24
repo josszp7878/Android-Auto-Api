@@ -55,7 +55,7 @@ class LogManager {
     // 添加滚动状态变化回调
     this.onScrollStateChanged = null;
     
-    // 新增命令历史缓存
+    // 命令历史不再从日志中解析，仅保存由Dashboard直接添加的命令
     this.cmdHistoryCache = [];
     
     // 新增系统日志存储
@@ -79,13 +79,9 @@ class LogManager {
     this._initComplete = true;
     this.initSocketEvents();
     
-    // 新增指令历史请求
-    this.socket.emit('B2S_GetCommands');
-    
     console.log('LogManager 初始化完成');
 
     // 绑定方法上下文
-    this.processCmdLog = this.processCmdLog.bind(this);
     this.scrollToBottom = this.scrollToBottom.bind(this);
   }
   
@@ -111,7 +107,7 @@ class LogManager {
         // 使用安全调用
         this.onLogsUpdated?.(this.filteredLogs);
     }
-    this.processCmdLog(data);
+    
     // 在日志面板中显示日志
     const logElement = this.renderLog(data);
     this._logContainer.appendChild(logElement);
@@ -250,49 +246,9 @@ class LogManager {
     }
   }
   
-  // 修改后的处理CMD日志方法
-  processCmdLog(log) {
-    // 只处理命令类型的日志
-    if (log.level == 'c') {
-      // 提取纯命令内容
-      let commandText = log.message;
-      
-      // 处理格式为 "sender: command" 或 "sender→executor: command" 的消息
-      const colonIndex = commandText.indexOf(': ');
-      if (colonIndex > -1) {
-        // 提取冒号后面的部分作为纯命令内容
-        commandText = commandText.substring(colonIndex + 2);
-      }
-      
-      // 将纯命令内容添加到历史记录
-      if (commandText) {
-        // 如果命令已存在，先移除它
-        const existingIndex = this.cmdHistoryCache.indexOf(commandText);
-        if (existingIndex !== -1) {
-          this.cmdHistoryCache.splice(existingIndex, 1);
-        }
-        // 将命令添加到历史记录最前面
-        this.cmdHistoryCache.unshift(commandText);
-        // 限制历史记录数量
-        if (this.cmdHistoryCache.length > 50) {
-          this.cmdHistoryCache.pop();
-        }
-      }
-    }
-  }
-
   // 解析并过滤所有日志
   parseAndFilterLogs() {
     this.loadingLogs = true;
-    
-    // 重置命令缓存前保留现有命令
-    const prevCache = [...this.cmdHistoryCache];
-    this.cmdHistoryCache = [];
-    
-    this.logs.forEach(this.processCmdLog);
-    
-    // 合并新旧缓存（保留历史记录）
-    this.cmdHistoryCache = [...new Set([...this.cmdHistoryCache, ...prevCache])].slice(0, 100);
     
     // 解析所有日志
     const parsedLogs = this.logs.filter(log => log !== null);
@@ -593,9 +549,24 @@ class LogManager {
     return width;
   }
   
-  // 新增获取命令历史方法
+  // 简化的获取命令历史方法（仅返回由Dashboard直接添加的命令）
   getCommandHistory() {
     return this.cmdHistoryCache;
+  }
+  
+  // 新增添加命令到历史方法（供Dashboard调用）
+  addCommandToHistory(command) {
+    // 如果命令已存在，先移除它
+    const existingIndex = this.cmdHistoryCache.indexOf(command);
+    if (existingIndex !== -1) {
+      this.cmdHistoryCache.splice(existingIndex, 1);
+    }
+    // 将命令添加到历史记录最前面
+    this.cmdHistoryCache.unshift(command);
+    // 限制历史记录数量
+    if (this.cmdHistoryCache.length > 50) {
+      this.cmdHistoryCache.pop();
+    }
   }
   
   // 更新统计信息

@@ -36,7 +36,6 @@ class Dashboard {
                 devices: initialDevices || {},  // 使用处理过的初始设备数据
                 selectedDevice: curDeviceID || null,  // 使用服务器传来的当前设备ID
                 commandInput: '',
-                cmdHistoryCache: [],  // 命令日志缓存
                 historyIndex: -1,
                 lastActivityTime: Date.now(),
                 showLogs: curDeviceID ? true : false,  // 如果有当前设备就显示日志
@@ -158,7 +157,10 @@ class Dashboard {
                     if (!this.commandInput) return;
                     
                     console.log('发送命令:', this.commandInput);
-                    this.addCommandToHistory(this.commandInput);
+                    // 使用LogManager添加命令到历史
+                    this.logManager.addCommandToHistory(this.commandInput);
+                    // 更新历史索引
+                    this.historyIndex = -1;
                     
                     this.socket.emit('2S_Cmd', {
                         device_ids: this.selectedDevices,
@@ -167,7 +169,6 @@ class Dashboard {
                     });
                     
                     this.commandInput = '';
-                    this.historyIndex = -1;
                 },
                 handleOutsideClick() {
                     // 取消所有设备选择
@@ -464,8 +465,10 @@ class Dashboard {
                         // 计算新索引
                         let newIndex = this.historyIndex;
                         if (e.key === 'ArrowUp') {
+                            // 向上键获取更早的命令（索引增加）
                             newIndex = Math.min(newIndex + 1, historyLength - 1);
                         } else {
+                            // 向下键获取更新的命令（索引减少）
                             newIndex = Math.max(newIndex - 1, -1);
                         }
                         
@@ -512,11 +515,8 @@ class Dashboard {
                     this.logManager.addLog('e', 'ERROR', error.message || error);
                 },
                 addCommandToHistory(command) {
-                    if (this.cmdHistoryCache.length >= 100) {
-                        this.cmdHistoryCache.shift();
-                    }
-                    this.cmdHistoryCache.push(command);
-                    this.historyIndex = this.cmdHistoryCache.length - 1;
+                    // 保持此方法以兼容旧代码，但实际委托给LogManager处理
+                    this.logManager.addCommandToHistory(command);
                 },
                 handleGlobalClick(event) {
                     // 检查点击是否在设备列表区域内的空白处

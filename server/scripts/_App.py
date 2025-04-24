@@ -656,7 +656,8 @@ class _App_:
             Checker = g.Checker()
             
             # 获取完整检查器名称(包含应用前缀)
-            fullName = Checker.getTemplate(checkName, False).name if checkName else None
+            template = Checker.getTemplate(checkName, False)
+            fullName = template.name if template else None
             if not fullName:
                 log.e(f"检查器 {checkName} 未定义")
                 return False

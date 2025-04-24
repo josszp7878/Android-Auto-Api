@@ -236,23 +236,29 @@ def handle_2S_Cmd(data):
 
         # 检查命令是否指定了executor
         clientTag = re.match(r'^\s*([^>》]*)[>》]+\s*(.+)$', strCommand)
+        serverTag = re.match(r'^\s*@\s*(.+)$', strCommand)
         targets = []
         command = strCommand
-        if clientTag:
+        
+        if serverTag:
+            # @开头的命令发送给服务端
+            targets = [_Log.TAG.Server.value]
+            command = serverTag.group(1).strip()
+        elif clientTag:
             # 命令中指定了executor
             deviceList = clientTag.group(1).strip()
             deviceList = deviceList.lower()
             command = clientTag.group(2).strip()
             # 处理不同类型的执行者指定
             if not deviceList:
-                # 空值，使用当前选中的设备或服务器
+                # 空值，使用当前选中的设备
                 targets = selectedIDs
             else:
                 # 处理可能的多个执行者，用逗号分隔
                 targets = re.split(r'[,，]', deviceList)
         else:
-            # 没有指定执行者，使用当前选中的设备或服务器
-            targets = [_Log.TAG.Server.value]
+            # 没有指定执行者，使用当前选中的设备
+            targets = selectedIDs if selectedIDs else [_Log.TAG.Server.value]
         params = data.get('params', {})
         # 执行命令
         result = deviceMgr.sendCmd(targets, command, params)
