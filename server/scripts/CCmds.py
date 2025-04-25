@@ -638,22 +638,32 @@ class CCmds_:
             CSchedule_.runAll()
             return '执行所有策略完成'
 
-        @regCmd(r"#添加屏幕信息|tjpmxx(?P<text>.+)(?P<bound>.+)?")
-        def addScreenInfo(text, bound=None):
-            """功能：添加模拟屏幕文字块用于PC端测试
-            指令名：addScreenInfo
-            中文名：添加屏幕信息
+        @regCmd(r"#屏幕信息|pmxx(?P<text>.+)?")
+        def screenInfo(text = None):
+            """功能：添加模拟屏幕文字块用于识别
             参数：
-               text - 文字内容
-               bound - 边界坐标，格式为"x,y,width,height"
-            示例：添加屏幕信息 登录 74,163,98,208
+               text - 内容
+                    ？ - 显示当前屏幕信息
+                    空 - 清除当前屏幕信息
+                    其它 - 添加屏幕信息
+            示例：
+                屏幕信息 登录
+                屏幕信息 ?
+                屏幕信息 
             """
             g = _G._G_
             tools = g.Tools()
-            if hasattr(tools, 'addScreenInfo'):
-                result = tools.addScreenInfo(text, bound)
-                if result:
-                    log.i(f"添加屏幕信息成功: {text}")
-                    return True
-            log.e(f"添加屏幕信息失败")
-            return False
+            text = text.strip() if text else ''
+            if text == '?':
+                # 显示当前屏幕信息
+                pass
+            elif text == '':
+                # 清除当前屏幕信息
+                tools.clearScreenInfo()
+            else:
+                # 添加屏幕信息
+                ret = tools.addScreenInfo(text)
+                if not ret:
+                    return "添加屏幕信息失败"
+            return f"当前屏幕信息：{tools.getScreenInfo()}"
+            

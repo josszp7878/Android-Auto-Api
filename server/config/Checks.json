@@ -125,9 +125,9 @@
     "match": "",
     "event": {
       "@匹配成功(?P<num>\\d*)?": "log.i(f'ddddddddddd={this.get(\"num\")}')",
-      "%99": "@click('%99几率')",
+      "%33": "@click('%33几率')",
       "": "@click('无条件执行')",
-      "-3": "@click('延时5秒后执行');"
+      "-5": "@click('延时5秒后执行');"
     },
     "exit": "exit"
   },

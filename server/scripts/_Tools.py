@@ -1040,11 +1040,16 @@ class _Tools_:
             return False
 
     @classmethod
-    def addScreenInfo(cls, text, bound):
+    def clearScreenInfo(cls):
+        """清除屏幕信息"""
+        cls._screenInfoCache = []
+        return True
+
+    @classmethod
+    def addScreenInfo(cls, content:str):
         """添加模拟屏幕文字块
         Args:
-            text: 文字内容
-            bound: 边界坐标，格式为"x,y,width,height"
+            content: 文字内容
         Returns:
             bool: 是否成功添加
         """
@@ -1052,11 +1057,12 @@ class _Tools_:
         try:
             if cls._screenInfoCache is None:
                 cls._screenInfoCache = []
-            
+            strs = content.split('(')
+            text = strs[0].strip()
+            bound = strs[1].strip(')').strip(' ') if len(strs) > 1 else None
             # 解析边界坐标
             bounds = None
             if bound:
-                bound = bound.strip(' ').strip('(').strip(')')
                 bounds = [int(x) for x in bound.split(',')]
                 l = len(bounds)
                 if l < 2:
