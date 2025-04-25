@@ -18,36 +18,9 @@ if TYPE_CHECKING:
     from CChecker import CChecker_
     from SDeviceMgr import SDeviceMgr_
     from SCommandHistory import SCommandHistory_
+
+PASS = "pass"
 TOP = "top"
-UNKNOWN = 'unknown'
-
-# 添加一个标志，表示是否已经显示过权限提示
-_permission_alert_shown = False
-
-def checkPermission(permission):
-    """检查权限是否已授予"""
-    global _permission_alert_shown
-    
-    try:
-        # 直接使用_G_类的android对象检查权限
-        android = _G_.android
-        if android:
-            result = android.checkPermission(permission)
-            
-            # 如果权限被拒绝，但还没有显示过提示，则记录一条日志
-            if not result and not _permission_alert_shown:
-                from _Log import _Log_
-                _Log_.w(
-                    f"Permission denied: {permission.split('.')[-1]}", 
-                    "Permission"
-                )
-                _permission_alert_shown = True  # 标记已经显示过提示
-                
-            return result
-        return False
-    except Exception as e:
-        print(f"Check permission error: {e}")
-        return False
 
 class _G_:
     # 使用线程安全的存储
@@ -60,7 +33,6 @@ class _G_:
     
     android = None   # Android服务对象，由客户端设置
 
-    PASS = "pass"
 
     @classmethod
     def isAndroid(cls):
@@ -77,6 +49,7 @@ class _G_:
         """设置是否是服务器端"""
         if isServer is not None:
             cls._isServer = isServer
+        cls.onLoad(None)
         from _App import _App_
         _App_.loadConfig()
 
@@ -238,7 +211,7 @@ class _G_:
                     continue
                 
                 # 调试输出，找到匹配的文件
-                print(f"找到脚本: {file}")
+                # print(f"找到脚本: {file}")
                 
                 module = file[:-3]  # 去掉.py后缀
                 fileNames.append(module)
@@ -247,7 +220,7 @@ class _G_:
             print(f"扫描脚本目录失败: {e}")
         
         # 输出找到的所有脚本
-        print(f"找到的所有脚本: {fileNames}")
+        # print(f"找到的所有脚本: {fileNames}")
         
         # 缓存结果
         cls._scriptNamesCache = fileNames
@@ -317,17 +290,6 @@ class _G_:
         
         return all_files
 
-    @classmethod
-    def setAndroid(cls, androidService):
-        """设置Android服务对象
-        
-        该方法由客户端调用，传入已初始化的androidService对象
-        """
-        cls.android = androidService
-        if cls.log:
-            cls.log.i(f"设置Android服务对象: {androidService}")
-        else:
-            print(f"设置Android服务对象: {androidService}")
 
     @classmethod
     def onLoad(cls, oldCls):
@@ -337,8 +299,8 @@ class _G_:
             cls._store = oldCls._store
             cls.android = oldCls.android  # 保留android对象
         import _Log
-        cls.log = _Log._Log_()
-        
+        log = _Log._Log_()
+        cls.log = log
         # 如果是客户端环境，尝试初始化android对象
         if not cls._isServer and cls.android is None:
             try:
@@ -361,14 +323,10 @@ class _G_:
                 android.onInput(onInput)
                 cls.android = android
                 cls.log.i("成功初始化Android服务")
-            except ImportError:
-                # 如果不是Android环境，忽略错误
-                pass
+            except ModuleNotFoundError:
+                log.w("找不到Android服务")
             except Exception as e:
-                if cls.log:
-                    cls.log.ex(e, "初始化Android服务失败")
-                else:
-                    print(f"初始化Android服务失败: {e}")
+                log.ex(e, "初始化Android服务失败")
 
     @classmethod
     def getClassLazy(cls, moduleName):
@@ -418,5 +376,4 @@ class _G_:
                 cls.log.ex(e, f"延迟导入{moduleName}失败")
             return None
 
-_G_.onLoad(None)
 g = _G_

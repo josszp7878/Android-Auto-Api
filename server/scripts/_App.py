@@ -10,7 +10,7 @@ class _App_:
     """应用管理类：整合配置与实例"""
     _curAppName = _G.TOP  # 当前应用名称
     @classmethod
-    def CurAppName(cls):
+    def curName(cls):
         """获取当前应用名称"""
         return cls._curAppName
     
@@ -18,7 +18,7 @@ class _App_:
     Top: "_App_" = None
 
     @classmethod
-    def currentApp(cls):
+    def cur(cls):
         """获取当前应用"""
         return cls.getApp(cls._curAppName, True)
     
@@ -49,7 +49,7 @@ class _App_:
             match = re.match(fr'(?P<appName>\S+)?\s*{cls.PathSplit}\s*(?P<name>\S+)?', str)
             appName = match.group('appName')
             if appName is None:
-                appName = cls.currentApp().name
+                appName = cls.cur().name
             return appName, match.group('name')
         else:
             return None, str
@@ -87,7 +87,7 @@ class _App_:
         
         # 获取并启动新页面的检查器
         Checker = _G._G_.Checker()
-        checker = Checker.get(page.name)
+        checker = Checker.getInst(page.name)
         if checker:
             checker.begin()
     
@@ -165,7 +165,7 @@ class _App_:
         g = _G._G_
         log = g.Log()
         appName, pageName = cls.splitAppName(pageName)
-        app = cls.currentApp()
+        app = cls.cur()
         if appName:
             app = cls.getApp(appName, True)
             if not app:
@@ -434,7 +434,8 @@ class _App_:
         """
         if appName is None or appName.strip() == '':
             return None
-        log = _Log._Log_
+        g = _G._G_
+        log = g.Log()
         try:
             # 如果完全匹配，直接返回
             appName = appName.lower()
@@ -442,7 +443,7 @@ class _App_:
                 return appName
             
             # 模糊匹配：检查输入是否是某个应用名的子串
-            ret = _G._G_.Tools().regexMatch(appName, cls.apps.keys())
+            ret = g.Tools().wildMatchText(appName, cls.apps.keys())
             log.i(f"模糊匹配: {appName} 结果为: {ret}")
             if ret:
                 return ret
@@ -670,7 +671,7 @@ class _App_:
             self.stop(checkName)
             
             # 创建并启动新检查器
-            checker = Checker.get(fullName, create=True)
+            checker = Checker.getInst(fullName, create=True)
             if not checker:
                 log.e(f"创建检查器 {fullName} 失败")
                 return False
@@ -730,13 +731,15 @@ class _App_:
             checker: 要停止的检查器对象
             cancel: 是否以cancel方式停止
         """
+        g = _G._G_
+        tools = g.Tools()
         if cancel:
             # 以cancel方式停止，不执行退出逻辑
-            checker.ret = checker.eDoRet.cancel.value
+            checker.ret = tools.eRet.cancel.value
             checker.forceCancelled = True  # 设置强制取消标志
         else:
             # 正常停止方式
-            checker.ret = checker.eDoRet.end.value
+            checker.ret = tools.eRet.end.value
         
         # 无论哪种方式都禁用检查器
         checker.enabled = False

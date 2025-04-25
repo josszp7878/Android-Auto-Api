@@ -1,8 +1,7 @@
-from enum import Enum
-from typing import Dict, Any, List,  Optional, TYPE_CHECKING
+from typing import Dict, Any, List, Optional, TYPE_CHECKING
 import _G
 if TYPE_CHECKING:
-    from _Page import _Page_
+    from _Tools import _Tools_
 import json
 import re
 import threading
@@ -77,12 +76,22 @@ class CChecker_:
         self.children = []        # 存储由当前检查器启动的子检查器
         self.childThreads = []    # 存储子检查器的线程
         self.executedEvents = set()  # 记录已执行的事件
-        self.ret = ''            # 返回值，用于外部获取执行结果
+        self.ret = g.Tools().eRet.none  # 返回值，现在直接存储DoRet枚举
         self.forceCancelled = False  # 是否被外部强制取消标志
 
         # 如果有配置，则更新属性
         if config:
             self.fromConfig(config)
+
+    def get(self, prop):
+        if prop in self.data:
+            return self.data[prop]
+        return None
+    
+    def set(self, prop, value):
+        if self.data is None:
+            self.data = {}
+        self.data[prop] = value
 
     def fromConfig(self, config: Dict[str, Any]):
         """从字典更新属性，只更新存在的字段"""
@@ -336,51 +345,32 @@ class CChecker_:
             match = self.match
             if match == '':
                 return True
-            log.d(f"匹配: {match}")
-            result = tools.do(self, match, False)
-            if not result:
-                # 否则检查文本规则
-                text = tools.matchText(match)
-                result = text is not None
+            # log.d(f"匹配: {match}")
+            result, _ = tools.check(self, f'@{match}')
         except Exception as e:
             log.ex(e, f"匹配失败: {match}")
             result = False
         return result
     
-    class eDoRet(Enum):
-        none = ''
-        # 结束schedule
-        exit = 'exit'
-        # 结束本次check，继续schedule
-        end = 'end'
-        # 取消本次check
-        cancel = 'cancel'
-        # 出错
-        error = 'error'
     
     # 执行操作
-    def Do(self) -> str:
+    def Do(self) -> '_Tools_.eRet':
         try:
             events = self.event.items() if self.event else []
-            ret = ''
             tools = g.Tools()
-            
+            ret = tools.eRet.none
             if len(events) == 0: 
                 # 没有操作，直接点击match
                 if tools.click(self.match):
-                    ret = self.eDoRet.end.value
-                log.d(f"{self.name}.Do: {ret}")
-                self.ret = ret
-                return ret
+                    ret = tools.eRet.end
             else:
                 for key, action in events:
                     # 如果该事件已执行过，则跳过
                     if key in self.executedEvents:
                         continue
-                        
                     key = key.strip()
                     execute = False
-                    text_match = None
+                    m = None
                     
                     # 处理不同类型的key
                     if key.startswith('%'):
@@ -415,129 +405,31 @@ class CChecker_:
                         self.executedEvents.add(key)
                     else:
                         # 屏幕匹配文本，如果匹配到则执行
-                        text_match = tools.matchText(key)
-                        execute = text_match is not None
-                        if not execute and g.isAndroid():
-                            log.d(f"匹配文本失败: {key}")
-                            continue
+                        execute, m = tools.check(self, key)
                         # 处理正则表达式捕获组
-                        if execute and '(?P<' in key and text_match:
-                            try:
-                                m = re.search(key, text_match['t'])
-                                if m:
-                                    # 将匹配的命名捕获组添加到data中
-                                    for k, v in m.groupdict().items():
-                                        self.data[k] = v
-                            except Exception as e:
-                                log.ex(e, f"处理正则表达式捕获组失败: {key}")
-
+                        if execute and isinstance(m, re.Match):
+                            # 将匹配的命名捕获组添加到data中
+                            for k, v in m.groupdict().items():
+                                self.set(k, v)
                     # 如果条件满足，执行action
                     if execute:
-                        result = False
                         action = action.strip() if action else ''
-                        
                         if action == '':
                             # 空操作默认为点击
-                            if text_match:
-                                result = tools.click(key)
-                            else:
-                                result = True  # 无条件/概率/延时执行的空操作视为成功
+                            if m:
+                                tools.click(key)
                         else:
-                            codes = action.split(';')
-                            for code in codes:
-                                code = code.strip()
-                                if code == '':
-                                    continue
-                                # 处理特殊指令
-                                result = self._onCmd(code)
-                                # 如果特殊指令返回的不是none，则转换为字符串返回
-                                if result != self.eDoRet.none:
-                                    self.ret = result.value
-                                    return self.ret
-                                
-                                # 非特殊指令的处理
-                                if not code.startswith('@'):
-                                    code = f'@ {code}'
-                                result = tools.do(self, code)
-                        
+                            ret = tools.do(self, action)                      
                         # 文本匹配类型的事件执行后标记为已处理
-                        if text_match is not None:
-                            self.executedEvents.add(key)
-                                    
-                        if isinstance(result, str) and result.startswith('#'):
-                            ret = result
-                            break
-                
-                log.d(f"{self.name}.Do: {ret}")
-                self.ret = ret
+                        if m is not None:
+                            self.executedEvents.add(key)                
+                # log.d(f"{self.name}.Do: {ret}")
+                if ret != tools.eRet.exit:
+                    ret = tools.eRet.none
                 return ret
         except Exception as e:
             log.ex(e, f"执行操作失败: {self.event}")
-            ret = self.eDoRet.error.value
-            self.ret = ret
-            return ret
-
-    def _onCmd(self, code: str) -> eDoRet:
-        """处理特殊指令
-        Args:
-            code: 要处理的指令代码
-        Returns:
-            eDoRet: 如果是特殊指令且执行成功，返回对应结果
-                 否则返回eDoRet.none，表示不是特殊指令
-        """
-        try:
-            code_lower = code.lower()
-            tools = g.Tools()
-            
-            # 支持>>Ret格式指令，直接返回对应的eDoRet枚举
-            if code.startswith('>>'):
-                ret_str = code[2:].strip()
-                try:
-                    # 尝试将字符串转换为eDoRet枚举
-                    return self.eDoRet(f'{ret_str}')
-                except ValueError:
-                    log.e(f"无效的eDoRet值: {ret_str}")
-                    return self.eDoRet.none
-            
-            # 点击指令
-            if code_lower == 'click':
-                return self.eDoRet.none  # 由外部代码执行点击操作
-                
-            # 返回操作
-            elif code_lower == 'back':
-                tools.goBack()
-                return self.eDoRet.none
-                
-            # 回到主页
-            elif code_lower == 'home':
-                tools.goHome()
-                return self.eDoRet.none
-                
-            # 应用检测
-            elif code_lower == 'detect':
-                g.App().detect()
-                return self.eDoRet.none
-            # 页面跳转指令 ->pageName
-            elif code.startswith('->'):
-                # 提取目标页面名称
-                page_name = code[2:].strip()
-                if page_name:
-                    log.d(f"跳转到页面: {page_name}")
-                    # 先停止所有子检查器
-                    self._stopAllChildren()
-                    
-                    # 尝试页面跳转
-                    result = g.App().gotoPage(page_name)
-                    if result:
-                        # 跳转成功后取消当前检查器
-                        return self.eDoRet.cancel
-                    else:
-                        log.e(f"跳转到页面 {page_name} 失败")
-            
-            return self.eDoRet.none  # 不是特殊指令
-        except Exception as e:
-            log.ex(e, f"处理特殊指令失败: {code}")
-            return self.eDoRet.none  # 出错时视为非特殊指令
+            return tools.eRet.error
 
     @classmethod
     def _findTemplate(cls, name: str) -> Optional["CChecker_"]:
@@ -550,7 +442,7 @@ class CChecker_:
     
     @classmethod
     def getTemplate(cls, checkName: str, create: bool = False) -> Optional["CChecker_"]:
-        """获取指定名称的模板        
+        """获取指定名称的模板
         Args:
             checkName: checker模板名称
             create: 如果不存在是否创建
@@ -565,7 +457,7 @@ class CChecker_:
     
     @classmethod
     def _getTemplate(cls, checkName: str, create: bool = False) -> Optional["CChecker_"]:
-        """获取指定名称的模板        
+        """获取指定名称的模板
         Args:
             checkName: checker模板名称
             create: 如果不存在是否创建
@@ -573,7 +465,7 @@ class CChecker_:
             CChecker_: 模板对象，如果不存在且不创建则返回None
         """
         checkName = checkName.strip() if checkName else ''
-        if checkName == '' :
+        if checkName == '':
             return None
         for template in cls._templates:
             if template.name.lower() == checkName:
@@ -614,7 +506,8 @@ class CChecker_:
         """删除检查器"""
         if not checkName:
             return False
-        toDel = next((t for t in cls._templates if t.name.lower() == checkName.lower()), None)
+        toDel = next((t for t in cls._templates 
+                    if t.name.lower() == checkName.lower()), None)
         if not toDel:
             return False
         cls._templates.remove(toDel)
@@ -626,14 +519,11 @@ class CChecker_:
     def onLoad(cls, oldCls=None):
         """热加载时的处理"""
         log.i("加载CChecker")
-        if oldCls:
-            # 转移DEFAULT实例
-            cls._DEFAULT = oldCls.DEFAULT
         cls.loadConfig()
-        # cls.start()
 
     @classmethod
-    def get(cls, checkerName: str, config: Dict[str, Any] = None, create: bool = True) -> Optional["CChecker_"]:
+    def getInst(cls, checkerName: str, config: Dict[str, Any] = None, 
+            create: bool = True) -> Optional["CChecker_"]:
         """获取指定名称的检查器，此方法现在由App类调用
         
         Args:
@@ -672,7 +562,7 @@ class CChecker_:
     def begin(self, params: Dict[str, Any] = None) -> threading.Thread:
         """异步执行checker.begin()
         """
-        self.ret = ''
+        tools = g.Tools()
         thread = threading.Thread(target=self._begin, args=(params,))
         thread.start()
         return thread
@@ -680,48 +570,35 @@ class CChecker_:
     def _begin(self, params: Dict[str, Any] = None):
         """执行检查器
         """
+        tools = g.Tools()
         try:
             if params:
                 for k, v in params.items():
                     setattr(self, k, v)
-            self._stopAllChildren()
-            
-            # 确保ret一开始为空，重置强制取消状态
-            self.ret = ''
+            self._stopAllChildren()            
+            # 确保ret一开始为none，重置强制取消状态
+            ret = tools.eRet.none
             self.forceCancelled = False
-            
             if self._onEnter():
                 # 启动子检查器
                 self._startChildren()
-                # _update方法会设置self.ret
                 ret = self._update()
-                # 确保返回值与self.ret一致
-                if ret != self.ret:
-                    self.ret = ret
-                
                 # 首先检查是否被强制取消，如果是则跳过退出逻辑
-                if self.forceCancelled or self.ret == self.eDoRet.cancel.value:
+                if ret == tools.eRet.cancel:
                     # 不执行退出逻辑
                     pass
                 else:
-                    try:
-                        eRet = self.eDoRet(ret)
-                        
-                        # 只有当返回值不是error和cancel时才执行退出逻辑
-                        ok = eRet != self.eDoRet.error and eRet != self.eDoRet.cancel
-                        if ok:
-                            self._onExit()
-                    except Exception as e:
-                        # 如果转换失败，默认不执行退出逻辑
-                        log.ex(e, f"转换返回值失败: {ret}")
+                    # 只有当返回值不是error和cancel时才执行退出逻辑
+                    if ret != tools.eRet.error:
+                        self._onExit()
             else:
                 log.d(f"检查器 {self.name} 入口检查未通过")
+            self.ret = ret
         except Exception as e:
             log.ex(e, f"执行检查器异常: {self.name}")
-            self.ret = self.eDoRet.error.value
+            self.ret = tools.eRet.error
         finally:
             self._exit()
-        return self.ret
     
     def _exit(self):
         """退出检查器"""
@@ -731,6 +608,7 @@ class CChecker_:
     def _onExit(self):
         """执行出口逻辑"""
         log.d(f"执行出口逻辑: {self.name}")
+        tools = g.Tools()
         tools.do(self, self.exit)
 
     def _onEnter(self) -> bool:
@@ -745,10 +623,12 @@ class CChecker_:
             #如果key为空，则直接执行。
             tools = g.Tools()
             for key, code in entryMap.items():
-                ret = key == '' or tools.check(self, key)
+                ret = key == '' or tools.check(self, key)[0]
                 if ret:
-                    tools.do(self, code)
+                    ret = tools.do(self, code)
                     log.d(f"执行入口代码: {key}=>{code}=>{ret}")
+                    if ret == tools.eRet.exit:
+                        return False
             # 如果entry执行成功，延时3秒后进行匹配
             time.sleep(3)
             return self.Match()
@@ -756,7 +636,7 @@ class CChecker_:
             log.ex(e, f"执行入口代码异常: {self.name}")
             return False
     
-    def _update(self) -> str:
+    def _update(self) -> '_Tools_.eRet':
         """执行检查器更新逻辑
         0. 循环判定基于checker的enable属性
         1. 匹配event是否存在，成功则执行对应逻辑
@@ -765,67 +645,44 @@ class CChecker_:
         4. 通过设置enable为False可以结束checker生命周期
         5. 循环跳出后，停止所有子检查器并执行出口逻辑
         Returns:
-            str: 执行结果
+            '_Tools_.eRet': 执行结果
         """
         startTime = time.time()
         self.enabled = True
         self.children = []
         self.childThreads = []
         self.executedEvents = set()  # 重置已执行事件记录
+        tools = g.Tools()
+        ret = tools.eRet.none
         try:
             # 主循环，条件是检查器启用状态
             while self.enabled:
                 # 首先检查是否被外部强制取消
                 if self.forceCancelled:
-                    return self.eDoRet.cancel.value
-                
-                # 检查是否被外部停止，通过ret值判断
-                if self.ret != '':
-                    return self.ret
-                    
-                # 处理超时逻辑
+                    ret = tools.eRet.cancel
+                    break
                 if self.timeout > 0:
                     currentTime = time.time()
                     elapsedTime = currentTime - startTime
                     if elapsedTime > self.timeout:
                         log.d(f"checker {self.name} 超时")
+                        ret = tools.eRet.timeout
                         break
                 # 执行检查器操作
                 ret = self.Do()
-                # 再次检查是否被外部强制取消（防止Do执行过程中被取消）
-                if self.forceCancelled:
-                    return self.eDoRet.cancel.value
-                
-                if ret != '':
-                    # 确保强制取消的优先级高于Do的返回值
-                    if not self.forceCancelled:
-                        return ret
-                    else:
-                        return self.eDoRet.cancel.value
+                if ret != tools.eRet.none:
+                    break
                 time.sleep(1) 
-            
-            # 如果此时检查到强制取消标志，则返回cancel
-            if self.forceCancelled:
-                return self.eDoRet.cancel.value
-                
-            # 处理默认返回值
-            ret = self.eDoRet.end.value
-            # 确保外部设置的ret不被覆盖
-            if self.ret != '' and self.ret != self.eDoRet.none.value:
-                ret = self.ret
-            else:
-                self.ret = ret
             return ret
         except Exception as e:
             log.ex(e, f"执行检查器更新循环异常: {self.name}")
-            ret = self.eDoRet.error.value
-            self.ret = ret
-            return ret
+            ret = tools.eRet.error
         finally:
             # 确保更新结束时禁用检查器
             self.enabled = False
             # 再次确保所有子检查器都被停止
             self._stopAllChildren()
+        return ret
 
     
     def _startChildren(self):
@@ -838,7 +695,7 @@ class CChecker_:
                 try:
                     # 获取当前应用
                     App = g.App()
-                    curApp = App.currentApp()
+                    curApp = App.cur()
                     if not curApp:
                         log.e("未找到当前应用，无法启动子检查器")
                         continue
@@ -859,7 +716,7 @@ class CChecker_:
         try:
             # 获取当前应用
             App = g.App()
-            curApp = App.currentApp()
+            curApp = App.cur()
             if not curApp:
                 log.e("未找到当前应用，无法停止子检查器")
                 return

@@ -302,14 +302,17 @@ class _Log_:
                 cls.Blog(content, tag, level)
                 cls.log_(content, tag, level)
             else:
-                # 使用_G_.android直接访问android对象
-                android = g.android
-                if android:
-                    devID = android.deviceID()
-                    tag = f'{devID}{tag}' if tag else devID
+                # 客户端环境，获取设备对象并发送日志到服务端
+                device = g.CDevice()
+                if device:
+                    deviceId = device.deviceID()
+                    tag = f'{deviceId}{tag}' if tag else deviceId
                     logData = cls.createLogData(tag, content, level)
-                    if android.connected():
-                        android.emit('C2S_Log', logData)
+                    # 通过设备对象发送日志到服务端
+                    if device.connected():
+                        device.emit('C2S_Log', logData)
+                # 同时打印到终端
+                cls.log_(content, tag, level)
             return logData
         except Exception as e:
             cls.ex_(e, '记录日志失败')

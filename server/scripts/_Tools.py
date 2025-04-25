@@ -14,10 +14,10 @@ class RegionCheck:
 
     @classmethod
     def parse(cls, text: str) -> Tuple[Optional["RegionCheck"], str]:
-        check = RegionCheck()
         text1, coords = _Tools_.toPos(text)
         if coords is None:
             return None, text
+        check = RegionCheck()
         check.region = (coords[0] if coords[0] is not None else 0,
                         coords[1] if coords[1] is not None else 0,
                         coords[2] if coords[2] is not None else 0,
@@ -80,6 +80,21 @@ class TaskState(Enum):
     
 
 class _Tools_:
+
+    class eRet(Enum):
+        unknown = 'unknown'
+        none = ''
+        true = 'true'
+        # 结束schedule
+        exit = 'exit'
+        # 结束本次check，继续schedule
+        end = 'end'
+        # 取消本次check
+        cancel = 'cancel'
+        # 出错
+        error = 'error'
+        # 超时
+        timeout = 'timeout'
 
     _TopStr = ["top", "主屏幕", "桌面"]
     
@@ -169,56 +184,193 @@ class _Tools_:
         return re.sub(r'\$\s*([\w\.\(\)]+)', replacer, s)
 
     @classmethod
-    def check(cls, this, str:str)->bool:
+    def check(cls, this, str: str) -> Tuple[bool, Any]:
         ret = cls.do(this, str, False)
-        return cls.toBool(ret)
+        # 如果返回值不是元组，转换为元组
+        if not isinstance(ret, tuple):
+            # 判断结果，转换为布尔值
+            success = False if ret is None or ret == cls.eRet.none or not ret else True
+            # 创建新元组
+            return success, ret
+        else:
+            # 已经是元组，直接判断第一个元素
+            result, data = ret
+            success = False if result is None or result == cls.eRet.none or not result else True
+            return success, data
+                    
     
     @classmethod
-    def do(cls, this, str:str, doAction:bool=True):
-        """执行规则（内部方法）"""
+    def _doCmd(cls, cmd: str) -> '_Tools_.eRet':
+        """处理特殊命令
+        Args:
+            cmd: 特殊命令字符串
+        Returns:
+            DoRet: 命令执行结果
+        """
+        g = _G._G_
+        log = g.Log()
+        
+        cmd = cmd.strip()
+        if not cmd:
+            return cls.eRet.none
+        # 处理返回特定状态的命令
+        if cmd.startswith('>>'):
+            ret_str = cmd[2:].strip()
+            try:
+                return cls.eRet(f'{ret_str}')
+            except ValueError:
+                log.e(f"无效的DoRet值: {ret_str}")
+                return cls.eRet.none
+        # 处理返回操作
+        elif cmd.lower() == '<':
+            cls.goBack()
+            return cls.eRet.none
+        # 处理回到主页
+        elif cmd.lower() == '<<':
+            cls.goHome()
+            return cls.eRet.none
+        # 处理应用检测
+        elif cmd.lower() == '?':
+            g.App().detect()
+            return cls.eRet.none
+        # 处理页面跳转指令 ->pageName
+        elif cmd.startswith('->'):
+            # 提取目标页面名称
+            page_name = cmd[2:].strip()
+            if page_name:
+                log.d(f"跳转到页面: {page_name}")
+                # 尝试页面跳转
+                result = g.App().gotoPage(page_name)
+                if result:
+                    # 跳转成功后返回cancel
+                    return cls.eRet.cancel
+                else:
+                    log.e(f"跳转到页面 {page_name} 失败")
+            return cls.eRet.none
+        else:
+            # 未知命令，返回unknown
+            return cls.eRet.unknown
+    
+    @classmethod
+    def do(cls, this, str: str, doAction: bool = True):
+        """执行脚本
+        
+        将输入的字符串按分号分割为多个命令块：
+        1. 将连续的普通脚本（非@开头）收集起来作为一个整体通过_eval执行
+        2. @开头的特殊脚本单独通过_do方法处理
+        
+        Args:
+            this: 调用上下文
+            str: 命令字符串，可包含多个由分号分隔的命令
+            doAction: 是否执行动作
+            
+        Returns:
+            执行结果，如果有多个命令，返回最后一个命令的结果
+        """
         try:
-            str = str.strip() if str else ''
-            if str == '':
-                return False
+            if not str or str.strip() == '':
+                return cls.eRet.none
             g = _G._G_
             log = g.Log()
-            firstChar = str[0]
-            result = None
-            if firstChar == '@':
-                code = str[1:]
-                if code == '':
-                    return False
-                try:
-                     # 创建安全的执行环境
-                    locals = {
-                        'app': g.App(),
-                        'T': g.Tools(),
-                        'ct': g.Tools(),
-                        'log': g.Log(),
-                        'this': this,
-                        'g': g,
-                        'click': g.Tools().click,
-                    }
-                    result = eval(code, cls.gl, locals)
-                except Exception as e:
-                    log.ex(e, f"执行规则失败: {str}")
-            elif firstChar == '>':
-                #代码规则
-                code = str[1:]
-                result = g.App().gotoPage(code)
-            else:
-                #非代码规则
-                if doAction:
-                    result = g.Tools().click(str)
+            # 按分号分割命令
+            cmds = [cmd.strip() for cmd in str.split(';') if cmd.strip()]
+            if not cmds:
+                return cls.eRet.none
+                
+            last_ret = cls.eRet.none
+            normal_scripts = []  # 收集连续的普通脚本
+            
+            # 处理所有命令
+            for i, cmd in enumerate(cmds):
+                if cmd.startswith('@'):
+                    # 先执行之前收集的普通脚本（如果有）
+                    if normal_scripts:
+                        # 合并普通脚本并执行
+                        combined_script = ';'.join(normal_scripts)
+                        last_ret = cls._eval(this, combined_script, log)
+                        normal_scripts = []  # 清空集合
+                    
+                    # 执行特殊脚本
+                    cmd = cmd[1:]
+                    last_ret = cls._do(this, cmd, doAction, log)
                 else:
-                    #执行text检查
-                    result = g.Tools().matchTexts(str)
-            return result
-        except Exception as e:
-            log.ex(e, f"执行规则失败: {str}")
+                    # 收集普通脚本
+                    normal_scripts.append(cmd)
+            
+            # 执行最后收集的普通脚本（如果有）
+            if normal_scripts:
+                combined_script = ';'.join(normal_scripts)
+                last_ret = cls._eval(this, combined_script, log)
+            return last_ret
+        except Exception as ex:
+            g = _G._G_
+            log = g.Log()
+            log.ex(ex, f"执行失败: {str}")
+            return cls.eRet.error
+
+    # 执行特殊脚本
+    @classmethod
+    def _do(cls, this, str: str, doAction: bool, log: _G._G_.Log):
+        """执行规则（内部方法）"""
+        g = _G._G_
+        try:
+            tools = g.Tools()
+            str = str.strip() if str else ''
+            if str == '':
+                return cls.eRet.none                
+            ret = None
+            # 处理@开头的脚本执行
+            code = str[1:]
+            if code == '':
+                ret = cls.eRet.none                
+            else:
+                # 处理其他特殊指令
+                ret = cls._doCmd(str)
+                if ret == cls.eRet.unknown:
+                    # 当文字匹配时，执行点击
+                    if doAction:
+                        ret = tools.click(str)
+                    else:
+                        # 执行text检查
+                        ret = tools.matchText(str)
+            return ret
+        except Exception as ex:
+            log.ex(ex, f"执行失败: {str}")
             return False
         
-    
+    @classmethod
+    def _eval(cls, this, code: str, log: _G._G_.Log):
+        """执行脚本
+        
+        在脚本中，使用result变量存储最终结果，例如:
+        result = True  # 这个值会作为执行结果返回
+        
+        不支持在顶层代码中使用return语句，因为在Python的非函数上下文中不允许return。
+        """
+        g = _G._G_
+        try:
+            # 创建安全的执行环境
+            locals = {
+                'app': g.App(),
+                't': g.Tools(),
+                'log': g.Log(),
+                'this': this,
+                'g': g,
+                'click': g.Tools().click,
+                'R': _Tools_.eRet,
+                'r': None  # 用于存储结果
+            }
+            # 将分号替换为换行符，处理多条语句
+            code = code.replace(';', '\n')
+            # 使用exec执行代码
+            exec(code, cls.gl, locals)
+            # 返回result变量的值
+            return locals.get('r', cls.eRet.none)
+        except Exception as ex:
+            log.ex(ex, f"执行规则失败: {code}")
+            return None
+        
+
     @classmethod
     def toNetStr(cls, result):
         """将对象转换为字符串"""
@@ -287,7 +439,7 @@ class _Tools_:
         """将字符串转换为布尔值"""
         if value is None:
             return default
-        return value.lower() in ['true', '1', 'yes', 'y', 'on','开']
+        return value.lower() in ['true', '1', 'yes', 'y', 'on', '开']
 
    
     @classmethod
@@ -485,28 +637,22 @@ class _Tools_:
         return retItem, maxSim
     
     @classmethod
-    def regexMatch(cls, pattern, items):
-        """在列表中查找匹配正则表达式的项目
-        
+    def wildMatchText(cls, pattern, items):
+        """在列表中查找包含指定文本的项目
         Args:
-            pattern: 正则表达式
+            pattern: 要匹配的文本
             items: 要匹配的列表
             
         Returns:
-            list: 匹配的项目列表
+            list: 匹配的项目
         """
         try:
             if not pattern or not items:
                 return []
             matches = []
-            pattern = pattern.strip().lower()
-            
+            pattern = pattern.strip().lower()            
             for item in items:
-                t = item.get('t', '')
-                if not t:
-                    continue
-                    
-                if pattern in t:
+                if pattern in item:
                     matches.append(item)
             return matches
         except Exception as e:
@@ -517,30 +663,38 @@ class _Tools_:
     @classmethod
     def regexMatchItems(cls, pattern, items):
         """正则匹配项目列表
+        
+        使用正则表达式进行匹配，直接返回匹配的项目和匹配结果组成的元组列表
+        
         Args:
-            pattern: 正则表达式
+            pattern: 正则表达式模式字符串
             items: 项目列表
+            
         Returns:
-            list: 匹配的项目列表
+            list: 包含元组(item, match)的列表，item是匹配的项目，match是正则表达式匹配结果
         """
+        log = _G._G_.Log()
         try:
             if not pattern or not items:
                 return []
+            # 编译正则表达式
+            regex = re.compile(pattern, re.IGNORECASE)
+            # 存储匹配结果的元组列表
             matches = []
-            pattern = pattern.strip().lower()
-            
             for item in items:
                 t = item.get('t', '')
                 if not t:
-                    continue
-                t = t.lower().strip()
-                if pattern in t:
-                    matches.append(item)
+                    continue                    
+                # 执行正则表达式匹配
+                m = regex.search(t)
+                if m:
+                    # 将匹配的项目和匹配结果添加到列表中
+                    matches.append((item, m))
             return matches
         except Exception as e:
-            log = _G._G_.Log()
             log.ex(e, f"正则匹配失败: {pattern}")
-            return []
+            # 不再容错处理，让错误传递出去
+            raise
 
     @classmethod
     def replaceSymbols(cls, text: str, symbol_map: dict = None) -> str:
@@ -626,7 +780,7 @@ class _Tools_:
         try:
             if appName == _G.TOP:
                 return cls.goHome()
-            if cls._G.android is None:
+            if g.android is None:
                 opened = cls.click(appName)
             else:
                 # 根据系统类型选择打开方式
@@ -634,7 +788,7 @@ class _Tools_:
                     opened = cls.click(f'{appName}(y-150)', 'LR')
                 else:
                     # Android系统使用服务方式打开
-                    opened = cls._G.android.openApp(appName)
+                    opened = g.android.openApp(appName)
             return opened
         except Exception as e:
             log.ex(e, "打开应用失败")
@@ -642,10 +796,11 @@ class _Tools_:
 
     @classmethod
     def closeApp(cls, app_name: str = None) -> bool:
-        log = _G._G_.Log()
+        g = _G._G_
+        log = g.Log()
         try:
-            if cls._G.android:
-                return cls._G.android.closeApp(app_name)
+            if g.android:
+                return g.android.closeApp(app_name)
             return True
         except Exception as e:
             log.ex(e, '关闭应用失败')
@@ -668,9 +823,11 @@ class _Tools_:
             xOffset: X轴偏移量
             yOffset: Y轴偏移量
         """
+        g = _G._G_
+        log = g.Log()
         try:
-            if cls._G.android:
-                cls._G.android.toast(str(msg),
+            if g.android:
+                g.android.toast(str(msg),
                                 duration or cls.TOAST_LENGTH_LONG,
                                 gravity or cls.TOAST_GRAVITY_BOTTOM,
                                 xOffset, yOffset)
@@ -689,7 +846,7 @@ class _Tools_:
         """
         g = _G._G_
         log = g.Log()
-        android = cls._G.android
+        android = g.android
         if android is None:
             return None
         try:
@@ -707,9 +864,10 @@ class _Tools_:
         Returns:
             bool: 是否在桌面
         """
-        if cls._G.android is None:
+        g = _G._G_
+        log = g.Log()
+        if g.android is None:
             return True
-        log = _G._G_.Log()
         try:
             # 常见桌面应用包名列表
             LAUNCHER_PACKAGES = {
@@ -769,25 +927,28 @@ class _Tools_:
     @classmethod
     def goHome(cls)->bool:
         """统一返回桌面实现"""
-        if cls._G.android:
-            if not cls._G.android.goHome():
+        g = _G._G_
+        log = g.Log()
+        if g.android:
+            if not g.android.goHome():
                 return False
         return True     
 
     @classmethod
     def goBack(cls)->bool:
         """统一返回上一页实现"""
-        log = _G._G_.Log()
-        log.i("<<")
-        if cls._G.android:
-            return cls._G.android.goBack()
+        g = _G._G_
+        log = g.Log()
+        if g.android:
+            return g.android.goBack()
         else:
             return True
 
     # 从CTools_类添加的屏幕相关方法
     @classmethod
     def setPosFixScope(cls, scope):
-        log = _G._G_.Log()
+        g = _G._G_
+        log = g.Log()
         cls._fixFactor = scope/cls.screenSize[1]
         log.i(f"@@@坐标修正范围: {scope}, 修正比例: {cls._fixFactor}")
         
@@ -797,9 +958,9 @@ class _Tools_:
         screenSize = (1080, 1920)
         log = _G._G_.Log()
         try:
-            if cls._G.android:
+            if g.android:
                 # 尝试通过Android Context获取屏幕尺寸
-                context = cls._G.android.getContext()
+                context = g.android.getContext()
                 if context:
                     resources = context.getResources()
                     if resources:
@@ -919,14 +1080,6 @@ class _Tools_:
         except Exception as e:
             log.ex(e, "添加屏幕信息失败")
             return False
-    
-    @classmethod
-    def toPos(cls, item: dict):
-        # bounds = [int(x) for x in item['b'].split(',')]
-        bounds = item['b']
-        centerX = (bounds[0] + bounds[2]) // 2
-        centerY = (bounds[1] + bounds[3]) // 2
-        return (centerX, centerY)
 
     @classmethod
     def refreshScreenInfos(cls) -> list:
@@ -968,52 +1121,9 @@ class _Tools_:
             log.ex(e, "获取屏幕信息失败")
             return []
 
-    # 从CTools_类添加的文本匹配相关方法
+    
     @classmethod
-    def matchTexts(cls, str: str, refresh=False) -> bool:
-        """匹配多个文本条件
-        
-        Args:
-            str: 要匹配的文本条件，支持&(与)和|(或)连接符
-            refresh: 是否刷新屏幕信息
-            
-        Returns:
-            bool: 是否匹配成功
-        """
-        log = _G._G_.Log()
-        try:
-            # 如果没有连接符，直接调用matchText
-            if '&' not in str and '|' not in str:
-                return cls.matchText(str, refresh) is not None
-            
-            # 处理OR条件
-            orParts = str.split('|')
-            for orPart in orParts:
-                # 处理AND条件
-                andParts = orPart.split('&')
-                allMatch = True
-                
-                for andPart in andParts:
-                    part = andPart.strip()
-                    if not part:
-                        continue
-                    
-                    if not cls.matchText(part, refresh):
-                        allMatch = False
-                        break
-                
-                # 如果一个OR部分的所有AND条件都满足，则返回True
-                if allMatch:
-                    return True
-            
-            # 所有OR部分都不满足
-            return False
-        except Exception as e:
-            log.ex(e, f"匹配多个文本条件失败: {str}")
-            return False
-
-    @classmethod
-    def matchText(cls, str: str, refresh=False):
+    def matchText(cls, str: str, refresh=False)->Tuple[dict, re.Match]:
         """匹配文本，并可选择在特定区域内查找
         
         Args:
@@ -1023,62 +1133,44 @@ class _Tools_:
         Returns:
             匹配成功的第一个元素或None
         """
+        g = _G._G_
+        log = g.Log()
+        Null = None if g.android else _G.PASS
         try:
             if not str or str.strip() == '':
-                return None
-                
-            g = _G._G_
-            log = g.Log()
-            
+                return Null, None             
             # 解析区域信息，使用本地定义的RegionCheck类
-            region, text = RegionCheck.parse(str)
-            
+            region, text = RegionCheck.parse(str)            
             # 获取屏幕信息
             items = cls.getScreenInfo(refresh)
             if not items or len(items) == 0:
                 # log.w("屏幕信息为空")
-                return None if cls._G.android else g.PASS
+                return Null, None
                 
-            # 先匹配文本
-            matchedItems = cls.regexMatchItems(text, items)            
+            # 进行正则匹配，获取匹配的项目和匹配结果
+            matches = []
+            try:
+                matches = cls.regexMatchItems(text, items)
+            except Exception as e:
+                log.ex(e, f"正则表达式匹配失败: {text}")
+                return Null, None
             # 没有匹配到文本
-            if not matchedItems:
+            if not matches or len(matches) == 0:
                 # log.w(f"未找到匹配文本: {text}")
-                return None
-                
-            # 确保matchedItems是列表
-            if not isinstance(matchedItems, list):
-                matchedItems = [matchedItems]
+                return Null, None
                 
             # 如果需要区域过滤
             if region:
                 # 过滤在指定区域内的项
-                inRegionItems = []
-                for item in matchedItems:
+                for item, match in matches:
                     b = item['b']
-                    isIn = region.isRectIn(b[0], b[1], b[2], b[3])
-                    if isIn:
-                        inRegionItems.append(item)
-                        
-                matchedItems = inRegionItems
-                if len(matchedItems) == 0:
-                    log.w("区域匹配失败")
-                    return None
-                log.i(f"区域匹配成功，共{len(matchedItems)}个结果")
-            
-            # 打印调试信息，如果匹配到多个结果
-            if len(matchedItems) > 1:
-                log.i(f"匹配到多个文本: {[item.get('t') for item in matchedItems]}")
-            
-            # 返回第一个匹配项
-            if matchedItems:
-                log.i(f"匹配到文本: {matchedItems[0].get('t')}")
-                return matchedItems[0]
-            return None
-            
+                    if region.isRectIn(b[0], b[1], b[2], b[3]):
+                        return item, match
+                return Null, None
+            return matches[0]
         except Exception as e:
             log.ex(e, f"匹配文本失败: {str}")
-            return None
+            return Null, None
 
     # 添加交互相关方法
     _screenText = None
@@ -1093,7 +1185,8 @@ class _Tools_:
         Returns:
             bool: 是否成功滑动
         """
-        log = _G._G_.Log()
+        g = _G._G_
+        log = g.Log()
         try:
             if not param:
                 return False
@@ -1101,8 +1194,8 @@ class _Tools_:
             # 判断是否为简单方向参数
             param = param.upper()
             if param in ["UP", "DOWN", "LEFT", "RIGHT", "U", "D", "L", "R"]:
-                if cls._G.android:
-                    return cls._G.android.swipe(param)
+                if g.android:
+                    return g.android.swipe(param)
                 else:
                     log.i(f"模拟滑动: {param}")
                     return True
@@ -1112,8 +1205,8 @@ class _Tools_:
                 coords = [int(x.strip()) for x in param.split(",")]
                 if len(coords) == 4:
                     x1, y1, x2, y2 = coords
-                    if cls._G.android:
-                        return cls._G.android.swipePos(x1, y1, x2, y2)
+                    if g.android:
+                        return g.android.swipePos(x1, y1, x2, y2)
                     else:
                         log.i(f"模拟滑动: ({x1},{y1}) -> ({x2},{y2})")
                         return True
@@ -1160,14 +1253,14 @@ class _Tools_:
         Returns:
             bool: 是否成功点击
         """
-        log = _G._G_.Log()
+        g = _G._G_
+        log = g.Log()
         try:
-            g = _G._G_
             # 获取文本位置
             pos = cls.findTextPos(text, direction)
             if not pos:
                 log.w(f"未找到文本: {text}")
-                return cls._G.android is None
+                return g.android is None
                 
             # 点击位置
             cls.clickPos(pos)
@@ -1192,14 +1285,15 @@ class _Tools_:
         Returns:
             bool: 是否成功点击
         """
-        log = _G._G_.Log()
+        g = _G._G_
+        log = g.Log()
         try:
             x, y = pos
             x += offset[0]
             y += offset[1]
             
-            if cls._G.android:
-                return cls._G.android.click(x, y)
+            if g.android:
+                return g.android.click(x, y)
             else:
                 log.i(f"模拟点击: ({x},{y})")
                 return True
@@ -1219,7 +1313,8 @@ class _Tools_:
         Returns:
             bool: 是否找到
         """
-        log = _G._G_.Log()
+        g = _G._G_
+        log = g.Log()
         try:
             # 首先检查当前屏幕是否已匹配
             if matchFunc():
@@ -1283,15 +1378,15 @@ class _Tools_:
         return cls._findTextPos(text)
         
     @classmethod
-    def _findTextPos(cls, text):
+    def _findTextPos(cls, text) -> Optional[Tuple[int, int]]:
         """在当前屏幕查找文本位置（内部方法）"""
-        log = _G._G_.Log()
+        g = _G._G_
+        log = g.Log()
         try:
             # 匹配文本
-            item = cls.matchText(text, True)
-            if not item:
+            item, match = cls.matchText(text, True)
+            if not item or item == _G.PASS:
                 return None
-                
             # 获取中心坐标
             bounds = item['b']
             if not bounds:

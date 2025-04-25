@@ -254,7 +254,6 @@ class CDevice_:
         """连接成功回调"""
         g = _G._G_
         log = g.Log()
-        sid = cls.sio.sid
         log.i(f'已连接到服务器, server: {cls._server}')
         cls._connected = True
 

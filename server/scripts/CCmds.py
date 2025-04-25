@@ -198,7 +198,7 @@ class CCmds_:
                     return f"未找到应用 {appName} 或其页面信息"
             else:
                 # 获取当前应用及其页面
-                app = App.currentApp()
+                app = App.cur()
                 if app and app._currentPage:
                     pageName = app._currentPage.name
             return f"{app.name if app else '':}:{pageName}"
@@ -212,7 +212,7 @@ class CCmds_:
             参数: target - 目标页面路径
             示例: 跳转 首页
             """
-            return _G._G_.App().currentApp().go(target)
+            return _G._G_.App().cur().go(target)
         
         @regCmd(r"#路径|lj (?P<target>.+)")
         def pathTo(target):
@@ -552,7 +552,7 @@ class CCmds_:
                 return g.Tools().do(content)
             else:
                 # 执行检查器
-                g.App().currentApp().run(content)
+                g.App().cur().run(content)
                 return f"执行检查器 {content} 成功"
 
         @regCmd(r"#停止|tz(?:(?P<checkName>[^\s]+|_))?(?:\s+(?P<cancel>[01]))?")
@@ -569,7 +569,7 @@ class CCmds_:
             示例: 停止 - 停止当前应用所有检查器
             """
             App = _G._G_.App()
-            curApp = App.currentApp()
+            curApp = App.cur()
             if not curApp:
                 log.e("未找到当前应用")
                 return False
@@ -593,7 +593,7 @@ class CCmds_:
             g = _G._G_
             App = g.App()
             App.detect()
-            curApp = App.currentApp()
+            curApp = App.cur()
             if curApp:
                 return f"当前应用: {curApp.name} 当前页面: {curApp.curPage.name}"
             else:
@@ -602,14 +602,14 @@ class CCmds_:
         
         # 新增批量执行相关命令
         @regCmd(r"#批量执行|plzx (?P<checkName>\S+)(?P<data>.+)?")
-        def batchRun(self, checkName:str, data:str):
+        def batchRun(checkName:str, data:str):
             """批量执行检查器
             参数: data
             [次数] [间隔秒数]
             次数默认为1，间隔默认为5秒
             """
             Checker = g.Checker()
-            checker = Checker.get(checkName, create=True)
+            checker = Checker.getInst(checkName, create=True)
             if not checker:
                 return f'找不到检查器：{checkName}'
             policy = {}
@@ -629,7 +629,7 @@ class CCmds_:
             return f'批量执行: {checkName} 成功'
         
         @regCmd(r"执行所有")
-        def runAll(self):
+        def runAll():
             """根据策略文件批量执行检查器
             策略执行 [策略文件路径]
             默认使用config/Policy.json
@@ -637,9 +637,8 @@ class CCmds_:
             from CSchedule import CSchedule_
             CSchedule_.runAll()
             return '执行所有策略完成'
-                
 
-        @regCmd(r"#添加屏幕信息|tjpmxx (?P<text>.+) (?P<bound>.+)?")
+        @regCmd(r"#添加屏幕信息|tjpmxx(?P<text>.+)(?P<bound>.+)?")
         def addScreenInfo(text, bound=None):
             """功能：添加模拟屏幕文字块用于PC端测试
             指令名：addScreenInfo
