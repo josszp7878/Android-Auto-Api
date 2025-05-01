@@ -1,7 +1,6 @@
-from ctypes import cast
-from datetime import datetime
 import json
 import _G
+from typing import List, Optional
 
 g = _G._G_
 log = g.Log()
@@ -17,7 +16,7 @@ class CCmds_:
 
     @classmethod
     def android(cls):
-        return _G._G_.Tools().android
+        return _G._G_.android
     
     _editTarget = None
 
@@ -108,7 +107,7 @@ class CCmds_:
             示例: 打开 微信
             """
             App = _G._G_.App()
-            ret = App.goApp(appName)
+            ret = App.open(appName)
             if not ret:
                 return f"打开应用 {appName} 失败"
             return f"成功打开应用 {appName}"
@@ -125,7 +124,7 @@ class CCmds_:
             App = _G._G_.App()
             # 如果未指定应用名，使用当前应用
             if not appName:
-                appName = App.getCurAppName()
+                appName = App.curName()
                 if not appName:
                     return "未指定要关闭的应用"            
             return App.closeApp(appName)
@@ -178,30 +177,39 @@ class CCmds_:
             """
             _G._G_.CDevice().TakeScreenshot()
 
-        @regCmd(r"#当前页面|dqym(?P<appName>\S*)?")
-        def curPage(appName=None):
+        @regCmd(r"#当前|dq(?P<what>\S*)")
+        def cuRrenT(what):
             """
-            功能：获取当前页面信息
-            指令名: curPage-c
-            中文名: 当前页面-dqym
-            参数: appName - 应用名称(可选)
-            示例: 当前页面 [微信]
+            功能：获取当前信息，支持包括当前应用、页面、坐标，任务等
+            参数: what，按如下规则解析
+                  pos|位置:  坐标
+                  task|任务: 任务
+                  其它: 应用名称-页面名称：如果应用名—为空，表示当前应用，返回应用名称-页面名称
+                  空：  则返回当前应用和页面
+            示例: 
+                 当前 
+                 当前 pos|位置
+                 当前 task|任务
+                 当前 微信-首页
             """
-            pageName = ''
-            App = _G._G_.App()
-            if appName:
-                # 获取指定应用的当前页面
-                app = App.getApp(appName, True)
-                if app and app._currentPage:
-                    pageName = app._currentPage.name
-                else:
-                    return f"未找到应用 {appName} 或其页面信息"
-            else:
-                # 获取当前应用及其页面
-                app = App.cur()
-                if app and app._currentPage:
-                    pageName = app._currentPage.name
-            return f"{app.name if app else '':}:{pageName}"
+            g = _G._G_
+            log = g.Log()
+            tools = g.Tools()
+            App = g.App()
+            app = App.cur()
+            if what:
+                if what == 'pos|位置':
+                    return log.i('todo: 获取坐标')
+                if what == 'task|任务':
+                    return log.i('todo: 获取任务')
+                # 解析应用名称-页面名称
+                appName, pageName = tools.parseAppPage(what)
+                if appName:
+                    app = App.getApp(appName, True)
+                    if not app:
+                        log.e(f"未找到应用 {appName}")
+            return f"{app.name}-{app.curPage.name}"
+
 
         @regCmd(r"#跳转|tz (?P<target>.+)")
         def go(target):
@@ -212,19 +220,24 @@ class CCmds_:
             参数: target - 目标页面路径
             示例: 跳转 首页
             """
-            return _G._G_.App().cur().go(target)
+            return _G._G_.App().go(target)
         
-        @regCmd(r"#路径|lj (?P<target>.+)")
-        def pathTo(target):
+        @regCmd(r"#路径|lj(?P<to>.+) (?P<From>.+)?")
+        def PATH(to, From=None):
             """
             功能：获取到目标页面的路径
-            指令名: pathTo-p
-            中文名: 路径-lj
-            参数: target - 目标页面
+            参数: to - 目标页面
             示例: 路径 设置
             """
-            import _Page
-            return _Page._Page_.currentPathTo(target)
+            curApp = _G._G_.App().cur()
+            toPage = curApp.getPage(to)
+            if not toPage:
+                return f"未找到目标页面 {to}"
+            fromPage = curApp.getPage(From) if From else curApp.curPage
+            pages = curApp.findPath(fromPage, toPage)
+            if pages:
+                return "\n".join(f"{p.name}" for p in pages)
+            return f"e~未找到从{From}到{to}的路径"
         
         @regCmd(r"#桌面|zm|home")
         def hoMe():
@@ -338,11 +351,11 @@ class CCmds_:
             """
             功能：打印应用页面拓扑结构图
             """
-            from _App import _App_
+            from  _App import _App_
             return _App_.printTopology(appName)
         
         @regCmd(r"#显示|xs(?P<uiName>\S+)(?P<enable>\S+)?")
-        def sHow(uiName:str, enable=None):
+        def sHow(uiName: str, enable=None):
             """
             功能：启用/关闭显示UI组件
             示例: 
@@ -352,8 +365,7 @@ class CCmds_:
             """
             g = _G._G_
             log = g.Log()
-            enable = g.Tools().toBool(enable, True)
-            android = g.Tools().android
+            android = g.android
             log.i(f"显示{uiName}: {enable}")
             
             if not android:
@@ -387,8 +399,11 @@ class CCmds_:
             """退出应用
             """
             try:
+                # 首先停止所有打开的应用
+                g.App().stopAllApps()
+                
                 # 获取Android对象
-                android = _G._G_.Tools().android
+                android = _G._G_.android
                 if android:
                     # 调用退出应用的方法
                     android.exitApp()
@@ -422,13 +437,12 @@ class CCmds_:
             pos = g.Tools().findTextPos(name.strip('_'))
             if pos is None:
                 log.w(f"未找到{name}的位置")
-            Checker = g.Checker()
-            checker = Checker.getTemplate(name, False)
-            if not checker:
-                checker = Checker.getTemplate(name, True)
-                checker.type = 'temp'
-            cls._editTarget = checker
-            if checker:
+            App = g.App()
+            page = App.getPage(name, True, True)
+            if not page:
+                return f"e~未找到{name}的页面"
+            cls._editTarget = page
+            if page:
                 return f"开始编辑... {name}"
 
         @regCmd(r"#结束编辑|jsbc(?P<save>[01]*)?")
@@ -437,12 +451,11 @@ class CCmds_:
             if not target:
                 return "e~当前没有编辑的对象"
             bSave = g.Tools().toBool(save, True)
-            Checker = g.Checker()
             if bSave:
-                Checker.save()
+                target.save()
             else:
                 if target.type == 'temp':
-                    Checker.delTemplate(target.name)
+                    g.App().cur().delPage(target.name)
             cls._editTarget = None
             return f"保存{target.name} 成功"      
 
@@ -470,10 +483,10 @@ class CCmds_:
         @regCmd(r"#\+|添加属性|tjsx(?P<param>\w+)(?P<value>\S+)?(?P<postfix>\S+)?")
         def addProp(param, value=None, postfix=None):
             """
-            添加数组类型参数里面的某个ITEM，match, checks等
+            添加数组类型参数里面的某个ITEM，match, event,等
             示例：
             add match 发现 100
-            add checks 签到
+            add event 发现 点我.取
             """
             target = cls._editTarget
             if not target:
@@ -484,10 +497,10 @@ class CCmds_:
         @regCmd(r"#\-|移除属性|ycsx(?P<param>\S+)(?P<value>\S+)?")
         def removeProp(param, value=None):
             """
-            删除数组类型参数里面的某个ITEM，match, checks等
+            删除数组类型参数里面的某个ITEM，match, event,等
             示例：
-            remove match 签到
-            remove checks 签到
+            remove match 发现
+            remove event 发现
             """ 
             target = cls._editTarget
             if not target:
@@ -495,31 +508,26 @@ class CCmds_:
             value = g.Tools().fromStr(value)
             target.removeProp(param, value)
 
-        @regCmd(r"#删除(?P<checkName>\S+)?")
-        def dELete(checkName=None):
-            if not checkName:                
+        @regCmd(r"#删除(?P<pageName>\S+)?")
+        def dELete(pageName=None):
+            if not pageName:                
                 if cls._editTarget:
-                    checkName = cls._editTarget.name
-            if g.Checker().delTemplate(checkName):
-                return f"删除检查器 {checkName} 成功"
+                    pageName = cls._editTarget.name
+            if g.Page().delTemplate(pageName):
+                return f"删除检查器 {pageName} 成功"
 
-        @regCmd(r"#检查列表|jclb")
-        def listChecK():
-            checker = g.Checker()
-            return "当前检查器列表：\n" + "\n".join(f'{t.name}' for t in checker.templates())
-        
-        @regCmd(r"#显示检查|xsjc (?P<checkName>\S+)")
-        def sHowCheck(checkName):
+        @regCmd(r"#显示页面|xsym (?P<pageName>\S+)")
+        def showPage(pageName):
             """
-            功能：显示检查器
+            功能：显示页面
             示例：
-            xsjc -发现
+            xsym 发现
             """
-            checkName = g.App().getCheckName(checkName)
-            checkers = g.Checker().getTemplates(checkName)
-            if not checkers:
-                return f"{checkName} 不存在"
-            return "\n".join(f"{json.dumps(t.toConfig(), indent=2, ensure_ascii=False)}" for t in checkers)
+            appName, pageName = g.App().parsePageName(pageName)
+            pages = g.Page().getTemplates(pageName)
+            if not pages:
+                return f"{pageName} 不存在"
+            return "\n".join(f"{json.dumps(c.config, indent=2, ensure_ascii=False)}" for c in pages)
 
         @regCmd(r"#匹配|pp(?P<name>\S+)")
         def maTch(name, enabled=None):
@@ -528,9 +536,9 @@ class CCmds_:
             示例: 匹配 每日签到
             """ 
             g = _G._G_
-            checker = g.Checker().getTemplate(name, False)
-            if checker:
-                checker.Match()
+            page = g.App().findPage(name, False)
+            if page:
+                page.Match()
             else:
                 return f"e~无效检查器: {name}"
             
@@ -539,47 +547,66 @@ class CCmds_:
         def run(content, cmd):
             """
             执行检查器或代码
-                $开头：则认为是代码或者指令
                 @开头：则认为是纯代码
                 否则：认为是检查器名称
             示例：
-                执行$@print("Hello")
-                执行$back
+                执行@print("Hello")
                 执行看广告
+                执行微信.看广告 (跨应用执行)
             """
             if content.startswith('@'):
                 # 执行纯代码
                 return g.Tools().do(content)
             else:
-                # 执行检查器
-                g.App().cur().run(content)
-                return f"执行检查器 {content} 成功"
+                # 检查是否含有应用名.检查器名的格式
+                App = g.App()
+                appName, pageName = App.parsePageName(content)
+                if appName:
+                    app = App.getApp(appName, True)
+                    if not app:
+                        return f"e~找不到应用: {appName}"
+                    app.start(pageName)
+                    return f"执行检查器 {appName}.{pageName} 成功"
 
-        @regCmd(r"#停止|tz(?:(?P<checkName>[^\s]+|_))?(?:\s+(?P<cancel>[01]))?")
-        def stop(checkName=None, cancel=None):
+        @regCmd(r"#停止|tz(?:(?P<pageName>[^\s]+|_))?(?:\s+(?P<cancel>[01]))?")
+        def stop(pageName=None, cancel=None):
             """
             功能：停止检查器
             指令名: stop
             中文名: 停止
-            参数: checkName - 要停止的检查器名称，不指定则停止当前应用所有检查器，使用 _ 表示占位符
+            参数: pageName - 要停止的检查器名称，不指定则停止当前应用所有检查器
+                   格式可以是 "应用名.检查器名" 表示停止指定应用的检查器
+                   如果为 "all" 则停止所有已打开应用的所有检查器
+                   使用 _ 表示占位符
                   cancel - 可选，1表示强制取消不执行退出逻辑，0表示正常退出
-            示例: 停止 page1 - 停止page1检查器
+            示例: 停止 page1 - 停止当前应用的page1检查器
+            示例: 停止 微信.page1 - 停止微信应用的page1检查器
+            示例: 停止 微信._ - 停止微信应用的所有检查器
+            示例: 停止 all - 停止所有已打开应用的所有检查器
             示例: 停止 page1 1 - 强制取消page1检查器，不执行退出逻辑
             示例: 停止 _ 1 - 强制取消当前应用所有检查器，不执行退出逻辑
             示例: 停止 - 停止当前应用所有检查器
             """
-            App = _G._G_.App()
-            curApp = App.cur()
-            if not curApp:
-                log.e("未找到当前应用")
-                return False
-            # 将 _ 视为空值，处理占位符情况
-            if checkName == "_":
-                checkName = None
+            g = _G._G_
+            log = g.Log()
+            pageName = pageName.strip() if pageName else ''
             cancel = g.Tools().toBool(cancel, False)
-            result = curApp.stop(checkName, cancel)
+
+            App = g.App()
+            # 处理特殊情况: 停止所有应用
+            if pageName == '':
+                return App.stopAllApps()
+            appName, pageName = App.parsePageName(pageName)
+            # 获取目标应用
+            if appName:
+                app = App.getApp(appName, True)
+                if not app:
+                    log.e(f"未找到应用: {appName}")
+                    return False
+            # 执行停止操作
+            result = app.stop(pageName, cancel)
             if not result:
-                log.e(f"停止检查器 {checkName} 失败")
+                log.e(f"停止检查器 {pageName} 失败")
                 return False
             return True
         
@@ -601,32 +628,38 @@ class CCmds_:
 
         
         # 新增批量执行相关命令
-        @regCmd(r"#批量执行|plzx (?P<checkName>\S+)(?P<data>.+)?")
-        def batchRun(checkName:str, data:str):
+        @regCmd(r"#批量执行|plzx (?P<pageName>\S+)(?P<data>.+)?")
+        def batchRun(pageName: str, data: str):
             """批量执行检查器
             参数: data
             [次数] [间隔秒数]
             次数默认为1，间隔默认为5秒
             """
-            Checker = g.Checker()
-            checker = Checker.getInst(checkName, create=True)
-            if not checker:
-                return f'找不到检查器：{checkName}'
-            policy = {}
-            if data:
-                # 将DATA转换成字典
-                data = data.replace(' ', '')
-                datas = data.split(',')
-                for d in datas:
-                    if d.isdigit():
-                        times = int(d)
-                        policy["t"] = times
-                    else:
-                        interval = int(d)
-                        policy["i"] = interval
-            from CSchedule import CSchedule_
-            CSchedule_.batchRun(checker, policy)
-            return f'批量执行: {checkName} 成功'
+            g = _G._G_
+            log = g.Log()
+            try:
+                Page = g.Page()
+                page = Page.getInst(pageName, create=True)
+                if not page:
+                    return f'找不到页面：{pageName}'
+                policy = {}
+                if data:
+                    # 将DATA转换成字典
+                    data = data.replace(' ', '')
+                    datas = data.split(',')
+                    for d in datas:
+                        if d.isdigit():
+                            times = int(d)
+                            policy["t"] = times
+                        else:
+                            interval = int(d)
+                            policy["i"] = interval
+                from CSchedule import CSchedule_
+                CSchedule_.batchRun(page, policy)
+                return f'批量执行: {pageName} 成功'
+            except Exception as e:
+                log.ex(e, '批量执行页面失败')
+                return f"批量执行失败: {str(e)}"
         
         @regCmd(r"执行所有")
         def runAll():
@@ -639,7 +672,7 @@ class CCmds_:
             return '执行所有策略完成'
 
         @regCmd(r"#屏幕信息|pmxx(?P<text>.+)?")
-        def screenInfo(text = None):
+        def screenInfo(text=None):
             """功能：添加模拟屏幕文字块用于识别
             参数：
                text - 内容
@@ -666,4 +699,24 @@ class CCmds_:
                 if not ret:
                     return "添加屏幕信息失败"
             return f"当前屏幕信息：{tools.getScreenInfo()}"
+            
+        @regCmd(r"#删除页面|dp(?P<pageName>\S+)")
+        def delPage(pageName: str) -> bool:
+            """删除页面"""
+            return g.Page().delPage(pageName)
+
+        @regCmd(r"#获取所有页面|gp")
+        def pages(self) -> List[str]:
+            """获取所有页面名称"""
+            return g.Page().getPages()
+
+        @regCmd(r"#获取页面|gp(?P<pageName>\S+)")
+        def getPages(self) -> List[str]:
+            """获取所有页面名称"""
+            return g.Page().getPages()
+
+        @regCmd(r"#获取页面|gp(?P<pageName>\S+)")
+        def getPage(self, pageName: str) -> Optional["_Page_"]:
+            """获取页面"""
+            return g.Page().getPage(pageName)
             

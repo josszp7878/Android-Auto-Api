@@ -1,4 +1,3 @@
-from enum import Enum
 import _G
 import datetime
 import os
@@ -7,14 +6,46 @@ import threading
 import time
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from CChecker import CChecker_
     from _Tools import _Tools_
+    from _Page import _Page_
 
 
 class CSchedule_:
     """调度器类，用于按照策略执行检查器"""
     
+    # 定义类变量
+    policies = []
    
+    @classmethod
+    def loadConfig(cls) -> bool:
+        """加载调度策略配置文件
+        
+        Args:
+            policyFile: 策略文件路径，默认为 config/Schedule.json
+            
+        Returns:
+            bool: 是否成功加载策略文件
+        """
+        g = _G._G_
+        log = g.Log()
+        try:
+            # 如果没有指定策略文件，使用默认路径
+            policyFile = os.path.join(
+                g.rootDir(), 'config', 'Schedule.json')
+            # 检查策略文件是否存在
+            if not os.path.exists(policyFile):
+                log.e(f"策略文件 {policyFile} 不存在")
+                return False
+            
+            # 加载策略文件
+            with open(policyFile, 'r', encoding='utf-8') as f:
+                cls.policies = json.load(f)
+            log.i(f"加载策略文件成功，策略数量: {len(cls.policies)}")
+            return True
+        except Exception as e:
+            log.ex(e, "加载策略文件失败")
+            return False
+    
     @classmethod
     def runAll(cls, policyFile: str = None):
         """根据策略文件批量执行所有配置的检查器
@@ -28,52 +59,45 @@ class CSchedule_:
         g = _G._G_
         log = g.Log()
         try:
-            # 如果没有指定策略文件，使用默认路径
-            if not policyFile:
-                policyFile = os.path.join(g.rootDir(), 'config', 'Schedule.json')
-            # 检查策略文件是否存在
-            if not os.path.exists(policyFile):
-                log.e(f"策略文件 {policyFile} 不存在")
+            # 加载策略文件
+            if not cls.loadConfig(policyFile):
                 return False
             
-            # 加载策略文件
-            with open(policyFile, 'r', encoding='utf-8') as f:
-                policies = json.load(f)
-            log.i(f"加载策略文件 {policyFile} 成功，策略数量: {len(policies)}")
             # 创建线程列表
             threads = []
             
             # 按照策略顺序创建并执行检查器
-            for policy in policies:
-                checker_name = policy.get('checker')
-                if not checker_name:
-                    log.w(f"策略中缺少检查器名称: {policy}")
+            for policy in cls.policies:
+                page_name = policy.get('page')
+                if not page_name:
+                    log.w(f"策略中缺少页面名称: {policy}")
                     continue
                 
-                # 获取检查器
-                Checker = g.Checker()
-                checker = Checker.getInst(checker_name, create=True)
-                if not checker:
-                    log.w(f"检查器 {checker_name} 不存在或创建失败")
+                # 获取页面
+                Page = g.Page()
+                page = Page.getInst(page_name, create=True)
+                if not page:
+                    log.w(f"页面 {page_name} 不存在或创建失败")
                     continue
+                
                 # 创建线程执行批量运行方法
-                thread = cls.batchRun(checker, policy)
+                thread = cls.batchRun(page, policy)
                 threads.append(thread)
-                log.i(f"启动检查器 {checker_name} 的批量执行线程")
+                log.i(f"启动页面 {page_name} 的批量执行线程")
             
-            log.i(f"成功启动 {len(threads)} 个检查器批量执行线程")
+            log.i(f"成功启动 {len(threads)} 个页面批量执行线程")
             return True
             
         except Exception as e:
-            log.ex(e, "批量执行所有检查器失败")
+            log.ex(e, "批量执行所有页面失败")
             return False
     
     @classmethod
-    def batchRun(cls, checker: "CChecker_", policy: dict) -> threading.Thread:
-        """批量执行检查器
-        根据策略参数执行检查器，只通过schedule配置支持定时执行、指定次数或指定时长
+    def batchRun(cls, page: "_Page_", config: dict = None) -> threading.Thread:
+        """批量执行页面
+        根据策略参数执行页面，只通过schedule配置支持定时执行、指定次数或指定时长
         Args:
-            checker: 要执行的检查器对象
+            page: 要执行的页面对象
             policy: 执行策略字典，包含以下字段:
                 - s/sch/schedule: 定时计划，支持以下格式:
                   - {"HH:MM"|整数|"": {"t": 次数, "i": 间隔, "d": 时长}, ...}
@@ -82,26 +106,19 @@ class CSchedule_:
         """
         g = _G._G_
         log = g.Log()
+        
         def _run():
             try:
-                # 提取策略参数（支持简化的key）
-                schedule = cls._getConfigValue(
-                    policy, 's', 'sch', 'schedule', defaultValue={})
-                # 转换为字典格式方便处理
-                if isinstance(schedule, str):
-                    schedule = {schedule: {}}
-                elif isinstance(schedule, list):
-                    schedule = {item: {} for item in schedule}
-                
-                # 如果schedule为空，无法执行
+                # 优先使用外部配置，没有则使用页面配置
+                schedule = config or page.schedule
                 if not schedule:
-                    log.w(f"未找到有效的执行计划配置，无法执行检查器 {checker.name}")
+                    log.w(f"页面 {page.name} 没有配置执行计划")
                     return False
-                log.i(f"启动批量执行检查器 {checker.name}, 计划: {schedule}")
-                # 根据schedule执行定时任务
-                return cls._runSchedule(checker, schedule)
+                
+                log.i(f"启动批量执行页面 {page.name}, 计划: {schedule}")
+                return cls._runSchedule(page, schedule)
             except Exception as e:
-                log.ex(e, f"批量执行检查器 {checker.name} 失败")
+                log.ex(e, f"批量执行页面 {page.name} 失败")
                 return False
                 
         thread = threading.Thread(
@@ -112,10 +129,10 @@ class CSchedule_:
         return thread
     
     @classmethod
-    def _runSchedule(cls, checker: "CChecker_", schedule: dict) -> bool:
+    def _runSchedule(cls, page: "_Page_", schedule: dict) -> bool:
         """按照时间表执行
         Args:
-            checker: 要执行的检查器对象
+            page: 要执行的页面对象
             schedule: 定时计划字典
                      - 字典格式: {"HH:MM"|整数|"": {"t": 次数, "i": 间隔, "d": 时长}, ...}
         Returns:
@@ -123,7 +140,7 @@ class CSchedule_:
         """
         # 处理一次性执行
         if "" in schedule:
-            if cls._onOneTime(checker, schedule[""]):
+            if cls._onOneTime(page, schedule[""]):
                 return True
             
         # 处理间隔分钟执行项
@@ -132,24 +149,24 @@ class CSchedule_:
         for key in intervalKeys:
             minutes = int(key)
             if minutes > 0:
-                if cls._onInterval(checker, minutes, schedule[key]):
+                if cls._onInterval(page, minutes, schedule[key]):
                     return True
             
         # 处理时间点执行
         timePointKeys = [k for k in schedule if isinstance(k, str) and ":" in k]
         if timePointKeys:
             return cls._onTimePoint(
-                checker,
+                page,
                 {k: schedule[k] for k in timePointKeys}
             )
         
         return False
     
     @classmethod
-    def _onOneTime(cls, checker: "CChecker_", config: dict) -> bool:
+    def _onOneTime(cls, page: "_Page_", config: dict) -> bool:
         """处理一次性执行的配置项
         Args:
-            checker: 要执行的检查器对象
+            page: 要执行的页面对象
             config: 执行配置
         Returns:
             bool: 是否有一次性执行项并成功完成
@@ -157,14 +174,15 @@ class CSchedule_:
         g = _G._G_
         log = g.Log()
         
-        log.i(f"一次性执行检查器 {checker.name}")
-        cls._run(checker, config)
+        log.i(f"一次性执行页面 {page.name}")
+        cls._run(page, config)
         return True
+    
     @classmethod
-    def _onInterval(cls, checker: "CChecker_", minutes: int, config: dict) -> bool:
+    def _onInterval(cls, page: "_Page_", minutes: int, config: dict) -> bool:
         """处理间隔执行的配置项
         Args:
-            checker: 要执行的检查器对象
+            page: 要执行的页面对象
             minutes: 间隔分钟数
             config: 执行配置
         
@@ -174,13 +192,13 @@ class CSchedule_:
         g = _G._G_
         log = g.Log()
         
-        log.i(f"间隔执行检查器 {checker.name}, 每{minutes}分钟一次")
+        log.i(f"间隔执行页面 {page.name}, 每{minutes}分钟一次")
         
         # 转换为秒
         intervalSeconds = minutes * 60
         tools = g.Tools()
         while True:
-            ret = cls._run(checker, config)
+            ret = cls._run(page, config)
             if ret == tools.eRet.exit:
                 log.i("间隔执行收到终止信号，停止执行")
                 return True
@@ -189,11 +207,11 @@ class CSchedule_:
             time.sleep(intervalSeconds)
     
     @classmethod
-    def _onTimePoint(cls, checker: "CChecker_", timePointSchedule: dict) -> bool:
+    def _onTimePoint(cls, page: "_Page_", timePointSchedule: dict) -> bool:
         """执行时间点计划
         
         Args:
-            checker: 要执行的检查器对象
+            page: 要执行的页面对象
             timePointSchedule: 时间点执行计划字典
             
         Returns:
@@ -250,7 +268,7 @@ class CSchedule_:
                 time.sleep(secondsToWait)
                 
                 # 执行指定次数或时长
-                ret = cls._run(checker, config)
+                ret = cls._run(page, config)
                 executed = True
                 
                 if ret == tools.eRet.exit:
@@ -263,11 +281,11 @@ class CSchedule_:
         return executed
 
     @classmethod
-    def _run(cls, checker: "CChecker_", config: dict) -> '_Tools_.eRet':
-        """执行检查器并处理结果
+    def _run(cls, page: "_Page_", config: dict) -> '_Tools_.eRet':
+        """执行页面并处理结果
         
         Args:
-            checker: 要执行的检查器对象
+            page: 要执行的页面对象
             config: 执行配置参数
             
         Returns:
@@ -278,12 +296,12 @@ class CSchedule_:
         tools = g.Tools()
         try:
             # 获取执行参数（支持多种键名和简写）
-            times = cls._getConfigValue(config, 't', 'tim', 'times', 
-                                      defaultValue=1)
-            interval = cls._getConfigValue(config, 'i', 'int', 'interval', 
-                                         defaultValue=0)
-            duration = cls._getConfigValue(config, 'd', 'dur', 'duration', 
-                                         defaultValue=0)
+            times = cls._getConfigValue(
+                config, 't', 'tim', 'times', defaultValue=1)
+            interval = cls._getConfigValue(
+                config, 'i', 'int', 'interval', defaultValue=0)
+            duration = cls._getConfigValue(
+                config, 'd', 'dur', 'duration', defaultValue=0)
             
             # 处理参数
             times = int(times) if times else 1
@@ -293,19 +311,19 @@ class CSchedule_:
             if times > 0:
                 for i in range(times):
                     log.i(f"执行第 {i+1}/{times} 次")
-                    checker.begin()
+                    page.begin()
                     # 等待结果
-                    while checker.ret == _Tools_.eRet.none:
+                    while page.ret == _Tools_.eRet.none:
                         # 如果有返回值，根据返回值处理
                         time.sleep(1)
-                    if checker.ret == tools.eRet.exit:
+                    if page.ret == tools.eRet.exit:
                         log.i("执行收到终止信号，停止后续执行")
-                        return checker.ret
+                        return page.ret
                     # 执行间隔
                     if i < times - 1 and interval > 0:
                         log.i(f"等待 {interval} 秒后执行下一次")
                         time.sleep(interval)
-                return checker.ret
+                return page.ret
             
             # 时长优先级低于次数，只有未指定次数时才按时长执行
             elif duration > 0:
@@ -314,14 +332,14 @@ class CSchedule_:
                 while time.time() < end_time:
                     i += 1
                     log.i(f"按时长执行第 {i} 次，剩余时间: {int(end_time - time.time())} 秒")
-                    checker.begin()
+                    page.begin()
                     # 等待结果
-                    while checker.ret == _Tools_.eRet.none:
+                    while page.ret == _Tools_.eRet.none:
                         # 如果有返回值，根据返回值处理
                         time.sleep(1)
-                    if checker.ret == tools.eRet.exit:
+                    if page.ret == tools.eRet.exit:
                         log.i("执行收到终止信号，停止后续执行")
-                        return checker.ret
+                        return page.ret
                     # 执行间隔
                     if time.time() + interval < end_time and interval > 0:
                         log.i(f"等待 {interval} 秒后执行下一次")
@@ -329,25 +347,26 @@ class CSchedule_:
                     else:
                         # 如果剩余时间不足以执行下一次，结束循环
                         break
-                return checker.ret
+                return page.ret
             
             # 没有设置次数和时长，执行一次
             else:
                 log.i("执行一次")
-                checker.begin()
+                page.begin()
                 # 等待结果
-                while checker.ret == _Tools_.eRet.none:
+                while page.ret == _Tools_.eRet.none:
                     # 如果有返回值，根据返回值处理
                     time.sleep(1)
-                return checker.ret
+                return page.ret
                 
         except Exception as e:
-            log.ex(e, f"执行检查器 {checker.name} 失败")
+            log.ex(e, f"执行页面 {page.name} 失败")
             return tools.eRet.error
 
     @classmethod
     def _getConfigValue(cls, config, *keys, defaultValue=None):
         """从配置中获取值，支持多个候选键名
+        
         Args:
             config: 配置字典
             *keys: 要查找的键名列表，按优先级排序

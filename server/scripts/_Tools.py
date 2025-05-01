@@ -908,6 +908,26 @@ class _Tools_:
             return False
 
     @classmethod
+    def curApp(cls) -> str:
+        """获取当前应用名称"""
+        g = _G._G_
+        log = g.Log()
+        try:
+            if g.isAndroid():
+                appInfo = cls.getCurrentAppInfo()
+                if not appInfo:
+                    return None
+                if cls.isHome():
+                    return _G.TOP
+                return appInfo.get("appName") 
+            else:
+                App = g.App()
+                return App.curName()
+        except Exception as e:
+            log.ex(e, "获取当前应用名称失败")
+            return ''
+
+    @classmethod
     def curAppIs(cls, appName: str) -> bool:
         """判断当前应用是否是目标应用"""
         try:

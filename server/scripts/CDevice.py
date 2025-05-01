@@ -30,7 +30,7 @@ class CDevice_:
             cls._server = server
             cls._connected = False
             # 配置 socketio 客户端
-            cls.sio = socketio.Client(
+            sio = socketio.Client(
                 reconnection=True,
                 reconnection_attempts=5,
                 reconnection_delay=1,
@@ -40,11 +40,12 @@ class CDevice_:
             )
 
             # 注册事件处理器
-            cls.sio.on('connect')(cls.on_connect)
-            cls.sio.on('S2C_DoCmd')(cls.onS2C_DoCmd)
-            cls.sio.on('S2C_CmdResult')(cls.onS2C_CmdResult)
-            cls.sio.on('disconnect')(cls.on_disconnect)
-            cls.sio.on('connect_error')(cls.on_connect_error)
+            sio.on('connect')(cls.on_connect)
+            sio.on('S2C_DoCmd')(cls.onS2C_DoCmd)
+            sio.on('S2C_CmdResult')(cls.onS2C_CmdResult)
+            sio.on('disconnect')(cls.on_disconnect)
+            sio.on('connect_error')(cls.on_connect_error)
+            _G._G_.sio = sio
 
             # 添加通用事件监听器，捕获所有事件
             # self.sio.on('*')(self.on_any_event)
@@ -74,7 +75,7 @@ class CDevice_:
         try:
             if cls._connected:
                 log.i(f'正在断开设备 {cls._deviceID} 的连接...')
-                cls.sio.disconnect()
+                _G._G_.sio.disconnect()
                 log.i(f'设备 {cls._deviceID} 已断开连接')
                 cls._connected = False
             else:
@@ -142,7 +143,7 @@ class CDevice_:
                     try:
                         # 使用已有的socketio客户端进行连接
                         # log.i("开始 socketio 连接...")
-                        cls.sio.connect(
+                        _G._G_.sio.connect(
                             connect_url,
                             transports=['websocket', 'polling'],
                             auth={'device_id': cls._deviceID}
@@ -289,7 +290,7 @@ class CDevice_:
         """断开连接回调"""
         g = _G._G_
         log = g.Log()
-        log.w(f'设备 {cls._deviceID} 断开连接，SID: {cls.sio.sid if hasattr(cls.sio, "sid") else "未知"}')
+        log.w(f'设备 {cls._deviceID} 断开连接，SID: {_G._G_.sio.sid if hasattr(_G._G_.sio, "sid") else "未知"}')
         cls._connected = False
 
     @classmethod
@@ -313,16 +314,18 @@ class CDevice_:
         Returns:
             bool: 是否发送成功
         """
-        log = _G._G_.Log()
+        g = _G._G_
+        log = g.Log()
         try:
-            if not cls.sio:
+            sio = g.sio
+            if not sio:
                 log.log_('e', "Socket未初始化")
                 return False
-            if not cls.sio.connected:
+            if not sio.connected:
                 log.log_('e', "未连接到服务器")
                 return False
             data['device_id'] = cls._deviceID
-            cls.sio.emit(event, data)
+            sio.emit(event, data)
             return True
         except Exception as e:
             log.ex_(e, f'发送事件失败: {event}')
@@ -334,7 +337,7 @@ class CDevice_:
         g = _G._G_
         log = g.Log()
         try:
-            android = g.Tools().android
+            android = g.android
             if not android:
                 log.e("Android环境未初始化")
                 return False

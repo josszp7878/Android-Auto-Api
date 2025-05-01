@@ -10,6 +10,7 @@ import hashlib
 import time
 import _G
 from typing import cast
+from _G import _G_
 
 class SDeviceMgr_:
     """设备管理器：管理所有设备"""
@@ -182,7 +183,6 @@ class SDeviceMgr_:
     def emit2B(self, event, data=None):
         """向所有控制台发送事件"""
         try:
-            from app import socketio
             if not self.consoles:
                 # 没有控制台连接，不发送
                 return
@@ -200,7 +200,7 @@ class SDeviceMgr_:
             # 发送事件 - 将集合转换为列表
             for sid in self.consoles:
                 try:
-                    socketio.emit(event, data, room=sid)
+                    _G_.sio.emit(event, data, room=sid)
                 except Exception as e:
                     _Log._Log_.w(f'向控制台 {sid} 发送事件 {event} 失败: {e}')
         except Exception as e:
@@ -301,7 +301,7 @@ class SDeviceMgr_:
 
                 # 发送命令
                 try:
-                    emit('S2C_DoCmd', {
+                    _G_.sio.emit('S2C_DoCmd', {
                         'command': command,
                         'sender': current_app.config['SERVER_ID'],
                         'data': data,

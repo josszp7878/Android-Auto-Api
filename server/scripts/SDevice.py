@@ -8,13 +8,11 @@ import _Log
 import base64
 from STaskMgr import STaskMgr_
 from SEarningMgr import SEarningMgr_
-import json
 import _G
-from _App import _App_
 
 class SDevice_:
     """设备类：管理设备状态和信息"""
-    
+    SCREENSHOTS_DIR = os.path.join(_G.g.rootDir(), 'data', 'screenshots')
     def __init__(self, device_id):
         self.device_id = device_id
         self.info = {}
@@ -82,8 +80,7 @@ class SDevice_:
     
     def _ensure_screenshot_dir(self):
         """确保设备的截图目录存在"""
-        from app import SCREENSHOTS_DIR
-        self.screenshot_dir = Path(SCREENSHOTS_DIR) / self.device_id
+        self.screenshot_dir = Path(self.SCREENSHOTS_DIR) / self.device_id
         self.screenshot_dir.mkdir(parents=True, exist_ok=True)
 
     @property
@@ -363,8 +360,7 @@ class SDevice_:
 
     @classmethod
     def _screenInfoFile(cls, pageName)->str:
-        from app import APP_DATA
-        return f"{APP_DATA}/{pageName}.json"
+        return f"{cls.SCREENSHOTS_DIR}/{pageName}.json"
     
     _lastScreenInfo = None
     @classmethod

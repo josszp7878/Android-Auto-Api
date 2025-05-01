@@ -78,7 +78,7 @@ class _CmdMgr_:
                     is_optional
                 ))
         
-        # 在参数之间添加\s+（最后一个参数不添加）
+        # 在参数之间添加\s*（最后一个参数不添加）
         modified = cmdStr
         offset = 0  # 用于跟踪插入空格后的位置偏移
         for i in range(len(params)-1):
@@ -86,22 +86,15 @@ class _CmdMgr_:
             next_param = params[i+1]
             
             # 确定空格应该插入的位置
-            # 对于可选参数，空格应该插入在")"之后，"?"之前（如果存在）
             current_end = current_param[1] + offset
-            optional_char_pos = current_end
-            
-            # 检查当前参数结束后是否有可选符号"?"
-            if current_param[3]:  # 当前参数是可选的
-                optional_char_pos = current_end - 1
-            
             next_start = next_param[0] + offset
             
             # 检查当前参数结束到下一个参数开始之间是否有其他字符
-            between = modified[optional_char_pos:next_start]
-            # 如果没有已有的空格匹配
-            if not re.search(r'\\s', between):
+            between = modified[current_end:next_start]
+            # 如果没有已有的空格匹配，或者只有空格
+            if not re.search(r'\\s', between) or re.match(r'^\s*$', between):
                 # 在当前位置插入\s*
-                space_insertion_pos = optional_char_pos
+                space_insertion_pos = current_end
                 modified = (
                     modified[:space_insertion_pos] + 
                     r'\s*' + 
@@ -143,9 +136,6 @@ class _CmdMgr_:
             # 生成函数名缩写: 取第一个字母和所有大写字母
             abbr = func_name[0] + ''.join(c for c in func_name[1:] if c.isupper())
             
-            # 处理参数之间的空格
-            pattern = cls.processParamSpaces(pattern)
-            
             if '#' in pattern:
                 # 使用正则表达式查找 #命令名|别名 格式
                 m = re.search(r'\s*#([^\s\(]+)\s*', pattern)
@@ -179,6 +169,24 @@ class _CmdMgr_:
                 else:
                     log.e(f"{pattern} 没有匹配指令名")
                     return func
+            
+            # 处理参数之间的空格
+            # 查找所有命名捕获组
+            param_pattern = r'\(\?P<([^>]+)>[^)]+\)(\??)'
+            param_matches = list(re.finditer(param_pattern, pattern))
+            
+            # 如果找到参数，处理它们之间的空格
+            if len(param_matches) > 1:
+                # 获取第一个参数之后的所有内容
+                first_param_end = param_matches[0].end()
+                rest = pattern[first_param_end:]
+                
+                # 替换参数之间的空格为\s*
+                rest = re.sub(r'\s+', r'\\s*', rest)
+                
+                # 重新组合模式
+                pattern = pattern[:first_param_end] + rest
+            
             # 如果pattern结尾是\s+或者\s*,应该去掉
             if pattern.endswith(r'\s*'):
                 pattern = pattern[:-3]
@@ -312,7 +320,7 @@ class _CmdMgr_:
         cmdStr = cmdStr.strip() if cmdStr else ''
         if cmdStr == '':
             return
-        cmdStr = cmdStr.lower()
+        # 不再转换为小写，保持原始大小写
         try:
             find = None
             m = None
@@ -331,7 +339,8 @@ class _CmdMgr_:
                         if cmdObj.matchRegex:
                             match = cmdObj.matchRegex.fullmatch(cmdStr)
                         else:
-                            match = re.fullmatch(cmdObj.match, cmdStr)
+                            # 忽略大小写进行匹配
+                            match = re.fullmatch(cmdObj.match, cmdStr, re.IGNORECASE)
                     except Exception as e:
                         log.ex(e, f"命令: {cmdStr} 正则表达式错误: {cmdObj.match}")
                         continue
@@ -364,8 +373,9 @@ class _CmdMgr_:
             if result:
                 cmd['result'] = result
                 # 解析结果中可能包含的级别信息
-                level, result= log._parseLevel(result)
-                log.log_(f'  => {result}', '', level)
+                level, result = log._parseLevel(result)
+                if result:
+                    log.log_(f'  => {result}', '', level)
         except Exception as e:
             log.ex(e, f'执行命令出错: {cmdStr}')
         
@@ -625,11 +635,11 @@ class _CmdMgr_:
                     服务端指令列表用：cl 查询
                 """
         
-        @regCmd(r"#帮助|bz(?P<command>\S+)?(?P<moduleName>\S+)?") 
-        def help(command=None, moduleName=None):
+        @regCmd(r"#帮助|bz(?P<command>.+)?") 
+        def help(command=None):
             """功能：列出所有可用命令
             参数：
-              moduleName - 要查询的模块名, 为空时查询所有模块
+              moduleName -要查询的模块名, 为空时查询所有模块
               command - 要查询的命令名称, 为空时查询所有命令
             示例：帮助
             示例：帮助 _CmdMgr
@@ -637,25 +647,25 @@ class _CmdMgr_:
             示例：帮助 CCmds 加载
             """
             result = "可用命令:\n"
-            if command == '_':
-                command = None
-            if command:
-                #具体某个指令的帮助
-                cmd = cls._findCommand(command, moduleName)
-                if not cmd:
-                    return f"e~无效指令{moduleName}.{command}"
-                desc = f'{cmd.name}\n{cmd.match}\n{cmd.doc}'
-                return desc
-            elif moduleName:
-                # 按模块分组显示命令列表
-                for module_name, module_cmds in cls.cmdModules:
-                    if moduleName and module_name.lower() != moduleName.lower():
+            command = command.strip() if command else ''
+            if command == '':
+                # 查询所有命令
+                result = cls.HelpStr
+            elif command.startswith('@'):
+                # 查询指定模块的命令
+                moduleName = command[1:].strip()
+                for moduleName, module_cmds in cls.cmdModules:
+                    if moduleName and moduleName.lower() != moduleName.lower():
                         continue
-                    result += f"\n[模块: {module_name} (优先级: {cls.modulePriority.get(module_name, 999)})]\n"
+                    result += f"\n[模块: {moduleName} (优先级: {cls.modulePriority.get(moduleName, 999)})]\n"
                     for cmd_name, cmd in sorted(module_cmds.items()):
                         result += f"  {cmd.name}\t\t: {cmd.match}\n"
             else:
-                result = cls.HelpStr
+                #具体某个指令的帮助
+                cmd = cls._findCommand(command)
+                if not cmd:
+                    return f"e~无效指令{command}"
+                result = f'{cmd.name}\n{cmd.match}\n{cmd.doc}'
             return result
         
 

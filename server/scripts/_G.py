@@ -13,9 +13,7 @@ if TYPE_CHECKING:
     from _CmdMgr import _CmdMgr_
     from _Tools import _Tools_
     from _App import _App_  
-    from _Page import _Page_
     from CDevice import CDevice_ 
-    from CChecker import CChecker_
     from SDeviceMgr import SDeviceMgr_
     from SCommandHistory import SCommandHistory_
 
@@ -32,6 +30,7 @@ class _G_:
     _scriptNamesCache = None  # 添加脚本名称缓存
     
     android = None   # Android服务对象，由客户端设置
+    sio = None  # SocketIO实例
 
 
     @classmethod
@@ -46,12 +45,16 @@ class _G_:
     
     @classmethod
     def load(cls, isServer: bool = None):
-        """设置是否是服务器端"""
+        """设置是否是服务器端
+        Args:
+            isServer: 是否是服务端
+            socketio_instance: SocketIO实例
+        """
         if isServer is not None:
             cls._isServer = isServer
         cls.onLoad(None)
-        from _App import _App_
-        _App_.loadConfig()
+        # from _App import _App_
+        # _App_.loadConfig()
 
         # 不在这里初始化android对象，由客户端调用setAndroid方法设置
     
@@ -125,9 +128,6 @@ class _G_:
     def Log(cls) -> '_Log_':
         return cls.getClassLazy('_Log')
     
-    @classmethod
-    def Checker(cls) -> 'CChecker_':
-        return cls.getClassLazy('CChecker')
         
     @classmethod
     def Tools(cls) -> '_Tools_':
@@ -139,7 +139,8 @@ class _G_:
         return cls.getClassLazy('_App')
     
     @classmethod
-    def Page(cls) -> '_Page_':
+    def Page(cls) -> 'CPage_.CPage_':
+        """获取页面处理类，现在由CPage_实现"""
         return cls.getClassLazy('_Page')
     
     @classmethod

@@ -33,7 +33,6 @@ class CClient_:
             CDevice.connect()
             g.CFileServer().init(server)
             g.CmdMgr().regAllCmds()
-            # g.Checker().start()
             print("按Ctrl+C退出")
             while True:
                 try:
@@ -58,7 +57,7 @@ class CClient_:
         g = _G._G_
         log = g.Log()
         try:
-            g.Checker().end()
+            g.App().stop(None, True)
             CDevice = g.CDevice()
             if CDevice:
                 CDevice.uninit()

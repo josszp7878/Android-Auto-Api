@@ -1,10 +1,11 @@
-from pathlib import Path
 import time
-import _Log
 import _G
-from typing import Optional, List, Tuple, TYPE_CHECKING
+import os
+import json
+from typing import Optional, List, Tuple, TYPE_CHECKING, Dict
+
 if TYPE_CHECKING:
-    import _Page
+    from _Page import _Page_
 
 class _App_:
     """应用管理类：整合配置与实例"""
@@ -14,398 +15,327 @@ class _App_:
         """获取当前应用名称"""
         return cls._curAppName
     
-    apps = {}  # 存储应用实例 {appName: _App_实例}
-    Top: "_App_" = None
-
     @classmethod
-    def cur(cls):
+    def setCurName(cls, appName: str):
+        """设置当前应用名称"""
+        if appName != cls._curAppName:
+            cls._curAppName = appName
+            # 更新已打开应用集合
+            if appName != _G.TOP:
+                cls.openedApps.add(appName)
+    
+    apps: Dict[str, "_App_"] = {}  # 存储应用实例 {appName: _App_实例}
+    
+    @classmethod
+    def Top(cls):
+        """获取主屏幕/桌面应用"""
+        return cls.getApp(_G.TOP, False, True)
+    
+    openedApps = set()  # 存储已打开的应用名称，用于跟踪和管理
+
+    
+    @classmethod
+    def cur(cls) -> "_App_":
         """获取当前应用"""
         return cls.getApp(cls._curAppName, True)
     
-    def __init__(self, name:str, rootPage: "_Page._Page_", info:dict):
+    @classmethod
+    def detectApp(cls, targetApp: str, setCur=True)->bool:
+        """获取当前应用
+        Returns:
+            bool: 是否检测到应用
+        """
+        g = _G._G_
+        log = g.Log()
+        tools = g.Tools()
+        try:
+            if tools.isAndroid():
+                appName = tools.curApp()
+            else:
+                appName = targetApp
+            if setCur:
+                app = cls.getApp(appName, True)
+                if app is None:
+                    log.w(f"未知应用:{appName}")
+                else:
+                    cls.setCurName(appName)
+                    appName = app.name
+            return appName == targetApp
+        except Exception as e:
+            log.ex(e, "获取当前应用失败")
+            return False
+    
+    def __init__(self, name: str,  info: dict):
         self.name = name
-        self.rootPage = rootPage
-        self._currentPage = rootPage
+        self._curPage: Optional["_Page_"] = None
+        self.rootPage: Optional["_Page_"] = None
         self.ratio = info.get("ratio", 10000)
         self.description = info.get("description", '')
-        self.timeout = info.get("timeout",5)
-        self._checkers = []  # 应用级的检查器列表
+        self.timeout = info.get("timeout", 5)
+        self._pages: Dict[str, "_Page_"] = {}  # 应用级的页面列表
+        self._runPages: Dict[str, "_Page_"] = {}  # 运行中的页面 {pageName: page}
 
-    PathSplit = '_'
+    PathSplit = '-'
     @classmethod
-    def splitAppName(cls, str: str) -> Tuple[str, str]:
+    def parsePageName(cls, str: str) -> Tuple[str, str]:
         """解析应用和页面名称
         Args:
                 str: 应用和名称，格式为 "应用名-名称"
         Returns:
             Tuple[str, str]: (应用名, 名称)
         """
-        # print(f"解析应用和页面名称: {name}")
         if not str or not str.strip():
             return None, None
-        # 使用正则表达式匹配 "appName-name" 格式
         import re
-        if '_' in str:
-            match = re.match(fr'(?P<appName>\S+)?\s*{cls.PathSplit}\s*(?P<name>\S+)?', str)
+        match = re.match(fr'(?P<appName>\S+)?\s*{cls.PathSplit}\s*(?P<name>\S+)?', str)
+        if match:
             appName = match.group('appName')
             if appName is None:
                 appName = cls.cur().name
             return appName, match.group('name')
-        else:
-            return None, str
-
-    @classmethod
-    def getCheckName(cls, checkName: str) -> str:
-        """获取检查器名称"""
-        g = _G._G_
-        appName, name = _App_.splitAppName(checkName)
-        if not name or name.strip() == '':
-            return None
-        if appName:
-            name = f'{appName}{cls.PathSplit}{name}'
-        return name
+        # 如果没找到应用名，使用当前应用    
+        appName = cls.cur().name
+        return appName, str  # 返回当前应用和页面名称    
 
     @property
-    def currentPage(self)->"_Page._Page_":
-        return self._currentPage
-    
-    def _setCurrentPage(self, page: "_Page._Page_"):
-        if page == self._currentPage:
-            return
-        # 保存旧页面引用，用于后续停止相关检查器
-        oldPage = self._currentPage
-        # 更新当前页面
-        self._currentPage = page
-        log = _G._G_.Log()
-        log.i(f"当前页面: {page.name if page else 'None'}")
-        
-        # 停止与旧页面关联的所有检查器
-        if oldPage:
-            for checker in self._checkers[:]:  # 使用副本避免迭代中修改列表
-                if getattr(checker, 'data', None) == oldPage:
-                    self.stop(checker.name)
-        
-        # 获取并启动新页面的检查器
-        Checker = _G._G_.Checker()
-        checker = Checker.getInst(page.name)
-        if checker:
-            checker.begin()
-    
-   
-    def detectPage(self, pageName, delay:int=3)->bool:
-        """客户端实现：通过屏幕检测当前页面"""
+    def curPage(self) -> "_Page_":
+        """获取当前页面"""
+        return self._curPage
+
+    def _setCurrentPage(self, page: "_Page_"):
+        """设置当前页面"""
+        oldPage = self._curPage
+        self._curPage = page
+        if oldPage and oldPage != page:
+            self._stop(oldPage)
+        page.begin()
+
+    def detectPage(self, page: "_Page_", setCur=True) -> bool:
+        """匹配页面"""
+        g = _G._G_
+        tools = g.Tools()
+        log = g.Log()
+        tools.refreshScreenInfos()
         try:
-            g = _G._G_
-            log = g.Log()
-            if delay > 0:
-                time.sleep(delay)
-            ret = True
-            if pageName is not None:
-                #检测特定页面
-                if isinstance(pageName, str):
-                    page = self.getPage(pageName)
-                    if page is None:
-                        log.e(f"找不到页面: {pageName}")
-                        return False
-                else:
-                    page = pageName
-                ret = _App_._doMatchPage(page)             
-            else:
-                #获取当前页面，可能不是目标页面
-                tools = g.Tools()  
-                if g.android is not None:
-                    tools.refreshScreenInfos()
-                    page = _App_._matchPage(self.rootPage)
-                    if page is None:
-                        # log.e("检测当前页面失败")
-                        return False
-                else:
-                    page = self._currentPage
-            self._setCurrentPage(page)
-            return ret
+            target = page
+            if not page.Match():
+                page = self._detectPage(self.rootPage)
+                if not page:
+                    log.e(f"检测页面 {page.name} 失败")
+                    return False
+            if setCur:
+                self._setCurrentPage(page)
+            return target == page
         except Exception as e:
-            _G._G_.Log().ex(e, f"检测页面失败: {pageName}")
+            log.ex(e, f"检测页面 {page.name} 失败")
             return False
+
+    @classmethod
+    def _detectPage(cls, page: "_Page_", depth=0) -> Optional["_Page_"]:
+        """匹配页面"""
+        if depth > 10 or not page:
+            return None
+        if page.match():
+            return page
+        for child in page.children:
+            ret = _App_._detectPage(child, depth + 1)
+            if ret:
+                return ret
+        return None
+
+
+    @classmethod
+    def configDir(cls)->str:
+        """获取配置文件目录"""
+        return os.path.join(_G.g.rootDir(), 'config', 'pages')
     
     @classmethod
-    def _doMatchPage(cls, page: "_Page._Page_") -> bool:
-        """检测页面是否匹配"""
-        g = _G._G_
-        log = g.Log()
-        Checker = g.Checker()
-        checker = Checker.getTemplate(page.name, create=False)
-        ret = False
-        if checker:
-            ret = checker.match()
-            if not ret:
-                log.e(f"页面{page.name}不匹配")
-                return False
-        return ret
-    
-    @classmethod
-    def _matchPage(cls, page: "_Page._Page_", depth=0) -> Optional["_Page._Page_"]:
-        """递归检测页面
-        Args:   
-            page: 要检测的页面
-            depth: 当前递归深度
-        """
-        try:
-            if _App_._doMatchPage(page):
-                return page
-            for child in page.children.values():
-                page = cls._matchPage(child, depth + 1)
-                if page:
-                    return page
-        except Exception as e:
-            _G._G_.Log().ex(e, f"检测页面失败: {page.name}")
-        return None 
-    
-    @classmethod
-    def getAppPage(cls, pageName)->Optional["_Page._Page_"]:
-        g = _G._G_
-        log = g.Log()
-        appName, pageName = cls.splitAppName(pageName)
-        app = cls.cur()
-        if appName:
-            app = cls.getApp(appName, True)
-            if not app:
-                log.e(f"找不到应用: {appName}")
-                return None
-        page = app.currentPage
-        if pageName:
-            page = app.getPage(pageName)
-            if not page:
-                log.e(f"找不到页面: {pageName}")
-                return None
-        return page
-    
-    def getPage(self, pageName:str)->Optional["_Page._Page_"]:
-        """获取指定页面"""
-        if pageName.strip() == '':
-            return self._currentPage
-        if _G._G_.Tools().isRoot(pageName) or pageName == self.name:
-            return self.rootPage
-        return self.rootPage.findChild(pageName)
-        
-    def goPage(self, page: "_Page._Page_", checkWaitTime=None) -> bool:
-        """跳转到目标页面
+    def loadConfig(cls, fileName=None)->bool:
+        """加载配置文件
         Args:
-            page: 目标页面
-            checkWaitTime: 检查等待时间，如果为None则使用页面默认值
-            
+            fileName: 配置文件名或路径，如果为None则加载所有配置文件            
         Returns:
-            成功返回目标页面对象，失败返回None
+            Dict[str, List]: 返回处理的应用及其页面列表，格式 {appName: [page1, page2, ...]}
         """
+        g = _G._G_
+        log = g.Log()
         try:
-            if self.currentPage == page:
-                return True
-            g = _G._G_
-            log = g.Log()
-            # 查找路径
-            pages = self.currentPage.findPath(page.name)
-            if pages is None:
-                log.e(f"找不到从 {self.currentPage.name} 到 {page.name} 的路径")
-                return False
-            log.i(f"跳转路径: {'->'.join([p.name for p in pages])}")
-            
-            # 执行路径中的每一步跳转
-            page = self.currentPage
-            for i in range(1, len(pages)):  # 从1开始，因为0是当前页面
-                nextPage = pages[i]
-                
-                # 执行跳转动作
-                result = page.go(nextPage)
-                if not result:
-                    log.e(f"跳转失败: {page.name} -> {nextPage.name}")
-                    return False
-                if not self.detectPage(nextPage):
-                    log.e(f"跳转失败: {page.name} -> {nextPage.name}")
-                    return False
-                page = nextPage
+            import glob
+            if fileName:
+                configFiles = [fileName]
+            else:
+                configFiles = glob.glob(os.path.join(cls.configDir(), '*.json'))
+            cls.apps = {}
+            for configFile in configFiles:
+                if not os.path.exists(configFile):
+                    continue
+                cls.loadConfigFile(configFile)
+            cls.Top().rootPage.exit = {p: f'@{p}' for p in cls.apps.keys()}
             return True
         except Exception as e:
-            log.ex(e, "跳转失败")
+            log.ex(e, f"加载配置文件失败")
+            return False
+    
+    @classmethod
+    def loadConfigFile(cls, configPath)->bool:
+        """加载单个配置文件
+        Args:
+            configPath: 配置文件路径
+        """
+        g = _G._G_
+        log = g.Log()
+        try:
+            with open(configPath, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+            appName = os.path.basename(configPath)[:-5]
+            #根据root的name，获取应用
+            rootConfig = config.get('root', {})
+            if not rootConfig:
+                log.e(f"配置文件 {configPath} 没配置")
+                return False
+            appName = rootConfig.get('name', '')  
+            app = cls.getApp(appName, False, True)
+            rootPage = app.getPage(appName, True)   
+            rootPage.config = rootConfig
+            app._curPage = rootPage
+            app.rootPage = rootPage
+            app._loadConfig(config)
+            rootPage.exit = {p: f'@{p}' for p in app._pages.keys()}
+            return True
+        except Exception as e:
+            log.ex(e, f"加载配置文件失败: {configPath}")
             return False
 
-    def go(self, tarName) -> bool:
-        """跳转到指定页面"""
+    def _loadConfig(self, config: dict) -> bool:
+        """加载应用配置
+        Args:
+            config: 应用配置字典
+        Returns:
+            bool: 是否成功加载
+        """
+        g = _G._G_
+        log = g.Log()
         try:
-            if tarName is None or tarName.strip() == '':
+            # 加载根页面配置
+            root = config.get('root')
+            if not root:
+                log.e(f"应用 {self.name} 配置缺少root节点")
                 return False
-            g = _G._G_
-            log = g.Log()
-            tarName = tarName.lower()
-            tools = g.Tools()
-            if tools.isTop(tarName):
-                # 返回主屏幕，使用Top应用
-                return self.goHome()
-            # 使用getter方法获取当前应用名
-            app = self
-            page = None
-            # 使用正则表达式匹配 appName.pageName 格式
-            appName, pageName = _App_.splitAppName(tarName)
-            # 获取目标应用
-            if appName is not None and appName != self.name:
-                app = self.getApp(appName, True)
-                appName = app.name
-                if app is None:
-                    log.e(f"应用 {appName} 没配置")
-                    return False
-                ret = self.goApp(appName)
-                if not ret:
-                    log.e(f"打开应用失败: => {appName}")
-                    return False
-            if pageName is None:
-                return True
-            #处理页面跳转
-            if tools.isRoot(pageName):
-                page = app.rootPage                
-            else:
-                page = app.rootPage.findChild(pageName)
-                if page is None:
-                    if appName is not None:
-                        log.e(f"应用{appName}中找不到页面{pageName}")
-                        return False
-                    #到所有其它应用中查找目标页面
-                    for app1 in self.apps.values():
-                        if app1 == self:
-                            continue    
-                        page = app1.rootPage.findChild(pageName)
-                        if page:
-                            app = app1
-                            ret = self.goApp(app1)
-                            if not ret:
-                                log.e(f"跳转失败: {app1.name} -> {appName}")
-                                return False
-                            appName = app1.name
-                            break
-                if page is None:
-                    log.e(f"所有应用都找不到页面{pageName}")
-                    return False
-                    # 如果目标应用不是当前应用，则跳转到目标应用
-            return app.goPage(page) 
+            # 更新应用信息
+            self.ratio = root.get('ratio', 10000)
+            self.description = root.get('description', '')
+            
+            # 加载页面配置
+            pages = root.get('pages', {})
+            for pageName, pageConfig in pages.items():
+                # 创建或获取页面
+                page = self.getPage(pageName, True)
+                page.config = pageConfig
+                if not page:
+                    log.e(f"创建页面 {pageName} 失败")
+                    continue
+                # 添加到页面列表
+                self._pages[pageName] = page
+                
+            log.i(f"应用 {self.name} 配置加载完成，共 {len(self._pages)} 个页面")
+            return True
         except Exception as e:
-            log.ex(e, "跳转失败")
+            log.ex(e, f"加载应用 {self.name} 配置失败")
+            return False
+
+    def saveConfig(self) -> str:
+        """保存配置
+        Returns:
+            str: 配置文件路径
+        """
+        g = _G._G_
+        log = g.Log()
+        try:
+            # 获取当前应用的所有页面
+            pages = self.getPages()
+            # 过滤出非临时页面
+            pages = [p for p in pages if p.type != 'temp']
+            #remove root page
+            pages.remove(self.rootPage)
+            # 将页面转换为字典格式
+            pageConfigs = {}
+            for page in pages:
+                pageConfigs[page.name] = page.config
+            rootConfig = self.rootPage.config
+            rootConfig['pages'] = pageConfigs
+            output = {
+                'root': rootConfig
+            }
+            # 写入配置文件
+            path = self.configDir()
+            if not os.path.exists(path):
+                os.makedirs(path)
+            path = os.path.join(path, f'{self.name}.json')
+            with open(path, 'w', encoding='utf-8') as f:
+                    json.dump(output, f, ensure_ascii=False, indent=2)
+            return path
+        except Exception as e:
+            log.ex(e, f"保存配置文件失败")
+            return None
+
+    @classmethod
+    def findPage(cls, name, includeCommon=False)->Optional["_Page_"]:
+        """获取指定名称的页面模板"""
+        appName, name = cls.parsePageName(name)
+        if not name:
+            return None
+        app = cls.getApp(appName)
+        if not app:
+            return None
+        return app.getPage(name, False, includeCommon)
+
+    def getPage(self, name, create=False, includeCommon=False)->Optional["_Page_"]:
+        """获取页面"""
+        page = None
+        if name in self._pages:
+            page = self._pages[name]
+        elif includeCommon:
+            page = _App_.Top().getPage(name, create, False)
+            return page
+        if page is None and create:
+            from _Page import _Page_
+            page = _Page_(self.name, name)
+            if page:
+                self._pages[name] = page
+        return page
+
+    def getPages(self, pattern: str = None) -> List["_Page_"]:
+        """获取匹配指定模式的页面列表"""
+        if pattern:
+            pattern = pattern.lower()
+            return [p for p in self._pages.values() if pattern in p.name.lower()]
+        return list(self._pages.values())
+
+    def delPage(self, pageName: str) -> bool:
+        """删除页面"""
+        if not pageName:
+            return False
+            
+        # 解析页面名称，获取应用名和页面名
+        pageName = pageName.strip().lower()
+        if self.PathSplit in pageName:
+            appName, page_name = pageName.split(self.PathSplit, 1)
+        else:
+            # 使用当前应用
+            appName = self.curName()
+            page_name = pageName
+            
+        # 在页面字典中查找匹配的页面
+        if page_name in self._pages:
+            # 找到匹配的页面，删除它
+            page = self._pages.pop(page_name)
+            
+            # 如果不是临时页面，保存配置
+            if page.type != 'temp':
+                self.saveConfig()
+            return True
         return False
 
-    
-    
-    @classmethod
-    def loadConfig(cls):
-        """加载配置并创建应用实例与页面树"""
-        g = _G._G_
-        log = g.Log()      
-        try:
-            import json
-            import os
-            import _Page
-            # 清空现有应用
-            cls.apps: dict[str, "_App_"] = {}
-            Page = _Page._Page_
-            root = Page.Root()
-            
-            # 直接使用_App_类创建顶层App，无需区分服务端和客户端
-            cls.Top = cls("Top", root, {})
-            
-            # 尝试加载配置文件
-            try:
-                configFile = os.path.join(_G.g.rootDir(), 'config', 'pages.json')
-                with open(configFile, 'r', encoding='utf-8') as f:
-                    configData = json.load(f)
-            except Exception as e:
-                log.e(f"加载配置文件失败: {e}")
-                return False
-            
-            # 首先读取TOP节点的checkers配置
-            topCheckers = configData.get("Top", {}).get("checkers", {})
-            import CChecker
-            Checker = CChecker.CChecker_
-            if topCheckers:
-                Checker.start()
-                log.i(f"已加载{len(topCheckers)}个checker模板")
-            
-            # 创建根页面
-            root = Page.createPage("Top", None, None, None)
-            
-            # 递归处理配置树
-            def processNode(node, parentPage, parentName):
-                for pageName, pageConfig in node.items():
-                    if not isinstance(pageConfig, dict):
-                        log.e(f"页面配置错误,该节点不是字典: {pageConfig}")
-                        continue
-                    # 创建页面对象
-                    pageName = pageName.lower()
-                    inAction = pageConfig.get("in", None)
-                    outAction = pageConfig.get("out", None)
-                    currentPage = Page.createPage(pageName, parentPage, inAction, outAction)
-                    # 识别应用根节点（Top的直接子节点）
-                    if parentName == "Top":
-                        appInfo = pageConfig.get("app_info", {})
-                        # 使用传入的AppClass创建实例
-                        cls.apps[pageName] = _App_(
-                            name=appInfo.get("name", pageName),
-                            rootPage=currentPage,
-                            info=appInfo
-                        )
-                    # log.d(f"创建应用 {pageName}，根页面 {currentPage.name}")
-
-                    # 递归处理子节点
-                    children = pageConfig.get("children", {})
-                    if children:
-                        processNode(children, currentPage, pageName)
-
-            # 从Top节点开始处理
-            processNode(configData.get("Top", {}).get("children", {}), root, "Top")
-            
-            log.i(f"加载完成：共{len(cls.apps)}个应用")
-            # cls.printTopology()
-
-        except Exception as e:
-            log.ex(e, "配置加载失败")
-            cls.apps.clear()
-
-    @classmethod
-    def printTopology(cls, appName:str=None):
-        """打印页面拓扑结构"""
-        log = _G._G_.Log()
-        log.i("页面拓扑结构:")
-        if appName and appName.strip() != '':
-            app = cls.getApp(appName)
-            if app:
-                cls._printPageTree(app.rootPage)
-            return
-        for app in cls.apps.values():
-            cls._printPageTree(app.rootPage)
-
-    
-    @classmethod
-    def _printPageTree(cls, page, level=0):
-        """递归打印页面树
-        
-        Args:
-            page: 页面对象
-            level: 当前层级
-        """
-        log = _G._G_.Log()
-        indent = "  " * level
-        log.d(f"{indent}└─ {page.name}")
-        
-        # 打印子页面
-        for child in page.getAllChildren():
-            cls._printPageTree(child, level + 1)
-    
-    @classmethod
-    def getRatio(cls, appName: str) -> float:
-        """获取应用的积分换算比例
-        Args:
-            appName: 应用名称
-        Returns:
-            float: 换算比例，如果应用不存在返回默认值0.01
-        """
-        app = cls.apps.get(appName)
-        return app.ratio if app else 0.01
-    
-   
     @classmethod
     def getAppNames(cls) -> list:
         """获取所有应用名称列表
@@ -413,339 +343,422 @@ class _App_:
             list: 应用名称列表
         """
         return list(cls.apps.keys())
-        
+
     @classmethod
     def exist(cls, appName: str) -> bool:
         """检查应用是否存在
         Args:
             appName: 应用名称
         Returns:
-            bool: 应用是否存在
+            bool: 是否存在
         """
         return appName in cls.apps
 
     @classmethod
     def fuzzyMatchApp(cls, appName: str) -> str:
-        """根据输入的应用名模糊匹配最相近的应用
+        """模糊匹配应用名称
         Args:
-            appName: 用户输入的应用名
+            appName: 应用名称
         Returns:
-            str: 匹配到的应用名，如果没有匹配到返回None
+            str: 匹配的应用名称
         """
-        if appName is None or appName.strip() == '':
+        if not appName:
             return None
-        g = _G._G_
-        log = g.Log()
-        try:
-            # 如果完全匹配，直接返回
-            appName = appName.lower()
-            if appName in cls.apps:
-                return appName
-            
-            # 模糊匹配：检查输入是否是某个应用名的子串
-            ret = g.Tools().wildMatchText(appName, cls.apps.keys())
-            log.i(f"模糊匹配: {appName} 结果为: {ret}")
-            if ret:
-                return ret
-        except Exception as e:
-            log.ex(e, "应用模糊匹配失败")
+        appName = appName.lower()
+        for name in cls.getAppNames():
+            if name.lower() == appName:
+                return name
         return None
-    
-  
+
 
     @classmethod
-    def getCurAppName(cls) -> str:
-        """获取当前应用名称"""
-        if _App_._curAppName is None:
-            return _G.TOP
-        return _App_._curAppName
-        
-    @classmethod
-    def _setCurAppName(cls, appName: str):
-        """设置当前应用名称"""
-        if appName == _App_._curAppName:
-            return
-        _App_._curAppName = appName
-        log = _G._G_.Log()
-        log.i(f"当前应用: {appName}")
-
-    @classmethod
-    def detectAppName(cls) -> str:
-        """检测当前运行的应用名
-        Returns:
-            str: 应用名称，如果未检测到则返回None
-        """
-        g = _G._G_
-        log = g.Log()
-        tools = g.Tools()
+    def detect(cls, setCur=True):
+        """检测当前页面"""
         try:
-            # log.d("检测当前运行的应用")
-            if g.android is None:
-                return cls.getCurAppName()
-            # 获取当前运行的应用信息
-            appInfo = g.Tools().getCurrentAppInfo()
-            # log.i(f"当前应用信息: {appInfo}")
-            if not appInfo:
-                # log.w("无法获取当前运行的应用信息")
-                return None
-            # 检查是否在桌面
-            if tools.isHome():
-                return _G.TOP
-            appName = appInfo.get("appName")
-            return appName
-        except Exception as e:
-            log.ex(e, "检测当前运行的应用失败")
-            return None
-
-    @classmethod
-    def detect(cls, appName:str=None, pageName:str=None, delay: int = 5) -> bool:
-        try:
-            """检测当前页面"""
-            time.sleep(delay)
             g = _G._G_
             log = g.Log()
-            curAppName = cls.detectAppName()
-            if g.Tools().android is None:
-                # 如果是PC端，则直接使用appName
-                curAppName = appName
-            cls._setCurAppName(curAppName)
-            app = cls.apps.get(curAppName)
-            if app:
-                if not app.detectPage(pageName,0):
-                    log.e(f"检测当前页面失败: {pageName}")
-                    return False
-            if appName is None or appName.strip() == '':
-                return True
-            return appName == curAppName
+            ret = cls.detectApp(cls.curName(), setCur)
+            log.i(f"检测应用 {cls.curName()} {ret}")
+            ret = cls.cur().detectPage(cls.curPage, setCur)
+            log.i(f"检测页面 {cls.curPage.name} {ret}")
         except Exception as e:
             log.ex(e, "检测当前页面失败")
-            return False
-    
+
     @classmethod
     def isHome(cls) -> bool:
         """检查是否在主屏幕"""
-        tools = _G._G_.Tools()
+        g = _G._G_
+        tools = g.Tools()
         if g.android is None:
-            return cls.getCurAppName() == _G.TOP
+            return cls.curName() == _G.TOP
         return tools.isHome()
     
     @classmethod
     def goHome(cls)->bool:
         """返回主屏幕"""
-        return cls.goApp(_G.TOP)    
-
+        return cls.open(_G.TOP)    
+    
     @classmethod
-    def goApp(cls, appName, onOpened=None) -> bool:
+    def open(cls, appName) -> bool:
         """跳转到指定应用"""
         try:
             g = _G._G_
             log = g.Log()
-            app = None
-            if not isinstance(appName,str):
-                app = appName
-                appName = appName.name
-            else:
-                app = cls.getApp(appName, True)
-            if app is None:
-                log.e(f"打开未知应用{appName}")
+            app = cls.getApp(appName)
+            if not app:
+                log.w(f"未知应用:{appName}")
             else:
                 appName = app.name
-            # 如果已经在目标应用，直接返回成功
-            if cls.getCurAppName() == appName:
-                return True
             tools = g.Tools()
-            ret = tools.openApp(appName)
-            if not ret:
-                log.e(f"打开应用 {appName} 失败")
+            if appName == cls.curName():
+                return True
+            ok = tools.openApp(appName)
+            if not ok:
+                log.e(f"=>{appName}")
                 return False
-            # 等待应用打开检查
-            ret = cls.detect(appName)
-            return ret
+            if g.isAndroid():
+                time.sleep(5)
+            ok = cls.detectApp(appName)
+            log.log(f"=>{appName}", None, 'i' if ok else 'e')
+            return ok
         except Exception as e:
-            log.ex(e, "切换应用失败")
+            log.ex(e, f"跳转到应用 {appName} 失败")
             return False
-    
-   
-    @classmethod
-    def closeApp(cls, appName=None) -> bool:
-        """关闭应用
-        
+
+    def findPath(self, fromPage: "_Page_", toPage: "_Page_", visited=None, path=None) -> List["_Page_"]:
+        """在整个页面树中查找从fromPage到toPage的路径
         Args:
-            appName: 应用名称，如果为None则关闭当前应用
-            
+            fromPage: 起始页面
+            toPage: 目标页面
+            visited: 已访问页面集合(内部使用)
+            path: 当前路径(内部使用)
         Returns:
-            bool: 是否成功关闭应用
+            list: 从fromPage到toPage的路径，如果没找到则返回[]
+        """
+        if visited is None:
+            visited = set()
+        if path is None:
+            path = [fromPage]            
+        if fromPage in visited:
+            return []
+        visited.add(fromPage)        
+        # 检查当前页面
+        if fromPage.name == toPage.name:
+            return path        
+        # 搜索子页面
+        toPages = fromPage.exit.keys()
+        for pageName in toPages:
+            page = self.getPage(pageName)
+            if page and page not in visited:
+                resultPath = self.findPath(page, toPage, visited, path + [page])
+                if resultPath:
+                    return resultPath
+        
+        # 搜索父页面
+        fromPages = fromPage.entry.keys()
+        for pageName in fromPages:
+            page = self.getPage(pageName)
+            if page and page not in visited:
+                resultPath = self.findPath(page, toPage, visited, path + [page])
+                if resultPath:
+                    return resultPath
+        
+        # 如果这是根页面且没找到，尝试搜索其他应用
+        if toPage.name != _G.TOP:
+            for app in _App_.apps.values():
+                if app.rootPage != fromPage and app.rootPage not in visited:
+                    resultPath = self.findPath(app.rootPage, toPage, visited, path + [app.rootPage])
+                    if resultPath:
+                        return resultPath
+        
+        return []
+
+    def _findPath(self, pageNames, name, visited=None) -> Optional["_Page_"]:
+        """在指定页面列表中查找指定名称的页面"""
+        g = _G._G_
+        log = g.Log()
+        if len(pageNames) == 0:
+            return None
+        for pageName in pageNames:  
+            page = self.getPage(pageName)
+            if page is None:
+                log.d(f"{name}的子页面: {pageName}不存在")
+                continue
+            result = self.findPath(page, self.getPage(name))
+            if result:
+                return result[-1]  # 返回路径的最后一个节点
+        return None
+
+    def goPage(self, pageName) -> bool:
+        """跳转到目标页面
+        Args:
+            pageName: 目标页面名称
+        Returns:
+            bool: 是否成功
+        """
+        try:
+            if self._curPage.name == pageName:
+                return True
+            g = _G._G_
+            log = g.Log()
+            isAndroid = g.isAndroid()
+            # 查找路径
+            page = self.getPage(pageName)
+            if not page:
+                log.e(f"未知页面: {pageName}")
+                return False
+            pages = self.findPath(self._curPage, page)
+            if not pages:
+                log.e(f"找不到从 {self._curPage.name} 到 {page.name} 的路径")
+                return False
+            # log.i(f"跳转路径: {'->'.join([p.name for p in pages])}")
+            
+            # 执行路径中的每一步跳转
+            currentPage = self._curPage
+            for i in range(1, len(pages)):  # 从1开始，因为0是当前页面
+                nextPage = pages[i]
+                # 执行跳转动作
+                result = self._goPage(currentPage, nextPage)
+                if not result:
+                    log.e(f"跳转失败: {currentPage.name} -> {nextPage.name}")
+                    return False
+                if isAndroid:
+                    time.sleep(3)
+                ok = nextPage.match()
+                if ok:
+                    self._setCurrentPage(nextPage)
+                    currentPage = nextPage
+                log.log(f"-> {nextPage.name}", None, 'i' if ok else 'e')
+            return ok
+        except Exception as e:
+            log.ex(e, "跳转失败")
+            return False
+
+    def _goPage(self, fromPage: "_Page_", toPage: "_Page_") -> bool:
+        """执行页面跳转操作
+        Args:
+            fromPage: 源页面
+            toPage: 目标页面
+        Returns:
+            bool: 是否成功
         """
         g = _G._G_
         log = g.Log()
         tools = g.Tools()
-        
-        # 如果未指定应用名，使用当前应用
-        if not appName:
-            appName = cls.getCurAppName()        
-        if not appName:
-            log.e("未指定要关闭的应用")
+        # 执行跳转操作
+        if toPage in fromPage.exit:
+            # 向前跳转,执行当前页面的exit操作
+            outAction = fromPage.exit.get(toPage.name)
+            if outAction and outAction != '':
+                ret = tools.do(outAction)
+                if ret:
+                    log.w(f"执行离开{fromPage.name}页面的操作失败")
+                    return False
+        else:
+            # 向后跳转,执行目标页面的entry操作
+            inAction = toPage.entry.get(fromPage.name)
+            if inAction and inAction != '':
+                ret = tools.do(inAction)
+                if ret:
+                    log.w(f"执行进入{toPage.name}页面的操作失败")
+                    return False
+        return True
+
+    @classmethod
+    def go(cls, target: str) -> bool:
+        """跳转到指定应用的指定页面
+        Args:
+            target: 目标页面路径
+        Returns:
+            bool: 是否成功
+        """
+        g = _G._G_
+        log = g.Log()
+        try:
+            if not target:
+                log.e("目标页面路径不能为空")
+                return False
+            appName, pageName = cls.parsePageName(target)
+            ret = cls.open(appName)
+            if ret:
+                return cls.cur().goPage(pageName) 
+            return False
+        except Exception as e:
+            log.ex(e, f"跳转到应用 {appName} 的页面 {pageName} 失败")
             return False
         
-        # 如果是桌面应用，无需关闭
-        if appName == _G.TOP:
-            return True            
-        # 关闭应用
-        result = tools.closeApp(appName)
-        if result:
-            # 如果关闭的是当前应用，设置当前应用为主屏幕
-            if appName == cls.getCurAppName():
-                cls._setCurAppName(_G.TOP)
-            return True
-        return False
-    
     @classmethod
-    def getApp(cls, appName, fuzzyMatch=False) -> "_App_":
-        """获取指定应用对象
-        
+    def closeApp(cls, appName=None) -> bool:
+        """关闭应用
         Args:
-            appName: 应用名称
-            fuzzyMatch: 是否进行模糊匹配，默认为False
-            
+            appName: 应用名称，如果为None则关闭当前应用
         Returns:
-            应用对象，如果未找到则返回None
-        """
-        if appName is None or appName.strip() == '':
-            return None
-        if _G._G_.Tools().isTop(appName):
-            return cls.Top
-        app = cls.apps.get(appName.lower())
-        if app:
-            return app
-        # 精确匹配
-        if not fuzzyMatch:
-            return None
-        # 使用相似度匹配
-        matchedAppName = cls.fuzzyMatchApp(appName)
-        if matchedAppName:
-            return cls.apps.get(matchedAppName)
-        return None
-    
-    @classmethod
-    def getAllApps(cls) -> List[str]:
-        """获取所有应用名称"""
-        return list(cls.apps.keys())
-    
-
-    @classmethod
-    def registerCommands(cls):
-        """注册命令"""
-        from _CmdMgr import regCmd
-        
-    @classmethod
-    def onLoad(cls, oldCls=None):
-        """克隆"""
-        if oldCls:
-            cls.loadConfig()
-
-    def run(self, checkName: str) -> bool:
-        """启动指定名称的检查器
-        
-        在同一应用中，同名检查器只能同时运行一个
-        如果检查器已在运行，会先停止当前运行的检查器再启动新实例
-        
-        Args:
-            checkName: 检查器名称
-            
-        Returns:
-            bool: 是否成功启动
+            bool: 是否成功关闭
         """
         try:
             g = _G._G_
             log = g.Log()
-            Checker = g.Checker()
-            
-            # 获取完整检查器名称(包含应用前缀)
-            template = Checker.getTemplate(checkName, False)
-            fullName = template.name if template else None
-            if not fullName:
-                log.e(f"检查器 {checkName} 未定义")
+            if not appName:
+                appName = cls.curName()
+            if appName == _G.TOP:
+                return True
+            app = cls.getApp(appName)
+            if not app:
+                log.e(f"未知应用:{appName}")
                 return False
-                
-            # 先停止同名检查器
-            self.stop(checkName)
-            
-            # 创建并启动新检查器
-            checker = Checker.getInst(fullName, create=True)
-            if not checker:
-                log.e(f"创建检查器 {fullName} 失败")
-                return False
-                
-            # 将检查器添加到应用自己的缓存中
-            self._checkers.append(checker)
-            
-            # 启动检查器
-            checker.begin()
-            log.i(f"启动检查器 {fullName}")
+            # 从已打开应用集合中移除
+            if appName in cls.openedApps:
+                cls.openedApps.remove(appName)
             return True
-            
         except Exception as e:
-            log.ex(e, f"启动检查器 {checkName} 失败")
+            log.ex(e, f"关闭应用 {appName} 失败")
             return False
-    
-    def stop(self, checkName = None, cancel=False) -> bool:
-        """停止检查器执行
-        
+
+    @classmethod
+    def getApp(cls, appName, fuzzyMatch=False, create=False) -> "_App_":
+        """获取应用
         Args:
-            checkName: 要停止的检查器名称，如果为None则停止所有检查器
-            cancel: 是否以cancel方式停止，True表示强制取消，不执行退出逻辑
+            appName: 应用名称
+            fuzzyMatch: 是否模糊匹配
+            create: 如果不存在是否创建
+        Returns:
+            _App_: 应用实例
+        """
+        try:
+            g = _G._G_
+            log = g.Log()
+            appName = appName.strip() if appName else ''
+            if appName == '':
+                return None
+            if fuzzyMatch:
+                appName = cls.fuzzyMatchApp(appName)
+                if not appName:
+                    return None
+            app = cls.apps.get(appName)
+            if not app and create:
+                app = cls(appName, {})
+                cls.apps[appName] = app
+            return app
+        except Exception as e:
+            log.ex(e, f"获取应用 {appName} 失败")
+            return None
+
+    @classmethod
+    def getAllApps(cls) -> List[str]:
+        """获取所有应用名称"""
+        return cls.getAppNames()
+
+    @classmethod
+    def onLoad(cls, oldCls=None):
+        """克隆"""
+        if oldCls:
+            cls._curAppName = oldCls._curAppName
+            cls.openedApps = oldCls.openedApps
+        else:
+            cls.openedApps = set()  # 初始化已打开应用集合
+        cls.loadConfig()
+
+    def _getRunPage(self, name: str, data: dict = None, create: bool = True) -> Optional["_Page_"]:
+        """获取运行页面
+        Args:
+            name: 页面名称
+            data: 页面数据
+            create: 如果不存在是否创建
+        Returns:
+            _Page_: 页面实例
+        """
+        try:
+            g = _G._G_
+            log = g.Log()
+            # 先在本应用查找
+            template = self._runPages.get(name)
+            if template:
+                return template
+            if create:
+                template = self.getPage(name, False, True)
+                if template is None:
+                    log.e(f"页面: {name}没配置")
+                    return None
+                from _Page import _Page_
+                page = _Page_(self.name, name)
+                page.config = template.config
+                if data:
+                    for key, value in data.items():
+                        setattr(page, key, value)
+                self._runPages[name] = page
+            return page
+        except Exception as e:
+            log.ex(e, f"获取运行页面 {name} 失败")
+            return None
+
+    def start(self, pageName: str, data: dict = None) -> bool:
+        """运行页面
+        Args:
+            pageName: 页面名称
+            data: 页面数据
+        Returns:
+            bool: 是否成功运行
+        """
+        try:
+            # 获取页面实例
+            page = self._getRunPage(pageName, data, True)
+            if not page:
+                return False
+                
+            # 停止同名页面
+            self._stop(page)
             
+            # 添加到运行列表
+            self._runPages[page.name] = page
+            
+            # 如果有调度配置，使用调度器执行
+            if page.schedule:
+                from CSchedule import CSchedule_
+                CSchedule_.batchRun(page)
+            else:
+                # 否则直接执行
+                page.begin()
+                
+            return True
+        except Exception as e:
+            _G._G_.Log().ex(e, f"启动页面 {pageName} 失败")
+            return False
+
+    def stop(self, pageName: str, cancel=False) -> bool:
+        """停止页面执行
+        Args:
+            page: 要停止的页面
+            cancel: 是否强制取消
         Returns:
             bool: 是否成功停止
         """
-        log = _G._G_.Log()
         try:
-            # 如果没有指定名称，停止所有检查器
-            if not checkName:
-                # 停止所有检查器
-                for checker in self._checkers[:]:
-                    self._stopChecker(checker, cancel)
-                return True
-            
-            # 转为小写方便比较
-            checkName = checkName.lower()
-            # 查找并停止指定的检查器
-            checker_found = False
-            for checker in self._checkers[:]:
-                if checker.name.lower() == checkName:
-                    self._stopChecker(checker, cancel)
-                    checker_found = True
-            
-            if not checker_found:
-                log.d(f"未找到检查器: {checkName}")
-                
-            return checker_found
+            g = _G._G_
+            log = g.Log()
+            pages = self._runPages.values()
+            if pageName:
+                pages = [p for p in pages if p.name == pageName]
+            for page in pages:
+                self._stop(page, cancel)
+            return True
         except Exception as e:
-            log.ex(e, f"停止检查器 {checkName} 失败")
+            log.ex(e, "停止页面失败")
             return False
 
-    def _stopChecker(self, checker, cancel=False):
-        """停止单个检查器
-        
+    def _stop(self, page: "_Page_", cancel=False) -> bool:
+        """停止页面执行
         Args:
-            checker: 要停止的检查器对象
-            cancel: 是否以cancel方式停止
+            page: 要停止的页面
+            cancel: 是否强制取消
+        Returns:
+            bool: 是否成功停止
         """
-        g = _G._G_
-        tools = g.Tools()
-        if cancel:
-            # 以cancel方式停止，不执行退出逻辑
-            checker.ret = tools.eRet.cancel.value
-            checker.forceCancelled = True  # 设置强制取消标志
-        else:
-            # 正常停止方式
-            checker.ret = tools.eRet.end.value
-        
-        # 无论哪种方式都禁用检查器
-        checker.enabled = False
-        
-        # 从检查器列表中移除
-        if checker in self._checkers:
-            self._checkers.remove(checker)
+        try:    
+            page.stop(cancel)
+            self._runPages.pop(page.name)
+            return True
+        except Exception as e:
+            _G._G_.Log().ex(e, f"停止页面 {page.name} 失败")
+            return False
 
-_App_.onLoad(None)
+_App_.onLoad()

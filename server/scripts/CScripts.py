@@ -12,7 +12,7 @@ class CScripts_:
         # 注册复合命令
         @regCmd(r"#打开快手极速版")
         def runCC():
-            from _App import App_
+            from  _App import App_
             App_.goHome()
             time.sleep(1)
             tools = _G._G_.Tools()

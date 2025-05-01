@@ -229,49 +229,71 @@ class CFileServer_:
             """
             return cls.uploadFile(fileName)
         
-        @regCmd(r"#保存配置|bcpz(?P<config>\w+)?")
-        def saveConfig(config = None):
+        @regCmd(r"#保存配置|bcpz(?P<name>\w+)?(?P<upload>[01])?")
+        def saveConfig(name = None, upload ='0'):
             """功能：保存配置文件
             指令名：saveConfig
-            中文名：保存配置
             参数：
-            config - 配置类型，例如: checks, pages
-            示例：保存配置 checks
+            name - 配置名
+            upload - 是否上传
+            示例：
+                保存配置
+                保存配置 河马剧场 1
             """
             g = _G._G_
             log = g.Log()        
-            files = ['checks', 'pages']
-            if config:
-                files = [config]
-            # 上传配置文件
-            try:
-                for file in files:
-                    cls.uploadFile(file)
-                    return f"配置{file}上传成功"
-            except Exception as e:
-                log.ex(e, f"上传配置失败")
-                return f"上传失败: {str(e)}"    
-            return "上传配置成功"
+            if name is None:
+                name = g.App().curName()
+            if name is None:
+                return False
+            path = None
+            if name in g.App().apps.keys():
+                app = g.App().apps[name]
+                path = app.saveConfig()
+                if path:
+                    log.i(f"保存配置文件成功: {path}")
+                else:
+                    log.e(f"保存配置文件失败")
+                    return False
+            else:
+                log.e(f"配置不存在: {name}")
+                return False
+            if upload == '1' and path:  
+                # 上传配置文件
+                try:
+                    cls.uploadFile(path)
+                    return f"配置{path}上传成功"
+                except Exception as e:
+                    log.ex(e, f"上传配置失败")
+                    return f"上传失败: {str(e)}"    
+                return "上传配置成功"
 
-        @regCmd(r"#加载配置|jzpz(?P<config>\w+)?")
-        def loadConfig(config = None):
+        @regCmd(r"#加载配置|jzpz(?P<file>\w+)?")
+        def loadConfig(file = None):
             """功能：从服务器加载配置文件
             参数：
-            config - 配置类型，例如: checks, pages
+            fileName - 配置文件名，例如: checks, pages
             示例：加载配置 checks
             """
+            import glob
             g = _G._G_
-            files = ['checks', 'pages']
-            if config:
-                files = [config]
-            for file in files:
-                if file == 'pages':
-                    g.CFileServer().download('config/pages.json',
-                                              lambda result: g.App().loadConfig())
-                elif file == 'checks':
-                    g.CFileServer().download('config/Checks.json', 
-                                             lambda result: g.Checker().loadConfig())
+            log = g.Log()
+            App = g.App()
+            if file:
+                filter = f'{file}.json'
+                files = glob.glob(os.path.join(g.rootDir(), 'config', filter))
+                for file in files:
+                    if 'Checks' in file:
+                        #获取文件的名称，不带扩展名，不带路径
+                        App.loadConfigFile(file)
+                    else:
+                        log.w(f"还不支持加载配置文件: {file}")  
+            else:
+                # 加载所有配置文件
+                App.loadConfig()
 
+                
+                
 
     @classmethod
     def uploadFileContent(cls, server_path, file_content):

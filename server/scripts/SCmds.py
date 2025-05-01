@@ -8,7 +8,8 @@ from SEarningMgr import SEarningMgr_
 from time import sleep
 import _G
 import os
-from _App import _App_
+from  _App import _App_
+from _G import _G_
 
 class SCmds_:
 
@@ -49,8 +50,7 @@ class SCmds_:
                 # 使用覆盖模式保存
                 log.save(mode='w')
                 # 通知前端清空日志显示
-                from app import socketio
-                socketio.emit('clear_logs')
+                _G_.sio.emit('clear_logs')
                 return '控制台日志已清除'
             except Exception as e:
                 _Log._Log_.ex(e, '清除日志缓存出错')

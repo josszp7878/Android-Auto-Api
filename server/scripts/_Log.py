@@ -5,6 +5,7 @@ from pathlib import Path
 import json
 import re
 import _G
+from _G import _G_
 
 class TAG(Enum):
     """标签"""
@@ -16,6 +17,7 @@ class _Log_:
     """统一的日志管理类"""
     _cache = []
     _visualLogs = []
+    APP_LOGS = os.path.join(_G.g.rootDir(), 'data', 'logs')
 
     # ANSI颜色代码
     COLORS = {
@@ -68,8 +70,7 @@ class _Log_:
         """获取日志文件路径"""
         if date is None:
             date = datetime.now().strftime('%Y-%m-%d')
-        from app import APP_LOGS
-        return Path(APP_LOGS) / f"{date}.log"
+        return Path(cls.APP_LOGS) / f"{date}.log"
 
     @classmethod
     def load(cls, date=None):
@@ -90,8 +91,7 @@ class _Log_:
 
                 # 保留原有发送逻辑
                 try:
-                    from app import socketio
-                    socketio.emit('S2B_LoadLogs', {
+                    _G_.sio.emit('S2B_LoadLogs', {
                         'logs': cls._cache,
                         'date': date or datetime.now().strftime('%Y-%m-%d')
                     })
@@ -123,8 +123,6 @@ class _Log_:
         """添加日志到缓存并发送到前端"""
         try:
             # 在方法开始时导入socketio，确保后续可以使用
-            from app import socketio
-
             logs = cls._cache
             # 检查是否与最后一条日志内容相同
             lastLog = logs[-1] if len(logs) > 0 else None
@@ -143,7 +141,7 @@ class _Log_:
                     # 通知前端更新
                     try:
                         # 确保发送完整的日志对象，包括时间戳
-                        socketio.emit('S2B_EditLog', lastLog)
+                        _G._G_.sio.emit('S2B_EditLog', lastLog)
                     except Exception:
                         cls.ex_(None, '发送EditLog事件失败')
                     return
@@ -156,9 +154,11 @@ class _Log_:
                 'count': 1
             }
             logs.append(logData)
-            if hasattr(socketio, 'server') and socketio.server:
+            g = _G._G_
+            sio = g.sio
+            if hasattr(sio, 'server') and sio.server:
                 try:
-                    socketio.emit('S2B_AddLog', logData)
+                    sio.emit('S2B_AddLog', logData)
                 except Exception as e:
                     cls.ex_(e, '发送AddLog事件失败')
         except Exception as e:
@@ -178,19 +178,18 @@ class _Log_:
         """
         if not content:
             return (level, None)
-
         # 如果已经是字典格式，直接返回
         if isinstance(content, dict):
             return content
-
         # 提取level标记
         m = re.search(r'([dDiIwWEecC])[~]', content)
         if m:
             level = m.group(1).lower()  # 提取level字符
             #提取剩余内容(去掉level标记,可能LEVEL标记在中间)
-            content = re.sub(m.group(0), '', content)
+            content = re.sub(m.group(0), '', content).strip()
+            if content == '':
+                content = None
             return (level, content)
-
         # 默认使用传入的级别
         return (level, content)
 
@@ -361,8 +360,12 @@ class _Log_:
     @classmethod
     def formatEx(cls, message, e=None, tag=None):
         import traceback
-        # tag参数保留但不使用，为了保持接口兼容性
-        return f'{message} Exception: {e}, {traceback.format_exc()}'
+        stack = traceback.format_exc()
+        #将stack中的文件名手机本地路径形式。路径改成相对路径，方便编辑器里面点击跳转
+        # 比如：data/user/0/cn.vove7.andro_accessibility_api.demo/files/scripts/_CmdMgr.py
+        # 改成：scripts/_CmdMgr.py
+        stack = stack.replace('data/user/0/cn.vove7.andro_accessibility_api.demo/files/', '')
+        return f'{message} Exception: {e}, {stack}'
 
     @classmethod
     def printEx(cls, message, e, tag=None):
