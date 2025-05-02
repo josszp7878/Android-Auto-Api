@@ -76,7 +76,7 @@ class _Page_:
         self.pastTime = 0         # 已运行时间
         self.startTime = 0        # 开始时间
         self.lastTime = 0         # 上次检查时间
-        self._enabled = False     # 是否启用
+        self._running = False     # 是否启用
         self.children = []        # 存储由当前检查器启动的子检查器
         self.childThreads = []    # 存储子检查器的线程
         self.executedEvents = set()  # 记录已执行的事件
@@ -124,10 +124,10 @@ class _Page_:
             self._config[prop] = value
     
     @property
-    def match(self) -> str:
+    def _match(self) -> str:
         return self.getProp('match') or self.name.split('-')[-1]
     
-    @match.setter
+    @_match.setter
     def match(self, value: str):
         self.setProp('match', value)
 
@@ -165,12 +165,7 @@ class _Page_:
 
     @property
     def entry(self) -> Dict[str, Any]:
-        val = self.getProp('entry')
-        rootPage = self.app.rootPage
-        if val is None and rootPage == self:
-            # 如果当前是根页面，有没有定义entry。这默认为根页面
-            val = {rootPage.name: '@back'}
-        return val
+        return self.getProp('entry') or {}
     
     @entry.setter
     def entry(self, value: Dict[str, Any]):
@@ -195,15 +190,15 @@ class _Page_:
         self.setProp('schedule', value)
 
     def __str__(self):
-        return f"{self.name} {self.match}"
+        return f"{self.name} {self._match}"
 
     @property
-    def enabled(self) -> bool:
-        return self._enabled
+    def running(self) -> bool:
+        return self._running
     
-    @enabled.setter
-    def enabled(self, value: bool):
-        self._enabled = value
+    @running.setter
+    def running(self, value: bool):
+        self._running = value
         log.d(f"设置检查器 {self.name} 状态为 {value}")
         if value:
             self.startTime = time.time()
@@ -328,9 +323,9 @@ class _Page_:
 
 
    
-    @enabled.setter
-    def enabled(self, value: bool):
-        self._enabled = value
+    @running.setter
+    def running(self, value: bool):
+        self._running = value
         log.d(f"设置检查器 {self.name} 状态为 {value}")
         if value:
             self.startTime = time.time()
@@ -345,11 +340,11 @@ class _Page_:
         try:
             tools = g.Tools()
             log.d(f"{self.name}.Match")
-            match = self.match
+            match = self._match
             if match == '':
                 return True
             # log.d(f"匹配: {match}")
-            result, _ = tools.check(self, f'@{match}')
+            result, _ = tools.check(self, match)
         except Exception as e:
             log.ex(e, f"匹配失败: {match}")
             result = False
@@ -364,7 +359,7 @@ class _Page_:
             ret = tools.eRet.none
             if len(events) == 0: 
                 # 没有操作，直接点击match
-                if tools.click(self.match):
+                if tools.click(self._match):
                     ret = tools.eRet.end
             else:
                 for key, action in events:
@@ -517,19 +512,48 @@ class _Page_:
             log.ex(e, f"执行页面异常: {self.name}")
             self.ret = tools.eRet.error
         finally:
-            self._exit()
+            log.d(f"页面 {self.name} 结束")
+            self._stopAllChildren()
     
-    def _exit(self):
-        """退出页面"""
-        log.d(f"退出 {self.name}")
-        self._stopAllChildren()
+    def end(self, cancel=False):
+        """结束页面"""
+        tools = g.Tools()
+        if cancel:
+            self.ret = tools.eRet.cancel
+        else:
+            self.ret = tools.eRet.end
+        self.running = False
+    
 
-    def _onExit(self):
+    # 匹配map里面的key，如果匹配到则执行对应的value。
+    # return：
+    # tools.eRet.exit: 退出页面
+    # tools.eRet.end: 有一个执行成功
+    # tools.eRet.none: 没有匹配到任何key
+    def _doMap(self, map: Dict[str, Any])->'_Tools_.eRet':
+        """执行map"""
+        tools = g.Tools()
+        if not map:
+            return tools.eRet.none
+        for key, code in map.items():
+            ret = key == '' or tools.check(self, key)[0]
+            if ret:
+                ret = tools.do(self, code)
+                log.d(f"执行入口代码: {key}=>{code}=>{ret}")
+                if ret == tools.eRet.exit:
+                    return tools.eRet.exit
+                return tools.eRet.end
+        return tools.eRet.none
+                
+    def _onExit(self) -> bool:
         """执行出口逻辑"""
         log.d(f"执行出口逻辑: {self.name}")
-        tools = g.Tools()
-        tools.do(self, self._config['exit'])
-
+        tools = g.Tools()        
+        ret = self._doMap(self.exit)
+        if ret == tools.eRet.exit:
+            return False
+        return True
+    
     def _onEnter(self) -> bool:
         """执行入口代码
         根据当前页面名称执行对应的entry代码，然后进行match匹配
@@ -537,17 +561,10 @@ class _Page_:
             bool: 入口执行是否成功
         """
         try:
-            entryMap = self._config['entry']
-            # 对entryMap里面的KEY进行tools.do(),根据返回决定是否执行对应的value.
-            # 如果key为空，则直接执行。
+            ret = self._doMap(self.entry)
             tools = g.Tools()
-            for key, code in entryMap.items():
-                ret = key == '' or tools.check(self, key)[0]
-                if ret:
-                    ret = tools.do(self, code)
-                    log.d(f"执行入口代码: {key}=>{code}=>{ret}")
-                    if ret == tools.eRet.exit:
-                        return False
+            if ret == tools.eRet.exit:
+                return False
             # 如果entry执行成功，延时3秒后进行匹配
             time.sleep(3)
             return self.Match()
@@ -567,7 +584,7 @@ class _Page_:
             '_Tools_.eRet': 执行结果
         """
         startTime = time.time()
-        self._enabled = True
+        self._running = True
         self.children = []
         self.childThreads = []
         self.executedEvents = set()  # 重置已执行事件记录
@@ -575,7 +592,7 @@ class _Page_:
         ret = tools.eRet.none
         try:
             # 主循环，条件是页面启用状态
-            while self._enabled:
+            while self._running:
                 # 首先检查是否被外部强制取消
                 if self.forceCancelled:
                     ret = tools.eRet.cancel
@@ -598,7 +615,7 @@ class _Page_:
             ret = tools.eRet.error
         finally:
             # 确保更新结束时禁用页面
-            self._enabled = False
+            self._running = False
             # 再次确保所有子页面都被停止
             self._stopAllChildren()
         return ret
@@ -650,11 +667,6 @@ class _Page_:
             self.childThreads = []
         except Exception as e:
             log.ex(e, "停止子页面失败")
-
-    def match(self) -> bool:
-        """检查当前页面是否匹配屏幕状态"""
-        # 直接调用关联的page的Match方法
-        return self.Match()
 
 _Page_.onLoad()
 

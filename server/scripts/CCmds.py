@@ -655,7 +655,7 @@ class CCmds_:
                             interval = int(d)
                             policy["i"] = interval
                 from CSchedule import CSchedule_
-                CSchedule_.batchRun(page, policy)
+                CSchedule_.run(page, policy)
                 return f'批量执行: {pageName} 成功'
             except Exception as e:
                 log.ex(e, '批量执行页面失败')

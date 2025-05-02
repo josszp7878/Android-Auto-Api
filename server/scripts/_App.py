@@ -6,6 +6,7 @@ from typing import Optional, List, Tuple, TYPE_CHECKING, Dict
 
 if TYPE_CHECKING:
     from _Page import _Page_
+    from CSchedule import CSchedule_
 
 class _App_:
     """应用管理类：整合配置与实例"""
@@ -74,6 +75,9 @@ class _App_:
         self.timeout = info.get("timeout", 5)
         self._pages: Dict[str, "_Page_"] = {}  # 应用级的页面列表
         self._runPages: Dict[str, "_Page_"] = {}  # 运行中的页面 {pageName: page}
+        # 为应用创建调度器
+        from CSchedule import CSchedule_
+        self.scheduler: "CSchedule_" = CSchedule_(self)
 
     PathSplit = '-'
     @classmethod
@@ -104,11 +108,7 @@ class _App_:
 
     def _setCurrentPage(self, page: "_Page_"):
         """设置当前页面"""
-        oldPage = self._curPage
         self._curPage = page
-        if oldPage and oldPage != page:
-            self._stop(oldPage)
-        page.begin()
 
     def detectPage(self, page: "_Page_", setCur=True) -> bool:
         """匹配页面"""
@@ -124,7 +124,7 @@ class _App_:
                     log.e(f"检测页面 {page.name} 失败")
                     return False
             if setCur:
-                self._setCurrentPage(page)
+                self._setCurrentPage(page)                
             return target == page
         except Exception as e:
             log.ex(e, f"检测页面 {page.name} 失败")
@@ -135,7 +135,7 @@ class _App_:
         """匹配页面"""
         if depth > 10 or not page:
             return None
-        if page.match():
+        if page.Match():
             return page
         for child in page.children:
             ret = _App_._detectPage(child, depth + 1)
@@ -170,10 +170,10 @@ class _App_:
                 if not os.path.exists(configFile):
                     continue
                 cls.loadConfigFile(configFile)
-            cls.Top().rootPage.exit = {p: f'@{p}' for p in cls.apps.keys()}
+            cls.Top().rootPage.exit = {p:'' for p in cls.apps.keys()}
             return True
         except Exception as e:
-            log.ex(e, f"加载配置文件失败")
+            log.ex(e, "加载配置文件失败")
             return False
     
     @classmethod
@@ -200,7 +200,7 @@ class _App_:
             app._curPage = rootPage
             app.rootPage = rootPage
             app._loadConfig(config)
-            rootPage.exit = {p: f'@{p}' for p in app._pages.keys()}
+            rootPage.exit = {p:'' for p in app._pages.keys()}
             return True
         except Exception as e:
             log.ex(e, f"加载配置文件失败: {configPath}")
@@ -524,9 +524,9 @@ class _App_:
                     return False
                 if isAndroid:
                     time.sleep(3)
-                ok = nextPage.match()
+                ok = nextPage.Match()
                 if ok:
-                    self._setCurrentPage(nextPage)
+                    self.start(nextPage.name)
                     currentPage = nextPage
                 log.log(f"-> {nextPage.name}", None, 'i' if ok else 'e')
             return ok
@@ -592,23 +592,42 @@ class _App_:
         """关闭应用
         Args:
             appName: 应用名称，如果为None则关闭当前应用
+        
         Returns:
             bool: 是否成功关闭
         """
+        g = _G._G_
+        log = g.Log()
         try:
-            g = _G._G_
-            log = g.Log()
-            if not appName:
-                appName = cls.curName()
-            if appName == _G.TOP:
-                return True
+            # 获取应用名称
+            if appName is None:
+                appName = cls._curAppName
+            
+            # 获取应用实例
             app = cls.getApp(appName)
             if not app:
-                log.e(f"未知应用:{appName}")
+                log.e(f"应用 {appName} 不存在")
                 return False
-            # 从已打开应用集合中移除
+                
+            # 停止应用内所有运行中的页面
+            runningPages = list(app._runPages.values())
+            for page in runningPages:
+                app._stop(page)
+            app._runPages.clear()
+            
+            # 停止应用的调度器
+            if hasattr(app, 'scheduler'):
+                app.scheduler.stop()
+                
+            # 从打开的应用列表中移除
             if appName in cls.openedApps:
                 cls.openedApps.remove(appName)
+                
+            # 如果是当前应用，返回到主屏幕
+            if appName == cls._curAppName:
+                cls.setCurName(_G.TOP)
+                
+            log.i(f"应用 {appName} 已关闭")
             return True
         except Exception as e:
             log.ex(e, f"关闭应用 {appName} 失败")
@@ -671,17 +690,17 @@ class _App_:
             g = _G._G_
             log = g.Log()
             # 先在本应用查找
-            template = self._runPages.get(name)
-            if template:
-                return template
+            page = self._runPages.get(name)
+            if page:
+                return page
             if create:
-                template = self.getPage(name, False, True)
-                if template is None:
+                page = self.getPage(name, False, True)
+                if page is None:
                     log.e(f"页面: {name}没配置")
                     return None
                 from _Page import _Page_
                 page = _Page_(self.name, name)
-                page.config = template.config
+                page.config = page.config
                 if data:
                     for key, value in data.items():
                         setattr(page, key, value)
@@ -690,38 +709,45 @@ class _App_:
         except Exception as e:
             log.ex(e, f"获取运行页面 {name} 失败")
             return None
+        
+    def runScheduler(self, pageName: str, data: dict = None):
+        """运行调度器"""
+        page = self._getRunPage(pageName, data, False)
+        if page:
+            self.scheduler.run(page)
 
     def start(self, pageName: str, data: dict = None) -> bool:
-        """运行页面
+        """启动页面检查器
         Args:
             pageName: 页面名称
-            data: 页面数据
+            data: 可选的数据
+        
         Returns:
-            bool: 是否成功运行
+            bool: 是否成功启动
         """
+        g = _G._G_
+        log = g.Log()
         try:
-            # 获取页面实例
-            page = self._getRunPage(pageName, data, True)
-            if not page:
-                return False
-                
-            # 停止同名页面
-            self._stop(page)
-            
-            # 添加到运行列表
-            self._runPages[page.name] = page
-            
-            # 如果有调度配置，使用调度器执行
-            if page.schedule:
-                from CSchedule import CSchedule_
-                CSchedule_.batchRun(page)
+            # 获取或创建页面对象
+            page = self._getRunPage(pageName, data, False)
+            if page:
+               # 如果页面存在，先停止
+               page.end()
+               time.sleep(1)
             else:
-                # 否则直接执行
-                page.begin()
-                
+                # 如果页面不存在，创建页面
+                page = self.getPage(pageName, True, True)
+
+            if not page:
+                log.e(f"找不到页面 {pageName}")
+                return False
+            # 设置为当前页面
+            self._setCurrentPage(page)
+            #运行Page
+            page.begin()
             return True
         except Exception as e:
-            _G._G_.Log().ex(e, f"启动页面 {pageName} 失败")
+            log.ex(e, f"启动页面 {pageName} 失败")
             return False
 
     def stop(self, pageName: str, cancel=False) -> bool:
@@ -754,8 +780,9 @@ class _App_:
             bool: 是否成功停止
         """
         try:    
-            page.stop(cancel)
-            self._runPages.pop(page.name)
+            page.end()
+            if page.name in self._runPages:
+                self._runPages.pop(page.name)
             return True
         except Exception as e:
             _G._G_.Log().ex(e, f"停止页面 {page.name} 失败")

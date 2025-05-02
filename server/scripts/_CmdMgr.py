@@ -353,7 +353,9 @@ class _CmdMgr_:
                             bestMatchLength = matchLength
             find = bestMatch
             if find is None:
-                log.e(f"找不到命令: {cmdStr}")
+                log.w(f"找不到命令: {cmdStr}")
+                tools = g.Tools()
+                tools.do(tools, cmdStr)
                 return
             # 提取命名捕获组作为参数
             kwargs = {}

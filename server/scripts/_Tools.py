@@ -96,8 +96,14 @@ class _Tools_:
         # 超时
         timeout = 'timeout'
 
+    class eCmd(Enum):
+        back = '<'
+        backWith = '<-'
+        home = '<<'
+        detect = '?'
+        goto = '->'
+
     _TopStr = ["top", "主屏幕", "桌面"]
-    
     # 工具类基本属性
     Tag = "Tools"
     port = 5000
@@ -197,7 +203,8 @@ class _Tools_:
             result, data = ret
             success = False if result is None or result == cls.eRet.none or not result else True
             return success, data
-                    
+
+                 
     
     @classmethod
     def _doCmd(cls, cmd: str) -> '_Tools_.eRet':
@@ -210,11 +217,12 @@ class _Tools_:
         g = _G._G_
         log = g.Log()
         
-        cmd = cmd.strip()
-        if not cmd:
+        cmd = cmd.strip() if cmd else ''
+        if cmd == '':
             return cls.eRet.none
+        cmd = cmd.lower()
         # 处理返回特定状态的命令
-        if cmd.startswith('>>'):
+        if cmd.startswith(cls.eCmd.backWith.value):
             ret_str = cmd[2:].strip()
             try:
                 return cls.eRet(f'{ret_str}')
@@ -222,19 +230,19 @@ class _Tools_:
                 log.e(f"无效的DoRet值: {ret_str}")
                 return cls.eRet.none
         # 处理返回操作
-        elif cmd.lower() == '<':
+        elif cmd == cls.eCmd.back.value:
             cls.goBack()
             return cls.eRet.none
         # 处理回到主页
-        elif cmd.lower() == '<<':
+        elif cmd == cls.eCmd.home.value:
             cls.goHome()
             return cls.eRet.none
         # 处理应用检测
-        elif cmd.lower() == '?':
+        elif cmd == cls.eCmd.detect.value:
             g.App().detect()
             return cls.eRet.none
         # 处理页面跳转指令 ->pageName
-        elif cmd.startswith('->'):
+        elif cmd.startswith(cls.eCmd.goto.value):
             # 提取目标页面名称
             page_name = cmd[2:].strip()
             if page_name:
@@ -278,28 +286,25 @@ class _Tools_:
                 return cls.eRet.none
                 
             last_ret = cls.eRet.none
-            normal_scripts = []  # 收集连续的普通脚本
+            scripts = []  # 收集连续的普通脚本
             
             # 处理所有命令
             for i, cmd in enumerate(cmds):
                 if cmd.startswith('@'):
-                    # 先执行之前收集的普通脚本（如果有）
-                    if normal_scripts:
-                        # 合并普通脚本并执行
-                        combined_script = ';'.join(normal_scripts)
-                        last_ret = cls._eval(this, combined_script, log)
-                        normal_scripts = []  # 清空集合
-                    
-                    # 执行特殊脚本
-                    cmd = cmd[1:]
-                    last_ret = cls._do(this, cmd, doAction, log)
-                else:
                     # 收集普通脚本
-                    normal_scripts.append(cmd)
+                    scripts.append(cmd[1:])
+                else:
+                    if scripts:
+                        # 合并普通脚本并执行
+                        combined_script = ';'.join(scripts)
+                        last_ret = cls._eval(this, combined_script, log)
+                        scripts = []  # 清空集合
+                    # 执行特殊脚本
+                    last_ret = cls._do(this, cmd, doAction, log)
             
             # 执行最后收集的普通脚本（如果有）
-            if normal_scripts:
-                combined_script = ';'.join(normal_scripts)
+            if scripts:
+                combined_script = ';'.join(scripts)
                 last_ret = cls._eval(this, combined_script, log)
             return last_ret
         except Exception as ex:
@@ -310,32 +315,32 @@ class _Tools_:
 
     # 执行特殊脚本
     @classmethod
-    def _do(cls, this, str: str, doAction: bool, log: _G._G_.Log):
+    def _do(cls, this, cmd: str, doAction: bool, log: _G._G_.Log):
         """执行规则（内部方法）"""
         g = _G._G_
         try:
             tools = g.Tools()
-            str = str.strip() if str else ''
-            if str == '':
+            cmd = cmd.strip() if cmd else ''
+            if cmd == '':
                 return cls.eRet.none                
             ret = None
             # 处理@开头的脚本执行
-            code = str[1:]
-            if code == '':
+            cmd = cmd
+            if cmd == '':
                 ret = cls.eRet.none                
             else:
                 # 处理其他特殊指令
-                ret = cls._doCmd(str)
+                ret = cls._doCmd(cmd)
                 if ret == cls.eRet.unknown:
                     # 当文字匹配时，执行点击
                     if doAction:
-                        ret = tools.click(str)
+                        ret = tools.click(cmd)
                     else:
                         # 执行text检查
-                        ret = tools.matchText(str)
+                        ret = tools.matchText(cmd)
             return ret
         except Exception as ex:
-            log.ex(ex, f"执行失败: {str}")
+            log.ex(ex, f"执行失败: {cmd}")
             return False
         
     @classmethod
@@ -949,6 +954,7 @@ class _Tools_:
         """统一返回桌面实现"""
         g = _G._G_
         log = g.Log()
+        log.i("返回桌面")
         if g.android:
             if not g.android.goHome():
                 return False
