@@ -353,7 +353,7 @@ class _CmdMgr_:
                             bestMatchLength = matchLength
             find = bestMatch
             if find is None:
-                log.w(f"找不到命令: {cmdStr}")
+                log.w(f"{cmdStr} 不是命令: 当成脚本执行")
                 tools = g.Tools()
                 tools.do(tools, cmdStr)
                 return

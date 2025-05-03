@@ -170,7 +170,6 @@ class _App_:
                 if not os.path.exists(configFile):
                     continue
                 cls.loadConfigFile(configFile)
-            cls.Top().rootPage.exit = {p:'' for p in cls.apps.keys()}
             return True
         except Exception as e:
             log.ex(e, "加载配置文件失败")
@@ -197,21 +196,23 @@ class _App_:
             app = cls.getApp(appName, False, True)
             rootPage = app.getPage(appName, True)   
             rootPage.config = rootConfig
+            rootPage.setParent(app.rootPage)
             app._curPage = rootPage
             app.rootPage = rootPage
-            app._loadConfig(config)
-            rootPage.exit = {p:'' for p in app._pages.keys()}
+            pages = app._loadConfig(config)
+            for page in pages.values():
+                page.setParent(rootPage)
             return True
         except Exception as e:
             log.ex(e, f"加载配置文件失败: {configPath}")
             return False
 
-    def _loadConfig(self, config: dict) -> bool:
+    def _loadConfig(self, config: dict) -> Dict[str, "_Page_"]:
         """加载应用配置
         Args:
             config: 应用配置字典
         Returns:
-            bool: 是否成功加载
+            Dict[str, "_Page_"]: 返回加载的页面列表
         """
         g = _G._G_
         log = g.Log()
@@ -220,7 +221,7 @@ class _App_:
             root = config.get('root')
             if not root:
                 log.e(f"应用 {self.name} 配置缺少root节点")
-                return False
+                return {}
             # 更新应用信息
             self.ratio = root.get('ratio', 10000)
             self.description = root.get('description', '')
@@ -236,12 +237,11 @@ class _App_:
                     continue
                 # 添加到页面列表
                 self._pages[pageName] = page
-                
             log.i(f"应用 {self.name} 配置加载完成，共 {len(self._pages)} 个页面")
-            return True
+            return self._pages
         except Exception as e:
             log.ex(e, f"加载应用 {self.name} 配置失败")
-            return False
+            return {}
 
     def saveConfig(self) -> str:
         """保存配置
@@ -278,16 +278,6 @@ class _App_:
             log.ex(e, f"保存配置文件失败")
             return None
 
-    @classmethod
-    def findPage(cls, name, includeCommon=False)->Optional["_Page_"]:
-        """获取指定名称的页面模板"""
-        appName, name = cls.parsePageName(name)
-        if not name:
-            return None
-        app = cls.getApp(appName)
-        if not app:
-            return None
-        return app.getPage(name, False, includeCommon)
 
     def getPage(self, name, create=False, includeCommon=False)->Optional["_Page_"]:
         """获取页面"""

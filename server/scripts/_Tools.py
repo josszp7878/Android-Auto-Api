@@ -2,7 +2,7 @@ from __future__ import annotations
 import json
 from enum import Enum
 import re
-from typing import Any, Tuple, Optional
+from typing import Any, Tuple, Optional, List
 import _G
 import time
 
@@ -102,6 +102,7 @@ class _Tools_:
         home = '<<'
         detect = '?'
         goto = '->'
+        start = 'start'
 
     _TopStr = ["top", "主屏幕", "桌面"]
     # 工具类基本属性
@@ -233,6 +234,12 @@ class _Tools_:
         elif cmd == cls.eCmd.back.value:
             cls.goBack()
             return cls.eRet.none
+        # 处理重入
+        elif cmd == cls.eCmd.start.value:
+            curPage = g.App().cur().curPage
+            if curPage:
+                curPage.start()
+            return cls.eRet.none
         # 处理回到主页
         elif cmd == cls.eCmd.home.value:
             cls.goHome()
@@ -285,7 +292,7 @@ class _Tools_:
             if not cmds:
                 return cls.eRet.none
                 
-            last_ret = cls.eRet.none
+            ret = cls.eRet.none
             scripts = []  # 收集连续的普通脚本
             
             # 处理所有命令
@@ -297,16 +304,16 @@ class _Tools_:
                     if scripts:
                         # 合并普通脚本并执行
                         combined_script = ';'.join(scripts)
-                        last_ret = cls._eval(this, combined_script, log)
+                        ret = cls._eval(this, combined_script, log)
                         scripts = []  # 清空集合
                     # 执行特殊脚本
-                    last_ret = cls._do(this, cmd, doAction, log)
+                    ret = cls._do(this, cmd, doAction, log)
             
             # 执行最后收集的普通脚本（如果有）
             if scripts:
                 combined_script = ';'.join(scripts)
-                last_ret = cls._eval(this, combined_script, log)
-            return last_ret
+                ret = cls._eval(this, combined_script, log)
+            return ret
         except Exception as ex:
             g = _G._G_
             log = g.Log()
@@ -1070,6 +1077,19 @@ class _Tools_:
         """清除屏幕信息"""
         cls._screenInfoCache = []
         return True
+    
+    @classmethod
+    def delScreenInfo(cls, content:str):
+        """删除屏幕信息"""
+        log = _G._G_.Log()
+        try:
+            if cls._screenInfoCache is None:
+                return False
+            cls._screenInfoCache = [item for item in cls._screenInfoCache if item['t'] != content]
+            return True
+        except Exception as e:
+            log.ex(e, "删除屏幕信息失败")
+            return False
 
     @classmethod
     def addScreenInfo(cls, content:str):
@@ -1155,54 +1175,88 @@ class _Tools_:
 
     
     @classmethod
-    def matchText(cls, str: str, refresh=False)->Tuple[dict, re.Match]:
-        """匹配文本，并可选择在特定区域内查找
-        
-        Args:
-            str: 要匹配的文本或带区域的文本表达式
-            refresh: 是否刷新屏幕信息
-            
-        Returns:
-            匹配成功的第一个元素或None
-        """
+    def matchText(cls, text: str, refresh=False) -> List[Tuple[dict, re.Match]]:
+        """匹配文本，返回所有匹配的(item, match)元组列表"""
         g = _G._G_
         log = g.Log()
-        Null = None if g.android else _G.PASS
         try:
-            if not str or str.strip() == '':
-                return Null, None             
-            # 解析区域信息，使用本地定义的RegionCheck类
-            region, text = RegionCheck.parse(str)            
-            # 获取屏幕信息
+            segments = cls._parseSegments(text)
+            if not segments:
+                return None            
             items = cls.getScreenInfo(refresh)
-            if not items or len(items) == 0:
-                # log.w("屏幕信息为空")
-                return Null, None
-                
-            # 进行正则匹配，获取匹配的项目和匹配结果
-            matches = []
-            try:
-                matches = cls.regexMatchItems(text, items)
-            except Exception as e:
-                log.ex(e, f"正则表达式匹配失败: {text}")
-                return Null, None
-            # 没有匹配到文本
-            if not matches or len(matches) == 0:
-                # log.w(f"未找到匹配文本: {text}")
-                return Null, None
-                
-            # 如果需要区域过滤
-            if region:
-                # 过滤在指定区域内的项
-                for item, match in matches:
-                    b = item['b']
-                    if region.isRectIn(b[0], b[1], b[2], b[3]):
-                        return item, match
-                return Null, None
-            return matches[0]
+            if not items:
+                return None            
+            return cls._evalSegments(segments, items)
         except Exception as e:
-            log.ex(e, f"匹配文本失败: {str}")
-            return Null, None
+            log.ex(e, f"匹配文本失败: {text}")
+            return None
+
+    @classmethod
+    def _parseSegments(cls, expr: str) -> list:
+        """解析逻辑表达式为段列表"""
+        expr = expr.strip() if expr else ''
+        if expr == '':
+            return None
+        
+        segments = []
+        lastRegion = None
+        
+        # 分割表达式
+        parts = re.split(r'([&|])', expr)
+        parts = [p.strip() for p in parts if p.strip()]
+        
+        # 处理第一个段
+        if parts and parts[0] not in '&|':
+            region, text = RegionCheck.parse(parts[0])
+            segments.append({'op': None, 'text': text, 'region': region})
+            lastRegion = region
+            parts = parts[1:]
+        
+        # 处理剩余段
+        for i in range(0, len(parts), 2):
+            if i+1 >= len(parts):
+                break
+            
+            op, expr = parts[i], parts[i+1]
+            inherit = '()' in expr
+            expr = expr.replace('()', '')
+            
+            region, text = RegionCheck.parse(expr)
+            if inherit and lastRegion and not region:
+                region = lastRegion
+            
+            segments.append({'op': op, 'text': text, 'region': region})
+            if region:
+                lastRegion = region
+            
+        return segments
+
+    @classmethod
+    def _evalSegments(cls, segments: list, items: list) -> List[Tuple[dict, re.Match]]:
+        """评估段列表的匹配结果
+        返回:
+            List[Tuple[dict, re.Match]]: 所有匹配的(item, match)元组列表
+        """
+        allMatches = []
+
+        for seg in segments:
+            # 1. 文本匹配
+            matches = cls.regexMatchItems(seg['text'], items)
+            if not matches:
+                if seg['op'] == '&':
+                    return None  # 与操作遇到不匹配则返回空列表
+                continue
+
+            # 2. 区域匹配
+            if seg['region']:
+                matches = [(i, m) for i, m in matches 
+                          if i.get('b') and seg['region'].isRectIn(*i['b'])]
+                if not matches and seg['op'] == '&':
+                    # 与操作遇到不匹配则返回空列表
+                    return None                
+            # 3. 合并结果
+            allMatches.extend(matches)
+        return allMatches if len(allMatches) > 0 else None
 
     # 添加交互相关方法
     _screenText = None
@@ -1399,8 +1453,7 @@ class _Tools_:
             # 定义匹配函数
             def matchFunc():
                 pos = cls._findTextPos(text)
-                return pos is not None
-                
+                return pos is not None                
             # 滑动查找
             found = cls.swipeTo(searchDir, matchFunc)
             if not found:
@@ -1416,11 +1469,15 @@ class _Tools_:
         log = g.Log()
         try:
             # 匹配文本
-            item, match = cls.matchText(text, True)
-            if not item or item == _G.PASS:
-                return None
+            ms = cls.matchText(text, True)
+            m = ms[0] if ms else None
+            if not m:
+                if cls.isAndroid():
+                    return None
+                else:
+                    return (0, 0)
             # 获取中心坐标
-            bounds = item['b']
+            bounds = m[0]['b']
             if not bounds:
                 return None
                 

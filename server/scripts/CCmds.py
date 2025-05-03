@@ -1,4 +1,5 @@
 import json
+import time
 import _G
 from typing import List, Optional
 
@@ -529,18 +530,34 @@ class CCmds_:
                 return f"{pageName} 不存在"
             return "\n".join(f"{json.dumps(c.config, indent=2, ensure_ascii=False)}" for c in pages)
 
-        @regCmd(r"#匹配|pp(?P<name>\S+)")
+        @regCmd(r"#匹配|pp(?P<name>\S+)?")
         def maTch(name, enabled=None):
             """
-            功能：匹配指定名称的检查器
-            示例: 匹配 每日签到
+            功能：匹配指定页面
+            示例: 
+                匹配 每日签到
+                匹配 河马剧场.剧场
             """ 
             g = _G._G_
-            page = g.App().findPage(name, False)
-            if page:
-                page.Match()
+            App = g.App()
+            if not name:
+                page = App.cur().curPage
             else:
-                return f"e~无效检查器: {name}"
+                appName, name = App.parsePageName(name)
+                if not name:
+                    return f"e~无效页面名: {name}"
+                app = App.getApp(appName)
+                if not app:
+                    return f"e~无效应用: {appName}"
+                page = app.getPage(name, False, False)
+            if page:
+                m = page.Match()
+                if m:
+                    return f"匹配成功: {name}"
+                else:
+                    return f"e~匹配失败: {name}"
+            else:
+                return f"e~无效页面: {name}"
             
             
         @regCmd(r"#执行|zx(?P<content>\S+)")
@@ -671,8 +688,8 @@ class CCmds_:
             CSchedule_.runAll()
             return '执行所有策略完成'
 
-        @regCmd(r"#屏幕信息|pmxx(?P<text>.+)?")
-        def screenInfo(text=None):
+        @regCmd(r"#屏幕信息|pmxx(?P<text>\D+)?(?P<timeout>\d+)?")
+        def screenInfo(text=None, timeout=0):
             """功能：添加模拟屏幕文字块用于识别
             参数：
                text - 内容
@@ -698,6 +715,10 @@ class CCmds_:
                 ret = tools.addScreenInfo(text)
                 if not ret:
                     return "添加屏幕信息失败"
+                timeout = int(timeout)
+                if timeout > 0:
+                    time.sleep(timeout)
+                    tools.delScreenInfo(text)
             return f"当前屏幕信息：{tools.getScreenInfo()}"
             
         @regCmd(r"#删除页面|dp(?P<pageName>\S+)")

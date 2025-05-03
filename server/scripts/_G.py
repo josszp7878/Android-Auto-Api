@@ -17,9 +17,7 @@ if TYPE_CHECKING:
     from SDeviceMgr import SDeviceMgr_
     from SCommandHistory import SCommandHistory_
 
-PASS = "pass"
 TOP = "top"
-
 class _G_:
     # 使用线程安全的存储
     _lock = threading.Lock()

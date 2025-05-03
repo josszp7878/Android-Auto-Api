@@ -70,6 +70,7 @@ class _Page_:
         """
         self._name = name       # 页面名称
         self._app = app         # 应用名称
+        self.parent = None      # 父页面对象
         
         # 运行时属性（不会被序列化）
         self.data = data or {}    # 附加数据
@@ -85,6 +86,36 @@ class _Page_:
         
         if data is not None:
             self.data = data
+
+    def setParent(self, parent: "_Page_") -> None:
+        """设置父页面并处理父子页面之间的链接关系
+        Args:
+            parent: 父页面对象
+        """
+        if parent is None:
+            return
+        
+        # 设置父页面引用
+        self.parent = parent
+        
+        # 处理父页面的exit和子页面的entry的链接关系
+        # 如果父页面存在exit配置且子页面存在entry配置
+        if hasattr(parent, '_config') and hasattr(self, '_config'):
+            parentExit = parent.getProp('exit')
+            if not parentExit:
+                parentExit = {}
+                parent._config['exit'] = parentExit
+            entry = self.getProp('entry')
+            if not entry:
+                entry = {}
+                self._config['entry'] = entry
+            exit = self.getProp('exit')
+            if not exit:
+                exit = {}
+                self._config['exit'] = exit    
+            parentExit[f'{self.name}'] = ''
+            entry[f'{parent.name}'] = ''
+            exit[f'{parent.name}'] = '<'
 
     @property
     def app(self) -> "_App_":
@@ -344,7 +375,10 @@ class _Page_:
             if match == '':
                 return True
             # log.d(f"匹配: {match}")
-            result, _ = tools.check(self, match)
+            if tools.isAndroid():
+                result, _ = tools.check(self, match)
+            else:
+                return True
         except Exception as e:
             log.ex(e, f"匹配失败: {match}")
             result = False
@@ -363,64 +397,7 @@ class _Page_:
                     ret = tools.eRet.end
             else:
                 for key, action in events:
-                    # 如果该事件已执行过，则跳过
-                    if key in self.executedEvents:
-                        continue
-                    key = key.strip()
-                    execute = False
-                    m = None
-                    
-                    # 处理不同类型的key
-                    if key.startswith('%'):
-                        # 概率执行：%30 表示30%的概率执行
-                        try:
-                            probability = int(key[1:])
-                            import random
-                            execute = random.randint(1, 100) <= probability
-                            log.d(f"概率执行({probability}%): {execute}")
-                            # 概率事件无论是否执行，都标记为已处理，避免重复触发
-                            self.executedEvents.add(key)
-                        except Exception as e:
-                            log.ex(e, f"解析概率失败: {key}")
-                            continue
-                    elif key.startswith('-'):
-                        # 延时执行：-5 表示延时5秒后执行
-                        try:
-                            delay = int(key[1:])
-                            log.d(f"延时执行({delay}秒)")
-                            time.sleep(delay)
-                            execute = True
-                            # 延时事件执行后标记为已处理
-                            self.executedEvents.add(key)
-                        except Exception as e:
-                            log.ex(e, f"解析延时失败: {key}")
-                            continue
-                    elif key == '':
-                        # 无条件执行一次
-                        execute = True
-                        log.d("无条件执行")
-                        # 无条件事件执行后标记为已处理
-                        self.executedEvents.add(key)
-                    else:
-                        # 屏幕匹配文本，如果匹配到则执行
-                        execute, m = tools.check(self, key)
-                        # 处理正则表达式捕获组
-                        if execute and isinstance(m, re.Match):
-                            # 将匹配的命名捕获组添加到data中
-                            for k, v in m.groupdict().items():
-                                self.set(k, v)
-                    # 如果条件满足，执行action
-                    if execute:
-                        action = action.strip() if action else ''
-                        if action == '':
-                            # 空操作默认为点击
-                            if m:
-                                tools.click(key)
-                        else:
-                            ret = tools.do(self, action)                      
-                        # 文本匹配类型的事件执行后标记为已处理
-                        if m is not None:
-                            self.executedEvents.add(key)                
+                    ret =self._doEvent(key, action)
                 # log.d(f"{self.name}.Do: {ret}")
                 if ret != tools.eRet.exit:
                     ret = tools.eRet.none
@@ -429,6 +406,64 @@ class _Page_:
             log.ex(e, "执行操作失败")
             return tools.eRet.error
 
+    # 执行事件
+    def _doEvent(self, key: str, action: str):
+        try:
+            tools = g.Tools()
+            loopEvent = key.startswith('+')
+            if loopEvent:
+                key = key[1:]
+            # 如果该事件已执行过，则跳过
+            if not loopEvent and key in self.executedEvents:
+                return
+            key = key.strip()
+            execute = True
+            m = None
+            ret = tools.eRet.none
+            # 处理不同类型的key
+            if key.startswith('%'):
+                # 概率执行：%30 表示30%的概率执行
+                probability = int(key[1:])
+                import random
+                execute = random.randint(1, 100) <= probability
+                log.d(f"概率执行({probability}%): {execute}")
+            elif key.startswith('-'):
+                # 延时执行：-5 表示延时5秒后执行
+                delay = int(key[1:])
+                log.d(f"延时执行({delay}秒)")
+                time.sleep(delay)
+            elif key == '':
+                log.d("无条件执行")
+            else:
+                # 屏幕匹配文本，如果匹配到则执行
+                execute, m = tools.check(self, key)
+                # 处理正则表达式捕获组
+                if execute and isinstance(m, re.Match):
+                    # 将匹配的命名捕获组添加到data中
+                    for k, v in m.groupdict().items():
+                        self.set(k, v)
+            # 如果条件满足，执行action
+            if execute:
+                action = action.strip() if action else ''
+                if action == '':
+                    # 空操作默认为点击
+                    if m:
+                        tools.click(key)
+                else:
+                    ret = tools.do(self, action)                      
+                # 文本匹配类型的事件执行后标记为已处理
+                if m is not None:
+                    if not loopEvent:
+                        self.executedEvents.add(key)
+            return ret
+        except Exception as e:
+            log.ex(e, f"执行事件{key}失败")
+            return tools.eRet.error
+
+    # 重入
+    def start(self):
+        self.app.start(self.name)
+        log.d(f"重入页面: {self.name}")
    
     @classmethod
     def onLoad(cls, oldCls=None):
