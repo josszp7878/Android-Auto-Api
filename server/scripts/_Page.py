@@ -70,35 +70,71 @@ class _Page_:
         """
         self._name = name       # 页面名称
         self._app = app         # 应用名称
-        self.parent = None      # 父页面对象
+        self._parent = None      # 父页面对象
         
         # 运行时属性（不会被序列化）
         self.data = data or {}    # 附加数据
-        self.pastTime = 0         # 已运行时间
-        self.startTime = 0        # 开始时间
-        self.lastTime = 0         # 上次检查时间
         self._running = False     # 是否启用
         self.children = []        # 存储由当前检查器启动的子检查器
         self.childThreads = []    # 存储子检查器的线程
         self.executedEvents = set()  # 记录已执行的事件
         self.ret = g.Tools().eRet.none  # 返回值，现在直接存储DoRet枚举
         self.forceCancelled = False  # 是否被外部强制取消标志
-        
         if data is not None:
             self.data = data
+        self._life: float = 0  # 默认生命长度，>0：表示时间长度，单位为秒 <0:表示能循环次数。 0：表示生命无限
+        self.resetLife()
 
-    def setParent(self, parent: "_Page_") -> None:
+
+    @property
+    def life(self) -> float:
+        val = self._life
+        if val == 0:
+            return 1
+        percent = -1
+        if val > 0:
+            # 如果life大于0,以时间计算生命
+            pastTime = time.time() - self._startTime
+            percent = (self._life - pastTime)/self._life
+        else:
+            # 如果life小于0,以循环次数计算生命
+            percent = (self._life - self._loopCount)/abs(val)
+        ret = max(0, min(percent, 1))
+        if ret == 0:
+            log.d(f"页面{self.name}生命结束")
+        return ret
+    
+    @life.setter
+    def life(self, value: float):
+        self._life = value
+        self.resetLife()
+
+    def resetLife(self):
+        self._startTime = time.time()
+        self._loopCount = 0
+
+    @property
+    def parent(self)->"_Page_":
+        """获取父页面"""
+        if self._parent is None:
+            #获取exit里面value为'<'的key
+            for key, value in self.curPage.exit.items():
+                if value == '<':
+                    self._parent = self.getPage(key)
+        return self._parent
+
+    @parent.setter
+    def parent(self, value: "_Page_"):
         """设置父页面并处理父子页面之间的链接关系
         Args:
             parent: 父页面对象
         """
-        if parent is None:
+        if value is None:
             return
-        
         # 设置父页面引用
-        self.parent = parent
-        
-        # 处理父页面的exit和子页面的entry的链接关系
+        parent = value   
+        self._parent = parent
+        # 处理父页面的exit和子页面的entry的链接关系 
         # 如果父页面存在exit配置且子页面存在entry配置
         if hasattr(parent, '_config') and hasattr(self, '_config'):
             parentExit = parent.getProp('exit')
@@ -226,14 +262,7 @@ class _Page_:
     @property
     def running(self) -> bool:
         return self._running
-    
-    @running.setter
-    def running(self, value: bool):
-        self._running = value
-        log.d(f"设置检查器 {self.name} 状态为 {value}")
-        if value:
-            self.startTime = time.time()
-            self.lastTime = 0
+
     
     def addProp(self, prop: str, value: str, value1: str = None) -> bool:
         log = _G.g.Log()
@@ -351,16 +380,10 @@ class _Page_:
         if curVal:
             return re.sub(rf'[{split}\s]*{value}', '', curVal)
         return curVal
-
-
    
-    @running.setter
-    def running(self, value: bool):
-        self._running = value
-        log.d(f"设置检查器 {self.name} 状态为 {value}")
-        if value:
-            self.startTime = time.time()
-            self.lastTime = 0
+    @property
+    def running(self) -> bool:
+        return self._running    
     
     def Match(self) -> bool:
         """执行检查逻辑
@@ -405,6 +428,13 @@ class _Page_:
         except Exception as e:
             log.ex(e, "执行操作失败")
             return tools.eRet.error
+        
+    def _disableEvent(self, key: str):
+        """禁用事件
+        Args:
+            key: 事件名称
+        """
+        self.executedEvents.add(key)
 
     # 执行事件
     def _doEvent(self, key: str, action: str):
@@ -452,19 +482,13 @@ class _Page_:
                 else:
                     ret = tools.do(self, action)                      
                 # 文本匹配类型的事件执行后标记为已处理
-                if m is not None:
-                    if not loopEvent:
-                        self.executedEvents.add(key)
+                if not loopEvent:
+                    self._disableEvent(key)
             return ret
         except Exception as e:
             log.ex(e, f"执行事件{key}失败")
             return tools.eRet.error
 
-    # 重入
-    def start(self):
-        self.app.start(self.name)
-        log.d(f"重入页面: {self.name}")
-   
     @classmethod
     def onLoad(cls, oldCls=None):
         """热加载时的处理"""
@@ -509,12 +533,74 @@ class _Page_:
             return page
         return None
     
+    def renter(self) -> bool:
+        """重新进入页面
+        Returns:
+            bool: 是否成功进入
+        """
+        g = _G.g
+        log = g.Log()
+        try:
+            if self.life == 0:
+                return False
+            back = self.app.back()
+            if not back:
+                return False
+            log.d(f"重新进入页面: {self.name}")
+            return self.app.enter(self)
+        except Exception as e:
+            log.ex(e, f"重新进入页面失败: {self.name}")
+            return False
+    
     def begin(self, params: Dict[str, Any] = None) -> threading.Thread:
         """异步执行page.begin()
         """
         thread = threading.Thread(target=self._begin, args=(params,))
         thread.start()
         return thread
+        
+    def _doEntry(self):
+        """执行入口代码
+        """
+        g = _G.g
+        log = g.Log()
+        try:
+            tools = g.Tools()
+            entry = self.entry
+            alwaysDo = entry.get('')
+            if alwaysDo:
+                tools.do(self, alwaysDo)
+            firstDo = entry.get('#', None)
+            if firstDo and self.life == 1:
+                log.d(f"执行首次代码: {firstDo}")
+                tools.do(self, firstDo)
+        except Exception as e:
+            log.ex(e, f"执行入口代码失败: {self.name}")
+
+    def _doExit(self, toPage: str = None):
+        """执行出口代码
+        """
+        g = _G.g
+        log = g.Log()
+        try:
+            tools = g.Tools()
+            exit = self.exit
+            if toPage:
+                action = exit.get(toPage, None)
+                if action is None:
+                    log.e(f"{self.name} 无法跳转到: {toPage}")
+                    return False
+                g.Tools().do(self, action)
+                if action == '<':
+                    log.i(f"< {toPage}")
+                else:
+                    log.i(f"> {toPage}")
+            else:
+                alwaysDo = exit.get('')
+                if alwaysDo:
+                    tools.do(self, alwaysDo)
+        except Exception as e:
+            log.ex(e, f"执行出口代码失败: {self.name}")
 
     def _begin(self, params: Dict[str, Any] = None):
         """执行页面
@@ -524,24 +610,19 @@ class _Page_:
             if params:
                 for k, v in params.items():
                     setattr(self, k, v)
+            self._loopCount += 1
             self._stopAllChildren()            
             # 确保ret一开始为none，重置强制取消状态
             ret = tools.eRet.none
             self.forceCancelled = False
-            if self._onEnter():
-                # 启动子页面
-                self._startChildren()
-                ret = self._update()
-                # 首先检查是否被强制取消，如果是则跳过退出逻辑
-                if ret == tools.eRet.cancel:
-                    # 不执行退出逻辑
-                    pass
-                else:
-                    # 只有当返回值不是error和cancel时才执行退出逻辑
-                    if ret != tools.eRet.error:
-                        self._onExit()
-            else:
-                log.d(f"页面 {self.name} 入口检查未通过")
+            self._doEntry()
+            # 启动子页面
+            self._startChildren()
+            ret = self._update()
+            # 首先检查是否被强制取消，如果是则跳过退出逻辑
+            if ret != tools.eRet.cancel and ret != tools.eRet.error:
+                # 只有当返回值不是error和cancel时才执行退出逻辑
+                self._doExit()
             self.ret = ret
         except Exception as e:
             log.ex(e, f"执行页面异常: {self.name}")
@@ -557,56 +638,9 @@ class _Page_:
             self.ret = tools.eRet.cancel
         else:
             self.ret = tools.eRet.end
-        self.running = False
+        self._running = False
     
-
-    # 匹配map里面的key，如果匹配到则执行对应的value。
-    # return：
-    # tools.eRet.exit: 退出页面
-    # tools.eRet.end: 有一个执行成功
-    # tools.eRet.none: 没有匹配到任何key
-    def _doMap(self, map: Dict[str, Any])->'_Tools_.eRet':
-        """执行map"""
-        tools = g.Tools()
-        if not map:
-            return tools.eRet.none
-        for key, code in map.items():
-            ret = key == '' or tools.check(self, key)[0]
-            if ret:
-                ret = tools.do(self, code)
-                log.d(f"执行入口代码: {key}=>{code}=>{ret}")
-                if ret == tools.eRet.exit:
-                    return tools.eRet.exit
-                return tools.eRet.end
-        return tools.eRet.none
-                
-    def _onExit(self) -> bool:
-        """执行出口逻辑"""
-        log.d(f"执行出口逻辑: {self.name}")
-        tools = g.Tools()        
-        ret = self._doMap(self.exit)
-        if ret == tools.eRet.exit:
-            return False
-        return True
-    
-    def _onEnter(self) -> bool:
-        """执行入口代码
-        根据当前页面名称执行对应的entry代码，然后进行match匹配
-        Returns:
-            bool: 入口执行是否成功
-        """
-        try:
-            ret = self._doMap(self.entry)
-            tools = g.Tools()
-            if ret == tools.eRet.exit:
-                return False
-            # 如果entry执行成功，延时3秒后进行匹配
-            time.sleep(3)
-            return self.Match()
-        except Exception as e:
-            log.ex(e, f"执行入口代码异常: {self.name}")
-            return False
-    
+   
     def _update(self) -> '_Tools_.eRet':
         """执行页面更新逻辑
         0. 循环判定基于page的enable属性
@@ -618,7 +652,7 @@ class _Page_:
         Returns:
             '_Tools_.eRet': 执行结果
         """
-        startTime = time.time()
+        _time = time.time()
         self._running = True
         self.children = []
         self.childThreads = []
@@ -634,7 +668,7 @@ class _Page_:
                     break
                 if self.timeout > 0:
                     currentTime = time.time()
-                    elapsedTime = currentTime - startTime
+                    elapsedTime = currentTime - _time
                     if elapsedTime > self.timeout:
                         log.d(f"page {self.name} 超时")
                         ret = tools.eRet.timeout
@@ -654,7 +688,6 @@ class _Page_:
             # 再次确保所有子页面都被停止
             self._stopAllChildren()
         return ret
-
     
     def _startChildren(self):
         """启动子页面"""
@@ -670,7 +703,7 @@ class _Page_:
                     log.e("未找到当前应用，无法启动子页面")
                     continue
                 # 使用应用的run方法启动子页面
-                if curApp.start(childName):
+                if curApp.startPage(childName):
                     # 查找已创建的页面实例
                     for child in curApp._pages:
                         if child.name.lower() == childName.lower():
@@ -695,13 +728,14 @@ class _Page_:
             
             # 使用应用的stop方法停止子页面
             for childName in childNames:
-                curApp.stop(childName)
+                curApp.stopPage(childName)
                 
             # 清空子页面和线程列表
             self.children = []
             self.childThreads = []
         except Exception as e:
             log.ex(e, "停止子页面失败")
+
 
 _Page_.onLoad()
 

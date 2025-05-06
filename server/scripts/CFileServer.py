@@ -247,8 +247,8 @@ class CFileServer_:
             if name is None:
                 return False
             path = None
-            if name in g.App().apps.keys():
-                app = g.App().apps[name]
+            app = g.App().getApp(name)
+            if app:
                 path = app.saveConfig()
                 if path:
                     log.i(f"保存配置文件成功: {path}")

@@ -206,7 +206,7 @@ class CCmds_:
                 # 解析应用名称-页面名称
                 appName, pageName = tools.parseAppPage(what)
                 if appName:
-                    app = App.getApp(appName, True)
+                    app = App.getApp(appName)
                     if not app:
                         log.e(f"未找到应用 {appName}")
             return f"{app.name}-{app.curPage.name}"
@@ -561,7 +561,7 @@ class CCmds_:
             
             
         @regCmd(r"#执行|zx(?P<content>\S+)")
-        def run(content, cmd):
+        def sTart(content, cmd):
             """
             执行检查器或代码
                 @开头：则认为是纯代码
@@ -579,30 +579,32 @@ class CCmds_:
                 App = g.App()
                 appName, pageName = App.parsePageName(content)
                 if appName:
-                    app = App.getApp(appName, True)
+                    app = App.getApp(appName)
                     if not app:
                         return f"e~找不到应用: {appName}"
-                    app.start(pageName)
+                    app.startPage(pageName)
                     return f"执行检查器 {appName}.{pageName} 成功"
 
-        @regCmd(r"#停止|tz(?:(?P<pageName>[^\s]+|_))?(?:\s+(?P<cancel>[01]))?")
+        @regCmd(r"#停止|tz(?:(?P<pageName>[^\s]+))?(?:\s+(?P<cancel>[01]))?")
         def stop(pageName=None, cancel=None):
             """
             功能：停止检查器
             指令名: stop
             中文名: 停止
             参数: pageName - 要停止的检查器名称，不指定则停止当前应用所有检查器
-                   格式可以是 "应用名.检查器名" 表示停止指定应用的检查器
-                   如果为 "all" 则停止所有已打开应用的所有检查器
-                   使用 _ 表示占位符
+                   格式可以是 "应用名.检查器名" 表示停止指定应用的页面
+                    空：停止当前所有应用的页面
+                    app-:停止应用app的所有页面
+                    -page:停止当前应用的page页面
+                    app-page:停止应用app的page页面
                   cancel - 可选，1表示强制取消不执行退出逻辑，0表示正常退出
-            示例: 停止 page1 - 停止当前应用的page1检查器
-            示例: 停止 微信.page1 - 停止微信应用的page1检查器
-            示例: 停止 微信._ - 停止微信应用的所有检查器
-            示例: 停止 all - 停止所有已打开应用的所有检查器
-            示例: 停止 page1 1 - 强制取消page1检查器，不执行退出逻辑
-            示例: 停止 _ 1 - 强制取消当前应用所有检查器，不执行退出逻辑
-            示例: 停止 - 停止当前应用所有检查器
+            示例：
+                停止 河马剧场.剧场
+                停止 河马剧场
+                停止 app-河马剧场
+                停止 -河马剧场
+                停止 app-page-河马剧场
+                停止 -page-河马剧场
             """
             g = _G._G_
             log = g.Log()
@@ -610,21 +612,20 @@ class CCmds_:
             cancel = g.Tools().toBool(cancel, False)
 
             App = g.App()
-            # 处理特殊情况: 停止所有应用
-            if pageName == '':
-                return App.stopAllApps()
+            apps = App.apps().values()
             appName, pageName = App.parsePageName(pageName)
             # 获取目标应用
             if appName:
-                app = App.getApp(appName, True)
+                app = App.getApp(appName)
                 if not app:
                     log.e(f"未找到应用: {appName}")
                     return False
+                apps = [app]
             # 执行停止操作
-            result = app.stop(pageName, cancel)
-            if not result:
-                log.e(f"停止检查器 {pageName} 失败")
-                return False
+            for app in apps:
+                result = app.stopPage(pageName, cancel)
+                if not result:
+                    log.e(f"停止检查器 {pageName} 失败")
             return True
         
         @regCmd(r"#检测")
@@ -715,7 +716,7 @@ class CCmds_:
                 ret = tools.addScreenInfo(text)
                 if not ret:
                     return "添加屏幕信息失败"
-                timeout = int(timeout)
+                timeout = int(timeout) if timeout else 0
                 if timeout > 0:
                     time.sleep(timeout)
                     tools.delScreenInfo(text)

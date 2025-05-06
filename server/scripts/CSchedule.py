@@ -329,7 +329,7 @@ class CSchedule_:
             try:
                 # 启动页面，使用app的start方法而不是page.begin()
                 self.log.i(f"执行第 {count+1} 次")
-                ret = self.app.start(page.name)
+                ret = self.app.startPage(page.name)
                 
                 if ret is False:
                     failCount += 1

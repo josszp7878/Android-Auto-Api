@@ -515,7 +515,6 @@ class _CmdMgr_:
         try:
             cls.cmdMap = {}
             modules = g.getScriptNames()
-            success_count = 0
             # 加载所有未加载的模块，加载模块时模块本身会执行registerCommands方法
             for moduleName in modules:
                 try:

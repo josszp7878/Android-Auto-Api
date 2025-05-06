@@ -102,7 +102,6 @@ class _Tools_:
         home = '<<'
         detect = '?'
         goto = '->'
-        start = 'start'
 
     _TopStr = ["top", "主屏幕", "桌面"]
     # 工具类基本属性
@@ -173,42 +172,130 @@ class _Tools_:
 
 
     @classmethod
-    def _replaceVars(cls, this, s: str) -> str:
-        """替换字符串中的$变量（安全增强版）"""
-        # 添加空值防御
-        if s is None:
-            return s
-        log = _G._G_.Log()
-        # 正则处理 
-        def replacer(match):
-            code = match.group(1)
-            try:
-                val = cls.do(this, code)
-                return str(val)
-            except Exception as e:
-                log.ex(e, f"执行变量代码失败: {code}")
-                return match.group(0)        
-        return re.sub(r'\$\s*([\w\.\(\)]+)', replacer, s)
-
-    @classmethod
     def check(cls, this, str: str) -> Tuple[bool, Any]:
-        ret = cls.do(this, str, False)
-        # 如果返回值不是元组，转换为元组
-        if not isinstance(ret, tuple):
-            # 判断结果，转换为布尔值
-            success = False if ret is None or ret == cls.eRet.none or not ret else True
-            # 创建新元组
-            return success, ret
-        else:
-            # 已经是元组，直接判断第一个元素
-            result, data = ret
-            success = False if result is None or result == cls.eRet.none or not result else True
-            return success, data
-
-                 
+        """检查多条件逻辑（改造后版本）
+        
+        Args:
+            this: 调用上下文
+            str: 条件字符串
+            
+        Returns:
+            Tuple[bool, Any]: 检查结果和附加数据
+        """
+        g = _G._G_
+        log = g.Log()
+        segments = cls._parseSegments(str, '&')
+        if not segments:
+            return False, None        
+        def call(condition, region):
+            ret = cls._do(this, condition, False, log)
+            if not isinstance(ret, tuple):
+                return cls.toBool(ret), ret
+            else:
+                result, data = ret
+                return cls.toBool(result), data
+        success, data = cls._evalSegments(segments, call, True)
+        return success, data    
     
     @classmethod
-    def _doCmd(cls, cmd: str) -> '_Tools_.eRet':
+    def do(cls, this, str: str):
+        """执行多条件逻辑（改造后版本）
+        Args:
+            this: 调用上下文
+            str: 条件字符串
+        Returns:
+            Tuple[bool, Any]: 检查结果和附加数据
+        """
+        g = _G._G_
+        log = g.Log()
+        try:
+            segments = cls._parseSegments(str, '&')
+            if not segments:
+                return None
+            ret = None
+            def call(condition, region):
+                global ret
+                ret = cls._do(this, condition, True, log)
+            cls._evalSegments(segments, call)
+            return ret
+        except Exception as e:
+            log.ex(e, f"执行多条件逻辑失败: {str}")
+            return None
+
+    @classmethod
+    def _parseSegments(cls, expr: str, default_op: str = None) -> list:
+        """解析逻辑表达式为段列表（通用版本）
+        
+        Args:
+            expr: 逻辑表达式字符串
+            default_op: 默认操作符（如 '&' 或 '|'）
+            
+        Returns:
+            list: 解析后的段列表，每个段包含操作符、条件和区域信息
+        """
+        expr = expr.strip() if expr else ''
+        if expr == '':
+            return None
+        
+        segments = []
+        last_region = None
+        
+        # 分割表达式
+        parts = re.split(r'([&|])', expr)
+        parts = [p.strip() for p in parts if p.strip()]
+        
+        # 处理第一个段
+        if parts and parts[0] not in '&|':
+            region, condition = RegionCheck.parse(parts[0])
+            segments.append({'op': default_op, 'condition': condition, 'region': region})
+            last_region = region
+            parts = parts[1:]
+        
+        # 处理剩余段
+        for i in range(0, len(parts), 2):
+            if i+1 >= len(parts):
+                break
+            op, expr = parts[i], parts[i+1]
+            region = None
+            if not expr.startswith('@'):
+                inherit = '()' in expr            
+                region, expr = RegionCheck.parse(expr)
+                if inherit and last_region and not region:
+                    region = last_region
+            segments.append({'op': op, 'condition': expr, 'region': region})
+            if region:
+                last_region = region
+        
+        return segments
+
+    @classmethod
+    def _evalSegments(cls, segments: list, func: callable, logicOpt: bool = False) -> Any:
+        """评估段列表的匹配结果（通用版本）
+        
+        Args:
+            segments: 解析后的段列表
+            func: 评估函数，接受条件字符串和区域信息，返回匹配结果   
+            logicOpt: 是否启用逻辑优化
+        Returns:
+            Any: 评估结果，具体类型由 func 决定
+        """
+        result = None 
+        for seg in segments:
+            # 评估当前条件
+            result = func(seg['condition'], seg['region'])
+            if logicOpt:
+                bResult = cls.toBool(result) 
+                logic = seg['op']
+                if (not bResult and logic == '&') or (bResult and logic == '|'):
+                    if isinstance(result, tuple):
+                        result = (bResult, result[1])
+                    else:
+                        result = bResult
+                    break
+        return result
+
+    @classmethod
+    def _doCmd(cls, this, cmd: str) -> '_Tools_.eRet':
         """处理特殊命令
         Args:
             cmd: 特殊命令字符串
@@ -232,17 +319,11 @@ class _Tools_:
                 return cls.eRet.none
         # 处理返回操作
         elif cmd == cls.eCmd.back.value:
-            cls.goBack()
-            return cls.eRet.none
-        # 处理重入
-        elif cmd == cls.eCmd.start.value:
-            curPage = g.App().cur().curPage
-            if curPage:
-                curPage.start()
+            g.App().cur().back()
             return cls.eRet.none
         # 处理回到主页
         elif cmd == cls.eCmd.home.value:
-            cls.goHome()
+            g.App().cur().home()
             return cls.eRet.none
         # 处理应用检测
         elif cmd == cls.eCmd.detect.value:
@@ -266,60 +347,6 @@ class _Tools_:
             # 未知命令，返回unknown
             return cls.eRet.unknown
     
-    @classmethod
-    def do(cls, this, str: str, doAction: bool = True):
-        """执行脚本
-        
-        将输入的字符串按分号分割为多个命令块：
-        1. 将连续的普通脚本（非@开头）收集起来作为一个整体通过_eval执行
-        2. @开头的特殊脚本单独通过_do方法处理
-        
-        Args:
-            this: 调用上下文
-            str: 命令字符串，可包含多个由分号分隔的命令
-            doAction: 是否执行动作
-            
-        Returns:
-            执行结果，如果有多个命令，返回最后一个命令的结果
-        """
-        try:
-            if not str or str.strip() == '':
-                return cls.eRet.none
-            g = _G._G_
-            log = g.Log()
-            # 按分号分割命令
-            cmds = [cmd.strip() for cmd in str.split(';') if cmd.strip()]
-            if not cmds:
-                return cls.eRet.none
-                
-            ret = cls.eRet.none
-            scripts = []  # 收集连续的普通脚本
-            
-            # 处理所有命令
-            for i, cmd in enumerate(cmds):
-                if cmd.startswith('@'):
-                    # 收集普通脚本
-                    scripts.append(cmd[1:])
-                else:
-                    if scripts:
-                        # 合并普通脚本并执行
-                        combined_script = ';'.join(scripts)
-                        ret = cls._eval(this, combined_script, log)
-                        scripts = []  # 清空集合
-                    # 执行特殊脚本
-                    ret = cls._do(this, cmd, doAction, log)
-            
-            # 执行最后收集的普通脚本（如果有）
-            if scripts:
-                combined_script = ';'.join(scripts)
-                ret = cls._eval(this, combined_script, log)
-            return ret
-        except Exception as ex:
-            g = _G._G_
-            log = g.Log()
-            log.ex(ex, f"执行失败: {str}")
-            return cls.eRet.error
-
     # 执行特殊脚本
     @classmethod
     def _do(cls, this, cmd: str, doAction: bool, log: _G._G_.Log):
@@ -332,12 +359,14 @@ class _Tools_:
                 return cls.eRet.none                
             ret = None
             # 处理@开头的脚本执行
-            cmd = cmd
-            if cmd == '':
-                ret = cls.eRet.none                
+            if cmd.startswith('@'):
+                cmd = cmd[1:].strip()
+                if cmd == '':
+                    return cls.eRet.none
+                return cls._eval(this, cmd, log)             
             else:
                 # 处理其他特殊指令
-                ret = cls._doCmd(cmd)
+                ret = cls._doCmd(this, cmd)
                 if ret == cls.eRet.unknown:
                     # 当文字匹配时，执行点击
                     if doAction:
@@ -364,6 +393,7 @@ class _Tools_:
             # 创建安全的执行环境
             locals = {
                 'app': g.App(),
+                'curApp': g.App().cur(),
                 't': g.Tools(),
                 'log': g.Log(),
                 'this': this,
@@ -372,12 +402,12 @@ class _Tools_:
                 'R': _Tools_.eRet,
                 'r': None  # 用于存储结果
             }
-            # 将分号替换为换行符，处理多条语句
-            code = code.replace(';', '\n')
             # 使用exec执行代码
             exec(code, cls.gl, locals)
             # 返回result变量的值
-            return locals.get('r', cls.eRet.none)
+            ret = locals.get('r', cls.eRet.none)
+            # log.i(f"执行脚本结果: {ret}")
+            return ret
         except Exception as ex:
             log.ex(ex, f"执行规则失败: {code}")
             return None
@@ -442,8 +472,7 @@ class _Tools_:
                     return float(str)
                 except ValueError:
                     return str
-        except Exception as e:
-            # cls.log.e(f"fromStr error: {e}")
+        except Exception:
             return str
 
     @classmethod
@@ -451,8 +480,13 @@ class _Tools_:
         """将字符串转换为布尔值"""
         if value is None:
             return default
-        return value.lower() in ['true', '1', 'yes', 'y', 'on', '开']
-
+        if isinstance(value, str):
+            return value.lower() in ['true', '1', 'yes', 'y', 'on', '开']
+        if isinstance(value, tuple):
+            return cls.toBool(value[0])
+        if isinstance(value, cls.eRet):
+            return value == cls.eRet.none or value == cls.eRet.end
+        return bool(value)
    
     @classmethod
     def toPos(cls, strPos: str) -> Tuple[str, tuple]:
@@ -673,7 +707,7 @@ class _Tools_:
             return []
     
     @classmethod
-    def regexMatchItems(cls, pattern, items):
+    def matchItems(cls, pattern, items):
         """正则匹配项目列表
         
         使用正则表达式进行匹配，直接返回匹配的项目和匹配结果组成的元组列表
@@ -971,7 +1005,6 @@ class _Tools_:
     def goBack(cls)->bool:
         """统一返回上一页实现"""
         g = _G._G_
-        log = g.Log()
         if g.android:
             return g.android.goBack()
         else:
@@ -1176,157 +1209,45 @@ class _Tools_:
     
     @classmethod
     def matchText(cls, text: str, refresh=False) -> List[Tuple[dict, re.Match]]:
-        """匹配文本，返回所有匹配的(item, match)元组列表"""
-        g = _G._G_
-        log = g.Log()
-        try:
-            segments = cls._parseSegments(text)
-            if not segments:
-                return None            
+        """匹配文本，返回所有匹配的(item, match)元组列表（改造后版本）"""
+        def evalCondition(condition, region):
             items = cls.getScreenInfo(refresh)
             if not items:
-                return None            
-            return cls._evalSegments(segments, items)
-        except Exception as e:
-            log.ex(e, f"匹配文本失败: {text}")
-            return None
-
-    @classmethod
-    def _parseSegments(cls, expr: str) -> list:
-        """解析逻辑表达式为段列表"""
-        expr = expr.strip() if expr else ''
-        if expr == '':
-            return None
-        
-        segments = []
-        lastRegion = None
-        
-        # 分割表达式
-        parts = re.split(r'([&|])', expr)
-        parts = [p.strip() for p in parts if p.strip()]
-        
-        # 处理第一个段
-        if parts and parts[0] not in '&|':
-            region, text = RegionCheck.parse(parts[0])
-            segments.append({'op': None, 'text': text, 'region': region})
-            lastRegion = region
-            parts = parts[1:]
-        
-        # 处理剩余段
-        for i in range(0, len(parts), 2):
-            if i+1 >= len(parts):
-                break
-            
-            op, expr = parts[i], parts[i+1]
-            inherit = '()' in expr
-            expr = expr.replace('()', '')
-            
-            region, text = RegionCheck.parse(expr)
-            if inherit and lastRegion and not region:
-                region = lastRegion
-            
-            segments.append({'op': op, 'text': text, 'region': region})
+                return None
+            matches = cls.matchItems(condition, items)
             if region:
-                lastRegion = region
-            
-        return segments
-
-    @classmethod
-    def _evalSegments(cls, segments: list, items: list) -> List[Tuple[dict, re.Match]]:
-        """评估段列表的匹配结果
-        返回:
-            List[Tuple[dict, re.Match]]: 所有匹配的(item, match)元组列表
-        """
-        allMatches = []
-
-        for seg in segments:
-            # 1. 文本匹配
-            matches = cls.regexMatchItems(seg['text'], items)
-            if not matches:
-                if seg['op'] == '&':
-                    return None  # 与操作遇到不匹配则返回空列表
-                continue
-
-            # 2. 区域匹配
-            if seg['region']:
-                matches = [(i, m) for i, m in matches 
-                          if i.get('b') and seg['region'].isRectIn(*i['b'])]
-                if not matches and seg['op'] == '&':
-                    # 与操作遇到不匹配则返回空列表
-                    return None                
-            # 3. 合并结果
-            allMatches.extend(matches)
-        return allMatches if len(allMatches) > 0 else None
-
-    # 添加交互相关方法
-    _screenText = None
-            
-    @classmethod
-    def swipe(cls, param: str) -> bool:
-        """滑动屏幕
+                matches = [(i, m) for i, m in matches if i.get('b') and region.isRectIn(*i['b'])]
+            return matches
         
-        Args:
-            param: 滑动参数，格式为"方向"或"x1,y1,x2,y2"
-            
-        Returns:
-            bool: 是否成功滑动
-        """
-        g = _G._G_
-        log = g.Log()
-        try:
-            if not param:
-                return False
-                
-            # 判断是否为简单方向参数
-            param = param.upper()
-            if param in ["UP", "DOWN", "LEFT", "RIGHT", "U", "D", "L", "R"]:
-                if g.android:
-                    return g.android.swipe(param)
-                else:
-                    log.i(f"模拟滑动: {param}")
-                    return True
-                    
-            # 判断是否为坐标形式
-            if "," in param:
-                coords = [int(x.strip()) for x in param.split(",")]
-                if len(coords) == 4:
-                    x1, y1, x2, y2 = coords
-                    if g.android:
-                        return g.android.swipePos(x1, y1, x2, y2)
-                    else:
-                        log.i(f"模拟滑动: ({x1},{y1}) -> ({x2},{y2})")
-                        return True
-                        
-            log.e(f"无效的滑动参数: {param}")
-            return False
-        except Exception as e:
-            log.ex(e, f"滑动失败: {param}")
-            return False
+        segments = cls._parseSegments(text, '&')
+        if not segments:
+            return None
+        
+        return cls._evalSegments(segments, evalCondition, True)
+
+    @classmethod
+    def onLoad(cls, old):
+        """模块加载时的回调"""
+        # 保留原有状态
+        if old:
+            cls.screenSize = old.screenSize
+            cls._fixFactor = old._fixFactor
+            cls._screenInfoCache = old._screenInfoCache
+        
+        # 初始化屏幕尺寸(如果android对象已由_G_初始化)
+        if _G._G_.android:
+            cls._initScreenSize()
             
     @classmethod
-    def switchScreen(cls, direction: str):
-        """切换屏幕（上一屏/下一屏）
-        
-        Args:
-            direction: 方向，"prev"表示上一屏，"next"表示下一屏
-            
-        Returns:
-            bool: 是否成功切换
-        """
-        log = _G._G_.Log()
-        try:
-            direction = direction.lower()
-            if direction == "prev":
-                return cls.swipe("RIGHT")
-            elif direction == "next":
-                return cls.swipe("LEFT")
-            else:
-                log.e(f"无效的屏幕切换方向: {direction}")
-                return False
-        except Exception as e:
-            log.ex(e, f"切换屏幕失败: {direction}")
-            return False
-            
+    def getScreenInfoCache(cls):
+        """获取屏幕信息缓存"""
+        return cls._screenInfoCache
+    
+    @classmethod
+    def isAndroid(cls):
+        """检查是否是Android环境"""
+        return _G._G_.android is not None
+
     @classmethod
     def click(cls, text: str, direction: str = None, waitTime: int = 1) -> bool:
         """点击屏幕上的文本
@@ -1347,19 +1268,19 @@ class _Tools_:
             if not pos:
                 log.w(f"未找到文本: {text}")
                 return g.android is None
-                
+            
             # 点击位置
             cls.clickPos(pos)
             
             # 等待指定时间
             if waitTime > 0:
                 time.sleep(waitTime)
-                
+            
             return True
         except Exception as e:
             log.ex(e, f"点击文本失败: {text}")
             return False
-            
+
     @classmethod
     def clickPos(cls, pos, offset=(0, 0)):
         """点击指定坐标
@@ -1386,60 +1307,9 @@ class _Tools_:
         except Exception as e:
             log.ex(e, f"点击位置失败: {pos}")
             return False
-    
-    @classmethod
-    def swipeTo(cls, direction, matchFunc, maxTry=3):
-        """滑动屏幕直到条件匹配
-        
-        Args:
-            direction: 滑动方向
-            matchFunc: 匹配函数，返回True表示找到
-            maxTry: 最大尝试次数
-            
-        Returns:
-            bool: 是否找到
-        """
-        g = _G._G_
-        log = g.Log()
-        try:
-            # 首先检查当前屏幕是否已匹配
-            if matchFunc():
-                return True
-                
-            # 记录起始屏幕内容用于比较
-            startScreen = cls._screenInfoCache
 
-            # 尝试滑动并检查
-            for i in range(maxTry):
-                # 滑动屏幕
-                if not cls.swipe(direction):
-                    log.e(f"滑动失败: {direction}")
-                    return False
-                    
-                # 刷新屏幕信息
-                cls.refreshScreenInfos()
-                
-                # 检查新屏幕是否与起始屏幕相似（判断是否到达边界）
-                if i > 0 and cls.isScreenSimilar(startScreen, cls._screenInfoCache):
-                    log.w("屏幕内容未变化，可能已到达边界")
-                    return False
-                    
-                # 应用匹配函数
-                if matchFunc():
-                    return True
-                    
-                # 更新起始屏幕（用于下次比较）
-                startScreen = cls._screenInfoCache
-                
-            # 达到最大尝试次数仍未找到
-            log.w(f"滑动{maxTry}次后未找到匹配内容")
-            return False
-        except Exception as e:
-            log.ex(e, f"滑动查找失败: {direction}")
-            return False
-            
     @classmethod
-    def findTextPos(cls, text, searchDir=None):
+    def findTextPos(cls, text: str, searchDir: str = None) -> Optional[Tuple[int, int]]:
         """查找文本位置
         
         Args:
@@ -1453,107 +1323,45 @@ class _Tools_:
             # 定义匹配函数
             def matchFunc():
                 pos = cls._findTextPos(text)
-                return pos is not None                
+                return pos is not None
             # 滑动查找
             found = cls.swipeTo(searchDir, matchFunc)
             if not found:
                 return None
-                
+        
         # 在当前屏幕查找
         return cls._findTextPos(text)
-        
+
     @classmethod
-    def _findTextPos(cls, text) -> Optional[Tuple[int, int]]:
+    def _findTextPos(cls, text: str) -> Optional[Tuple[int, int]]:
         """在当前屏幕查找文本位置（内部方法）"""
         g = _G._G_
         log = g.Log()
         try:
             # 匹配文本
-            ms = cls.matchText(text, True)
-            m = ms[0] if ms else None
-            if not m:
+            matches = cls.matchText(text, True)
+            if not matches:
                 if cls.isAndroid():
                     return None
                 else:
                     return (0, 0)
-            # 获取中心坐标
-            bounds = m[0]['b']
+            
+            # 获取第一个匹配项的中心坐标
+            item = matches[0][0]
+            bounds = item.get('b')
             if not bounds:
                 return None
-                
+            
             centerX = (bounds[0] + bounds[2]) // 2
             centerY = (bounds[1] + bounds[3]) // 2
 
             # 应用坐标修正
             if cls._fixFactor > 0:
-                # 根据y位置线性调整x坐标
                 offsetX = int(centerY * cls._fixFactor)
                 centerX -= offsetX
                 log.d(f"坐标修正: ({centerX+offsetX},{centerY}) -> ({centerX},{centerY})")
-                
+            
             return (centerX, centerY)
         except Exception as e:
             log.ex(e, f"查找文本位置失败: {text}")
             return None
-            
-    @classmethod
-    def isScreenSimilar(cls, screen1, screen2):
-        """判断两个屏幕内容是否相似
-        
-        Args:
-            screen1: 第一个屏幕内容
-            screen2: 第二个屏幕内容
-            
-        Returns:
-            bool: 是否相似
-        """
-        if not screen1 or not screen2:
-            return False
-            
-        def to_hashable(items):
-            """将屏幕内容转换为可哈希结构用于比较"""
-            result = set()
-            for item in items:
-                text = item.get('t', '').strip()
-                if text:
-                    result.add(text)
-            return result
-            
-        # 转换为可比较的集合
-        texts1 = to_hashable(screen1)
-        texts2 = to_hashable(screen2)
-        
-        # 如果其中一个为空，返回False
-        if not texts1 or not texts2:
-            return False
-            
-        # 计算交集比例
-        intersection = texts1.intersection(texts2)
-        similarity = len(intersection) / max(len(texts1), len(texts2))
-        
-        # 相似度阈值可调整
-        return similarity > 0.8
-    
-        
-    @classmethod
-    def onLoad(cls, old):
-        """模块加载时的回调"""
-        # 保留原有状态
-        if old:
-            cls.screenSize = old.screenSize
-            cls._fixFactor = old._fixFactor
-            cls._screenInfoCache = old._screenInfoCache
-        
-        # 初始化屏幕尺寸(如果android对象已由_G_初始化)
-        if _G._G_.android:
-            cls._initScreenSize()
-            
-    @classmethod
-    def getScreenInfoCache(cls):
-        """获取屏幕信息缓存"""
-        return cls._screenInfoCache
-    
-    @classmethod
-    def isAndroid(cls):
-        """检查是否是Android环境"""
-        return _G._G_.android is not None
