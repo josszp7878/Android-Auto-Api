@@ -76,16 +76,20 @@ class _Page_:
         self.data = data or {}    # 附加数据
         self._running = False     # 是否启用
         self.children = []        # 存储由当前检查器启动的子检查器
-        self.childThreads = []    # 存储子检查器的线程
-        self.executedEvents = set()  # 记录已执行的事件
         self.ret = g.Tools().eRet.none  # 返回值，现在直接存储DoRet枚举
         self.forceCancelled = False  # 是否被外部强制取消标志
+        self._ignoreMatch = False  # 是否忽略匹配,用于非安卓平台的测试用
         if data is not None:
             self.data = data
         self._life: float = 0  # 默认生命长度，>0：表示时间长度，单位为秒 <0:表示能循环次数。 0：表示生命无限
         self.resetLife()
 
-
+    def __getattr__(self, name):
+        """重写 __getattr__ 方法，使 page.num 可以访问 page.data['num']"""
+        if name in self.data:
+            return self.data[name]
+        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
+    
     @property
     def life(self) -> float:
         val = self._life
@@ -100,8 +104,8 @@ class _Page_:
             # 如果life小于0,以循环次数计算生命
             percent = (self._life - self._loopCount)/abs(val)
         ret = max(0, min(percent, 1))
-        if ret == 0:
-            log.d(f"页面{self.name}生命结束")
+        # if ret == 0:
+        #     log.d(f"页面{self.name}生命结束")
         return ret
     
     @life.setter
@@ -125,15 +129,14 @@ class _Page_:
 
     @parent.setter
     def parent(self, value: "_Page_"):
-        """设置父页面并处理父子页面之间的链接关系
-        Args:
-            parent: 父页面对象
-        """
-        if value is None:
-            return
         # 设置父页面引用
-        parent = value   
-        self._parent = parent
+        self._parent = value
+
+
+    def setParent(self, parent: "_Page_"):
+        if parent is None:
+            return
+        self.parent = parent
         # 处理父页面的exit和子页面的entry的链接关系 
         # 如果父页面存在exit配置且子页面存在entry配置
         if hasattr(parent, '_config') and hasattr(self, '_config'):
@@ -195,7 +198,7 @@ class _Page_:
         return self.getProp('match') or self.name.split('-')[-1]
     
     @_match.setter
-    def match(self, value: str):
+    def _match(self, value: str):
         self.setProp('match', value)
 
     @property
@@ -385,28 +388,34 @@ class _Page_:
     def running(self) -> bool:
         return self._running    
     
-    def Match(self) -> bool:
+    # @property
+    # def ignoreMatch(self) -> bool:
+    #     ret = self._ignoreMatch
+    #     # 重置为False,让_ignoreMatch= True只生效一次
+    #     self._ignoreMatch = False
+    #     return ret
+    
+    # @ignoreMatch.setter
+    # def ignoreMatch(self, value: bool):
+    #     self._ignoreMatch = value
+
+    def match(self) -> bool:
         """执行检查逻辑
         Returns:
             bool: 检查是否通过
         """
-        result = False
         try:
+            # if self.ignoreMatch:
+            #     return True
             tools = g.Tools()
-            log.d(f"{self.name}.Match")
-            match = self._match
-            if match == '':
-                return True
+            m = self._match
             # log.d(f"匹配: {match}")
-            if tools.isAndroid():
-                result, _ = tools.check(self, match)
-            else:
-                return True
+            result, _ = tools.check(self, m)
+            # log.d(f"{self.name}.Match({m})={result}")
+            return result
         except Exception as e:
-            log.ex(e, f"匹配失败: {match}")
-            result = False
-        return result
-    
+            log.ex(e, f"匹配失败: {m}")
+            return False
     
     # 执行操作
     def Do(self) -> '_Tools_.eRet':
@@ -420,7 +429,7 @@ class _Page_:
                     ret = tools.eRet.end
             else:
                 for key, action in events:
-                    ret =self._doEvent(key, action)
+                    ret = self._doEvent(key, action)
                 # log.d(f"{self.name}.Do: {ret}")
                 if ret != tools.eRet.exit:
                     ret = tools.eRet.none
@@ -429,29 +438,33 @@ class _Page_:
             log.ex(e, "执行操作失败")
             return tools.eRet.error
         
-    def _disableEvent(self, key: str):
-        """禁用事件
-        Args:
-            key: 事件名称
-        """
-        self.executedEvents.add(key)
-
-    # 执行事件
     def _doEvent(self, key: str, action: str):
         try:
             tools = g.Tools()
-            loopEvent = key.startswith('+')
-            if loopEvent:
-                key = key[1:]
-            # 如果该事件已执行过，则跳过
-            if not loopEvent and key in self.executedEvents:
-                return
             key = key.strip()
             execute = True
-            m = None
-            ret = tools.eRet.none
+            ret = tools.eRet.none            
+            # 处理子页面事件（P-页面名格式）
+            if key.startswith('P-'):
+                pageName = key[2:].strip()
+                if pageName:
+                    # 获取当前应用
+                    App = g.App()
+                    curApp = App.cur()
+                    if curApp:
+                        # 获取子页面
+                        childTemplate = curApp.getPage(pageName, False, True)
+                        if childTemplate:
+                            # 使用子页面的match方法判断是否满足条件
+                            execute = childTemplate.match()
+                            if execute:
+                                # 执行子页面
+                                log.d(f"执行子页面: {pageName}")
+                                self._startChild(childTemplate)
+                        else:
+                            log.e(f"未找到子页面: {pageName}")
             # 处理不同类型的key
-            if key.startswith('%'):
+            elif key.startswith('%'):
                 # 概率执行：%30 表示30%的概率执行
                 probability = int(key[1:])
                 import random
@@ -466,24 +479,15 @@ class _Page_:
                 log.d("无条件执行")
             else:
                 # 屏幕匹配文本，如果匹配到则执行
-                execute, m = tools.check(self, key)
-                # 处理正则表达式捕获组
-                if execute and isinstance(m, re.Match):
-                    # 将匹配的命名捕获组添加到data中
-                    for k, v in m.groupdict().items():
-                        self.set(k, v)
+                execute, _ = tools.check(self, key)
             # 如果条件满足，执行action
             if execute:
                 action = action.strip() if action else ''
                 if action == '':
                     # 空操作默认为点击
-                    if m:
-                        tools.click(key)
+                    tools.click(key)
                 else:
                     ret = tools.do(self, action)                      
-                # 文本匹配类型的事件执行后标记为已处理
-                if not loopEvent:
-                    self._disableEvent(key)
             return ret
         except Exception as e:
             log.ex(e, f"执行事件{key}失败")
@@ -496,42 +500,28 @@ class _Page_:
             from  _App import _App_
             _App_.loadConfig()
     
-    @classmethod
-    def getInst(cls, pageName: str, config: Dict[str, Any] = None, 
-                create: bool = True) -> Optional["_Page_"]:
-        """获取指定名称的检查器，此方法现在由App类调用
-        
+    def getInst(self, data: Dict[str, Any] = None) -> Optional["_Page_"]:
+        """ 获取页面实例
         Args:
-            pageName: 页面名称
+            template: 页面模板
             config: 页面配置
-            create: 如果不存在是否创建
-            
         Returns:
-            CPage_: 页面实例，如果不存在且不创建则返回None
+            _Page_: 页面实例
         """
-        pageName = pageName.lower()
-        template = g.App().findPage(pageName)
-        if not template:
-            log.e(f"{pageName} 未定义")
-            return None
-            
-        # 创建新的页面实例
-        if create:
-            # 创建新的运行时页面
-            page = cls(g.App().cur().name, pageName)
-            # 深度复制模板配置
-            page._config = copy.deepcopy(template._config)
-            
-            # 更新额外参数
-            if config:
-                for k, v in config.items():
-                    if k in page._config:
-                        if isinstance(v, dict):
-                            page._config[k] = v.copy()
-                        else:
-                            page._config[k] = v
-            return page
-        return None
+        # 创建新的运行时页面
+        page = _Page_(g.App().cur().name, self.name)
+        # 深度复制模板配置
+        config = copy.deepcopy(self._config)
+        # 更新额外参数
+        if data:
+            for k, v in data.items():
+                if k in page._config:
+                    if isinstance(v, dict):
+                        config[k] = v.copy()
+                    else:
+                        config[k] = v
+        page._config = config
+        return page
     
     def renter(self) -> bool:
         """重新进入页面
@@ -616,8 +606,6 @@ class _Page_:
             ret = tools.eRet.none
             self.forceCancelled = False
             self._doEntry()
-            # 启动子页面
-            self._startChildren()
             ret = self._update()
             # 首先检查是否被强制取消，如果是则跳过退出逻辑
             if ret != tools.eRet.cancel and ret != tools.eRet.error:
@@ -655,8 +643,6 @@ class _Page_:
         _time = time.time()
         self._running = True
         self.children = []
-        self.childThreads = []
-        self.executedEvents = set()  # 重置已执行事件记录
         tools = g.Tools()
         ret = tools.eRet.none
         try:
@@ -677,7 +663,7 @@ class _Page_:
                 ret = self.Do()
                 if ret != tools.eRet.none:
                     break
-                time.sleep(1) 
+                time.sleep(2) 
             return ret
         except Exception as e:
             log.ex(e, f"执行页面更新循环异常: {self.name}")
@@ -689,30 +675,6 @@ class _Page_:
             self._stopAllChildren()
         return ret
     
-    def _startChildren(self):
-        """启动子页面"""
-        for childName in self.childs:
-            childName = childName.strip()
-            if not childName:
-                continue
-            try:
-                # 获取当前应用
-                App = g.App()
-                curApp = App.cur()
-                if not curApp:
-                    log.e("未找到当前应用，无法启动子页面")
-                    continue
-                # 使用应用的run方法启动子页面
-                if curApp.startPage(childName):
-                    # 查找已创建的页面实例
-                    for child in curApp._pages:
-                        if child.name.lower() == childName.lower():
-                            # 添加到子页面列表
-                            self.children.append(child)
-                            break
-            except Exception as e:
-                log.ex(e, f"{childName}启动失败: ")
-
     def _stopAllChildren(self):
         """停止所有子页面"""
         try:
@@ -732,9 +694,40 @@ class _Page_:
                 
             # 清空子页面和线程列表
             self.children = []
-            self.childThreads = []
         except Exception as e:
             log.ex(e, "停止子页面失败")
+
+    def _startChild(self, template: '_Page_') -> '_Page_':
+        """启动并管理子页面
+        Args:
+            template: 子页面模板
+        Returns:
+            _Page_: 子页面实例
+        """
+        g = _G.g
+        log = g.Log()
+        try:
+            # 获取子页面
+            if not template:
+                return None
+            #获取已经存在的子页面
+            child = next((child for child in self.children if child.name == template.name), None)
+            if child:
+                return child
+            child = template.getInst()
+            # 设置父子关系
+            child.parent = self
+            # 启动子页面
+            child = self.app._startPage(child)
+            if child:
+                # 添加到子页面列表
+                self.children.append(child)
+                log.d(f"成功启动子页面: {child.name}")
+                return child
+            return None
+        except Exception as e:
+            log.ex(e, "启动子页面失败")
+            return None
 
 
 _Page_.onLoad()

@@ -415,7 +415,7 @@ class CCmds_:
                 log.ex(e, "退出应用失败")
                 return f"退出应用失败: {str(e)}"
 
-        # === 检查器相关命令 ===
+        # === 页面相关命令 ===
         @regCmd(r"#编辑|ksbj(?P<name>\S+)")
         def startEdit(name):  
             """
@@ -432,7 +432,7 @@ class CCmds_:
             @编辑 每日打.+好礼
             """
             if not name.strip():
-                return "e~检查器名称不能为空"
+                return "e~页面名称不能为空"
             g = _G._G_
             log = g.Log()
             pos = g.Tools().findTextPos(name.strip('_'))
@@ -463,7 +463,7 @@ class CCmds_:
         @regCmd(r"#设置属性|szsx (?P<param>\w+)(?P<value>.+)?")
         def setProp(param, value=None):
             """
-            设置检查器参数，如interval、timeout,match,event等
+            设置页面参数，如interval、timeout,match,event等
             其中event的格式为：{匹配, 操作}
             示例：
             set event {'.*签到', 'click'}
@@ -472,7 +472,7 @@ class CCmds_:
             """
             target = cls._editTarget
             if not target:
-                return "e~请先开始编辑检查器"
+                return "e~请先开始编辑页面"
             value = g.Tools().fromStr(value)
             # 使用setattr设置普通属性
             try:
@@ -491,7 +491,7 @@ class CCmds_:
             """
             target = cls._editTarget
             if not target:
-                return "e~请先开始编辑检查器"
+                return "e~请先开始编辑页面"
             value = g.Tools().fromStr(value)
             target.addProp(param, value, postfix)
 
@@ -505,7 +505,7 @@ class CCmds_:
             """ 
             target = cls._editTarget
             if not target:
-                return "e~请先开始编辑检查器"
+                return "e~请先开始编辑页面"
             value = g.Tools().fromStr(value)
             target.removeProp(param, value)
 
@@ -515,7 +515,7 @@ class CCmds_:
                 if cls._editTarget:
                     pageName = cls._editTarget.name
             if g.Page().delTemplate(pageName):
-                return f"删除检查器 {pageName} 成功"
+                return f"删除页面 {pageName} 成功"
 
         @regCmd(r"#显示页面|xsym (?P<pageName>\S+)")
         def showPage(pageName):
@@ -551,7 +551,7 @@ class CCmds_:
                     return f"e~无效应用: {appName}"
                 page = app.getPage(name, False, False)
             if page:
-                m = page.Match()
+                m = page.match()
                 if m:
                     return f"匹配成功: {name}"
                 else:
@@ -563,9 +563,9 @@ class CCmds_:
         @regCmd(r"#执行|zx(?P<content>\S+)")
         def sTart(content, cmd):
             """
-            执行检查器或代码
+            执行页面或代码
                 @开头：则认为是纯代码
-                否则：认为是检查器名称
+                否则：认为是页面名称
             示例：
                 执行@print("Hello")
                 执行看广告
@@ -575,24 +575,27 @@ class CCmds_:
                 # 执行纯代码
                 return g.Tools().do(content)
             else:
-                # 检查是否含有应用名.检查器名的格式
+                # 检查是否含有应用名.页面名的格式
                 App = g.App()
                 appName, pageName = App.parsePageName(content)
                 if appName:
                     app = App.getApp(appName)
                     if not app:
                         return f"e~找不到应用: {appName}"
-                    app.startPage(pageName)
-                    return f"执行检查器 {appName}.{pageName} 成功"
+                    page = app.goPage(pageName)
+                    if page:
+                        return f"执行页面 {appName}.{pageName} 成功"
+                    else:
+                        return f"执行页面 {appName}.{pageName} 失败"
 
         @regCmd(r"#停止|tz(?:(?P<pageName>[^\s]+))?(?:\s+(?P<cancel>[01]))?")
         def stop(pageName=None, cancel=None):
             """
-            功能：停止检查器
+            功能：停止页面
             指令名: stop
             中文名: 停止
-            参数: pageName - 要停止的检查器名称，不指定则停止当前应用所有检查器
-                   格式可以是 "应用名.检查器名" 表示停止指定应用的页面
+            参数: pageName - 要停止的页面名称，不指定则停止当前应用所有页面
+                   格式可以是 "应用名.页面名" 表示停止指定应用的页面
                     空：停止当前所有应用的页面
                     app-:停止应用app的所有页面
                     -page:停止当前应用的page页面
@@ -625,7 +628,7 @@ class CCmds_:
             for app in apps:
                 result = app.stopPage(pageName, cancel)
                 if not result:
-                    log.e(f"停止检查器 {pageName} 失败")
+                    log.e(f"停止页面 {pageName} 失败")
             return True
         
         @regCmd(r"#检测")
@@ -644,67 +647,33 @@ class CCmds_:
             else:
                 return "e~检测不到当前应用"
 
-        
-        # 新增批量执行相关命令
-        @regCmd(r"#批量执行|plzx (?P<pageName>\S+)(?P<data>.+)?")
-        def batchRun(pageName: str, data: str):
-            """批量执行检查器
-            参数: data
-            [次数] [间隔秒数]
-            次数默认为1，间隔默认为5秒
-            """
-            g = _G._G_
-            log = g.Log()
-            try:
-                Page = g.Page()
-                page = Page.getInst(pageName, create=True)
-                if not page:
-                    return f'找不到页面：{pageName}'
-                policy = {}
-                if data:
-                    # 将DATA转换成字典
-                    data = data.replace(' ', '')
-                    datas = data.split(',')
-                    for d in datas:
-                        if d.isdigit():
-                            times = int(d)
-                            policy["t"] = times
-                        else:
-                            interval = int(d)
-                            policy["i"] = interval
-                from CSchedule import CSchedule_
-                CSchedule_.run(page, policy)
-                return f'批量执行: {pageName} 成功'
-            except Exception as e:
-                log.ex(e, '批量执行页面失败')
-                return f"批量执行失败: {str(e)}"
-        
-        @regCmd(r"执行所有")
-        def runAll():
-            """根据策略文件批量执行检查器
-            策略执行 [策略文件路径]
-            默认使用config/Policy.json
-            """
-            from CSchedule import CSchedule_
-            CSchedule_.runAll()
-            return '执行所有策略完成'
 
-        @regCmd(r"#屏幕信息|pmxx(?P<text>\D+)?(?P<timeout>\d+)?")
-        def screenInfo(text=None, timeout=0):
+
+        @regCmd(r"#屏幕信息|pmxx|si(?P<text>.+)")
+        def screenInfo(text=None):
             """功能：添加模拟屏幕文字块用于识别
             参数：
                text - 内容
                     ？ - 显示当前屏幕信息
                     空 - 清除当前屏幕信息
-                    其它 - 添加屏幕信息
+                    其它 - 添加屏幕信息（可包含超时参数，如：签到得1200金币 10）
             示例：
                 屏幕信息 登录
                 屏幕信息 ?
                 屏幕信息 
+                屏幕信息 签到得1200金币 10
             """
             g = _G._G_
             tools = g.Tools()
             text = text.strip() if text else ''
+            
+            # 解析 timeout（如果 text 中包含数字部分）
+            timeout = 0
+            if text and text.split()[-1].isdigit():
+                parts = text.rsplit(maxsplit=1)
+                text = parts[0] if len(parts) > 1 else ''
+                timeout = int(parts[-1]) if parts[-1].isdigit() else 0
+            
             if text == '?':
                 # 显示当前屏幕信息
                 pass
@@ -716,7 +685,6 @@ class CCmds_:
                 ret = tools.addScreenInfo(text)
                 if not ret:
                     return "添加屏幕信息失败"
-                timeout = int(timeout) if timeout else 0
                 if timeout > 0:
                     time.sleep(timeout)
                     tools.delScreenInfo(text)

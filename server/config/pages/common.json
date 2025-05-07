@@ -17,46 +17,12 @@
           "": "@exit"
         }
       },
-      "看广告": {
-        "entry": {
-          "log.i(app.curName()); r=True;": "log.i('hello,入口');"
-        },
-        "match": "",
+      "签到": {
         "event": {
-          "@匹配成功(?P<num>\\d*)?": "log.i(f'ddddddddddd={this.get(\"num\")}')",
-          "%33": "@click('%33几率')",
-          "": "@click('无条件执行')",
-          "-5": "@click('延时5秒后执行');"
-        },
-        "exit": {
-          "": "@exit"
-        }
-      },
-      "top-aa": {
-        "event": {
-          "签到": null
-        },
-        "entry": {},
-        "exit": {
-          "": "@back"
-        }
-      },
-      "top-发现": {
-        "childs": "-aa,haha,bb",
-        "event": {
-          "签到": null
-        },  
-        "entry": {},
-        "exit": {
-          "": "@back"
+          "签到得(?P<num>\\d+)金币": "@log.i(f'得到{this.num}金币') & click & ~<"
         }
       },
       "top-今日签到可.*金币": {
-        "type": "temp",
-        "entry": {},
-        "exit": {
-          "": "@back"
-        }
       }
     }
   }

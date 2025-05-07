@@ -184,6 +184,9 @@ class _Tools_:
         """
         g = _G._G_
         log = g.Log()
+        str = str.strip() if str else ''
+        if str == '':
+            return True, None
         segments = cls._parseSegments(str, '&')
         if not segments:
             return False, None        
@@ -273,7 +276,7 @@ class _Tools_:
         """评估段列表的匹配结果（通用版本）
         
         Args:
-            segments: 解析后的段列表
+            segments: 解析后的段列表，每个段包含操作符、条件和区域信息，~开头的条件表示测试指令，只在PC平台有效。
             func: 评估函数，接受条件字符串和区域信息，返回匹配结果   
             logicOpt: 是否启用逻辑优化
         Returns:
@@ -282,7 +285,13 @@ class _Tools_:
         result = None 
         for seg in segments:
             # 评估当前条件
-            result = func(seg['condition'], seg['region'])
+            code = seg['condition']
+            if code.startswith('~'):
+                # 如果当前是安卓平台，则跳过~开始的测试指令。
+                if cls.isAndroid():
+                    continue
+                code = code[1:]
+            result = func(code, seg['region'])
             if logicOpt:
                 bResult = cls.toBool(result) 
                 logic = seg['op']
@@ -373,7 +382,7 @@ class _Tools_:
                         ret = tools.click(cmd)
                     else:
                         # 执行text检查
-                        ret = tools.matchText(cmd)
+                        ret = tools.matchText(cmd, this)
             return ret
         except Exception as ex:
             log.ex(ex, f"执行失败: {cmd}")
@@ -1119,6 +1128,7 @@ class _Tools_:
             if cls._screenInfoCache is None:
                 return False
             cls._screenInfoCache = [item for item in cls._screenInfoCache if item['t'] != content]
+            log.i(f"删除屏幕信息: {content} \n info={cls._screenInfoCache}")
             return True
         except Exception as e:
             log.ex(e, "删除屏幕信息失败")
@@ -1138,6 +1148,9 @@ class _Tools_:
                 cls._screenInfoCache = []
             strs = content.split('(')
             text = strs[0].strip()
+            #如果text已经存在，则不添加
+            if text in [item['t'] for item in cls._screenInfoCache]:
+                return True
             bound = strs[1].strip(')').strip(' ') if len(strs) > 1 else None
             # 解析边界坐标
             bounds = None
@@ -1208,7 +1221,7 @@ class _Tools_:
 
     
     @classmethod
-    def matchText(cls, text: str, refresh=False) -> List[Tuple[dict, re.Match]]:
+    def matchText(cls, text: str, this, refresh=False) -> List[Tuple[dict, re.Match]]:
         """匹配文本，返回所有匹配的(item, match)元组列表（改造后版本）"""
         def evalCondition(condition, region):
             items = cls.getScreenInfo(refresh)
@@ -1217,6 +1230,17 @@ class _Tools_:
             matches = cls.matchItems(condition, items)
             if region:
                 matches = [(i, m) for i, m in matches if i.get('b') and region.isRectIn(*i['b'])]
+            if matches and this:
+                #将匹配结果中argument添加到this中，属性名称为argument加_
+                data = this.data
+                if not data:
+                    data = {}
+                    this.data = data
+                for m in matches:
+                    if m[1]:
+                        for k, v in m[1].groupdict().items():
+                            data[k + '_'] = v
+                            print(f"匹配结果: {k} = {v}")                
             return matches
         
         segments = cls._parseSegments(text, '&')
@@ -1339,7 +1363,7 @@ class _Tools_:
         log = g.Log()
         try:
             # 匹配文本
-            matches = cls.matchText(text, True)
+            matches = cls.matchText(text, None,True)
             if not matches:
                 if cls.isAndroid():
                     return None
