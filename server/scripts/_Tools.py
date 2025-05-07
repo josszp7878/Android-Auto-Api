@@ -93,8 +93,7 @@ class _Tools_:
         cancel = 'cancel'
         # 出错
         error = 'error'
-        # 超时
-        timeout = 'timeout'
+
 
     class eCmd(Enum):
         back = '<'

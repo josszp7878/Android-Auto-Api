@@ -1,3 +1,4 @@
+from copy import deepcopy
 import time
 import _G
 import os
@@ -83,6 +84,9 @@ class _App_:
         self.timeout = info.get("timeout", 5)
         self._pages: Dict[str, "_Page_"] = {}  # 应用级的页面列表
         self._runPages: Dict[str, "_Page_"] = {}  # 运行中的页面 {pageName: page}
+        self._targetPage: Optional["_Page_"] = None  # 目标跳转页面
+        self._path: Optional[List["_Page_"]] = None  # 当前缓存的路径 [path]
+        self.userEvents: List[str] = []  # 用户事件列表
         # 为应用创建调度器
         from CSchedule import CSchedule_
         self.scheduler: "CSchedule_" = CSchedule_(self)
@@ -114,58 +118,47 @@ class _App_:
         """获取当前页面"""
         return self._curPage
 
-    def _setCurrentPage(self, page: "_Page_"):
+    def _setCurrentPage(self, page: "_Page_")->bool:
         """设置当前页面"""
-        if page is None:
-            return
-        log = _G._G_.Log()
+        if page is None or page == self._curPage:
+            return False
+        g = _G._G_
+        log = g.Log()
         log.d(f"当前页面为: {page.name}")
+        ret = self._startPage(page)
+        if ret is None:
+            return False
         self._curPage = page
+        return True
 
-    def detectPage(self, page: "_Page_", find=True, timeout=3) -> bool:
+    def detectPage(self, page: "_Page_", timeout=3) -> bool:
         """匹配页面"""
         if not page:
             return False
         g = _G._G_
         tools = g.Tools()
         log = g.Log()
-        timeout = timeout or 3
         time.sleep(timeout)
         tools.refreshScreenInfos()
         try:
             target = page
             if not page.match():
-                if find:
-                    ret = self._detectPage(self.rootPage)
-                    if not ret:
-                        log.e(f"检测页面 {page.name} 失败")
-                        return False
-                else:
-                    #匹配不成功，直接返回
+                pages = self.getPages()
+                for p in pages:
+                    if p.name == page.name: # 跳过自身
+                        continue
+                    if p.match():
+                        target = p
+                        break
+                if not target:
+                    log.e(f"检测页面 {page.name} 失败")
                     return False
-                page = ret
-            self._setCurrentPage(page)                
-            if page.name != target.name:
-                log.e(f"当前页面是 {page.name} 而不是：{target.name}")
-                return False
-            return True
+            self._setCurrentPage(target)
+            return target.name == target.name
         except Exception as e:
             log.ex(e, f"检测页面 {page.name} 失败")
             return False
 
-    @classmethod
-    def _detectPage(cls, page: "_Page_", depth=0) -> Optional["_Page_"]:
-        """匹配页面"""
-        if depth > 10 or not page:
-            return None
-        if page.match():
-            return page
-        for child in page.children:
-            ret = _App_._detectPage(child, depth + 1)
-            if ret:
-                return ret
-        return None
-    
     def back(self):
         """返回上一页"""
         g = _G._G_
@@ -178,10 +171,9 @@ class _App_:
                 return False
             if tools.isAndroid():
                 tools.goBack()
-                if not self.detectPage(par):
-                    return False
             else:
                 self._setCurrentPage(par)
+            time.sleep(1)
             return True
         except Exception as e:
             log.ex(e, "返回上一页失败")
@@ -347,22 +339,27 @@ class _App_:
         page = None
         if name in self._pages:
             page = self._pages[name]
-        elif includeCommon:
-            page = _App_.Top().getPage(name, create, False)
+        if page or not create:
             return page
-        if page is None and create:
-            from _Page import _Page_
-            page = _Page_(self.name, name)
+        if includeCommon and self.name != _G.TOP:
+            #COPY公共页面
+            page = _App_.Top().getPage(name, create, False)
             if page:
+                page = deepcopy(page)
+                page.app = self
+                page.type = 'temp'
                 self._pages[name] = page
+                return page
+        #创建新页面
+        from _Page import _Page_
+        page = _Page_(self.name, name)
+        if page:
+            self._pages[name] = page
         return page
 
-    def getPages(self, pattern: str = None) -> List["_Page_"]:
+    def getPages(self, pattern: str = None):
         """获取匹配指定模式的页面列表"""
-        if pattern:
-            pattern = pattern.lower()
-            return [p for p in self._pages.values() if pattern in p.name.lower()]
-        return list(self._pages.values())
+        return self._pages.values()
 
     def delPage(self, pageName: str) -> bool:
         """删除页面"""
@@ -414,7 +411,7 @@ class _App_:
             g = _G._G_
             log = g.Log()
             cls.detectApp(cls.curName(), setCur)
-            cls.cur().detectPage(cls.curPage, setCur)
+            cls.cur().detectPage(setCur)
         except Exception as e:
             log.ex(e, "检测当前页面失败")
 
@@ -520,7 +517,7 @@ class _App_:
                 continue
             result = self.findPath(page, self.getPage(name))
             if result:
-                return result[-1]  # 返回路径的最后一个节点
+                return result[-1]  # 返回路径的最后一个节点名称
         return None
 
     def runScheduler(self, pageName: str, data: dict = None):
@@ -530,61 +527,49 @@ class _App_:
             self.scheduler.run(page)
     
     def goPage(self, pageName) -> bool:
-        """跳转到目标页面
+        """设置要跳转到的目标页面
+        设置_targetPage属性，由应用更新循环中的_update方法处理实际跳转
+        
         Args:
             pageName: 目标页面名称
         Returns:
-            bool: 是否成功
+            bool: 是否成功设置
         """
         try:
             g = _G._G_
             log = g.Log()
-            if self._curPage.name == pageName:
-                self.curPage.resetLife()
-                return self._startPage(self._curPage) != None
-            #跳转页面
+            
+            # 如果已经在目标页面，直接返回成功
+            if self._curPage and self._curPage.name == pageName:
+                self._curPage.resetLife()
+                return self._startPage(self._curPage)
+                
+            # 检查目标页面是否存在
             page = self.getPage(pageName)
             if not page:
                 log.e(f"未知页面: {pageName}")
                 return False
-            pages = self.findPath(self._curPage, page)
-            if not pages:
-                log.e(f"找不到从 {self._curPage.name} 到 {page.name} 的路径")
-                return False
-            # log.i(f"跳转路径: {'->'.join([p.name for p in pages])}")
-            
-            # 执行路径中的每一步跳转
-            for i in range(1, len(pages)):  # 从1开始，因为0是当前页面
-                nextPage = pages[i]
-                # 执行跳转动作
-                result = self.enter(nextPage)
-                nextPage.resetLife()
-                if result is None:
+            # 设置目标页面，路径查找和跳转由_update方法处理
+            self._targetPage = page
+            # 计算路径并缓存
+            if self._curPage:
+                path = self.findPath(self._curPage, page)
+                if path:
+                    self._path = path
+                    log.i(f"设置页面跳转目标: {pageName}, 路径: {path}")
+                else:
+                    log.e(f"找不到从 {self._curPage.name} 到 {pageName} 的路径")
                     return False
+            else:
+                # 如果当前没有页面，直接设置目标页面
+                log.i(f"设置页面跳转目标: {pageName}, 无需路径")
+                
+            log.i(f"设置页面跳转目标: {pageName}")
             return True
         except Exception as e:
-            log.ex(e, "跳转失败")
+            log.ex(e, "设置页面跳转目标失败")
             return False
         
-    def enter(self, page: "_Page_") -> '_Page_':
-        """进入指定页面
-        Args:
-            toPage: 目标页面
-        Returns:
-            _Page_: 页面实例
-        """
-        g = _G._G_
-        log = g.Log()
-        if page is None:
-            return None
-        if self.curPage is None:
-            log.e(f"{self.name} 当前页面为空")
-            return None
-        toPageName = page.name
-        self.curPage._doExit(toPageName)
-        if not g.Tools().isAndroid():
-            page._ignoreMatch = True
-        return self._startPage(page)
 
     @classmethod
     def go(cls, target: str) -> bool:
@@ -725,9 +710,6 @@ class _App_:
             if page is None:
                 return None
             page.end()            
-            # 验证页面是否存在
-            if not self.detectPage(page, True):
-                return None
             self._runPages[page.name] = page
             page.begin()
             return page
@@ -786,5 +768,112 @@ class _App_:
             _G._G_.Log().ex(e, f"停止页面 {page.name} 失败")
             return False
         
+    def _update(self):
+        """应用级别的更新循环，检测当前页面并调用页面的更新函数
+        循环执行以下操作:
+        1. 检测当前页面
+        2. 处理页面跳转请求，根据缓存的路径跳转到下一个页面
+        3. 调用当前页面的更新函数
+        4. 清空用户事件列表，防止事件被重复触发
+        """
+        g = _G._G_
+        log = g.Log()
+        tools = g.Tools()
+        lastPage = None
+        try:
+            # 处理页面跳转请求
+            self._goPage(log)
+            # 检测当前页面
+            self.detectPage(self.curPage, True)
+            lastPage = self.curPage
+            curPage = self.curPage
+            if curPage is not None:
+                ret = curPage.update()  # 调用update
+                if ret == tools.eRet.exit:
+                    # 返回上一页
+                    log.d(f"<- 回上一页")
+                    self._toPage(curPage, lastPage, log)            
+            # 清空用户事件列表，防止事件被重复触发
+            self.userEvents = []
+        except Exception as e:
+            log.ex(e, f"应用 {self.name} 更新失败")    
+    
+    def _goPage(self, log: "_Log_")->bool:
+        """处理页面跳转逻辑"""
+        try:
+            if not self._targetPage or not self._path:
+                return False
+            targetPageName = self._targetPage
+            curPage = self.curPage
+            # 检查当前页面是否在路径中
+            if curPage not in self._path:
+                log.e(f"当前页面 {curPage.name} 不在预定路径中，无法跳转到 {targetPageName}")
+                self._clearNavigationTarget()
+                return True
+            # 找到当前页面在路径中的位置
+            index = self._path.index(curPage)
+            if index < 0:
+                log.e(f"当前页面 {curPage.name} 不在预定路径中，无法跳转到 {targetPageName}")
+                self._clearNavigationTarget()
+                return True
+            # 已经是路径中的最后一个页面，说明已到达目标
+            if index == len(self._path) - 1:
+                self._clearNavigationTarget()
+                log.i(f">>: {targetPageName}")
+                return True
+            # 如果不是最后一个页面，则进行跳转
+            if index >= 0 and index < len(self._path) - 1:
+                self.toPage(self._path[index + 1])
+            return True
+        except Exception as e:
+            log.ex(e, "处理页面跳转逻辑失败")
+            return False
+    
+    def toPage(self, page: "_Page_", resetLife=True):
+        """跳转到路径中的下一个页面"""
+        g = _G._G_
+        tools = g.Tools()
+        self.curPage.doExit(page.name)
+        if resetLife:
+            page.resetLife()
+        if not tools.isAndroid():
+            # 非安卓平台需要直接设置当前页面，不能用检测页面
+            page.alwaysMatch(True)
+        return True
+    
+    def _clearNavigationTarget(self):
+        """清空路径目标"""
+        self._targetPage = None
+        self._path = None
+
+        
+
+    @classmethod
+    def update(cls):
+        """全局应用更新循环
+        """
+        while True:
+            time.sleep(1)
+            curApp = cls.cur()
+            if curApp:
+                curApp._update()
+
+    def sendUserEvent(self, eventName: str) -> bool:
+        """添加用户事件到事件列表
+        Args:
+            eventName: 用户事件名称
+        Returns:
+            bool: 是否添加成功
+        """
+        log = _G._G_.Log()
+        try:
+            if eventName not in self.userEvents:
+                self.userEvents.append(eventName)
+                log.d(f"添加用户事件: {eventName}")
+            return True
+        except Exception as e:
+            log.ex(e, f"添加用户事件失败: {eventName}")
+            return False
+    
 
 _App_.onLoad()

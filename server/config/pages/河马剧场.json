@@ -4,22 +4,21 @@
     "ratio": 33000,
     "pages": {
       "剧场": {
-        "match": "推荐&新剧|排行榜",
+        "match": "",
         "event": {
           "任务.成": "@this.renter()"
         },
-
         "exit": {
           "河马剧场": "<"
         },
         "entry": {
-          "": "log.i(f'hello,{this.name}我每次都给你招呼’)",
-          "河马剧场": "",
+          "": "@log.i(f'hello,{this.name}我每次都给你招呼')",
+          "剧场": "",
           "#": "@this.life=10;print(f'life==={this.life}')"
         }
       },
       "福利": {
-        "match": "每日福利&任务中心",
+        "match": "每日福利",
         "entry": {
           "首页": "福利(y-50)",
           "河马剧场": ""

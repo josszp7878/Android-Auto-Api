@@ -33,6 +33,7 @@ class CClient_:
             CDevice.connect()
             g.CFileServer().init(server)
             g.CmdMgr().regAllCmds()
+            g.App().update()
             print("按Ctrl+C退出")
             while True:
                 try:

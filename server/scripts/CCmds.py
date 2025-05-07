@@ -235,9 +235,9 @@ class CCmds_:
             if not toPage:
                 return f"未找到目标页面 {to}"
             fromPage = curApp.getPage(From) if From else curApp.curPage
-            pages = curApp.findPath(fromPage, toPage)
-            if pages:
-                return "\n".join(f"{p.name}" for p in pages)
+            path = curApp.findPath(fromPage, toPage)
+            if path:
+                return "\n".join(f"{pageName}" for pageName in path)
             return f"e~未找到从{From}到{to}的路径"
         
         @regCmd(r"#桌面|zm|home")
@@ -668,7 +668,7 @@ class CCmds_:
             text = text.strip() if text else ''
             
             # 解析 timeout（如果 text 中包含数字部分）
-            timeout = 0
+            timeout = 1
             if text and text.split()[-1].isdigit():
                 parts = text.rsplit(maxsplit=1)
                 text = parts[0] if len(parts) > 1 else ''
@@ -685,28 +685,11 @@ class CCmds_:
                 ret = tools.addScreenInfo(text)
                 if not ret:
                     return "添加屏幕信息失败"
-                if timeout > 0:
-                    time.sleep(timeout)
+                if timeout >= 0:
+                    if timeout > 0:
+                        time.sleep(timeout)
                     tools.delScreenInfo(text)
             return f"当前屏幕信息：{tools.getScreenInfo()}"
             
-        @regCmd(r"#删除页面|dp(?P<pageName>\S+)")
-        def delPage(pageName: str) -> bool:
-            """删除页面"""
-            return g.Page().delPage(pageName)
-
-        @regCmd(r"#获取所有页面|gp")
-        def pages(self) -> List[str]:
-            """获取所有页面名称"""
-            return g.Page().getPages()
-
-        @regCmd(r"#获取页面|gp(?P<pageName>\S+)")
-        def getPages(self) -> List[str]:
-            """获取所有页面名称"""
-            return g.Page().getPages()
-
-        @regCmd(r"#获取页面|gp(?P<pageName>\S+)")
-        def getPage(self, pageName: str) -> Optional["_Page_"]:
-            """获取页面"""
-            return g.Page().getPage(pageName)
+       
             
