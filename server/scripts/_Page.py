@@ -28,9 +28,8 @@ class _Page_:
     _DEFAULT_CONFIG = {
         'name': '',
         'match': None,
-        'childs': None,
         'event': {},
-        'timeout': 0,
+        'timeout': [0, None],  # 第一个元素是时间，第二个是操作
         'type': 'once',
         'entry': None,
         'exit': None,
@@ -81,8 +80,14 @@ class _Page_:
             self.data = data
         self._config = {}
         self._life: float = 0  # 默认生命长度，>0：表示时间长度，单位为秒 <0:表示能循环次数。 0：表示生命无限
-        self.resetLife()
         self._alwaysMatch = False 
+        self._exitPages = []  # 存储可以从当前页面退出到的页面列表
+        self._timeout = None  # 超时时间
+        self._timeoutOp = None  # 超时操作
+        self._timeouted = False  # 是否已经处理过超时
+        self._startTime = time.time()  # 开始时间
+        self._loopCount = 0  # 循环次数
+        self.reset()
 
     def __getattr__(self, name):
         """重写 __getattr__ 方法，使 page.num 可以访问 page.data['num']"""
@@ -111,17 +116,18 @@ class _Page_:
     @life.setter
     def life(self, value: float):
         self._life = value
-        self.resetLife()
+        self.reset()
 
-    def resetLife(self):
+    def reset(self):
         self._startTime = time.time()
         self._loopCount = 0
+        self._timeouted = False
 
     @property
-    def parent(self)->"_Page_":
+    def parent(self) -> "_Page_":
         """获取父页面"""
         if self._parent is None:
-            #获取exit里面value为'<'的key
+            # 获取exit里面value为'<'的key
             for key, value in self.curPage.exit.items():
                 if value == '<':
                     self._parent = self.getPage(key)
@@ -216,13 +222,60 @@ class _Page_:
         self.setProp('event', value)
 
     @property
-    def timeout(self) -> int:
-        return self.getProp('timeout') or 0
-    
-    @timeout.setter
-    def timeout(self, value: int):
-        self.setProp('timeout', value)
+    def timeout(self) -> list:
+        """获取超时配置数组 [timeout_seconds, operation]"""
+        if self._timeout is None:
+            timeoutConfig = self.getProp('timeout') or [0, None]
+            if not isinstance(timeoutConfig, list) or len(timeoutConfig) < 2:
+                timeoutConfig = [0, None]
+            # 确保类型正确
+            try:
+                timeoutConfig[0] = int(timeoutConfig[0])
+            except (ValueError, TypeError):
+                timeoutConfig[0] = 0
+            if not isinstance(timeoutConfig[1], str):
+                timeoutConfig[1] = None
+            self._timeout = timeoutConfig
+        return self._timeout
 
+    @timeout.setter
+    def timeout(self, value):
+        self._timeout = None  # 清空缓存
+        if isinstance(value, list) and len(value) >= 2:
+            # 确保存入的是[时间, 操作]格式
+            processed = [
+                str(value[0]) if value[0] is not None else '0',
+                str(value[1]) if value[1] is not None else None
+            ]
+            self.setProp('timeout', processed)
+        else:
+            self.setProp('timeout', [0, None])
+
+    def _updateTimeout(self, tools: "_Tools_")->bool:
+        """更新超时检查"""
+        timeoutConfig = self.timeout  # 这会触发getter处理
+        timeout = timeoutConfig[0]
+        op = timeoutConfig[1]
+        
+        if timeout <= 0:
+            return False
+        if self._timeouted:
+            return True
+        
+        pastTime = time.time() - self._startTime
+        log.d(f"{self.name} 倒计时 {timeout-pastTime}")
+        
+        if pastTime > timeout:
+            if not self._timeouted:
+                log.d(f"页面 {self.name} 超时, timeout op: {op}")
+                if op:
+                    self.ret = tools.do(self, op)
+                else:
+                    self.ret = tools.eRet.exit
+                self._timeouted = True
+            return True
+        return False
+    
     @property
     def type(self) -> str:
         return self.getProp('type') or 'once'
@@ -243,10 +296,7 @@ class _Page_:
     def exit(self) -> Dict[str, Any]:
         return self.getProp('exit') or {}
     
-    @exit.setter
-    def exit(self, value: Dict[str, Any]):
-        self.setProp('exit', value)
-
+  
     @property
     def schedule(self) -> Dict[str, Any]:
         """获取调度配置"""
@@ -307,7 +357,8 @@ class _Page_:
             if 'mat' in prop:
                 oldVal = self._config['match']
                 value = value.strip('&').strip('|')
-                value = _Page_._delStrListProp(self._config['match'], '&|', value)
+                value = _Page_._delStrListProp(
+                    self._config['match'], '&|', value)
                 if value:
                     self._config['match'] = value
                     log.d(f"_match: {oldVal} => {self._config['match']}")
@@ -382,10 +433,6 @@ class _Page_:
             return re.sub(rf'[{split}\s]*{value}', '', curVal)
         return curVal
    
-    @property
-    def running(self) -> bool:
-        return self._running    
-
     def alwaysMatch(self, value: bool):
         self._alwaysMatch = value
 
@@ -396,7 +443,7 @@ class _Page_:
         """
         try:
             if self._alwaysMatch:
-                #一次性开关
+                # 一次性开关
                 self._alwaysMatch = False
                 return True
             tools = g.Tools()
@@ -454,11 +501,7 @@ class _Page_:
             # 如果条件满足，执行action
             if execute:
                 action = action.strip() if action else ''
-                if action == '':
-                    # 空操作默认为点击
-                    tools.click(key)
-                else:
-                    ret = tools.do(self, action)                      
+                ret = tools.do(self, action)                      
             return ret
         except Exception as e:
             log.ex(e, f"执行事件{key}失败")
@@ -474,24 +517,47 @@ class _Page_:
     def getInst(self, data: Dict[str, Any] = None) -> Optional["_Page_"]:
         """ 获取页面实例
         Args:
-            template: 页面模板
-            config: 页面配置
+            data: 页面参数数据
         Returns:
             _Page_: 页面实例
         """
         # 创建新的运行时页面
-        page = _Page_(g.App().cur().name, self.name)
+        page = _Page_(self._app, self._name)
         # 深度复制模板配置
         config = copy.deepcopy(self._config)
+        page._config = config
+        page.type = 'temp'  # 防止该页面被保存配置文件        
         # 更新额外参数
         if data:
             for k, v in data.items():
-                if k in page._config:
-                    if isinstance(v, dict):
-                        config[k] = v.copy()
+                if k in self._DEFAULT_CONFIG:
+                    configData = config.get(k)
+                    if isinstance(configData, dict):
+                        if not isinstance(v, dict):
+                            log.e(f"参数{k}必须是字典类型")
+                            continue
+                        # 如果是字典类型，合并而不是替换
+                        if k not in config:
+                            config[k] = {}
+                        config[k].update(v)
+                    elif isinstance(configData, list):
+                        if not isinstance(v, list):
+                            log.e(f"参数{k}必须是列表类型, 当前值: {v}")
+                            continue
+                        # 按序号一对一更新数组值，如果为空则，则不替换。多出来的，则添加
+                        for i, item in enumerate(v):
+                            if i < len(configData):
+                                if item and item != '':
+                                    configData[i] = item
+                            else:
+                                configData.append(item)
                     else:
+                        # 其他类型直接替换
                         config[k] = v
-        page._config = config
+                else:
+                    # 非配置项参数，直接设置到data
+                    page.data[k] = v
+            
         return page
     
     def renter(self) -> bool:
@@ -513,12 +579,6 @@ class _Page_:
             log.ex(e, f"重新进入页面失败: {self.name}")
             return False
     
-    def begin(self, params: Dict[str, Any] = None) -> threading.Thread:
-        """异步执行page.begin()
-        """
-        thread = threading.Thread(target=self._begin, args=(params,))
-        thread.start()
-        return thread
         
     def _doEntry(self):
         """执行入口代码
@@ -561,33 +621,15 @@ class _Page_:
         except Exception as e:
             log.ex(e, f"执行出口代码失败: {self.name}")
 
-    def _begin(self, params: Dict[str, Any] = None):
+    def begin(self)->bool:
         """执行页面
         """
-        tools = g.Tools()
         try:
-            if params:
-                for k, v in params.items():
-                    setattr(self, k, v)
-            self._loopCount += 1          
-            # 确保ret一开始为none，重置强制取消状态
-            ret = tools.eRet.none
-            self.forceCancelled = False
             self._doEntry()
-            
-            # 执行页面更新
-            ret = self.update()
-            
-            # 首先检查是否被强制取消，如果是则跳过退出逻辑
-            if ret != tools.eRet.cancel and ret != tools.eRet.error:
-                # 只有当返回值不是error和cancel时才执行退出逻辑
-                self.doExit()
-            self.ret = ret
+            return True
         except Exception as e:
             log.ex(e, f"执行页面异常: {self.name}")
-            self.ret = tools.eRet.error
-        finally:
-            log.d(f"页面 {self.name} 结束")
+            return False
     
     def end(self, cancel=False):
         """结束页面"""
@@ -595,55 +637,123 @@ class _Page_:
         if cancel:
             self.ret = tools.eRet.cancel
         else:
-            self.ret = tools.eRet.end
+            self.ret = tools.eRet.next
         self.forceCancelled = True
 
-    def update(self) -> '_Tools_.eRet':
+    def update(self) -> bool:
         """执行页面更新逻辑
         1. 直接执行事件KEY对应的ACTION，_doEvent方法内部会处理用户事件逻辑
         
         由App._update方法驱动，每次调用只执行一次事件检测和处理
         
         Returns:
-            '_Tools_.eRet': 执行结果
+            bool: 执行结果
         """
         tools = g.Tools()
-        ret = tools.eRet.none
         log = _G._G_.Log()
         
         try:
             # 检查是否被外部强制取消
             if self.forceCancelled:
-                ret = tools.eRet.cancel
-                return ret
-                
+                self.forceCancelled = False
+                return self._end()
             # 检查超时
-            if self.timeout > 0:
-                currentTime = time.time()
-                elapsedTime = currentTime - self._startTime
-                if elapsedTime > self.timeout:
-                    log.d(f"页面 {self.name} 超时")
-                    ret = tools.eRet.timeout
-                    return ret
-            
+            if self._updateTimeout(tools):
+                return self._end()
             # 事件检测和处理
-            eventTriggered = False
             for key, action in self.event.items():
                 if not key or not action:
-                    continue
-                
+                    continue                
                 # 直接调用_doEvent处理事件（包括用户事件）
-                ret = self._doEvent(key, action)
-                if ret != tools.eRet.none:
-                    eventTriggered = True
+                self.ret = self._doEvent(key, action)
+                if self.ret != tools.eRet.none:
                     break
-             
-            return ret
+            return self._end()
         except Exception as e:
             log.ex(e, f"执行页面更新循环异常: {self.name}")
-            ret = tools.eRet.error
-            return ret
+            return True
+        
+    def _end(self)->bool:
+        tools = g.Tools()
+        bRet = self.ret not in [tools.eRet.cancel, tools.eRet.error, tools.eRet.exit]
+        if not bRet and self.ret == tools.eRet.exit:
+            # 只有当返回值不是error和cancel时才执行退出逻辑
+            self.doExit()
+        
+        return bRet
 
+    def click(self, text, do):
+        """模拟点击操作，在PC平台额外执行指定操作
+        Args:
+            text: 要点击的文本
+            do: 要执行的操作，支持以下格式:
+                < : 页面跳转到上一页
+                >pageName: 跳转到pageName指定的页面
+                +d: 收获d金币，如果d不是数字，则收获this.d金币
+        """
+        try:
+            text = text.strip() if text else ''
+            if text == '':
+                text = self.name
+            if text == '@':
+                text = self._m_
+            g = _G._G_
+            tools = g.Tools()
+            # 调用tools.click
+            tools.click(text)        
+            # 在PC平台执行额外操作
+            if do and not tools.isAndroid():
+                if not do.startswith(':'):
+                    do = f':{do}'
+                tools.do(self, do)
+                log.i(f"模拟点击: {do} ")
+        except Exception as e:
+            log.ex(e, f"执行点击操作失败: {text}")
+            return False
+        return True
+            
+    @property
+    def exitPages(self):
+        """获取可退出页面列表"""
+        if not self._exitPages:
+            # 初始化_exitPages
+            self._exitPages = []
+            for pageName, action in self.exit.items():
+                # 处理引用页面
+                if pageName.startswith('#'):
+                    # 解析引用页面格式: #引用页面名{参数}
+                    import re
+                    match = re.match(r'#([^{]+)(?:{(.+)})?', pageName)
+                    if match:
+                        pageName = match.group(1)
+                        params = match.group(2)
+                        # 获取引用的页面
+                        refPage = self.app.getPage(pageName, False, True)
+                        if refPage:
+                            # 如果有参数，解析参数
+                            paramsDict = None
+                            if params:
+                                content = f'{{{params.strip()}}}'
+                                content = content.replace("'", '"')
+                                import json
+                                try:
+                                    paramsDict = json.loads(content)                                    
+                                except Exception as e:
+                                    log.ex(e, f"解析引用页面参数失败: {content}")
+                            # 创建页面实例并设置参数
+                            pageInst = refPage.getInst(paramsDict)
+                            self._exitPages.append(pageInst)
+                        else:
+                            log.e(f"引用页面不存在: {pageName}")
+                else:
+                    # 普通页面
+                    page = self.app.getPage(pageName, False)
+                    if page:
+                        self._exitPages.append(page)
+                    else:
+                        log.ex(f"页面不存在: {pageName}")   
+
+        return self._exitPages
 
 _Page_.onLoad()
 

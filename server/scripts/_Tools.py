@@ -2,9 +2,12 @@ from __future__ import annotations
 import json
 from enum import Enum
 import re
-from typing import Any, Tuple, Optional, List
+from typing import Any, Tuple, Optional, List, TYPE_CHECKING
 import _G
 import time
+
+if TYPE_CHECKING:
+    from _Page import _Page_
 
 class RegionCheck:
     """区域检查工具类"""
@@ -85,22 +88,23 @@ class _Tools_:
         unknown = 'unknown'
         none = ''
         true = 'true'
-        # 结束schedule
+        # 提早结束本次过程，继续下一次
+        next = 'next'
+        # 退出
         exit = 'exit'
-        # 结束本次check，继续schedule
-        end = 'end'
-        # 取消本次check
+        # 取消
         cancel = 'cancel'
         # 出错
         error = 'error'
 
 
     class eCmd(Enum):
-        back = '<'
-        backWith = '<-'
-        home = '<<'
-        detect = '?'
-        goto = '->'
+        back = '<' # 返回上一页
+        backWith = '<-(.+)' # 返回指定的页面，参数为返回的页面
+        home = '<<' # 返回主页
+        goto = '->(.+)' # 跳转，参数为要跳转的页面
+        click = 'click\s*\(([^\)]*)\)\s*(\S*)?' # 点击，参数1为要点击的元素，参数2为调试指令
+        collect = '+(.+)' # 收集,参数为要收集的元素
 
     _TopStr = ["top", "主屏幕", "桌面"]
     # 工具类基本属性
@@ -302,62 +306,96 @@ class _Tools_:
                     break
         return result
 
+    # 处理特殊命令
     @classmethod
-    def _doCmd(cls, this, cmd: str) -> '_Tools_.eRet':
+    def _doCmd(cls, this: "_Page_", cmd: str) -> '_Tools_.eRet':
         """处理特殊命令
         Args:
+            this: 调用上下文
             cmd: 特殊命令字符串
         Returns:
             DoRet: 命令执行结果
         """
         g = _G._G_
-        log = g.Log()
-        
+        log = g.Log()        
         cmd = cmd.strip() if cmd else ''
         if cmd == '':
             return cls.eRet.none
         cmd = cmd.lower()
+        #匹配 cmd 是否符合 eCmd 的格式
+        cmdID = None
+        for eCmd in cls.eCmd:
+            match = re.match(eCmd.value, cmd)
+            if match:
+                cmdID = eCmd
+                break
+        if cmdID is None:
+            return cls.eRet.unknown
+        app = g.App()
         # 处理返回特定状态的命令
-        if cmd.startswith(cls.eCmd.backWith.value):
-            ret_str = cmd[2:].strip()
+        if cmdID == cls.eCmd.backWith:
+            ret_str = match.group(1)
             try:
                 return cls.eRet(f'{ret_str}')
             except ValueError:
                 log.e(f"无效的DoRet值: {ret_str}")
                 return cls.eRet.none
         # 处理返回操作
-        elif cmd == cls.eCmd.back.value:
-            g.App().cur().back()
+        elif cmdID == cls.eCmd.back:
+            app.cur().back()
             return cls.eRet.none
         # 处理回到主页
-        elif cmd == cls.eCmd.home.value:
-            g.App().cur().home()
+        elif cmdID == cls.eCmd.home:
+            app.home()
             return cls.eRet.none
-        # 处理应用检测
-        elif cmd == cls.eCmd.detect.value:
-            g.App().detect()
+        # 处理点击指令
+        elif cmdID == cls.eCmd.click:
+            this.click(match.group(1), match.group(2))
             return cls.eRet.none
+        elif cmdID == cls.eCmd.collect:
+            # 收获金币
+            coinStr = match.group(1)
+            coins = 0
+            try:
+                coins = int(coinStr)
+            except ValueError:
+                # 如果不是数字，尝试从页面数据中获取
+                if hasattr(this, coinStr):
+                    coins = getattr(this, coinStr)
+                    try:
+                        coins = int(coins)
+                    except (ValueError, TypeError):
+                        coins = 0
+            
+            if coins > 0:
+                log.d(f"PC平台模拟: 收获 {coins} 金币")
         # 处理页面跳转指令 ->pageName
-        elif cmd.startswith(cls.eCmd.goto.value):
+        elif cmdID == cls.eCmd.goto:
             # 提取目标页面名称
-            page_name = cmd[2:].strip()
-            if page_name:
-                log.d(f"跳转到页面: {page_name}")
+            pageName = match.group(1)
+            if pageName:
+                log.d(f"跳转到页面: {pageName}")
                 # 尝试页面跳转
-                result = g.App().gotoPage(page_name)
+                result = g.App().gotoPage(pageName)
                 if result:
                     # 跳转成功后返回cancel
                     return cls.eRet.cancel
                 else:
-                    log.e(f"跳转到页面 {page_name} 失败")
+                    log.e(f"跳转到页面 {pageName} 失败")
             return cls.eRet.none
         else:
             # 未知命令，返回unknown
             return cls.eRet.unknown
     
     # 执行特殊脚本
+    # 特殊脚本开头字符代表的含义：
+    # ： ：       执行特殊命令
+    # @  ：        执行脚本
+    # 其它字符：执行点击或者是文字匹配
+    # &和|：       指令分隔符，如果是返回判定结果的指令，则&和|表示逻辑与和或的关系
+    # # ：         表示页面引用
     @classmethod
-    def _do(cls, this, cmd: str, doAction: bool, log: _G._G_.Log):
+    def _do(cls, this: "_Page_", cmd: str, doAction: bool, log: _G._G_.Log):
         """执行规则（内部方法）"""
         g = _G._G_
         try:
@@ -372,16 +410,18 @@ class _Tools_:
                 if cmd == '':
                     return cls.eRet.none
                 return cls._eval(this, cmd, log)             
+            elif cmd.startswith(':'):
+                cmd = cmd[1:].strip()
+                if cmd == '':
+                    return cls.eRet.none
+                return cls._doCmd(this, cmd)
             else:
-                # 处理其他特殊指令
-                ret = cls._doCmd(this, cmd)
-                if ret == cls.eRet.unknown:
-                    # 当文字匹配时，执行点击
-                    if doAction:
-                        ret = tools.click(cmd)
-                    else:
-                        # 执行text检查
-                        ret = tools.matchText(cmd, this)
+                # 当文字匹配时，执行点击
+                if doAction:
+                    ret = tools.click(cmd)
+                else:
+                    # 执行text检查
+                    ret = tools.matchText(cmd, this)
             return ret
         except Exception as ex:
             log.ex(ex, f"执行失败: {cmd}")
@@ -493,7 +533,7 @@ class _Tools_:
         if isinstance(value, tuple):
             return cls.toBool(value[0])
         if isinstance(value, cls.eRet):
-            return value == cls.eRet.none or value == cls.eRet.end
+            return value == cls.eRet.none or value == cls.eRet.next
         return bool(value)
    
     @classmethod
@@ -1239,7 +1279,9 @@ class _Tools_:
                     if m[1]:
                         for k, v in m[1].groupdict().items():
                             data[k + '_'] = v
-                            print(f"匹配结果: {k} = {v}")                
+                            print(f"匹配结果: {k} = {v}")
+                        #设置data._item 为匹配到的内容
+                        data['_m_'] = m[0]                
             return matches
         
         segments = cls._parseSegments(text, '&')
@@ -1325,7 +1367,6 @@ class _Tools_:
             if g.android:
                 return g.android.click(x, y)
             else:
-                log.i(f"模拟点击: ({x},{y})")
                 return True
         except Exception as e:
             log.ex(e, f"点击位置失败: {pos}")

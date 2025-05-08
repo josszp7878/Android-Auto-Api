@@ -75,15 +75,15 @@ class _App_:
             log.ex(e, "获取当前应用失败")
             return False
     
-    def __init__(self, name: str,  info: dict):
+    def __init__(self, name: str, info: dict):
         self.name = name
         self._curPage: Optional["_Page_"] = None
+        self._lastPage: Optional["_Page_"] = None
         self.rootPage: Optional["_Page_"] = None
         self.ratio = info.get("ratio", 10000)
         self.description = info.get("description", '')
         self.timeout = info.get("timeout", 5)
         self._pages: Dict[str, "_Page_"] = {}  # 应用级的页面列表
-        self._runPages: Dict[str, "_Page_"] = {}  # 运行中的页面 {pageName: page}
         self._targetPage: Optional["_Page_"] = None  # 目标跳转页面
         self._path: Optional[List["_Page_"]] = None  # 当前缓存的路径 [path]
         self.userEvents: List[str] = []  # 用户事件列表
@@ -128,6 +128,7 @@ class _App_:
         ret = self._startPage(page)
         if ret is None:
             return False
+        self._lastPage = self._curPage
         self._curPage = page
         return True
 
@@ -142,11 +143,9 @@ class _App_:
         tools.refreshScreenInfos()
         try:
             target = page
-            if not page.match():
-                pages = self.getPages()
-                for p in pages:
-                    if p.name == page.name: # 跳过自身
-                        continue
+            curPage = self.curPage
+            if not curPage.match():
+                for p in curPage.exitPages:
                     if p.match():
                         target = p
                         break
@@ -159,26 +158,12 @@ class _App_:
             log.ex(e, f"检测页面 {page.name} 失败")
             return False
 
-    def back(self):
+    def back(self)->bool:
         """返回上一页"""
-        g = _G._G_
-        tools = g.Tools()
-        log = g.Log()
-        try:
-            par = self.curPage.parent
-            if par is None:
-                log.e(f"{self.curPage.name} 没有父页面")
-                return False
-            if tools.isAndroid():
-                tools.goBack()
-            else:
-                self._setCurrentPage(par)
-            time.sleep(1)
-            return True
-        except Exception as e:
-            log.ex(e, "返回上一页失败")
-            return False
-
+        if self._lastPage:
+            return self.toPage(self._lastPage)
+        return False
+       
     def home(self):
         """返回主页"""
         g = _G._G_
@@ -251,7 +236,6 @@ class _App_:
             app = cls.getApp(appName, True)
             rootPage = app.getPage(appName, True)   
             rootPage.config = rootConfig
-            rootPage.setParent(app.rootPage)
             app._curPage = rootPage
             app.rootPage = rootPage
             pages = app._loadConfig(config)
@@ -292,6 +276,9 @@ class _App_:
                     continue
                 # 添加到页面列表
                 self._pages[pageName] = page
+                
+            # 不再处理commonPages配置
+            
             log.i(f"应用 {self.name} 配置加载完成，共 {len(self._pages)} 个页面")
             return self._pages
         except Exception as e:
@@ -336,26 +323,31 @@ class _App_:
 
     def getPage(self, name, create=False, includeCommon=False)->Optional["_Page_"]:
         """获取页面"""
-        page = None
-        if name in self._pages:
-            page = self._pages[name]
-        if page or not create:
-            return page
-        if includeCommon and self.name != _G.TOP:
-            #COPY公共页面
-            page = _App_.Top().getPage(name, create, False)
-            if page:
-                page = deepcopy(page)
-                page.app = self
-                page.type = 'temp'
-                self._pages[name] = page
+        try:
+            g = _G._G_
+            log = g.Log()
+            page = None
+            if name in self._pages:
+                page = self._pages[name]
+            if includeCommon and self.name != _G.TOP:
+                # 获取公共页面
+                commonPage = _App_.Top().getPage(name, False, False)
+                if not commonPage:
+                    log.e(f"加载公共页面 {name} 失败")
+                    return None
+                # 直接返回公共页面，getInst会在需要时创建实例
+                return commonPage
+            if page or not create:
                 return page
-        #创建新页面
-        from _Page import _Page_
-        page = _Page_(self.name, name)
-        if page:
-            self._pages[name] = page
-        return page
+            # 创建新页面
+            from _Page import _Page_
+            page = _Page_(self.name, name)
+            if page:
+                self._pages[name] = page
+            return page
+        except Exception as e:
+            log.ex(e, f"获取页面 {name} 失败")
+            return None
 
     def getPages(self, pattern: str = None):
         """获取匹配指定模式的页面列表"""
@@ -494,13 +486,13 @@ class _App_:
                 if resultPath:
                     return resultPath
         
-        # 如果这是根页面且没找到，尝试搜索其他应用
-        if toPage.name != _G.TOP:
-            for app in _App_.apps().values():
-                if app.rootPage != fromPage and app.rootPage not in visited:
-                    resultPath = self.findPath(app.rootPage, toPage, visited, path + [app.rootPage])
-                    if resultPath:
-                        return resultPath
+        # # 如果这是根页面且没找到，尝试搜索其他应用
+        # if toPage.name != _G.TOP:
+        #     for app in _App_.apps().values():
+        #         if app.rootPage != fromPage and app.rootPage not in visited:
+        #             resultPath = self.findPath(app.rootPage, toPage, visited, path + [app.rootPage])
+        #             if resultPath:
+        #                 return resultPath
         
         return []
 
@@ -519,12 +511,6 @@ class _App_:
             if result:
                 return result[-1]  # 返回路径的最后一个节点名称
         return None
-
-    def runScheduler(self, pageName: str, data: dict = None):
-        """运行调度器"""
-        page = self._getRunPage(pageName, data, False)
-        if page:
-            self.scheduler.run(page)
     
     def goPage(self, pageName) -> bool:
         """设置要跳转到的目标页面
@@ -541,7 +527,7 @@ class _App_:
             
             # 如果已经在目标页面，直接返回成功
             if self._curPage and self._curPage.name == pageName:
-                self._curPage.resetLife()
+                self._curPage.reset()
                 return self._startPage(self._curPage)
                 
             # 检查目标页面是否存在
@@ -666,39 +652,6 @@ class _App_:
             cls.openedApps = set()  # 初始化已打开应用集合
         cls.loadConfig()
 
-    def _getRunPage(self, name: str, data: dict = None, create: bool = True) -> Optional["_Page_"]:
-        """获取运行页面
-        Args:
-            name: 页面名称
-            data: 页面数据
-            create: 如果不存在是否创建
-        Returns:
-            _Page_: 页面实例
-        """
-        try:
-            g = _G._G_
-            log = g.Log()
-            # 先在本应用查找
-            page = self._runPages.get(name)
-            if page:
-                return page
-            if create:
-                page = self.getPage(name, False, True)
-                if page is None:
-                    log.e(f"页面: {name}没配置")
-                    return None
-                from _Page import _Page_
-                page = _Page_(self.name, name)
-                page.config = page.config
-                if data:
-                    for key, value in data.items():
-                        setattr(page, key, value)
-            return page
-        except Exception as e:
-            log.ex(e, f"获取运行页面 {name} 失败")
-            return None
-        
- 
     def _startPage(self, page: '_Page_') -> '_Page_':
         """启动页面检查器
         Returns:
@@ -710,64 +663,14 @@ class _App_:
             if page is None:
                 return None
             page.end()            
-            self._runPages[page.name] = page
-            page.begin()
-            return page
+            if page.begin():
+                return page
+            else:
+                return None
         except Exception as e:
             log.ex(e, f"启动页面{page.name} 失败")
             return None
    
-    def stopPage(self, pageName: str, cancel=False) -> bool:
-        """停止页面执行
-        Args:
-            page: 要停止的页面
-            cancel: 是否强制取消
-        Returns:
-            bool: 是否成功停止
-        """
-        try:
-            g = _G._G_
-            log = g.Log()
-            pages = []
-            for name, page in self._runPages.items():
-                if pageName and name != pageName:
-                    continue
-                pages.append(page)
-            for page in pages:
-                self._stop(page, cancel)
-            return True
-        except Exception as e:
-            log.ex(e, "停止页面失败")
-            return False
-
-    def _stop(self, page: "_Page_" = None, cancel=False) -> bool:
-        """停止页面执行
-        Args:
-            page: 要停止的页面
-            cancel: 是否强制取消
-        Returns:
-            bool: 是否成功停止
-        """
-        try: 
-            runPages = self._runPages
-            if page is None:
-                # 停止应用内所有运行中的页面
-                runningPages = list(runPages.values())
-                for page in runningPages:
-                    page.end(cancel)
-                runPages.clear()
-                # 停止应用的调度器
-                if hasattr(self, 'scheduler'):
-                    self.scheduler.stop()    
-            else:
-                page.end(cancel)
-                if page.name in runPages:
-                    runPages.pop(page.name)
-            return True
-        except Exception as e:
-            _G._G_.Log().ex(e, f"停止页面 {page.name} 失败")
-            return False
-        
     def _update(self):
         """应用级别的更新循环，检测当前页面并调用页面的更新函数
         循环执行以下操作:
@@ -778,21 +681,14 @@ class _App_:
         """
         g = _G._G_
         log = g.Log()
-        tools = g.Tools()
-        lastPage = None
         try:
             # 处理页面跳转请求
             self._goPage(log)
             # 检测当前页面
             self.detectPage(self.curPage, True)
-            lastPage = self.curPage
             curPage = self.curPage
             if curPage is not None:
-                ret = curPage.update()  # 调用update
-                if ret == tools.eRet.exit:
-                    # 返回上一页
-                    log.d(f"<- 回上一页")
-                    self._toPage(curPage, lastPage, log)            
+                curPage.update()
             # 清空用户事件列表，防止事件被重复触发
             self.userEvents = []
         except Exception as e:
@@ -829,13 +725,13 @@ class _App_:
             log.ex(e, "处理页面跳转逻辑失败")
             return False
     
-    def toPage(self, page: "_Page_", resetLife=True):
+    def toPage(self, page: "_Page_", resetLife=True)->bool:
         """跳转到路径中的下一个页面"""
         g = _G._G_
         tools = g.Tools()
         self.curPage.doExit(page.name)
         if resetLife:
-            page.resetLife()
+            page.reset()
         if not tools.isAndroid():
             # 非安卓平台需要直接设置当前页面，不能用检测页面
             page.alwaysMatch(True)

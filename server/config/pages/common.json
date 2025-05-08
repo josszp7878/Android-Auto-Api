@@ -2,27 +2,11 @@
   "root": {
     "name": "top",
     "pages": {
-      "测试": {
-        "entry": {
-          "": "@click('entry')"
-        },
-        "match": "match(0,0,300,300)",
-        "event": {
-          "匹配成功": "@click('匹配成功')",
-          "%99": "@click('%99几率')",
-          "": "@click('无条件执行')",
-          "-3": "@click('延时5秒后执行');"
-        },
-        "exit": {
-          "": "@exit"
-        }
-      },
       "签到": {
+        "timeout": ["5",":click()<"],
         "event": {
-          "签到得(?P<num>\\d+)金币": "@log.i(f'得到{this.num}金币') & click & ~<"
+          "签到得(?P<num>\\d+)金币": ":click(@)<"
         }
-      },
-      "top-今日签到可.*金币": {
       }
     }
   }
