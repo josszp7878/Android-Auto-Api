@@ -4,10 +4,12 @@ import _G
 import os
 import json
 from typing import Optional, List, Tuple, TYPE_CHECKING, Dict
+import threading
+from CRun import CRun_
 
 if TYPE_CHECKING:
     from _Page import _Page_
-    from CSchedule import CSchedule_
+    from _Log_ import _Log_
 
 class _App_:
     """应用管理类：整合配置与实例"""
@@ -87,9 +89,12 @@ class _App_:
         self._targetPage: Optional["_Page_"] = None  # 目标跳转页面
         self._path: Optional[List["_Page_"]] = None  # 当前缓存的路径 [path]
         self.userEvents: List[str] = []  # 用户事件列表
-        # 为应用创建调度器
-        from CSchedule import CSchedule_
-        self.scheduler: "CSchedule_" = CSchedule_(self)
+        self._runner = CRun_(self)  # 新增批处理运行器
+
+    @property
+    def runner(self) -> CRun_:
+        """获取批处理运行器"""
+        return self._runner
 
     PathSplit = '-'
     @classmethod
@@ -512,29 +517,21 @@ class _App_:
                 return result[-1]  # 返回路径的最后一个节点名称
         return None
     
-    def goPage(self, pageName) -> bool:
+    def goPage(self, page: '_Page_') -> bool:
         """设置要跳转到的目标页面
         设置_targetPage属性，由应用更新循环中的_update方法处理实际跳转
         
         Args:
-            pageName: 目标页面名称
+            page: 目标页面
         Returns:
             bool: 是否成功设置
         """
         try:
             g = _G._G_
             log = g.Log()
-            
             # 如果已经在目标页面，直接返回成功
-            if self._curPage and self._curPage.name == pageName:
-                self._curPage.reset()
-                return self._startPage(self._curPage)
-                
-            # 检查目标页面是否存在
-            page = self.getPage(pageName)
-            if not page:
-                log.e(f"未知页面: {pageName}")
-                return False
+            if self._curPage and self._curPage.name == page.name:
+                return self._startPage(self._curPage)                
             # 设置目标页面，路径查找和跳转由_update方法处理
             self._targetPage = page
             # 计算路径并缓存
@@ -542,15 +539,15 @@ class _App_:
                 path = self.findPath(self._curPage, page)
                 if path:
                     self._path = path
-                    log.i(f"设置页面跳转目标: {pageName}, 路径: {path}")
+                    log.i(f"设置页面跳转目标: {page.name}, 路径: {path}")
                 else:
-                    log.e(f"找不到从 {self._curPage.name} 到 {pageName} 的路径")
+                    log.e(f"找不到从 {self._curPage.name} 到 {page.name} 的路径")
                     return False
             else:
                 # 如果当前没有页面，直接设置目标页面
-                log.i(f"设置页面跳转目标: {pageName}, 无需路径")
+                log.i(f"设置页面跳转目标: {page.name}, 无需路径")
                 
-            log.i(f"设置页面跳转目标: {pageName}")
+            log.i(f"设置页面跳转目标: {page.name}")
             return True
         except Exception as e:
             log.ex(e, "设置页面跳转目标失败")
@@ -574,7 +571,8 @@ class _App_:
             appName, pageName = cls.parsePageName(target)
             ret = cls.open(appName)
             if ret:
-                return cls.cur().goPage(pageName) 
+                page = cls.cur().getPage(pageName)
+                return cls.cur().goPage(page) 
             return False
         except Exception as e:
             log.ex(e, f"跳转到应用 {appName} 的页面 {pageName} 失败")
@@ -662,7 +660,6 @@ class _App_:
         try:
             if page is None:
                 return None
-            page.end()            
             if page.begin():
                 return page
             else:
@@ -671,29 +668,22 @@ class _App_:
             log.ex(e, f"启动页面{page.name} 失败")
             return None
    
-    def _update(self):
-        """应用级别的更新循环，检测当前页面并调用页面的更新函数
-        循环执行以下操作:
-        1. 检测当前页面
-        2. 处理页面跳转请求，根据缓存的路径跳转到下一个页面
-        3. 调用当前页面的更新函数
-        4. 清空用户事件列表，防止事件被重复触发
-        """
-        g = _G._G_
-        log = g.Log()
+    def _update(self, log: "_Log_"):
+        """应用级别的更新循环"""
         try:
-            # 处理页面跳转请求
+            # 原有逻辑
             self._goPage(log)
-            # 检测当前页面
-            self.detectPage(self.curPage, True)
-            curPage = self.curPage
-            if curPage is not None:
-                curPage.update()
-            # 清空用户事件列表，防止事件被重复触发
+            self.detectPage(self.curPage)
+            if self.curPage:
+                self.curPage.update()
             self.userEvents = []
+            
+            # 批处理逻辑
+            self._runner.update()
+            
         except Exception as e:
-            log.ex(e, f"应用 {self.name} 更新失败")    
-    
+            log.ex(e, f"应用更新失败：{self.name}")
+
     def _goPage(self, log: "_Log_")->bool:
         """处理页面跳转逻辑"""
         try:
@@ -725,13 +715,11 @@ class _App_:
             log.ex(e, "处理页面跳转逻辑失败")
             return False
     
-    def toPage(self, page: "_Page_", resetLife=True)->bool:
+    def toPage(self, page: "_Page_")->bool:
         """跳转到路径中的下一个页面"""
         g = _G._G_
         tools = g.Tools()
         self.curPage.doExit(page.name)
-        if resetLife:
-            page.reset()
         if not tools.isAndroid():
             # 非安卓平台需要直接设置当前页面，不能用检测页面
             page.alwaysMatch(True)
@@ -751,8 +739,9 @@ class _App_:
         while True:
             time.sleep(1)
             curApp = cls.cur()
+            log = _G._G_.Log()  # 需要再这里获取，这样就能支持LOG的动态更新
             if curApp:
-                curApp._update()
+                curApp._update(log)
 
     def sendUserEvent(self, eventName: str) -> bool:
         """添加用户事件到事件列表

@@ -582,8 +582,8 @@ class CCmds_:
                     app = App.getApp(appName)
                     if not app:
                         return f"e~找不到应用: {appName}"
-                    page = app.goPage(pageName)
-                    if page:
+                    page = app.getPage(pageName)
+                    if app.goPage(page):
                         return f"执行页面 {appName}.{pageName} 成功"
                     else:
                         return f"执行页面 {appName}.{pageName} 失败"
@@ -691,5 +691,20 @@ class CCmds_:
                     tools.delScreenInfo(text)
             return f"当前屏幕信息：{tools.getScreenInfo()}"
             
-       
+        @regCmd(r"#run|运行 (?P<pageName>\S+)")
+        def run(pageName: str):
+            """
+            功能：执行CRun.add测试
+            参数: pageName - 要测试的页面名称
+            示例: 
+                run 首页
+                运行 设置页
+            """
+            try:
+                testRunner = g.App().cur().runner
+                testRunner.add(pageName, 10, 1, "@print('测试结束') & <")
+            except Exception as e:
+                g.Log().e(f"CRun测试异常：{str(e)}")
+                return "e~测试执行失败"
+            
             

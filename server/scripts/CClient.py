@@ -62,15 +62,6 @@ class CClient_:
             CDevice = g.CDevice()
             if CDevice:
                 CDevice.uninit()
-            try:
-                from CTaskMgr import taskMgr
-                taskMgr.uninit()
-                log.i("所有任务已停止")
-            except ImportError:
-                # 如果没有CTaskMgr模块，忽略错误
-                pass
-            except Exception as e:
-                log.ex(e, "停止任务失败")
         except Exception as e:
             log.ex(e, "客户端结束失败")
 

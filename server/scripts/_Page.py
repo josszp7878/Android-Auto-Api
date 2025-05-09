@@ -73,56 +73,25 @@ class _Page_:
         
         # 运行时属性（不会被序列化）
         self.data = data or {}   # 附加数据
-        self._running = False    # 是否启用
+        self._running = False    # 是否运行
         self.ret = g.Tools().eRet.none  # 返回值，现在直接存储DoRet枚举
         self.forceCancelled = False  # 是否被外部强制取消标志
         if data is not None:
             self.data = data
         self._config = {}
-        self._life: float = 0  # 默认生命长度，>0：表示时间长度，单位为秒 <0:表示能循环次数。 0：表示生命无限
         self._alwaysMatch = False 
         self._exitPages = []  # 存储可以从当前页面退出到的页面列表
         self._timeout = None  # 超时时间
         self._timeoutOp = None  # 超时操作
         self._timeouted = False  # 是否已经处理过超时
         self._startTime = time.time()  # 开始时间
-        self._loopCount = 0  # 循环次数
-        self.reset()
 
     def __getattr__(self, name):
         """重写 __getattr__ 方法，使 page.num 可以访问 page.data['num']"""
         if name in self.data:
             return self.data[name]
-        return None
-    
-    @property
-    def life(self) -> float:
-        val = self._life
-        if val == 0:
-            return 1
-        percent = -1
-        if val > 0:
-            # 如果life大于0,以时间计算生命
-            pastTime = time.time() - self._startTime
-            percent = (self._life - pastTime)/self._life
-        else:
-            # 如果life小于0,以循环次数计算生命
-            percent = (self._life - self._loopCount)/abs(val)
-        ret = max(0, min(percent, 1))
-        # if ret == 0:
-        #     log.d(f"页面{self.name}生命结束")
-        return ret
-    
-    @life.setter
-    def life(self, value: float):
-        self._life = value
-        self.reset()
-
-    def reset(self):
-        self._startTime = time.time()
-        self._loopCount = 0
-        self._timeouted = False
-
+        return None    
+  
     @property
     def parent(self) -> "_Page_":
         """获取父页面"""
@@ -160,7 +129,8 @@ class _Page_:
                 self._config['exit'] = exit    
             parentExit[f'{self.name}'] = ''
             entry[f'{parent.name}'] = ''
-            exit[f'{parent.name}'] = '<'
+            tools = g.Tools()
+            exit[f'{parent.name}'] = tools.eCmd.back.value
 
     @property
     def app(self) -> "_App_":
@@ -558,28 +528,8 @@ class _Page_:
                     # 非配置项参数，直接设置到data
                     page.data[k] = v
             
-        return page
-    
-    def renter(self) -> bool:
-        """重新进入页面
-        Returns:
-            bool: 是否成功进入
-        """
-        g = _G.g
-        log = g.Log()
-        try:
-            if self.life == 0:
-                return False
-            back = self.app.back()
-            if not back:
-                return False
-            log.d(f"重新进入页面: {self.name}")
-            return self.app.toPage(self, resetLife=False)
-        except Exception as e:
-            log.ex(e, f"重新进入页面失败: {self.name}")
-            return False
-    
-        
+        return page   
+  
     def _doEntry(self):
         """执行入口代码
         """
@@ -591,10 +541,6 @@ class _Page_:
             alwaysDo = entry.get('')
             if alwaysDo:
                 tools.do(self, alwaysDo)
-            firstDo = entry.get('#', None)
-            if firstDo and self.life == 1:
-                log.d(f"执行首次代码: {firstDo}")
-                tools.do(self, firstDo)
         except Exception as e:
             log.ex(e, f"执行入口代码失败: {self.name}")
 
@@ -607,13 +553,17 @@ class _Page_:
             tools = g.Tools()
             exit = self.exit
             if toPage:
-                action = exit.get(toPage, None)
-                if action:
-                    tools.do(self, action)
-                if action == '<':
+                action = exit.get(toPage, None).strip()
+                if tools.eCmd.back.value in action:
+                    # 如果action包含'<'，则表示返回上一页
+                    #注意，这里一定要去掉back,否则会从新触发back,继而调用doExit,导致死循环
+                    action = action.replace(tools.eCmd.back.value, '')
                     log.i(f"< {toPage}")
                 else:
                     log.i(f"> {toPage}")
+                action = action.strip('&')
+                tools.do(self, action)
+
             else:
                 alwaysDo = exit.get('')
                 if alwaysDo:
@@ -624,21 +574,23 @@ class _Page_:
     def begin(self)->bool:
         """执行页面
         """
-        try:
-            self._doEntry()
+        if self.running:
             return True
-        except Exception as e:
-            log.ex(e, f"执行页面异常: {self.name}")
-            return False
+        self._running = True  # 设置页面为运行状态
+        self._doEntry()
+        return True
     
     def end(self, cancel=False):
         """结束页面"""
+        if not self.running:
+            return True
         tools = g.Tools()
         if cancel:
             self.ret = tools.eRet.cancel
         else:
-            self.ret = tools.eRet.next
+            self.ret = tools.eRet.exit
         self.forceCancelled = True
+        return self._end()
 
     def update(self) -> bool:
         """执行页面更新逻辑
@@ -675,11 +627,13 @@ class _Page_:
         
     def _end(self)->bool:
         tools = g.Tools()
-        bRet = self.ret not in [tools.eRet.cancel, tools.eRet.error, tools.eRet.exit]
-        if not bRet and self.ret == tools.eRet.exit:
-            # 只有当返回值不是error和cancel时才执行退出逻辑
+        bRet = self.ret == tools.eRet.none
+        if self.ret == tools.eRet.exit:
+            # 正常退出，执行退出逻辑
             self.doExit()
-        
+        if not bRet:
+            #退出，设置为非运行状态
+            self._running = False
         return bRet
 
     def click(self, text, do):
@@ -751,7 +705,7 @@ class _Page_:
                     if page:
                         self._exitPages.append(page)
                     else:
-                        log.ex(f"页面不存在: {pageName}")   
+                        log.e(f"页面不存在: {pageName}")   
 
         return self._exitPages
 

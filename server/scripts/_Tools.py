@@ -85,24 +85,20 @@ class TaskState(Enum):
 class _Tools_:
 
     class eRet(Enum):
-        unknown = 'unknown'
         none = ''
-        true = 'true'
-        # 提早结束本次过程，继续下一次
-        next = 'next'
-        # 退出
+        # 退出，执行退出逻辑
         exit = 'exit'
-        # 取消
+        # 取消并退出，不执行退出逻辑
         cancel = 'cancel'
-        # 出错
+        # 出错，会退出，不执行退出逻辑
         error = 'error'
 
 
     class eCmd(Enum):
-        back = '<' # 返回上一页
+        back = '<-' # 返回上一页
         backWith = '<-(.+)' # 返回指定的页面，参数为返回的页面
         home = '<<' # 返回主页
-        goto = '->(.+)' # 跳转，参数为要跳转的页面
+        goto = '>(.+)' # 跳转，参数为要跳转的页面
         click = 'click\s*\(([^\)]*)\)\s*(\S*)?' # 点击，参数1为要点击的元素，参数2为调试指令
         collect = '+(.+)' # 收集,参数为要收集的元素
 
@@ -330,7 +326,7 @@ class _Tools_:
                 cmdID = eCmd
                 break
         if cmdID is None:
-            return cls.eRet.unknown
+            return cls.eRet.error
         app = g.App()
         # 处理返回特定状态的命令
         if cmdID == cls.eCmd.backWith:
@@ -385,7 +381,7 @@ class _Tools_:
             return cls.eRet.none
         else:
             # 未知命令，返回unknown
-            return cls.eRet.unknown
+            return cls.eRet.error
     
     # 执行特殊脚本
     # 特殊脚本开头字符代表的含义：
@@ -410,6 +406,9 @@ class _Tools_:
                 if cmd == '':
                     return cls.eRet.none
                 return cls._eval(this, cmd, log)             
+            #如果cmd 和eCmd里面的value任何一个匹配，则执行cls._doCmd(this, cmd)
+            elif cmd in [e.value for e in cls.eCmd]:
+                return cls._doCmd(this, cmd)
             elif cmd.startswith(':'):
                 cmd = cmd[1:].strip()
                 if cmd == '':
@@ -533,7 +532,7 @@ class _Tools_:
         if isinstance(value, tuple):
             return cls.toBool(value[0])
         if isinstance(value, cls.eRet):
-            return value == cls.eRet.none or value == cls.eRet.next
+            return value == cls.eRet.none
         return bool(value)
    
     @classmethod
@@ -1167,7 +1166,7 @@ class _Tools_:
             if cls._screenInfoCache is None:
                 return False
             cls._screenInfoCache = [item for item in cls._screenInfoCache if item['t'] != content]
-            log.i(f"删除屏幕信息: {content} \n info={cls._screenInfoCache}")
+            # log.i(f"删除屏幕信息: {content} \n info={cls._screenInfoCache}")
             return True
         except Exception as e:
             log.ex(e, "删除屏幕信息失败")
