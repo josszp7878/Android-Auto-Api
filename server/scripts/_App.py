@@ -1,10 +1,8 @@
-from copy import deepcopy
 import time
 import _G
 import os
 import json
 from typing import Optional, List, Tuple, TYPE_CHECKING, Dict
-import threading
 from CRun import CRun_
 
 if TYPE_CHECKING:
@@ -13,7 +11,8 @@ if TYPE_CHECKING:
 
 class _App_:
     """应用管理类：整合配置与实例"""
-    _curAppName = _G.TOP  # 当前应用名称
+    _curAppName = _G.TOP  # 当前检测到的应用名称
+    _lastApp = None  # 当前应用实例（延迟初始化）
     @classmethod
     def curName(cls):
         """获取当前应用名称"""
@@ -21,12 +20,12 @@ class _App_:
     
     @classmethod
     def setCurName(cls, appName: str):
-        """设置当前应用名称"""
+        """设置当前检测应用名称"""
         if appName != cls._curAppName:
             cls._curAppName = appName
-            # 更新已打开应用集合
-            if appName != _G.TOP:
-                cls.openedApps.add(appName)
+            # 如果是已知应用则更新实例
+            if appName in cls.apps():
+                cls._lastApp = cls.apps()[appName]
     
     _apps: Dict[str, "_App_"] = {} 
     @classmethod
@@ -41,41 +40,36 @@ class _App_:
         """获取主屏幕/桌面应用"""
         return cls.getApp(_G.TOP, True)
     
-    openedApps = set()  # 存储已打开的应用名称，用于跟踪和管理
+    @classmethod
+    def last(cls) -> "_App_":
+        """获取当前应用实例"""
+        if cls._lastApp is None:
+            cls._lastApp = cls.getApp(_G.TOP, True)
+        return cls._lastApp
     
     @classmethod
     def cur(cls) -> "_App_":
-        """获取当前应用"""
-        return cls.apps().get(cls._curAppName)
+        """获取当前应用实例"""
+        return cls.getApp(cls._curAppName, False)
     
     @classmethod
-    def detectApp(cls, targetApp: str, setCur=True)->bool:
-        """获取当前应用
-        Returns:
-            bool: 是否检测到应用
-        """
+    def detectApp(cls)->Tuple['_App_', str]:
+        """获取当前应用"""
         g = _G._G_
         log = g.Log()
         tools = g.Tools()
         try:
-            if tools.isAndroid():
-                appName = tools.curApp()
-            else:
-                appName = targetApp
-            if setCur:
-                app = cls.getApp(appName, True)
-                if app is None:
-                    log.w(f"未知应用:{appName}")
-                else:
-                    cls.setCurName(appName)
-                    appName = app.name
-            if appName != targetApp:
-                log.e(f"当前应用是 {appName} 而不是：{targetApp}")
-                return False
-            return True
+            detectedApp = tools.curApp() if tools.isAndroid() else cls._curAppName
+            cls._curAppName = detectedApp
+            
+            # 当检测到已知应用时更新实例
+            if detectedApp in cls.apps():
+                cls._lastApp = cls.apps()[detectedApp]
+                
+            return cls._lastApp, detectedApp
         except Exception as e:
             log.ex(e, "获取当前应用失败")
-            return False
+            return None, None
     
     def __init__(self, name: str, info: dict):
         self.name = name
@@ -89,12 +83,14 @@ class _App_:
         self._targetPage: Optional["_Page_"] = None  # 目标跳转页面
         self._path: Optional[List["_Page_"]] = None  # 当前缓存的路径 [path]
         self.userEvents: List[str] = []  # 用户事件列表
-        self._runner = CRun_(self)  # 新增批处理运行器
+        # self._runner = CRun_(self)  # 新增批处理运行器
+        self._tasks = {}  # 任务字典，KEY为任务名
+        self._curTask = None  # 当前任务
 
-    @property
-    def runner(self) -> CRun_:
-        """获取批处理运行器"""
-        return self._runner
+    # @property
+    # def runner(self) -> CRun_:
+    #     """获取批处理运行器"""
+    #     return self._runner
 
     PathSplit = '-'
     @classmethod
@@ -112,10 +108,10 @@ class _App_:
         if match:
             appName = match.group('appName')
             if appName is None:
-                appName = cls.cur().name
+                appName = cls.last().name
             return appName, match.group('name')
         # 如果没找到应用名，使用当前应用    
-        appName = cls.cur().name
+        appName = cls.last().name
         return appName, str  # 返回当前应用和页面名称    
 
     @property
@@ -177,9 +173,6 @@ class _App_:
         try:
             if tools.isAndroid():
                 tools.goHome()
-                if not self.detectApp(_G.TOP):
-                    log.e(f"返回主页失败，检测应用 {_G.TOP} 失败")
-                    return False
             else:
                 self.setCurName(_G.TOP)
             return True
@@ -208,8 +201,6 @@ class _App_:
                 configFiles = [fileName]
             else:
                 configFiles = glob.glob(os.path.join(cls.configDir(), '*.json'))
-            for app in cls.apps().values():
-                app._stop()
             cls._apps = None
             for configFile in configFiles:
                 if not os.path.exists(configFile):
@@ -401,16 +392,6 @@ class _App_:
         """
         return appName in cls.apps().keys()
 
-    @classmethod
-    def detect(cls, setCur=True):
-        """检测当前页面"""
-        try:
-            g = _G._G_
-            log = g.Log()
-            cls.detectApp(cls.curName(), setCur)
-            cls.cur().detectPage(setCur)
-        except Exception as e:
-            log.ex(e, "检测当前页面失败")
 
     @classmethod
     def isHome(cls) -> bool:
@@ -438,17 +419,23 @@ class _App_:
             else:
                 appName = app.name
             tools = g.Tools()
-            if appName == cls.curName():
+            if appName == cls._curAppName:
                 return True
             ok = tools.openApp(appName)
             if not ok:
                 log.e(f"=>{appName}")
                 return False
+            cls.setCurName(appName)
             if g.isAndroid():
                 time.sleep(5)
-            ok = cls.detectApp(appName)
-            log.log(f"=>{appName}", None, 'i' if ok else 'e')
-            return ok
+            app, appName = cls.detectApp()
+            if app:
+                cls.setCurName(appName)
+                log.i(f"=>{appName}")
+                return True
+            else:
+                log.w(f"=>{appName}")
+                return False
         except Exception as e:
             log.ex(e, f"跳转到应用 {appName} 失败")
             return False
@@ -571,8 +558,8 @@ class _App_:
             appName, pageName = cls.parsePageName(target)
             ret = cls.open(appName)
             if ret:
-                page = cls.cur().getPage(pageName)
-                return cls.cur().goPage(page) 
+                page = cls.last().getPage(pageName)
+                return cls.last().goPage(page) 
             return False
         except Exception as e:
             log.ex(e, f"跳转到应用 {appName} 的页面 {pageName} 失败")
@@ -580,34 +567,22 @@ class _App_:
         
     @classmethod
     def closeApp(cls, appName=None) -> bool:
-        """关闭应用
-        Args:
-            appName: 应用名称，如果为None则关闭当前应用
-        
-        Returns:
-            bool: 是否成功关闭
-        """
+        """关闭应用"""
         g = _G._G_
         log = g.Log()
         try:
-            # 获取应用名称
             if appName is None:
-                appName = cls._curAppName
+                appName = cls.last().name  # 通过cur方法获取实例名称
             
-            # 获取应用实例
             app = cls.getApp(appName)
             if not app:
-                log.e(f"应用 {appName} 不存在")
                 return False
-            app._stop()     
-             # 从打开的应用列表中移除
-            if appName in cls.openedApps:
-                cls.openedApps.remove(appName)           
-            # 如果是当前应用，返回到主屏幕
-            if appName == cls._curAppName:
-                cls.setCurName(_G.TOP)
-                
-            log.i(f"应用 {appName} 已关闭")
+            app._stop()
+            
+            # 重置到主屏幕
+            if appName == cls.last().name:
+                cls._lastApp = cls.Top()  # 修改属性名称
+                cls._curAppName = _G.TOP
             return True
         except Exception as e:
             log.ex(e, f"关闭应用 {appName} 失败")
@@ -622,18 +597,12 @@ class _App_:
         Returns:
             _App_: 应用实例
         """
-        try:
-            g = _G._G_
-            log = g.Log()
-            apps = cls.apps()
-            app = apps.get(appName)
-            if not app and create:
-                app = cls(appName, {})
-                apps[appName] = app
-            return app
-        except Exception as e:
-            log.ex(e, f"获取应用 {appName} 失败")
-            return None        
+        apps = cls.apps()
+        app = apps.get(appName)
+        if not app and create:
+            app = cls(appName, {})
+            apps[appName] = app
+        return app
 
     @classmethod
     def getAllApps(cls) -> List[str]:
@@ -645,9 +614,9 @@ class _App_:
         """克隆"""
         if oldCls:
             cls._curAppName = oldCls._curAppName
-            cls.openedApps = oldCls.openedApps
+            cls._lastApp = oldCls._curApp  # 修改属性名称
         else:
-            cls.openedApps = set()  # 初始化已打开应用集合
+            cls._lastApp = cls.getApp(_G.TOP, True)
         cls.loadConfig()
 
     def _startPage(self, page: '_Page_') -> '_Page_':
@@ -677,9 +646,9 @@ class _App_:
             if self.curPage:
                 self.curPage.update()
             self.userEvents = []
-            
-            # 批处理逻辑
-            self._runner.update()
+            # 更新当前任务
+            if self._curTask:
+                self._curTask.update()
             
         except Exception as e:
             log.ex(e, f"应用更新失败：{self.name}")
@@ -738,10 +707,14 @@ class _App_:
         """
         while True:
             time.sleep(1)
-            curApp = cls.cur()
+            cls.detectApp()
+            app = cls.cur()
             log = _G._G_.Log()  # 需要再这里获取，这样就能支持LOG的动态更新
-            if curApp:
-                curApp._update(log)
+            if app:
+                # 只更新当前已知应用
+                app._update(log)
+            # else:
+            #     log.w(f"未知应用 {cls.curName()}")
 
     def sendUserEvent(self, eventName: str) -> bool:
         """添加用户事件到事件列表
@@ -760,5 +733,32 @@ class _App_:
             log.ex(e, f"添加用户事件失败: {eventName}")
             return False
     
+    def startTask(self, taskName):
+        """启动任务"""
+        from CTask import CTask_
+        
+        # 如果当前有任务在运行，先停止
+        if self._curTask:
+            self._curTask.stop(cancel=True)
+            
+        # 检查任务是否已存在，不存在则创建
+        if taskName not in self._tasks:
+            task = CTask_.create(taskName, self)
+            self._tasks[taskName] = task
+        else:
+            task = self._tasks[taskName]
+            
+        # 设置为当前任务并启动
+        self._curTask = task
+        return task.begin()
+        
+    def getTask(self, taskName):
+        """获取任务实例"""
+        return self._tasks.get(taskName)
+        
+    @property
+    def curTask(self):
+        """获取当前任务"""
+        return self._curTask
 
 _App_.onLoad()

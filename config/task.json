@@ -1,0 +1,26 @@
+{
+  "dailySignIn": {
+    "begin": {
+      "pageName": "TOP-Main",
+      "life": 60,
+      "interval": 5
+    },
+    "exit": "print('每日签到任务结束')"
+  },
+  "watchVideos": {
+    "begin": {
+      "pageName": "VideoApp-Home",
+      "life": 300,
+      "interval": 10
+    },
+    "exit": "print('观看视频任务结束')"
+  },
+  "browseNews": {
+    "begin": {
+      "pageName": "NewsApp-Headlines",
+      "life": 180,
+      "interval": 15
+    },
+    "exit": "print('浏览新闻任务结束')"
+  }
+} 

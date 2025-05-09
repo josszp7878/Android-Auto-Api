@@ -338,7 +338,7 @@ class _Tools_:
                 return cls.eRet.none
         # 处理返回操作
         elif cmdID == cls.eCmd.back:
-            app.cur().back()
+            app.last().back()
             return cls.eRet.none
         # 处理回到主页
         elif cmdID == cls.eCmd.home:
@@ -440,7 +440,7 @@ class _Tools_:
             # 创建安全的执行环境
             locals = {
                 'app': g.App(),
-                'curApp': g.App().cur(),
+                'curApp': g.App().last(),
                 't': g.Tools(),
                 'log': g.Log(),
                 'this': this,

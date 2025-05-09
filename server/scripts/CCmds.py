@@ -195,21 +195,18 @@ class CCmds_:
             """
             g = _G._G_
             log = g.Log()
-            tools = g.Tools()
-            App = g.App()
-            app = App.cur()
             if what:
                 if what == 'pos|位置':
                     return log.i('todo: 获取坐标')
-                if what == 'task|任务':
+                if what == 'task|任务': 
                     return log.i('todo: 获取任务')
-                # 解析应用名称-页面名称
-                appName, pageName = tools.parseAppPage(what)
-                if appName:
-                    app = App.getApp(appName)
-                    if not app:
-                        log.e(f"未找到应用 {appName}")
-            return f"{app.name}-{app.curPage.name}"
+            App = g.App()
+            app = App.last()
+            appInfo = f"{app.name}-{app.curPage.name}"
+            curAppName = App.curName()
+            if curAppName != app.name:
+                appInfo = f"未知应用{curAppName} 应用:{appInfo}"
+            return appInfo
 
 
         @regCmd(r"#跳转|tz (?P<target>.+)")
@@ -230,7 +227,7 @@ class CCmds_:
             参数: to - 目标页面
             示例: 路径 设置
             """
-            curApp = _G._G_.App().cur()
+            curApp = _G._G_.App().last()
             toPage = curApp.getPage(to)
             if not toPage:
                 return f"未找到目标页面 {to}"
@@ -456,7 +453,7 @@ class CCmds_:
                 target.save()
             else:
                 if target.type == 'temp':
-                    g.App().cur().delPage(target.name)
+                    g.App().last().delPage(target.name)
             cls._editTarget = None
             return f"保存{target.name} 成功"      
 
@@ -541,7 +538,7 @@ class CCmds_:
             g = _G._G_
             App = g.App()
             if not name:
-                page = App.cur().curPage
+                page = App.last().curPage
             else:
                 appName, name = App.parsePageName(name)
                 if not name:
@@ -631,23 +628,6 @@ class CCmds_:
                     log.e(f"停止页面 {pageName} 失败")
             return True
         
-        @regCmd(r"#检测")
-        def deTecT():
-            """
-            功能：检测当前应用和当前页面
-            示例：
-            jc
-            """
-            g = _G._G_
-            App = g.App()
-            App.detect()
-            curApp = App.cur()
-            if curApp:
-                return f"当前应用: {curApp.name} 当前页面: {curApp.curPage.name}"
-            else:
-                return "e~检测不到当前应用"
-
-
 
         @regCmd(r"#屏幕信息|pmxx|si(?P<text>.+)")
         def screenInfo(text=None):
@@ -691,20 +671,28 @@ class CCmds_:
                     tools.delScreenInfo(text)
             return f"当前屏幕信息：{tools.getScreenInfo()}"
             
-        @regCmd(r"#run|运行 (?P<pageName>\S+)")
-        def run(pageName: str):
+        @regCmd(r"#run|运行 (?P<target>.+)")
+        def run(target: str):
             """
-            功能：执行CRun.add测试
-            参数: pageName - 要测试的页面名称
+            功能：执行目标应用的指定任务
+            参数: target - 目标应用名称-任务名称
             示例: 
-                run 首页
-                运行 设置页
+                run 首页-签到
+                运行 设置页-看广告
             """
-            try:
-                testRunner = g.App().cur().runner
-                testRunner.add(pageName, 10, 1, "@print('测试结束') & <")
-            except Exception as e:
-                g.Log().e(f"CRun测试异常：{str(e)}")
-                return "e~测试执行失败"
+            g = _G._G_
+            App = g.App()
+            appName, taskName = App.parsePageName(target)
+            if not appName:
+                return f"e~无效目标: {target}"
+            app = App.getApp(appName)
+            if not app:
+                return f"e~无效应用: {appName}"
+            task = app.getTask(taskName)
+            if not task:
+                return f"e~无效任务: {taskName}"    
+            if not task.begin():
+                return f"e~任务启动失败: {taskName}"
+            return f"任务启动成功: {taskName}"
             
             
