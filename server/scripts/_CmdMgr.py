@@ -17,8 +17,8 @@ class Cmd:
         self.module = func.__module__       # 命令所属模块
         self.name = func.__name__           # 函数名
         
-        # 预编译完整正则表达式
-        self.matchRegex = re.compile(match) if match else None
+        # 预编译完整正则表达式，添加IGNORECASE标志
+        self.matchRegex = re.compile(match, re.IGNORECASE) if match else None
         
         # 预编译命令名正则表达式(从match中提取)
         self.nameRegex = None
@@ -58,51 +58,49 @@ class _CmdMgr_:
     _SPACE_PATTERN = re.compile(r'\s+')
 
     @classmethod
-    def processParamSpaces(cls, cmdStr):
-        """处理参数之间的空格"""
-        # 查找所有命名捕获组 (?P<name>pattern) 包括可选参数
-        regex = r'\(\?P<([^>]+)>[^)]+\)(\??)'
-        param_groups = list(re.finditer(regex, cmdStr))
+    def processParamSpaces(cls, pattern):
+        """简化版的参数间空格处理：只处理参数间的简单空格
         
-        # 过滤掉命令关键字参数，并按出现顺序记录参数位置
-        params = []
-        for match in param_groups:
-            param_name = match.group(1)
-            is_optional = match.group(2) == '?'
-            if param_name != cls.CmdKey:
-                # 记录参数的位置、名称和是否可选
-                params.append((
-                    match.start(), 
-                    match.end(), 
-                    param_name, 
-                    is_optional
-                ))
+        Args:
+            pattern: 命令模式字符串
+        Returns:
+            str: 处理后的命令模式字符串
+        """
+        # 查找所有命名捕获组
+        param_pattern = r'\(\?P<([^>]+)>([^)]+)\)(\??)'
+        matches = list(re.finditer(param_pattern, pattern))
         
-        # 在参数之间添加\s*（最后一个参数不添加）
-        modified = cmdStr
-        offset = 0  # 用于跟踪插入空格后的位置偏移
-        for i in range(len(params)-1):
-            current_param = params[i]
-            next_param = params[i+1]
+        if len(matches) <= 1:  # 如果只有一个或没有参数，不需要处理
+            return pattern
             
-            # 确定空格应该插入的位置
-            current_end = current_param[1] + offset
-            next_start = next_param[0] + offset
-            
-            # 检查当前参数结束到下一个参数开始之间是否有其他字符
-            between = modified[current_end:next_start]
-            # 如果没有已有的空格匹配，或者只有空格
-            if not re.search(r'\\s', between) or re.match(r'^\s*$', between):
-                # 在当前位置插入\s*
-                space_insertion_pos = current_end
-                modified = (
-                    modified[:space_insertion_pos] + 
-                    r'\s*' + 
-                    modified[space_insertion_pos:]
-                )
-                offset += 3  # 插入3个字符(\s*)
+        # 构建结果
+        result = ""
+        last_end = 0
         
-        return modified
+        # 处理每个匹配项
+        for i, match in enumerate(matches):
+            # 获取当前参数的信息
+            full_match = match.group(0)  # 整个匹配
+            param_start = match.start()
+            param_end = match.end()
+            
+            # 添加上一个参数结束到当前参数开始之间的部分
+            between = pattern[last_end:param_start]
+            # 如果是参数之间的部分(不是开头部分)，且只包含空白
+            if i > 0 and between.strip() == '':
+                # 替换为\s*
+                result += r'\s*'
+            else:
+                result += between
+                
+            # 添加当前参数
+            result += full_match
+            last_end = param_end
+            
+        # 添加最后一个参数后的部分
+        result += pattern[last_end:]
+        
+        return result
 
     
     @classmethod
@@ -160,7 +158,7 @@ class _CmdMgr_:
                     
                     # 始终添加函数名和缩写到命令别名中，不考虑是否已有别名
                     cmdName = f"{cmdName}|{func_name}|{abbr.lower()}"
-                    namePattern = f"(?P<{cls.CmdKey}>{cmdName})(?i)\s*"
+                    namePattern = f"(?P<{cls.CmdKey}>{cmdName})\s*"
                     # 在替换命令名时添加忽略大小写标记
                     pattern = pattern.replace(
                         cmd_pattern, 
@@ -177,15 +175,8 @@ class _CmdMgr_:
             
             # 如果找到参数，处理它们之间的空格
             if len(param_matches) > 1:
-                # 获取第一个参数之后的所有内容
-                first_param_end = param_matches[0].end()
-                rest = pattern[first_param_end:]
-                
-                # 替换参数之间的空格为\s*
-                rest = re.sub(r'\s+', r'\\s*', rest)
-                
-                # 重新组合模式
-                pattern = pattern[:first_param_end] + rest
+                # 使用已有的processParamSpaces方法处理参数间空格
+                pattern = cls.processParamSpaces(pattern)
             
             # 如果pattern结尾是\s+或者\s*,应该去掉
             if pattern.endswith(r'\s*'):
@@ -336,11 +327,7 @@ class _CmdMgr_:
                 for cmdObj in module_cmds.values():
                     try:
                         # 使用预编译的正则表达式
-                        if cmdObj.matchRegex:
-                            match = cmdObj.matchRegex.fullmatch(cmdStr)
-                        else:
-                            # 忽略大小写进行匹配
-                            match = re.fullmatch(cmdObj.match, cmdStr, re.IGNORECASE)
+                        match = cmdObj.matchRegex.fullmatch(cmdStr)
                     except Exception as e:
                         log.ex(e, f"命令: {cmdStr} 正则表达式错误: {cmdObj.match}")
                         continue

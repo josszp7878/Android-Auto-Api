@@ -28,8 +28,15 @@ class _G_:
     _scriptNamesCache = None  # 添加脚本名称缓存
     
     android = None   # Android服务对象，由客户端设置
-    sio = None  # SocketIO实例
+    sio = None  # SocketIO实例,客户端服务端通用
 
+    @classmethod
+    def emit(cls, event, data)->bool:
+        """发送事件"""
+        if cls.sio:
+            cls.sio.emit(event, data)
+            return True
+        return False
 
     @classmethod
     def isAndroid(cls):

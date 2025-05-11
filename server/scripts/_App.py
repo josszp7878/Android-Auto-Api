@@ -3,11 +3,11 @@ import _G
 import os
 import json
 from typing import Optional, List, Tuple, TYPE_CHECKING, Dict
-from CRun import CRun_
 
 if TYPE_CHECKING:
     from _Page import _Page_
-    from _Log_ import _Log_
+    from _Log import _Log_
+    from CTask import CTask_
 
 class _App_:
     """应用管理类：整合配置与实例"""
@@ -80,12 +80,11 @@ class _App_:
         self.description = info.get("description", '')
         self.timeout = info.get("timeout", 5)
         self._pages: Dict[str, "_Page_"] = {}  # 应用级的页面列表
-        self._targetPage: Optional["_Page_"] = None  # 目标跳转页面
         self._path: Optional[List["_Page_"]] = None  # 当前缓存的路径 [path]
         self.userEvents: List[str] = []  # 用户事件列表
         # self._runner = CRun_(self)  # 新增批处理运行器
-        self._tasks = {}  # 任务字典，KEY为任务名
-        self._curTask = None  # 当前任务
+        self._tasks: Dict[str, "CTask_"] = {}  # 任务字典，KEY为任务名
+        self._curTask: Optional["CTask_"] = None  # 当前任务
 
     # @property
     # def runner(self) -> CRun_:
@@ -94,7 +93,7 @@ class _App_:
 
     PathSplit = '-'
     @classmethod
-    def parsePageName(cls, str: str) -> Tuple[str, str]:
+    def parseName(cls, str: str) -> Tuple[str, str]:
         """解析应用和页面名称
         Args:
                 str: 应用和名称，格式为 "应用名-名称"
@@ -143,18 +142,16 @@ class _App_:
         time.sleep(timeout)
         tools.refreshScreenInfos()
         try:
-            target = page
             curPage = self.curPage
             if not curPage.match():
                 for p in curPage.exitPages:
                     if p.match():
-                        target = p
+                        curPage = p
+                        self._setCurrentPage(curPage)
                         break
-                if not target:
-                    log.e(f"检测页面 {page.name} 失败")
-                    return False
-            self._setCurrentPage(target)
-            return target.name == target.name
+                if not curPage:
+                    log.w("检测当前页面失败")
+            return curPage.name == page.name
         except Exception as e:
             log.ex(e, f"检测页面 {page.name} 失败")
             return False
@@ -162,7 +159,7 @@ class _App_:
     def back(self)->bool:
         """返回上一页"""
         if self._lastPage:
-            return self.toPage(self._lastPage)
+            return self._toPage(self._lastPage)
         return False
        
     def home(self):
@@ -408,7 +405,7 @@ class _App_:
         return cls.open(_G.TOP)    
     
     @classmethod
-    def open(cls, appName) -> bool:
+    def open(cls, appName) -> "_App_":
         """跳转到指定应用"""
         try:
             g = _G._G_
@@ -420,11 +417,11 @@ class _App_:
                 appName = app.name
             tools = g.Tools()
             if appName == cls._curAppName:
-                return True
+                return app
             ok = tools.openApp(appName)
             if not ok:
                 log.e(f"=>{appName}")
-                return False
+                return None
             cls.setCurName(appName)
             if g.isAndroid():
                 time.sleep(5)
@@ -432,13 +429,10 @@ class _App_:
             if app:
                 cls.setCurName(appName)
                 log.i(f"=>{appName}")
-                return True
-            else:
-                log.w(f"=>{appName}")
-                return False
+            return app
         except Exception as e:
             log.ex(e, f"跳转到应用 {appName} 失败")
-            return False
+            return None
 
     def findPath(self, fromPage: "_Page_", toPage: "_Page_", visited=None, path=None) -> List["_Page_"]:
         """在整个页面树中查找从fromPage到toPage的路径
@@ -514,27 +508,27 @@ class _App_:
             bool: 是否成功设置
         """
         try:
+            if not page:
+                return False
             g = _G._G_
             log = g.Log()
             # 如果已经在目标页面，直接返回成功
             if self._curPage and self._curPage.name == page.name:
                 return self._startPage(self._curPage)                
-            # 设置目标页面，路径查找和跳转由_update方法处理
-            self._targetPage = page
             # 计算路径并缓存
             if self._curPage:
                 path = self.findPath(self._curPage, page)
                 if path:
                     self._path = path
-                    log.i(f"设置页面跳转目标: {page.name}, 路径: {path}")
+                    # log.i(f"设置页面跳转目标: {page.name}, 路径: {path}")
                 else:
                     log.e(f"找不到从 {self._curPage.name} 到 {page.name} 的路径")
                     return False
-            else:
+            # else:
                 # 如果当前没有页面，直接设置目标页面
-                log.i(f"设置页面跳转目标: {page.name}, 无需路径")
+                # log.i(f"设置页面跳转目标: {page.name}, 无需路径")
                 
-            log.i(f"设置页面跳转目标: {page.name}")
+            # log.i(f"设置页面跳转目标: {page.name}")
             return True
         except Exception as e:
             log.ex(e, "设置页面跳转目标失败")
@@ -542,28 +536,31 @@ class _App_:
         
 
     @classmethod
-    def go(cls, target: str) -> bool:
+    def go(cls, target: str) -> '_Page_':
         """跳转到指定应用的指定页面
         Args:
             target: 目标页面路径
         Returns:
-            bool: 是否成功
+            _Page_: 目标页面
         """
         g = _G._G_
         log = g.Log()
         try:
             if not target:
                 log.e("目标页面路径不能为空")
-                return False
-            appName, pageName = cls.parsePageName(target)
+                return None
+            appName, pageName = cls.parseName(target)
             ret = cls.open(appName)
             if ret:
-                page = cls.last().getPage(pageName)
-                return cls.last().goPage(page) 
-            return False
+                app = cls.last()
+                if app:
+                    page = app.getPage(pageName)
+                    if app.goPage(page):
+                        return page
+            return None
         except Exception as e:
             log.ex(e, f"跳转到应用 {appName} 的页面 {pageName} 失败")
-            return False
+            return None
         
     @classmethod
     def closeApp(cls, appName=None) -> bool:
@@ -597,6 +594,8 @@ class _App_:
         Returns:
             _App_: 应用实例
         """
+        if appName is None:
+            return None
         apps = cls.apps()
         app = apps.get(appName)
         if not app and create:
@@ -640,9 +639,11 @@ class _App_:
     def _update(self, log: "_Log_"):
         """应用级别的更新循环"""
         try:
-            # 原有逻辑
-            self._goPage(log)
+            # 检测当前页面
             self.detectPage(self.curPage)
+            # 处理页面跳转逻辑
+            self._updateGoPath(log)
+            # 更新当前页面
             if self.curPage:
                 self.curPage.update()
             self.userEvents = []
@@ -653,38 +654,31 @@ class _App_:
         except Exception as e:
             log.ex(e, f"应用更新失败：{self.name}")
 
-    def _goPage(self, log: "_Log_")->bool:
+    # 处理页面跳转逻辑
+    def _updateGoPath(self, log: "_Log_"):
         """处理页面跳转逻辑"""
         try:
-            if not self._targetPage or not self._path:
-                return False
-            targetPageName = self._targetPage
+            if not self._path:
+                return True
             curPage = self.curPage
             # 检查当前页面是否在路径中
             if curPage not in self._path:
-                log.e(f"当前页面 {curPage.name} 不在预定路径中，无法跳转到 {targetPageName}")
-                self._clearNavigationTarget()
-                return True
+                log.w(f"当前页面 {curPage.name} 不在预定路径中")
+                self._clearPath()
+                return
             # 找到当前页面在路径中的位置
             index = self._path.index(curPage)
-            if index < 0:
-                log.e(f"当前页面 {curPage.name} 不在预定路径中，无法跳转到 {targetPageName}")
-                self._clearNavigationTarget()
-                return True
             # 已经是路径中的最后一个页面，说明已到达目标
             if index == len(self._path) - 1:
-                self._clearNavigationTarget()
-                log.i(f">>: {targetPageName}")
-                return True
+                self._clearPath()
+                return
             # 如果不是最后一个页面，则进行跳转
             if index >= 0 and index < len(self._path) - 1:
-                self.toPage(self._path[index + 1])
-            return True
+                self._toPage(self._path[index + 1])
         except Exception as e:
             log.ex(e, "处理页面跳转逻辑失败")
-            return False
     
-    def toPage(self, page: "_Page_")->bool:
+    def _toPage(self, page: "_Page_")->bool:
         """跳转到路径中的下一个页面"""
         g = _G._G_
         tools = g.Tools()
@@ -694,9 +688,8 @@ class _App_:
             page.alwaysMatch(True)
         return True
     
-    def _clearNavigationTarget(self):
+    def _clearPath(self):
         """清空路径目标"""
-        self._targetPage = None
         self._path = None
 
         
@@ -732,33 +725,77 @@ class _App_:
         except Exception as e:
             log.ex(e, f"添加用户事件失败: {eventName}")
             return False
-    
-    def startTask(self, taskName):
-        """启动任务"""
-        from CTask import CTask_
-        
-        # 如果当前有任务在运行，先停止
-        if self._curTask:
-            self._curTask.stop(cancel=True)
-            
-        # 检查任务是否已存在，不存在则创建
-        if taskName not in self._tasks:
-            task = CTask_.create(taskName, self)
-            self._tasks[taskName] = task
-        else:
-            task = self._tasks[taskName]
-            
-        # 设置为当前任务并启动
-        self._curTask = task
-        return task.begin()
-        
-    def getTask(self, taskName):
+  
+    @classmethod
+    def getTasks(cls, name)-> Tuple['_App_', List['CTask_']]:
         """获取任务实例"""
-        return self._tasks.get(taskName)
-        
+        g = _G._G_
+        log = g.Log()
+        if not name:
+            return None, None
+        appName, taskName = cls.parseName(name)
+        app = cls.getApp(appName)
+        if app is None:
+            log.e(f"应用 {appName} 不存在")
+            return app, None
+        tasks = []
+        if taskName is None:
+            tasks = list(app._tasks.values())
+        else:
+            task = app._tasks.get(name)
+            if task is None:
+                log.e(f"任务 {name} 不存在")
+            else:
+                tasks.append(task)
+        return app, tasks
+
+    @classmethod
+    def getTask(cls, name)-> Tuple['_App_', 'CTask_']:
+        """获取任务实例"""
+        g = _G._G_
+        log = g.Log()
+        if not name:
+            return None, None
+        appName, taskName = cls.parseName(name)
+        app = cls.getApp(appName)
+        if app is None:
+            log.e(f"应用 {appName} 不存在")
+            return app, None
+        task = app._tasks.get(name) if taskName else app._curTask
+        if task is None:
+            log.e(f"任务 {name} 不存在")
+        return app, task
+
+    @classmethod
+    def startTask(cls, name: str)->'CTask_':
+        """启动任务"""
+        g = _G._G_
+        log = g.Log()
+        try:
+            app, task = cls.getTask(name)
+            # 如果当前有任务在运行，先停止
+            if app._curTask:
+                app._curTask.stop(cancel=True)
+                app._curTask = None
+            # 检查任务是否已存在，不存在则创建
+            if task is None:
+                from CTask import CTask_
+                task = CTask_.create(name, app)
+                if task and task.begin():
+                    app._tasks[name] = task
+                    app._curTask = task
+                    return task
+                else:
+                    return None
+        except Exception as e:
+            log.ex(e, f"启动任务失败: {name}")
+            return None
+            
     @property
     def curTask(self):
         """获取当前任务"""
         return self._curTask
+    
+
 
 _App_.onLoad()

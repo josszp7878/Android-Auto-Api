@@ -2,6 +2,7 @@ import json
 import time
 import _G
 from typing import List, Optional
+import re
 
 g = _G._G_
 log = g.Log()
@@ -178,38 +179,42 @@ class CCmds_:
             """
             _G._G_.CDevice().TakeScreenshot()
 
-        @regCmd(r"#当前|dq(?P<what>\S*)")
-        def cuRrenT(what):
+        @regCmd(r"#当前|dq(?P<type>\S*)?(?P<what>\S*)?")
+        def cuRrenT(type=None, what=None):
             """
             功能：获取当前信息，支持包括当前应用、页面、坐标，任务等
-            参数: what，按如下规则解析
-                  pos|位置:  坐标
-                  task|任务: 任务
-                  其它: 应用名称-页面名称：如果应用名—为空，表示当前应用，返回应用名称-页面名称
-                  空：  则返回当前应用和页面
+            参数: 
+                type: 类型，支持包括当前应用、页面、坐标，任务等
+                    pos|位置:  坐标
+                    task|任务: 任务
+                    其它: 应用名称-页面名称：如果应用名—为空，表示当前应用，返回应用名称-页面名称
+                    空：  则返回当前应用和页面
+                what: 指定应用名称，如果指定应用名称，则返回指定应用的当前页面
             示例: 
                  当前 
-                 当前 pos|位置
-                 当前 task|任务
-                 当前 微信-首页
+                 当前任务 河马剧场
             """
             g = _G._G_
             log = g.Log()
-            if what:
-                if what == 'pos|位置':
-                    return log.i('todo: 获取坐标')
-                if what == 'task|任务': 
-                    return log.i('todo: 获取任务')
             App = g.App()
-            app = App.last()
-            appInfo = f"{app.name}-{app.curPage.name}"
-            curAppName = App.curName()
-            if curAppName != app.name:
-                appInfo = f"未知应用{curAppName} 应用:{appInfo}"
-            return appInfo
+            app = App.getApp(what) if what else App.last()
+            if not app:
+                return f"e~应用{what}不存在"
+            if re.match(r'^(pos|位置)$', type, re.IGNORECASE):
+                return log.i('todo: 获取坐标')
+            elif re.match(r'^(task|任务)$', type, re.IGNORECASE): 
+                task = app.curTask
+                return task.name if task else "e~当前没有任务"
+            elif re.match(r'^(app|应用|页面|page)$', type, re.IGNORECASE):
+                # 获取当前应用和页面
+                appInfo = f"{app.name}-{app.curPage.name}"
+                curAppName = App.curName()
+                if curAppName != app.name:
+                    appInfo = f"未知应用{curAppName} 应用:{appInfo}"
+                return appInfo
 
 
-        @regCmd(r"#跳转|tz (?P<target>.+)")
+        @regCmd(r"#跳转|tz(?P<target>.+)")
         def go(target):
             """
             功能：页面跳转
@@ -521,7 +526,7 @@ class CCmds_:
             示例：
             xsym 发现
             """
-            appName, pageName = g.App().parsePageName(pageName)
+            appName, pageName = g.App().parseName(pageName)
             pages = g.Page().getTemplates(pageName)
             if not pages:
                 return f"{pageName} 不存在"
@@ -540,7 +545,7 @@ class CCmds_:
             if not name:
                 page = App.last().curPage
             else:
-                appName, name = App.parsePageName(name)
+                appName, name = App.parseName(name)
                 if not name:
                     return f"e~无效页面名: {name}"
                 app = App.getApp(appName)
@@ -574,7 +579,7 @@ class CCmds_:
             else:
                 # 检查是否含有应用名.页面名的格式
                 App = g.App()
-                appName, pageName = App.parsePageName(content)
+                appName, pageName = App.parseName(content)
                 if appName:
                     app = App.getApp(appName)
                     if not app:
@@ -613,7 +618,7 @@ class CCmds_:
 
             App = g.App()
             apps = App.apps().values()
-            appName, pageName = App.parsePageName(pageName)
+            appName, pageName = App.parseName(pageName)
             # 获取目标应用
             if appName:
                 app = App.getApp(appName)
@@ -680,19 +685,43 @@ class CCmds_:
                 run 首页-签到
                 运行 设置页-看广告
             """
-            g = _G._G_
-            App = g.App()
-            appName, taskName = App.parsePageName(target)
-            if not appName:
-                return f"e~无效目标: {target}"
-            app = App.getApp(appName)
-            if not app:
-                return f"e~无效应用: {appName}"
-            task = app.getTask(taskName)
-            if not task:
-                return f"e~无效任务: {taskName}"    
-            if not task.begin():
-                return f"e~任务启动失败: {taskName}"
-            return f"任务启动成功: {taskName}"
+            ret = g.App().startTask(target)
+            if ret:
+                return f"任务启动成功: {target}"
+            else:
+                return f"e~任务启动失败: {target}"
+            
+        @regCmd(r"#进度|jd (?P<taskName>\S+)?")
+        def progress(taskName=None):
+            """
+            功能：获取任务进度
+            参数: taskName - 应用名-任务名格式
+            示例: 进度 微信-每日签到
+            """
+            app, tasks = g.App().getTasks(taskName)
+            if tasks and len(tasks) > 0:
+                return "\n".join(f"{task.name} {task.progress:0.2f}" for task in tasks)
+
+        @regCmd(r"#状态|zt (?P<taskName>\S+)?")
+        def state(taskName=None):
+            """
+            功能：获取任务状态
+            参数: taskName - 应用名-任务名格式
+            示例: 状态 抖音-广告观看
+            """
+            app, tasks = g.App().getTasks(taskName)
+            if tasks and len(tasks) > 0:
+                return "\n".join(f"{task.name} {task.state}" for task in tasks)
+
+        @regCmd(r"#分值|fz (?P<taskName>\S+)?")
+        def score(taskName=None):
+            """
+            功能：获取任务分值
+            参数: taskName - 应用名-任务名格式
+            示例: 分值 支付宝-新手任务
+            """
+            app, tasks = g.App().getTasks(taskName)
+            if tasks and len(tasks) > 0:
+                return "\n".join(f"{task.name} {task.score}" for task in tasks)
             
             

@@ -667,7 +667,7 @@ class _Page_:
         return True
             
     @property
-    def exitPages(self):
+    def exitPages(self)->List["_Page_"]:
         """获取可退出页面列表"""
         if not self._exitPages:
             # 初始化_exitPages

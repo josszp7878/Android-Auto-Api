@@ -39,7 +39,6 @@ class Job:
         """执行回调函数"""
         if not self._onEnd:
             return
-            
         tools = _G._G_.Tools()
         log = _G._G_.Log()
         try:
