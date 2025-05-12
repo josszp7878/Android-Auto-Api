@@ -132,7 +132,7 @@ class _App_:
         self._curPage = page
         return True
 
-    def detectPage(self, page: "_Page_", timeout=3) -> bool:
+    def detectPage(self, page: "_Page_", timeout=3):
         """匹配页面"""
         if not page:
             return False
@@ -143,18 +143,25 @@ class _App_:
         tools.refreshScreenInfos()
         try:
             curPage = self.curPage
-            if not curPage.match():
-                for p in curPage.exitPages:
+            # 检测当前应用中的alert类型页面
+            from _Page import ePageType
+            pages = [p for p in self.getPages() if p and p != curPage and p.type == ePageType.alert.value]
+            if len(pages) > 0:
+                for p in pages:
                     if p.match():
-                        curPage = p
-                        self._setCurrentPage(curPage)
-                        break
-                if not curPage:
-                    log.w("检测当前页面失败")
-            return curPage.name == page.name
+                        log.i(f"弹窗: {p.name}")
+                        self._setCurrentPage(p)
+                        return
+            #检测exitPages
+            for p in curPage.exitPages:
+                if p.match():
+                    log.i(f"跳转: {p.name}")
+                    self._setCurrentPage(p)
+                    return
+            if g.isAndroid() and not curPage.match():
+                log.e("检测到未配置的弹出界面")
         except Exception as e:
             log.ex(e, f"检测页面 {page.name} 失败")
-            return False
 
     def back(self)->bool:
         """返回上一页"""
@@ -225,7 +232,7 @@ class _App_:
             if not rootConfig:
                 log.e(f"配置文件 {configPath} 没配置")
                 return False
-            appName = rootConfig.get('name', '')  
+            appName = rootConfig.get('name', appName)  
             app = cls.getApp(appName, True)
             rootPage = app.getPage(appName, True)   
             rootPage.config = rootConfig

@@ -99,8 +99,9 @@ class _Tools_:
         backWith = '<-(.+)' # 返回指定的页面，参数为返回的页面
         home = '<<' # 返回主页
         goto = '>(.+)' # 跳转，参数为要跳转的页面
-        click = 'click\s*\(([^\)]*)\)\s*(\S*)?' # 点击，参数1为要点击的元素，参数2为调试指令
-        collect = '+(.+)' # 收集,参数为要收集的元素
+        click = 'click|c(?:\s*\(([^\)]*)\))?[\s,]*(\S*)?' # 点击，参数1为要点击的元素，参数2为调试指令
+        collect = '\+(.+)' # 收集,参数为要收集的元素
+        end = 'end' # 结束
 
     _TopStr = ["top", "主屏幕", "桌面"]
     # 工具类基本属性
@@ -110,6 +111,9 @@ class _Tools_:
     screenSize: tuple[int, int] = (1080, 1920)
     _fixFactor = 0
     _screenInfoCache = None
+    
+    # 文本查找计数的键名常量
+    FINDCOUNT_KEY = 'findCount'
     
     # 为了兼容性添加android属性
     @classmethod
@@ -321,10 +325,14 @@ class _Tools_:
         #匹配 cmd 是否符合 eCmd 的格式
         cmdID = None
         for eCmd in cls.eCmd:
-            match = re.match(eCmd.value, cmd)
-            if match:
-                cmdID = eCmd
-                break
+            try:
+                match = re.match(eCmd.value, cmd, re.IGNORECASE)
+                if match:
+                    cmdID = eCmd
+                    break
+            except Exception as e:
+                log.ex(e, f"匹配命令异常: {eCmd.value} => {cmd}")
+                return cls.eRet.error
         if cmdID is None:
             return cls.eRet.error
         app = g.App()
@@ -344,9 +352,16 @@ class _Tools_:
         elif cmdID == cls.eCmd.home:
             app.home()
             return cls.eRet.none
+        elif cmdID == cls.eCmd.end:
+            return this.end()
         # 处理点击指令
         elif cmdID == cls.eCmd.click:
-            this.click(match.group(1), match.group(2))
+            p1 = match.group(1)
+            p2 = match.group(2)
+            p2 = p2.strip() if p2 else ''
+            if p2 == '':
+                p2 = '<-'
+            this.click(p1, p2)
             return cls.eRet.none
         elif cmdID == cls.eCmd.collect:
             # 收获金币
@@ -1173,35 +1188,61 @@ class _Tools_:
             return False
 
     @classmethod
-    def addScreenInfo(cls, content:str):
+    def addScreenInfo(cls, content:str, timeout=1):
         """添加模拟屏幕文字块
         Args:
             content: 文字内容
+            timeout: 超时处理参数
+                - 正数: 等待指定秒数后自动清除
+                - 负数: 文本被查找到指定次数后自动清除
+                - 0: 不自动清除
         Returns:
             bool: 是否成功添加
         """
-        log = _G._G_.Log()
+        g = _G._G_
+        log = g.Log()
         try:
+            # 只在非Android环境下(PC模拟模式)进行处理
+            isPC = not cls.isAndroid()
+            
+            # 初始化屏幕缓存
             if cls._screenInfoCache is None:
                 cls._screenInfoCache = []
+            
+            # 解析内容
             strs = content.split('(')
             text = strs[0].strip()
-            #如果text已经存在，则不添加
-            if text in [item['t'] for item in cls._screenInfoCache]:
+            
+            # 检查文本是否已存在
+            existing = next((item for item in cls._screenInfoCache if item['t'] == text), None)
+            if existing:
+                # 如果已存在，只更新findCount或添加定时清除任务
+                if timeout < 0 and isPC:
+                    existing[cls.FINDCOUNT_KEY] = abs(timeout)  # 负数timeout存为findCount
+                elif timeout > 0 and isPC:
+                    # 清除已有的定时任务(如果有)
+                    existing.pop(cls.FINDCOUNT_KEY, None)
+                    # 启动定时清除
+                    import threading
+                    def delayed_clear():
+                        time.sleep(timeout)
+                        cls.delScreenInfo(text)
+                    threading.Thread(target=delayed_clear, daemon=True).start()
                 return True
+                
+            # 处理边界信息
             bound = strs[1].strip(')').strip(' ') if len(strs) > 1 else None
-            # 解析边界坐标
             bounds = None
             if bound:
                 bounds = [int(x) for x in bound.split(',')]
-                l = len(bounds)
-                if l < 2:
+                bound_len = len(bounds)
+                if bound_len < 2:
                     log.e(f"边界坐标格式错误: {bound}")
                     return False
-                elif l == 2:
+                elif bound_len == 2:
                     bounds.append(bounds[0])
                     bounds.append(bounds[1])
-                elif l == 3:
+                elif bound_len == 3:
                     bounds.append(bounds[2])
 
             # 创建屏幕信息对象
@@ -1209,9 +1250,23 @@ class _Tools_:
                 "t": text,
                 "b": bounds
             }
+            
+            # 添加PC环境下的自动清除功能
+            if isPC:
+                # 处理负数timeout(查找次数限制)
+                if timeout < 0:
+                    screenInfo[cls.FINDCOUNT_KEY] = abs(timeout)
+                # 处理正数timeout(定时清除)
+                elif timeout > 0:
+                    import threading
+                    def delayed_clear():
+                        time.sleep(timeout)
+                        cls.delScreenInfo(text)
+                    threading.Thread(target=delayed_clear, daemon=True).start()
+            
             # 添加到缓存
             cls._screenInfoCache.append(screenInfo)
-            log.i(f"屏幕信息:\n {cls._screenInfoCache}")
+            log.i(f"屏幕信息已添加: {text}")
             return True
         except Exception as e:
             log.ex(e, "添加屏幕信息失败")
@@ -1259,6 +1314,68 @@ class _Tools_:
 
     
     @classmethod
+    def _tryDelInfo(cls, item):
+        """更新文本的findCount计数，当计数为0时自动删除
+        
+        Args:
+            item: 要更新findCount的文本项
+            
+        Returns:
+            bool: 是否成功更新计数
+        """
+        # 只在PC环境下处理计数
+        if cls.isAndroid() or not item or cls.FINDCOUNT_KEY not in item:
+            return False
+            
+        log = _G._G_.Log()
+        # 减少计数
+        item[cls.FINDCOUNT_KEY] -= 1
+        # log.d(f"文本 '{item['t']}' 被查找，剩余次数: {item[cls.FINDCOUNT_KEY]}")
+        
+        # 当计数为0时自动删除
+        if item[cls.FINDCOUNT_KEY] <= 0:
+            # log.i(f"文本 '{item['t']}' 已达到查找次数限制，自动删除")
+            cls.delScreenInfo(item['t'])
+            return True
+            
+        return True
+        
+    @classmethod
+    def _findTextPos(cls, text: str) -> Optional[Tuple[int, int]]:
+        """在当前屏幕查找文本位置（内部方法）"""
+        g = _G._G_
+        log = g.Log()
+        try:
+            # 匹配文本
+            matches = cls.matchText(text, None, True)
+            if not matches:
+                if cls.isAndroid():
+                    return None
+                else:
+                    return (0, 0)
+            
+            # 获取第一个匹配项的中心坐标
+            item = matches[0][0]
+            bounds = item.get('b')
+            if not bounds:
+                return None
+            
+            centerX = (bounds[0] + bounds[2]) // 2
+            centerY = (bounds[1] + bounds[3]) // 2
+
+            # 应用坐标修正
+            if cls._fixFactor > 0:
+                offsetX = int(centerY * cls._fixFactor)
+                centerX -= offsetX
+                log.d(f"坐标修正: ({centerX+offsetX},{centerY}) -> ({centerX},{centerY})")
+            
+            return (centerX, centerY)
+        except Exception as e:
+            log.ex(e, f"查找文本位置失败: {text}")
+            return None
+
+
+    @classmethod
     def matchText(cls, text: str, this, refresh=False) -> List[Tuple[dict, re.Match]]:
         """匹配文本，返回所有匹配的(item, match)元组列表（改造后版本）"""
         def evalCondition(condition, region):
@@ -1268,8 +1385,13 @@ class _Tools_:
             matches = cls.matchItems(condition, items)
             if region:
                 matches = [(i, m) for i, m in matches if i.get('b') and region.isRectIn(*i['b'])]
+                
+            # 对匹配到的每个项目更新findCount
+            for match in matches:
+                cls._tryDelInfo(match[0])
+                
             if matches and this:
-                #将匹配结果中argument添加到this中，属性名称为argument加_
+                # 将匹配结果中argument添加到this中，属性名称为argument加_
                 data = this.data
                 if not data:
                     data = {}
@@ -1279,8 +1401,8 @@ class _Tools_:
                         for k, v in m[1].groupdict().items():
                             data[k + '_'] = v
                             print(f"匹配结果: {k} = {v}")
-                        #设置data._item 为匹配到的内容
-                        data['_m_'] = m[0]                
+                        # 设置data._item 为匹配到的内容
+                        data['_matchItem'] = m[0]                
             return matches
         
         segments = cls._parseSegments(text, '&')
@@ -1394,37 +1516,3 @@ class _Tools_:
         
         # 在当前屏幕查找
         return cls._findTextPos(text)
-
-    @classmethod
-    def _findTextPos(cls, text: str) -> Optional[Tuple[int, int]]:
-        """在当前屏幕查找文本位置（内部方法）"""
-        g = _G._G_
-        log = g.Log()
-        try:
-            # 匹配文本
-            matches = cls.matchText(text, None,True)
-            if not matches:
-                if cls.isAndroid():
-                    return None
-                else:
-                    return (0, 0)
-            
-            # 获取第一个匹配项的中心坐标
-            item = matches[0][0]
-            bounds = item.get('b')
-            if not bounds:
-                return None
-            
-            centerX = (bounds[0] + bounds[2]) // 2
-            centerY = (bounds[1] + bounds[3]) // 2
-
-            # 应用坐标修正
-            if cls._fixFactor > 0:
-                offsetX = int(centerY * cls._fixFactor)
-                centerX -= offsetX
-                log.d(f"坐标修正: ({centerX+offsetX},{centerY}) -> ({centerX},{centerY})")
-            
-            return (centerX, centerY)
-        except Exception as e:
-            log.ex(e, f"查找文本位置失败: {text}")
-            return None

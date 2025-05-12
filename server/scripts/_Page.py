@@ -7,10 +7,15 @@ if TYPE_CHECKING:
 import threading
 import time
 import re
+from enum import Enum
 
 g = _G.g
 log = g.Log()
 
+class ePageType(Enum):
+    normal = "normal"  # 正常页面
+    alert = "alert"    # 弹窗类型页面
+    temp = "temp"      # 临时页面，兼容旧代码
 
 class _Page_:
     """页面类，用于验证页面状态并执行相应操作"""
@@ -30,7 +35,7 @@ class _Page_:
         'match': None,
         'event': {},
         'timeout': [0, None],  # 第一个元素是时间，第二个是操作
-        'type': 'once',
+        'type': ePageType.normal.value,  # 默认为normal类型
         'entry': None,
         'exit': None,
         'schedule': {}
@@ -88,8 +93,24 @@ class _Page_:
 
     def __getattr__(self, name):
         """重写 __getattr__ 方法，使 page.num 可以访问 page.data['num']"""
-        if name in self.data:
-            return self.data[name]
+        #解析 name_type,先找最后一个'_'
+        pos = name.rfind('_') + 1
+        key = name
+        if pos > 1:
+            key = name[:pos]
+            type = name[pos]
+        else:
+            type = 'str'
+        if key in self.data:
+            val = self.data[key]
+            if type == 'n':
+                return int(val)
+            elif type == 'f':
+                return float(val)
+            elif type == 'b':
+                return bool(val)
+            else:
+                return val
         return None    
   
     @property
@@ -248,11 +269,9 @@ class _Page_:
     
     @property
     def type(self) -> str:
-        return self.getProp('type') or 'once'
+        """获取页面类型，normal:正常页面, alert:弹窗页面"""
+        return self.getProp('type') or ePageType.alert.value
     
-    @type.setter
-    def type(self, value: str):
-        self.setProp('type', value)
 
     @property
     def entry(self) -> Dict[str, Any]:
@@ -436,8 +455,7 @@ class _Page_:
             
             # 检查是否为用户事件
             app = self.app
-            userEvents = getattr(app, 'userEvents', [])
-            
+            userEvents = getattr(app, 'userEvents', [])            
             # 检查是否为用户事件触发
             for eventName in userEvents:
                 if eventName in key:
@@ -450,15 +468,20 @@ class _Page_:
             if not execute:
                 # 处理不同类型的key
                 if key.startswith('%'):
-                    # 概率执行：%30 表示30%的概率执行
-                    probability = int(key[1:])
-                    import random
-                    execute = random.randint(1, 100) <= probability
-                    log.d(f"概率执行({probability}%): {execute}")
+                    # 匹配 %d内容
+                    probability = 0
+                    m = re.match(r'%(\d+)(.*)', key)
+                    if m:
+                        probability = int(m.group(1))
+                        key = m.group(2)
+                    if probability > 0:
+                        import random
+                        execute = random.randint(1, 100) <= probability
+                        log.d(f"{probability}%概率：执行{key}=> {execute}")
                 elif key.startswith('-'):
                     # 延时执行：-5 表示延时5秒后执行
                     delay = int(key[1:])
-                    log.d(f"延时执行({delay}秒)")
+                    log.d(f"延时{delay}秒后执行")
                     time.sleep(delay)
                     execute = True
                 elif key == '':
@@ -467,10 +490,14 @@ class _Page_:
                 else:
                     # 屏幕匹配文本，如果匹配到则执行
                     execute, _ = tools.check(self, key)
+                    if execute:
+                        log.d(f"匹配到事件: {key}")
                     
             # 如果条件满足，执行action
             if execute:
                 action = action.strip() if action else ''
+                if action == '':
+                    action = ':c'
                 ret = tools.do(self, action)                      
             return ret
         except Exception as e:
@@ -496,7 +523,7 @@ class _Page_:
         # 深度复制模板配置
         config = copy.deepcopy(self._config)
         page._config = config
-        page.type = 'temp'  # 防止该页面被保存配置文件        
+        page.setProp('type', 'temp')
         # 更新额外参数
         if data:
             for k, v in data.items():
@@ -603,7 +630,6 @@ class _Page_:
         """
         tools = g.Tools()
         log = _G._G_.Log()
-        
         try:
             # 检查是否被外部强制取消
             if self.forceCancelled:
@@ -613,9 +639,10 @@ class _Page_:
             if self._updateTimeout(tools):
                 return self._end()
             # 事件检测和处理
-            for key, action in self.event.items():
-                if not key or not action:
-                    continue                
+            event = self.event
+            if len(event) == 0:
+                event[self.name] = ''
+            for key, action in event.items():
                 # 直接调用_doEvent处理事件（包括用户事件）
                 self.ret = self._doEvent(key, action)
                 if self.ret != tools.eRet.none:
@@ -635,7 +662,6 @@ class _Page_:
             #退出，设置为非运行状态
             self._running = False
         return bRet
-
     def click(self, text, do):
         """模拟点击操作，在PC平台额外执行指定操作
         Args:
@@ -647,20 +673,21 @@ class _Page_:
         """
         try:
             text = text.strip() if text else ''
-            if text == '':
-                text = self.name
             if text == '@':
-                text = self._m_
+                text = self.name
+            if text == '':
+                text = self._matchItem['t']
             g = _G._G_
             tools = g.Tools()
             # 调用tools.click
+            log.i(f"点击: {text}")
             tools.click(text)        
             # 在PC平台执行额外操作
             if do and not tools.isAndroid():
                 if not do.startswith(':'):
                     do = f':{do}'
                 tools.do(self, do)
-                log.i(f"模拟点击: {do} ")
+                log.i(f"模拟点击:text={text} do:{do} ")
         except Exception as e:
             log.ex(e, f"执行点击操作失败: {text}")
             return False

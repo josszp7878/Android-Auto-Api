@@ -642,39 +642,40 @@ class CCmds_:
                     ？ - 显示当前屏幕信息
                     空 - 清除当前屏幕信息
                     其它 - 添加屏幕信息（可包含超时参数，如：签到得1200金币 10）
+                    负数超时：添加的文本在被查找到N次后自动清除（如：签到得1200金币 -3 表示被查找到3次后自动清除）
             示例：
                 屏幕信息 登录
                 屏幕信息 ?
                 屏幕信息 
                 屏幕信息 签到得1200金币 10
+                屏幕信息 签到得1200金币 -3
             """
             g = _G._G_
             tools = g.Tools()
             text = text.strip() if text else ''
             
-            # 解析 timeout（如果 text 中包含数字部分）
-            timeout = 1
-            if text and text.split()[-1].isdigit():
+            # 解析参数
+            timeout = -1  # 默认使用负数表示无限次查找
+            if text and text.split()[-1].replace('-', '').isdigit():
+                # 提取文本和超时值
                 parts = text.rsplit(maxsplit=1)
                 text = parts[0] if len(parts) > 1 else ''
-                timeout = int(parts[-1]) if parts[-1].isdigit() else 0
+                timeout = int(parts[-1])
             
+            # 处理特殊命令
             if text == '?':
                 # 显示当前屏幕信息
-                pass
+                return f"当前屏幕信息：{tools.getScreenInfo()}"
             elif text == '':
                 # 清除当前屏幕信息
                 tools.clearScreenInfo()
+                return "屏幕信息已清除"
             else:
-                # 添加屏幕信息
-                ret = tools.addScreenInfo(text)
+                # 添加屏幕信息，timeout参数直接传递给addScreenInfo处理
+                ret = tools.addScreenInfo(text, timeout)
                 if not ret:
                     return "添加屏幕信息失败"
-                if timeout >= 0:
-                    if timeout > 0:
-                        time.sleep(timeout)
-                    tools.delScreenInfo(text)
-            return f"当前屏幕信息：{tools.getScreenInfo()}"
+                return f"当前屏幕信息：{tools.getScreenInfo()}"
             
         @regCmd(r"#run|运行 (?P<target>.+)")
         def run(target: str):
