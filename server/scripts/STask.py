@@ -1,5 +1,5 @@
 from datetime import datetime
-from _Tools import TaskState, _Tools_
+from _G import TaskState, _G_
 from SDatabase import db, Database
 import _Log
 from flask import current_app
@@ -28,7 +28,7 @@ class STask_(db.Model):
     
     @property
     def taskId(self):
-        return _Tools_.toTaskId(self.appName, self.taskName)
+        return _G_.toTaskId(self.appName, self.taskName)
     
     @property
     def completed(self):

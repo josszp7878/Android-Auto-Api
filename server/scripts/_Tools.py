@@ -8,7 +8,7 @@ import time
 
 if TYPE_CHECKING:
     from _Page import _Page_
-
+    from _App import _App_
 class RegionCheck:
     """区域检查工具类"""
 
@@ -38,6 +38,9 @@ class RegionCheck:
         base = screenW if isX else screenH
         return base + value  # 负值相加等于减去绝对值
 
+    # 判断坐标是否在区域内（支持负值）
+    # 负值表示相对于屏幕的偏移量
+    # 例如：-100表示相对于屏幕左上角向左偏移100
     def isIn(self, x, y):
         """判断坐标是否在区域内（支持负值）"""
         # 转换负值坐标
@@ -67,15 +70,6 @@ class RegionCheck:
         """判断矩形是否在区域内"""
         return self.isIn(x1, y1) and self.isIn(x2, y2)
 
-
-class TaskState(Enum):
-    """任务状态"""
-    CANCELLED = "cancelled"
-    RUNNING = "running"
-    PAUSED = "paused"
-    SUCCESS = "success"
-    FAILED = "failed"
-
     @staticmethod
     def values():
         """返回所有状态值"""
@@ -93,15 +87,6 @@ class _Tools_:
         # 出错，会退出，不执行退出逻辑
         error = 'error'
 
-
-    class eCmd(Enum):
-        back = '<-' # 返回上一页
-        backWith = '<-(.+)' # 返回指定的页面，参数为返回的页面
-        home = '<<' # 返回主页
-        goto = '>(.+)' # 跳转，参数为要跳转的页面
-        click = 'click|c(?:\s*\(([^\)]*)\))?[\s,]*(\S*)?' # 点击，参数1为要点击的元素，参数2为调试指令
-        collect = '\+(.+)' # 收集,参数为要收集的元素
-        end = 'end' # 结束
 
     _TopStr = ["top", "主屏幕", "桌面"]
     # 工具类基本属性
@@ -175,7 +160,7 @@ class _Tools_:
 
 
     @classmethod
-    def check(cls, this, str: str) -> Tuple[bool, Any]:
+    def check(cls, str: str, this: "_App_"=None) -> bool:
         """检查多条件逻辑（改造后版本）
         
         Args:
@@ -183,16 +168,19 @@ class _Tools_:
             str: 条件字符串
             
         Returns:
-            Tuple[bool, Any]: 检查结果和附加数据
+            bool: 检查结果
         """
         g = _G._G_
         log = g.Log()
         str = str.strip() if str else ''
         if str == '':
-            return True, None
-        segments = cls._parseSegments(str, '&')
+            return True
+        if this is None:
+            this = g.App().last()
+        segments = cls._parseSegments(str, '&', this)
         if not segments:
-            return False, None        
+            return False        
+
         def call(condition, region):
             ret = cls._do(this, condition, False, log)
             if not isinstance(ret, tuple):
@@ -200,11 +188,11 @@ class _Tools_:
             else:
                 result, data = ret
                 return cls.toBool(result), data
-        success, data = cls._evalSegments(segments, call, True)
-        return success, data    
+        success, _ = cls._evalSegments(segments, call, True)
+        return success
     
     @classmethod
-    def do(cls, this, str: str):
+    def do(cls, str: str, this: "_App_"=None):
         """执行多条件逻辑（改造后版本）
         Args:
             this: 调用上下文
@@ -215,12 +203,17 @@ class _Tools_:
         g = _G._G_
         log = g.Log()
         try:
-            segments = cls._parseSegments(str, '&')
+            str = str.strip() if str else ''
+            if str == '':
+                return
+            this = this or g.App().last()
+            segments = cls._parseSegments(str, '&', this)
             if not segments:
+                # 如果解析失败，返回None
                 return None
             ret = None
             def call(condition, region):
-                global ret
+                nonlocal ret
                 ret = cls._do(this, condition, True, log)
             cls._evalSegments(segments, call)
             return ret
@@ -229,12 +222,13 @@ class _Tools_:
             return None
 
     @classmethod
-    def _parseSegments(cls, expr: str, default_op: str = None) -> list:
+    def _parseSegments(cls, expr: str, default_op: str = None, this: "_App_" = None) -> list:
         """解析逻辑表达式为段列表（通用版本）
         
         Args:
             expr: 逻辑表达式字符串
             default_op: 默认操作符（如 '&' 或 '|'）
+            this: 调用上下文，用于宏变量替换
             
         Returns:
             list: 解析后的段列表，每个段包含操作符、条件和区域信息
@@ -242,6 +236,16 @@ class _Tools_:
         expr = expr.strip() if expr else ''
         if expr == '':
             return None
+        g = _G._G_
+        log = g.Log()
+        
+        # 在解析前替换宏变量
+        if this is not None:
+            original_expr = expr
+            expr = cls._replaceMacro(this, expr)
+            # 只在表达式实际发生变化时才输出日志
+            if expr != original_expr:
+                log.d(f"表达式替换宏变量后: {expr}")
         
         segments = []
         last_region = None
@@ -305,130 +309,30 @@ class _Tools_:
                         result = bResult
                     break
         return result
-
-    # 处理特殊命令
-    @classmethod
-    def _doCmd(cls, this: "_Page_", cmd: str) -> '_Tools_.eRet':
-        """处理特殊命令
-        Args:
-            this: 调用上下文
-            cmd: 特殊命令字符串
-        Returns:
-            DoRet: 命令执行结果
-        """
-        g = _G._G_
-        log = g.Log()        
-        cmd = cmd.strip() if cmd else ''
-        if cmd == '':
-            return cls.eRet.none
-        cmd = cmd.lower()
-        #匹配 cmd 是否符合 eCmd 的格式
-        cmdID = None
-        for eCmd in cls.eCmd:
-            try:
-                match = re.match(eCmd.value, cmd, re.IGNORECASE)
-                if match:
-                    cmdID = eCmd
-                    break
-            except Exception as e:
-                log.ex(e, f"匹配命令异常: {eCmd.value} => {cmd}")
-                return cls.eRet.error
-        if cmdID is None:
-            return cls.eRet.error
-        app = g.App()
-        # 处理返回特定状态的命令
-        if cmdID == cls.eCmd.backWith:
-            ret_str = match.group(1)
-            try:
-                return cls.eRet(f'{ret_str}')
-            except ValueError:
-                log.e(f"无效的DoRet值: {ret_str}")
-                return cls.eRet.none
-        # 处理返回操作
-        elif cmdID == cls.eCmd.back:
-            app.last().back()
-            return cls.eRet.none
-        # 处理回到主页
-        elif cmdID == cls.eCmd.home:
-            app.home()
-            return cls.eRet.none
-        elif cmdID == cls.eCmd.end:
-            return this.end()
-        # 处理点击指令
-        elif cmdID == cls.eCmd.click:
-            p1 = match.group(1)
-            p2 = match.group(2)
-            p2 = p2.strip() if p2 else ''
-            if p2 == '':
-                p2 = '<-'
-            this.click(p1, p2)
-            return cls.eRet.none
-        elif cmdID == cls.eCmd.collect:
-            # 收获金币
-            coinStr = match.group(1)
-            coins = 0
-            try:
-                coins = int(coinStr)
-            except ValueError:
-                # 如果不是数字，尝试从页面数据中获取
-                if hasattr(this, coinStr):
-                    coins = getattr(this, coinStr)
-                    try:
-                        coins = int(coins)
-                    except (ValueError, TypeError):
-                        coins = 0
-            
-            if coins > 0:
-                log.d(f"PC平台模拟: 收获 {coins} 金币")
-        # 处理页面跳转指令 ->pageName
-        elif cmdID == cls.eCmd.goto:
-            # 提取目标页面名称
-            pageName = match.group(1)
-            if pageName:
-                log.d(f"跳转到页面: {pageName}")
-                # 尝试页面跳转
-                result = g.App().gotoPage(pageName)
-                if result:
-                    # 跳转成功后返回cancel
-                    return cls.eRet.cancel
-                else:
-                    log.e(f"跳转到页面 {pageName} 失败")
-            return cls.eRet.none
-        else:
-            # 未知命令，返回unknown
-            return cls.eRet.error
     
     # 执行特殊脚本
     # 特殊脚本开头字符代表的含义：
-    # ： ：       执行特殊命令
     # @  ：        执行脚本
     # 其它字符：执行点击或者是文字匹配
     # &和|：       指令分隔符，如果是返回判定结果的指令，则&和|表示逻辑与和或的关系
     # # ：         表示页面引用
+    # %变量名：    宏变量，会在执行前替换为变量值
     @classmethod
-    def _do(cls, this: "_Page_", cmd: str, doAction: bool, log: _G._G_.Log):
+    def _do(cls, this: "_App_", cmd: str, doAction: bool, log: _G._G_.Log):
         """执行规则（内部方法）"""
         g = _G._G_
         try:
             tools = g.Tools()
             cmd = cmd.strip() if cmd else ''
             if cmd == '':
-                return cls.eRet.none                
+                return
             ret = None
-            # 处理@开头的脚本执行
             if cmd.startswith('@'):
-                cmd = cmd[1:].strip()
-                if cmd == '':
-                    return cls.eRet.none
-                return cls._eval(this, cmd, log)             
-            #如果cmd 和eCmd里面的value任何一个匹配，则执行cls._doCmd(this, cmd)
-            elif cmd in [e.value for e in cls.eCmd]:
-                return cls._doCmd(this, cmd)
-            elif cmd.startswith(':'):
-                cmd = cmd[1:].strip()
-                if cmd == '':
-                    return cls.eRet.none
-                return cls._doCmd(this, cmd)
+                # 处理脚本执行
+                md = cmd[1:].strip()
+                if md == '':
+                    return
+                return cls.eval(this, md, log)  
             else:
                 # 当文字匹配时，执行点击
                 if doAction:
@@ -436,15 +340,94 @@ class _Tools_:
                 else:
                     # 执行text检查
                     ret = tools.matchText(cmd, this)
+          
             return ret
         except Exception as ex:
             log.ex(ex, f"执行失败: {cmd}")
             return False
-        
+            
     @classmethod
-    def _eval(cls, this, code: str, log: _G._G_.Log):
-        """执行脚本
+    def _replaceMacro(cls, this: "_App_", text: str) -> str:
+        """替换文本中的宏变量和宏命令
         
+        支持两种类型的替换：
+        1. 宏变量: %变量名，会被替换为对应的变量值
+        2. 宏命令: 预定义的命令模式，会被替换为对应的代码
+        
+        宏命令定义在MacroMap中，支持正则表达式捕获组
+        
+        Args:
+            this: 调用上下文
+            text: 包含宏变量的文本
+            
+        Returns:
+            str: 替换宏变量后的文本
+        """
+        if not text or '#' not in text:
+            return text
+            
+        g = _G._G_
+        log = g.Log()
+        
+        try:
+            # 先进行符号替换，将全角替换为半角
+            text = g.replaceSymbols(text)
+            
+            # 查找所有匹配 #([\S]+) 的内容
+            macroPattern = r'#([^#]+)#?'
+            result = text
+            
+            # 查找所有宏标记并从后向前替换，避免位置变化
+            for match in reversed(list(re.finditer(macroPattern, text))):
+                macroName = match.group(1)
+                replacement = None                
+                
+                # 1. 优先尝试宏命令替换
+                for pattern, template in cls.MacroMap.items():
+                    patternMatch = re.match(f"^{pattern}$", macroName, re.IGNORECASE)
+                    if patternMatch:
+                        replacement = template
+                        for i, group in enumerate(patternMatch.groups(), 1):
+                            if group:
+                                replacement = replacement.replace(f"${i}", f'"{group}"')
+                        break                
+                
+                # 2. 如果宏命令未匹配，尝试变量替换
+                if replacement is None:
+                    # 尝试从this.data中获取变量值
+                    if hasattr(this, 'data') and this.data and macroName in this.data:
+                        value = this.data.get(macroName)
+                        if value is not None:
+                            replacement = str(value)
+                    # 尝试从this中获取变量值
+                    elif hasattr(this, macroName):
+                        value = getattr(this, macroName)
+                        if value is not None:
+                            replacement = str(value)
+                
+                # 只有当找到替换值时才进行替换
+                if replacement:
+                    # log.d(f"替换: {match.group(0)} -> {replacement}")
+                    start, end = match.span()
+                    result = result[:start] + replacement + result[end:]
+            
+            return result
+        except Exception as e:
+            log.ex(e, f"宏替换失败: {text}")
+            return text
+            
+    # 宏命令映射表
+    MacroMap = {
+        "->(\S*)":'app.go($1)', # 切换页面
+        "<<": "app.home()", # 返回主页
+        "<-": "app.last().back()", # 返回上一页
+        "clk(\S+):+(\S+)": "cPage.click($1,'app.go($2)')", # 点击切换页面
+        "clk(\S+)": "cPage.click($1,'')" # 点击回退上一页
+    }
+
+    @classmethod
+    def eval(cls, this: "_App_", code: str, log: _G._G_.Log):
+        """执行脚本
         在脚本中，使用result变量存储最终结果，例如:
         result = True  # 这个值会作为执行结果返回
         
@@ -455,12 +438,12 @@ class _Tools_:
             # 创建安全的执行环境
             locals = {
                 'app': g.App(),
-                'curApp': g.App().last(),
-                't': g.Tools(),
+                't': cls,
                 'log': g.Log(),
-                'this': this,
+                'it': this,
+                'cPage': this.curPage,
+                'cTask': this.curTask,
                 'g': g,
-                'click': g.Tools().click,
                 'R': _Tools_.eRet,
                 'r': None  # 用于存储结果
             }
@@ -509,7 +492,7 @@ class _Tools_:
         """将位置字符串转换为坐标"""
         if str is None:
             return None
-        str = cls.replaceSymbols(str)
+        str = _G._G_.replaceSymbols(str)
         try:
             if ':' in str:
                 return str.split(':')
@@ -558,7 +541,7 @@ class _Tools_:
         - 纯坐标: "100,200" -> (None, (100,200,None,None))
         - 文本+坐标: "文本100,-50" -> ("文本", (100,-50,None,None))
         - 单轴坐标: "文本y-100" -> ("文本", (None,-100,None,None))
-        - 单轴多值: "文本y-100,50" -> ("文本", (None,-100,None,50)) (50也解析为y轴)
+        - 单轴多值: "文本y50,-100" -> ("文本", (None,50,None,-100)) (50也解析为y轴)
         - 双轴坐标: "文本x100,y-50" -> ("文本", (100,-50,None,None))
         - 多坐标: "文本100,200,300,400" -> ("文本", (100,200,300,400))
         
@@ -804,65 +787,6 @@ class _Tools_:
             # 不再容错处理，让错误传递出去
             raise
 
-    @classmethod
-    def replaceSymbols(cls, text: str, symbol_map: dict = None) -> str:
-        """替换文本中的特殊符号
-        
-        Args:
-            text: 要处理的文本
-            symbol_map: 自定义符号映射表
-            
-        Returns:
-            处理后的文本
-        """
-        if not text:
-            return text
-        
-        # 默认符号映射
-        default_map = {
-            '＜': '<',
-            '＞': '>',
-            '（': '(',
-            '）': ')',
-            '，': ',',
-            '：': ':',
-            '；': ';',
-            '"': '"',
-            '"': '"',
-            ''': "'",
-            ''': "'",
-            '！': '!',
-            '？': '?',
-            '～': '~',
-            '｜': '|',
-            '＠': '@',
-            '＃': '#',
-            '＄': '$',
-            '％': '%',
-            '＆': '&',
-            '＊': '*',
-            '＋': '+',
-            '－': '-',
-            '／': '/',
-            '＝': '=',
-            '［': '[',
-            '］': ']',
-            '｛': '{',
-            '｝': '}',
-            '｀': '`',
-            '　': ' ',  # 全角空格替换为半角空格
-        }
-        
-        # 使用自定义映射更新默认映射
-        if symbol_map:
-            default_map.update(symbol_map)
-            
-        # 执行替换
-        for full, half in default_map.items():
-            text = text.replace(full, half)
-            
-            return text
-        
     # 从CTools_类添加的系统相关方法
     @classmethod
     def isHarmonyOS(cls) -> bool:
@@ -1188,10 +1112,58 @@ class _Tools_:
             return False
 
     @classmethod
-    def addScreenInfo(cls, content:str, timeout=1):
+    def _addDelayedClear(cls, text: str, timeout: int):
+        """添加延迟清除任务"""
+        import threading
+        def delayed_clear():
+            time.sleep(timeout)
+            cls.delScreenInfo(text)
+        threading.Thread(target=delayed_clear, daemon=True).start()
+
+    # 解析边界坐标
+    # 支持负值,负值表示相对于屏幕的偏移量
+    # 格式: "x1,y1,x2,y2"
+    @classmethod
+    def _parseBounds(cls, bound: str) -> Optional[list]:
+        """解析边界坐标
+        按次序读取值，分别代表X,Y, WIDTH和height
+        x,y必须有，否则返回None
+        width和height可以没有，默认为100
+        最终返回的BOUND为以X,Y为中心的宽高为width和height的int list
+        """
+        if not bound:
+            return None
+        try:
+            # 分割字符串并转换为整数列表
+            values = [int(x.strip()) for x in bound.split(',')]
+            
+            # 检查x,y是否存在
+            if len(values) < 2:
+                return None
+                
+            # 获取x,y值
+            x, y = values[0], values[1]
+            
+            # 获取width和height，默认为100
+            width = values[2] if len(values) > 2 else 100
+            height = values[3] if len(values) > 3 else 100
+            
+            # 计算以(x,y)为中心的边界坐标
+            x1 = x - width // 2
+            y1 = y - height // 2
+            x2 = x + width // 2
+            y2 = y + height // 2
+            
+            return [x1, y1, x2, y2]
+        except Exception as e:
+            _G._G_.Log().ex(e, f"解析边界坐标失败: {bound}")
+            return None
+
+    @classmethod
+    def addScreenInfo(cls, content: str, timeout=1):
         """添加模拟屏幕文字块
         Args:
-            content: 文字内容
+            content: 文字内容，支持逗号分隔的多个文本
             timeout: 超时处理参数
                 - 正数: 等待指定秒数后自动清除
                 - 负数: 文本被查找到指定次数后自动清除
@@ -1202,71 +1174,39 @@ class _Tools_:
         g = _G._G_
         log = g.Log()
         try:
-            # 只在非Android环境下(PC模拟模式)进行处理
             isPC = not cls.isAndroid()
-            
-            # 初始化屏幕缓存
             if cls._screenInfoCache is None:
                 cls._screenInfoCache = []
             
-            # 解析内容
-            strs = content.split('(')
-            text = strs[0].strip()
-            
-            # 检查文本是否已存在
-            existing = next((item for item in cls._screenInfoCache if item['t'] == text), None)
-            if existing:
-                # 如果已存在，只更新findCount或添加定时清除任务
-                if timeout < 0 and isPC:
-                    existing[cls.FINDCOUNT_KEY] = abs(timeout)  # 负数timeout存为findCount
-                elif timeout > 0 and isPC:
-                    # 清除已有的定时任务(如果有)
-                    existing.pop(cls.FINDCOUNT_KEY, None)
-                    # 启动定时清除
-                    import threading
-                    def delayed_clear():
-                        time.sleep(timeout)
-                        cls.delScreenInfo(text)
-                    threading.Thread(target=delayed_clear, daemon=True).start()
-                return True
+            contents = [c.strip() for c in content.split(',')]
+            for content in contents:
+                if not content:
+                    continue
+                strs = content.split('(')
+                text = strs[0].strip()
+                # 处理已存在的文本
+                existing = next((item for item in cls._screenInfoCache if item['t'] == text), None)
+                if existing:
+                    if timeout < 0 and isPC:
+                        existing[cls.FINDCOUNT_KEY] = abs(timeout)
+                    elif timeout > 0 and isPC:
+                        existing.pop(cls.FINDCOUNT_KEY, None)
+                        cls._addDelayedClear(text, timeout)
+                    continue
+                    
+                # 处理新文本
+                bound = strs[1].strip(')').strip(' ') if len(strs) > 1 else None
+                bounds = cls._parseBounds(bound)
+                screenInfo = {"t": text, "b": bounds}                
+                if isPC:
+                    if timeout < 0:
+                        screenInfo[cls.FINDCOUNT_KEY] = abs(timeout)
+                    elif timeout > 0:
+                        cls._addDelayedClear(text, timeout)
                 
-            # 处理边界信息
-            bound = strs[1].strip(')').strip(' ') if len(strs) > 1 else None
-            bounds = None
-            if bound:
-                bounds = [int(x) for x in bound.split(',')]
-                bound_len = len(bounds)
-                if bound_len < 2:
-                    log.e(f"边界坐标格式错误: {bound}")
-                    return False
-                elif bound_len == 2:
-                    bounds.append(bounds[0])
-                    bounds.append(bounds[1])
-                elif bound_len == 3:
-                    bounds.append(bounds[2])
-
-            # 创建屏幕信息对象
-            screenInfo = {
-                "t": text,
-                "b": bounds
-            }
+                cls._screenInfoCache.append(screenInfo)
+                log.i(f"屏幕信息已添加: {text}")
             
-            # 添加PC环境下的自动清除功能
-            if isPC:
-                # 处理负数timeout(查找次数限制)
-                if timeout < 0:
-                    screenInfo[cls.FINDCOUNT_KEY] = abs(timeout)
-                # 处理正数timeout(定时清除)
-                elif timeout > 0:
-                    import threading
-                    def delayed_clear():
-                        time.sleep(timeout)
-                        cls.delScreenInfo(text)
-                    threading.Thread(target=delayed_clear, daemon=True).start()
-            
-            # 添加到缓存
-            cls._screenInfoCache.append(screenInfo)
-            log.i(f"屏幕信息已添加: {text}")
             return True
         except Exception as e:
             log.ex(e, "添加屏幕信息失败")
@@ -1399,13 +1339,14 @@ class _Tools_:
                 for m in matches:
                     if m[1]:
                         for k, v in m[1].groupdict().items():
-                            data[k + '_'] = v
-                            print(f"匹配结果: {k} = {v}")
+                            data[f'_{k}'] = v
+                            # print(f":: {k} = {v}")
                         # 设置data._item 为匹配到的内容
-                        data['_matchItem'] = m[0]                
+                        data['_mt'] = m[0]['t'] 
+                        data['_mb'] = m[0]['b']
             return matches
         
-        segments = cls._parseSegments(text, '&')
+        segments = cls._parseSegments(text, '&', this)
         if not segments:
             return None
         
@@ -1457,11 +1398,9 @@ class _Tools_:
             
             # 点击位置
             cls.clickPos(pos)
-            
             # 等待指定时间
-            if waitTime > 0:
+            if waitTime > 0 and cls.isAndroid():
                 time.sleep(waitTime)
-            
             return True
         except Exception as e:
             log.ex(e, f"点击文本失败: {text}")

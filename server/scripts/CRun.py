@@ -43,7 +43,7 @@ class Job:
         log = _G._G_.Log()
         try:
             log.d(f"执行回调:{self._onEnd}")
-            tools.do(self._page, self._onEnd)  # 移除不必要的self参数
+            tools.do(self._onEnd)  # 移除不必要的self参数
         except Exception as e:
             log.ex(e, f"回调执行失败:{self._onEnd}")
 

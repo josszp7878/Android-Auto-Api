@@ -237,35 +237,29 @@ def handle2SCmd(data):
     """处理2S命令请求"""
     Log = _Log._Log_
     try:
+        g = _G_
         selectedIDs = data.get('device_ids', [])
         # _Log._Log_.i(f'目标: {selectedIDs}')
         strCommand = data.get('command', '')
+        strCommand = g.replaceSymbols(strCommand)
         deviceMgr.curDeviceIDs = selectedIDs
 
-        # 检查命令是否指定了executor
-        clientTag = re.match(r'^\s*([^>》]*)[>》]+\s*(.+)$', strCommand)
-        serverTag = re.match(r'^\s*@\s*(.+)$', strCommand)
+        # 解析命令格式：执行者列表 : 指令
         targets = []
-        command = strCommand
+        command = strCommand.strip()
         
-        if serverTag:
-            # @开头的命令发送给服务端
-            targets = [_Log.TAG.Server.value]
-            command = serverTag.group(1).strip()
-        elif clientTag:
-            # 命令中指定了executor
-            deviceList = clientTag.group(1).strip()
-            deviceList = deviceList.lower()
-            command = clientTag.group(2).strip()
-            # 处理不同类型的执行者指定
-            if not deviceList:
-                # 空值，使用当前选中的设备
-                targets = selectedIDs
-            else:
-                # 处理可能的多个执行者，用逗号分隔
-                targets = re.split(r'[,，]', deviceList)
-        else:
-            # 没有指定执行者，使用当前选中的设备
+        # 检查是否有执行者列表
+        if ':' in command:
+            parts = [part.strip() for part in command.split(':', 1)]
+            executorList = parts[0].replace(' ', '')
+            command = parts[1]
+            if executorList == '@':
+                targets = [_Log.TAG.Server.value]
+            elif executorList:
+                targets = re.split(r',', executorList.lower())
+        
+        # 如果没有指定执行者，使用当前选中的设备
+        if not targets:
             targets = selectedIDs if selectedIDs else [_Log.TAG.Server.value]
         params = data.get('params', {})
         # 执行命令

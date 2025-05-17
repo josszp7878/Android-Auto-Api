@@ -268,32 +268,19 @@ class CFileServer_:
                     return f"上传失败: {str(e)}"    
                 return "上传配置成功"
 
-        @regCmd(r"#加载配置|jzpz(?P<file>\w+)?")
-        def loadConfig(file = None):
+        @regCmd(r"#加载配置|jzpz(?P<type>\w+)?")
+        def loadConfig(type = None):
             """功能：从服务器加载配置文件
             参数：
-            fileName - 配置文件名，例如: checks, pages
+            type - 配置文件类型，例如: checks, pages
             示例：加载配置 checks
             """
-            import glob
             g = _G._G_
-            log = g.Log()
-            App = g.App()
-            if file:
-                filter = f'{file}.json'
-                files = glob.glob(os.path.join(g.rootDir(), 'config', filter))
-                for file in files:
-                    if 'Checks' in file:
-                        #获取文件的名称，不带扩展名，不带路径
-                        App.loadConfigFile(file)
-                    else:
-                        log.w(f"还不支持加载配置文件: {file}")  
-            else:
-                # 加载所有配置文件
-                App.loadConfig()
-
-                
-                
+            if type is None or 'page' in type.lower():
+                g.App().loadConfig()
+            if type is not None and 'task' in type.lower():
+                # 加载指定类型的配置文件
+                g.CTask().loadConfig()
 
     @classmethod
     def uploadFileContent(cls, server_path, file_content):

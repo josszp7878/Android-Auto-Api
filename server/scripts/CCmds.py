@@ -457,7 +457,7 @@ class CCmds_:
             if bSave:
                 target.save()
             else:
-                if target.type == 'temp':
+                if target.hasAttr(_G.TEMP):
                     g.App().last().delPage(target.name)
             cls._editTarget = None
             return f"保存{target.name} 成功"      
@@ -563,46 +563,41 @@ class CCmds_:
             
             
         @regCmd(r"#执行|zx(?P<content>\S+)")
-        def sTart(content, cmd):
+        def run(content:str):
             """
             执行页面或代码
-                @开头：则认为是纯代码
+                @代码：则认为是纯代码
+                !任务名：则认为是任务名称
                 否则：认为是页面名称
             示例：
                 执行@print("Hello")
                 执行看广告
                 执行微信.看广告 (跨应用执行)
+                执行!看广告 (执行任务)
             """
             if content.startswith('@'):
                 # 执行纯代码
                 return g.Tools().do(content)
+            elif content.startswith('!'):
+                return g.App().startTask(content[1:])
             else:
-                # 检查是否含有应用名.页面名的格式
-                App = g.App()
-                appName, pageName = App.parseName(content)
-                if appName:
-                    app = App.getApp(appName)
-                    if not app:
-                        return f"e~找不到应用: {appName}"
-                    page = app.getPage(pageName)
-                    if app.goPage(page):
-                        return f"执行页面 {appName}.{pageName} 成功"
-                    else:
-                        return f"执行页面 {appName}.{pageName} 失败"
+                return g.App().go(content)
+               
 
-        @regCmd(r"#停止|tz(?:(?P<pageName>[^\s]+))?(?:\s+(?P<cancel>[01]))?")
-        def stop(pageName=None, cancel=None):
+        @regCmd(r"#停止|tz(?:(?P<content>[^\s]+))?")
+        def stop(content=None):
             """
             功能：停止页面
             指令名: stop
             中文名: 停止
-            参数: pageName - 要停止的页面名称，不指定则停止当前应用所有页面
+            参数:
+                !任务名: 停止任务
+                pageName - 要停止的页面名称，不指定则停止当前应用所有页面
                    格式可以是 "应用名.页面名" 表示停止指定应用的页面
                     空：停止当前所有应用的页面
                     app-:停止应用app的所有页面
                     -page:停止当前应用的page页面
                     app-page:停止应用app的page页面
-                  cancel - 可选，1表示强制取消不执行退出逻辑，0表示正常退出
             示例：
                 停止 河马剧场.剧场
                 停止 河马剧场
@@ -610,28 +605,18 @@ class CCmds_:
                 停止 -河马剧场
                 停止 app-page-河马剧场
                 停止 -page-河马剧场
+                停止 !看广告
             """
             g = _G._G_
-            log = g.Log()
-            pageName = pageName.strip() if pageName else ''
-            cancel = g.Tools().toBool(cancel, False)
-
-            App = g.App()
-            apps = App.apps().values()
-            appName, pageName = App.parseName(pageName)
-            # 获取目标应用
-            if appName:
-                app = App.getApp(appName)
-                if not app:
-                    log.e(f"未找到应用: {appName}")
-                    return False
-                apps = [app]
-            # 执行停止操作
-            for app in apps:
-                result = app.stopPage(pageName, cancel)
-                if not result:
-                    log.e(f"停止页面 {pageName} 失败")
-            return True
+            # log = g.Log()
+            content = content.strip() if content else ''
+            if content.startswith('!'):
+                taskName = content[1:]
+                tasks = g.App().getTasks(taskName)
+                for app, tasks in tasks.items():
+                    for task in tasks:
+                        task.stop()
+                        return f"停止任务 {task.name} 成功"
         
 
         @regCmd(r"#屏幕信息|pmxx|si(?P<text>.+)")
@@ -677,21 +662,6 @@ class CCmds_:
                     return "添加屏幕信息失败"
                 return f"当前屏幕信息：{tools.getScreenInfo()}"
             
-        @regCmd(r"#run|运行 (?P<target>.+)")
-        def run(target: str):
-            """
-            功能：执行目标应用的指定任务
-            参数: target - 目标应用名称-任务名称
-            示例: 
-                run 首页-签到
-                运行 设置页-看广告
-            """
-            ret = g.App().startTask(target)
-            if ret:
-                return f"任务启动成功: {target}"
-            else:
-                return f"e~任务启动失败: {target}"
-            
         @regCmd(r"#进度|jd (?P<taskName>\S+)?")
         def progress(taskName=None):
             """
@@ -699,9 +669,7 @@ class CCmds_:
             参数: taskName - 应用名-任务名格式
             示例: 进度 微信-每日签到
             """
-            app, tasks = g.App().getTasks(taskName)
-            if tasks and len(tasks) > 0:
-                return "\n".join(f"{task.name} {task.progress:0.2f}" for task in tasks)
+            return g.App().printTasks(taskName, lambda task: f"\t{task.name} : {task.progress:0.2f}")
 
         @regCmd(r"#状态|zt (?P<taskName>\S+)?")
         def state(taskName=None):
@@ -710,9 +678,7 @@ class CCmds_:
             参数: taskName - 应用名-任务名格式
             示例: 状态 抖音-广告观看
             """
-            app, tasks = g.App().getTasks(taskName)
-            if tasks and len(tasks) > 0:
-                return "\n".join(f"{task.name} {task.state}" for task in tasks)
+            return g.App().printTasks(taskName, lambda task: f"\t{task.name} {task.state}")
 
         @regCmd(r"#分值|fz (?P<taskName>\S+)?")
         def score(taskName=None):
@@ -721,8 +687,6 @@ class CCmds_:
             参数: taskName - 应用名-任务名格式
             示例: 分值 支付宝-新手任务
             """
-            app, tasks = g.App().getTasks(taskName)
-            if tasks and len(tasks) > 0:
-                return "\n".join(f"{task.name} {task.score}" for task in tasks)
+            return g.App().printTasks(taskName, lambda task: f"\t{task.name} {task.score}")
             
             

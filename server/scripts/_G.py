@@ -5,6 +5,7 @@ import threading
 import os
 import sys  # 添加sys模块导入
 from typing import TYPE_CHECKING, List, Optional
+from enum import Enum
 
 if TYPE_CHECKING:
     from CFileServer import CFileServer_
@@ -16,8 +17,25 @@ if TYPE_CHECKING:
     from CDevice import CDevice_ 
     from SDeviceMgr import SDeviceMgr_
     from SCommandHistory import SCommandHistory_
+    from CTask import CTask_
 
 TOP = "top"
+TEMP = "temp"
+ROOT = "root"
+
+class TaskState(Enum):
+    """任务状态"""
+    IDLE = "idle"
+    RUNNING = "running"
+    PAUSED = "paused"
+    SUCCESS = "success"
+    FAILED = "failed"
+
+    @staticmethod
+    def values():
+        """返回所有状态值"""
+        return [state.value for state in TaskState]
+
 class _G_:
     # 使用线程安全的存储
     _lock = threading.Lock()
@@ -47,6 +65,11 @@ class _G_:
     def isServer(cls):
         """是否是服务器端"""    
         return cls._isServer
+    
+    @classmethod
+    def toTaskId(cls, appName: str, templateId: str) -> str:
+        """生成任务唯一标识"""
+        return f"{appName}_{templateId}"
     
     @classmethod
     def load(cls, isServer: bool = None):
@@ -142,6 +165,10 @@ class _G_:
     @classmethod
     def App(cls) -> '_App_':
         return cls.getClassLazy('_App')
+    
+    @classmethod
+    def CTask(cls) -> 'CTask_':
+        return cls.getClassLazy('CTask')
     
     @classmethod
     def Page(cls) -> 'CPage_.CPage_':
@@ -381,5 +408,61 @@ class _G_:
             if cls.log:
                 cls.log.ex(e, f"延迟导入{moduleName}失败")
             return None
+    
+     # 全角到半角的
+    DefSymbolMap:dict = {
+        '＜': '<',
+        '＞': '>',
+        '（': '(',
+        '）': ')',
+        '，': ',',
+        '：': ':',
+        '；': ';',
+        '"': '"',
+        '"': '"',
+        ''': "'",
+        ''': "'",
+        '！': '!',
+        '？': '?',
+        '～': '~',
+        '｜': '|',
+        '＠': '@',
+        '＃': '#',
+        '＄': '$',
+        '％': '%',
+        '＆': '&',
+        '＊': '*',
+        '＋': '+',
+        '－': '-',
+        '／': '/',
+        '＝': '=',
+        '［': '[',
+        '］': ']',
+        '｛': '{',
+        '｝': '}',
+        '｀': '`',
+        '　': ' ',  # 全角空格替换为半角空格
+    }
+        
+    @classmethod
+    def replaceSymbols(cls, text: str, symbolMap: dict = None) -> str:
+        """替换文本中的特殊符号
+        
+        Args:
+            text: 要处理的文本
+            symbol_map: 自定义符号映射表
+            
+        Returns:
+            处理后的文本
+        """
+        if not text:
+            return text
+        # 使用自定义映射更新默认映射
+        if symbolMap is None:
+            symbolMap = cls.DefSymbolMap
+        # 执行替换
+        for full, half in symbolMap.items():
+            text = text.replace(full, half)
+        return text        
 
 g = _G_

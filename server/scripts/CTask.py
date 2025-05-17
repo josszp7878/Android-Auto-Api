@@ -1,7 +1,8 @@
 import json
 import os
 from datetime import datetime
-from enum import Enum
+import time
+from _G import TaskState
 import _G
 from typing import TYPE_CHECKING
 
@@ -9,18 +10,7 @@ if TYPE_CHECKING:
     from _Page import _Page_
     from _App import _App_
     from _Log import _Log_
-
-class TaskState(Enum):
-    """任务状态枚举
-    状态转换流程：
-    IDLE → RUNNING → (PAUSED/ENDED)
-    PAUSED → RUNNING
-    """
-    IDLE = "空闲"        # 初始/取消状态，可开始新任务
-    RUNNING = "运行中"  # 任务执行中，可暂停或完成
-    PAUSED = "暂停"    # 暂停状态，可恢复执行
-    ENDED = "完成"      # 任务结束（终态）
-
+    from _G import _G_
 
 class CTask_:
     """客户端任务类"""
@@ -36,11 +26,13 @@ class CTask_:
         self._score = 0
         self._progress = 0.0
         self._state = TaskState.IDLE
-        
+        self._lastInPage = False
+
         self._name = name
         self._life = None
         self._interval = None
         self._pageName = None
+        self._pageData = {}
         self._beginScript = None  # 修改为begin脚本
         self._exitScript = None   # 修改为exit脚本
         self._execCount = 0  # 执行计数器
@@ -69,14 +61,15 @@ class CTask_:
         return os.path.join(configDir, "task.json")
     
     @classmethod
-    def _loadConfig(cls):
+    def loadConfig(cls):
         """加载任务配置"""
         log = _G.g.Log()
         try:
             configPath = cls._getConfigPath()
             if os.path.exists(configPath):
                 with open(configPath, "r", encoding="utf-8") as f:
-                    cls.taskConfigs = json.load(f)
+                    configs = json.load(f)
+                    cls.taskConfigs.update(configs)
         except Exception as e:
             log.ex(e, f"加载任务配置失败: {configPath}")
     
@@ -95,7 +88,7 @@ class CTask_:
     def _getConfig(cls, taskName):
         """获取任务配置"""
         if not cls.taskConfigs:
-            cls._loadConfig()
+            cls.loadConfig()
         return cls.taskConfigs.get(taskName)
     
     @classmethod
@@ -112,19 +105,21 @@ class CTask_:
             log.ex(e, f"创建任务实例失败: {taskName}")
             return None
     
+    # 检查条件
     @property
-    def isExpired(self):
-        """判断任务是否过期"""
-        life = self.life
-        if life == 0:
-            return False
-            
-        if life > 0:  # 正数表示时间
-            elapsed = (datetime.now() - self._startTime).total_seconds()
-            return elapsed >= abs(life)
-        else:  # 负数表示次数
-            return self._execCount >= abs(life)
+    def check(self):
+        """检查条件"""
+        return self._getProp('check')
     
+    # 执行工作
+    @property
+    def do(self):
+        """执行工作"""
+        return self._getProp('do')
+    
+    
+    # 生命周期
+    # 正数=秒，负数=次数
     @property
     def life(self):
         """生命周期（正数=秒，负数=次数）"""
@@ -136,22 +131,36 @@ class CTask_:
     def life(self, value):
         self._life = int(value)
 
+    # 执行间隔
     @property
     def interval(self):
         """执行间隔（秒）"""
         if self._interval is None:
-            self._interval = max(1, int(self._getProp('interval')))
+            interval = self._getProp('interval')
+            if interval:
+                self._interval = max(1, int(interval))
+            else:
+                self._interval = 0
         return self._interval
 
-    @interval.setter
-    def interval(self, value):
-        self._interval = max(1, int(value))
+    # 奖励分数
+    @property
+    def bonus(self):
+        """奖励分数"""
+        val = self._getProp('bonus')
+        if val is None:
+            return self._page.app.bonus_n
+        else:
+            return int(val)
+        
 
+    # 任务名称
     @property
     def name(self):
         """任务名称"""
         return self._name
 
+    # 目标页面名称
     @property
     def pageName(self):
         """目标页面名称"""
@@ -163,6 +172,16 @@ class CTask_:
     def pageName(self, value):
         self._pageName = str(value)
 
+    # 目标页面数据,用于页面跳转时传递数据
+    # 字典，key=属性名，value=属性值
+    @property
+    def pageData(self):
+        """目标页面数据"""
+        if self._pageData is None:
+            self._pageData = self._getProp('data')
+        return self._pageData
+
+    # 开始脚本
     @property
     def beginScript(self):
         """开始脚本"""
@@ -174,6 +193,7 @@ class CTask_:
     def beginScript(self, value):
         self._beginScript = str(value)
 
+    # 结束脚本
     @property
     def exitScript(self):
         """结束脚本"""
@@ -187,143 +207,185 @@ class CTask_:
 
     def _getProp(self, prop: str):
         """获取配置属性"""
-        return self._config.get(prop, {} if prop == 'begin' else "")
-        
-    def begin(self)->bool:
-        """开始任务"""
+        return self._config.get(prop)
+    
+    def isCompleted(self):
+        """判断任务是否完成"""
+        return self._state == TaskState.SUCCESS or self._state == TaskState.FAILED
+
+    def _Do(self, g: "_G_") -> bool:
+        """执行任务具体工作"""
+        if self.do is not None:
+            g.Tools().do(self.do)
+        if not self._goPage(g):
+            return False
+        return True
+            
+    def begin(self, life: int = 0) -> bool:
+        """开始任务，支持继续和正常开始
+        Args:
+            life: 生命的绝对值，默认为0。当任务已经完成时，如果life比当前self.life的绝对值大，就重新设置self.life并启动任务
+        """
         g = _G._G_
         log = g.Log()
-        if self._state not in (TaskState.IDLE, TaskState.PAUSED):
-            return False
+        
+        if self._state is TaskState.RUNNING:
+            log.w(f"任务{self._name}已开始")
+            return True
+            
+        if self.isCompleted():
+            if abs(life) > abs(self.life):
+                self.life = life
+                log.i(f"任务{self._name}已重新设置life为{life}并启动")
+            else:
+                log.w(f"任务{self._name}已完成")
+                return True
+                
         try:
+            if self._state == TaskState.IDLE:            
+                # 开始运行
+                # 执行begin脚本（使用属性访问）
+                if self.beginScript:
+                    try:
+                        exec(self.beginScript)
+                    except Exception as e:
+                        log.ex(e, f"执行任务开始脚本失败: {e}")
             self._state = TaskState.RUNNING
             self._startTime = datetime.now()
             self._lastTime = self._startTime
-            # 执行begin脚本（使用属性访问）
-            if self.beginScript:
-                try:
-                    exec(self.beginScript)
-                except Exception as e:
-                    log.ex(e, f"执行任务开始脚本失败: {e}")
+            if not self._Do(g):
+                log.e(f"任务{self._name}执行失败")
+                return False
+            # 发送服务端通知
             g.emit('TaskStart', {
                 'app': self._app.name,
-                'task': self._name,
-                'life': self.life,
-                'interval': self.interval
+                'task': self._name
             })
-
-            if self.pageName:
-                # 打开目标应用
-                appName, pageName = self._app.parseName(self.pageName)
-                app = g.App().open(appName)
-                if not app:
-                    log.e(f"打开目标应用失败: {appName}")
-                    return False
-                # 获取目标页面
-                self._page = app.getPage(pageName)
-                if not self._page:
-                    log.e(f"获取目标页面失败: {pageName}")
-                    return False
             return True
         except Exception as e:
             log.ex(e, f"任务开始失败: {e}")
             return False
-    
-    def stop(self, cancel=False, success=None):
-        """统一停止/完成任务"""
-        if self._state != TaskState.RUNNING:
+        
+    def _goPage(self, g: "_G_")->bool:
+        if not self.pageName:
+            # log.e(f"目标页面名称不能为空")
+            return True
+        page = g.App().go(self.pageName)
+        if not page:
+            g.Log().e(f"获取目标页面失败: {self.pageName}")
             return False
-            
-        self._endTime = datetime.now()
-        # 构建通知数据
-        data = {'score': self._score} if success else {}
-        self._end(cancel=cancel, data=data)
+        data = self.pageData
+        if data:
+            page.data.update(data)
+        self._page = page
         return True
     
-    def update(self):
+    def stop(self):
+        """停止任务
+        
+        将任务状态设置为暂停状态，任务可以通过begin方法恢复运行
+        
+        Returns:
+            bool: 是否成功停止任务，如果任务不在运行状态则返回False
+        """
+        if self._state != TaskState.RUNNING:
+            return False
+        self._state = TaskState.PAUSED
+        return True
+    
+    def exitTrigger(self)->bool:
+        """判断目标页面_page的退出的那一刻(下降沿)
+        通过记录上一次页面状态和当前页面状态比较，检测页面退出的下降沿
+        即从当前页面变为非当前页面的那一刻
+        Returns:
+            bool: 如果检测到页面退出下降沿则返回True，否则返回False
+        """
+        page = self._page
+        if page is None:
+            return False
+        # 获取当前页面状态
+        isCurPage = page == page.app.curPage
+        # 如果上一次在页面中，且当前不在页面中，说明检测到下降沿
+        if self._lastInPage and not isCurPage:
+            self._lastInPage = False
+            return True
+        # 更新状态
+        self._lastInPage = isCurPage
+        return False
+    
+    def update(self, g: "_G_"):
         """任务更新函数"""
         if self._state != TaskState.RUNNING:
-            return            
-        now = datetime.now()
-        timePassed = (now - self._lastTime).total_seconds()
-        if timePassed >= self.interval and not self._page.running:
-            self._lastTime = now
-            self._do()
-    
-    def _do(self)->bool:
-        """执行任务具体工作"""
-        log = _G.g.Log()
-        try:
-            # log.i(f"执行任务")
-            # 进入目标页面
-            page = self._app.goPage(self._page)
-            if not page:
-                log.e("无法重新获取目标页面")
-                self.stop(True)
-                return False
-            # 随机增加任务分数，实际应用中应基于具体任务完成情况
-            import random
-            scoreInc = random.randint(1, 10)
-            self._score += scoreInc
+            return
+        check = g.Tools().check(self.check) if self.check else True
+        if check:
+            #本次任务完成
+            if self.bonus > 0:
+                self._score += self.bonus
             # 增加执行计数
             self._execCount += 1  # 增加执行计数
-            self._refreshProgress(log)  # 合并进度更新逻辑
-            return True
-        except Exception as e:
-            log.ex(e, f"执行任务工作失败: {e}")
+            if self._refreshProgress():
+                if not self._next(g):
+                    return False
+        return True
+
+    def _next(self, g: "_G_")->bool:
+        now = datetime.now()
+        timePassed = (now - self._lastTime).total_seconds()
+        self._lastTime = now
+        if self.interval > 0:
+            waitTime = self.interval - timePassed
+            if waitTime > 0:
+                time.sleep(waitTime)
+        if not self._Do(g):
+            g.Log().e(f"任务{self._name}执行失败")
             return False
-        
+        return True
+    
     @property
     def progress(self):
         """任务进度"""
         return self._progress
     
-    def _refreshProgress(self, log: "_Log_"):
-        """统一处理进度更新"""
+    def _refreshProgress(self)->bool:
+        """统一处理进度更新
+        
+        考虑任务暂停后再次开始的情况，累计计算进度
+        """
         if self._state != TaskState.RUNNING:
             return False
         life = self.life
         if life != 0:
             if life > 0:  # 时间模式
-                elapsed = (datetime.now() - self._startTime).total_seconds()
-                progress = elapsed / life
+                # 计算当前会话运行时间
+                currentSessionTime = (datetime.now() - self._lastTime).total_seconds()
+                # 累加到总进度中
+                self._progress += currentSessionTime / life
             else:  # 次数模式
-                progress = self._execCount / abs(life)
+                # 次数模式下，_execCount已经在_do中累加
+                self._progress = self._execCount / abs(life)
             
-            self._progress = min(max(0.0, progress), 1.0)
+            self._progress = min(max(0.0, self._progress), 1.0)
         else:
             self._progress = 1.0
-        log.i(f"任务%: {self._progress}")
+        _G.g.Log().i(f"任务{self._name}进度: {self._progress:0.2f}")
         # 进度完成处理
         if self._progress >= 1.0:
-            self._end(cancel=False, data={'score': self._score})
-            return True
-        # 发送进度通知
-        g = _G._G_
-        g.emit('TaskUpdate', {
-            'appName': self._app.name,
-            'taskName': self._name,
-            'progress': self._progress
-        })
+            self._end()
+            return False
         return True
 
-    def _end(self, cancel, data):
-        """统一结束处理"""
+    def _end(self):
         # 确定最终状态
-        self._state = TaskState.ENDED
+        self._state = TaskState.SUCCESS if self._score > 0 else TaskState.FAILED
         g = _G._G_
         log = g.Log()
-        log.i(f"任务结束, 取消={cancel}, 分数={self._score}")
-        # 执行结束脚本（使用属性访问）
-        if cancel and self.exitScript:
-            try:
-                exec(self.exitScript)
-            except Exception as e:
-                log.ex(e, f"执行任务结束脚本失败: {e}")
+        log.i(f"任务结束, 分数={self._score}")
         # 发送服务端通知
         g.emit('TaskEnded', {
             'appName': self._app.name,
             'taskName': self._name,
-            **data
+            **{'score': self._score}
         })
-    
+        # 执行结束脚本（使用属性访问）
+        g.Tools().do(self.exitScript)

@@ -1,19 +1,12 @@
 {
-  "河马剧场-剧场": {
-    "life": 30,
-    "interval": 10,
+  "快手极速版-看广告": {
+    "life": -3,
+    "interval": 1,
+    "check": "@r=cTask.exitTrigger()",
     "exit": "print('看广告任务结束')"
   },
-  "watchVideos": {
-    "page": "VideoApp-Home",
-    "life": 300,
-    "interval": 10,
-    "exit": "print('观看视频任务结束')"
-  },
-  "browseNews": {
-    "page": "NewsApp-Headlines",
-    "life": 180,
-    "interval": 15,
-    "exit": "print('浏览新闻任务结束')"
+  "快手极速版-看视频": {
+    "life": 5,
+    "exit": "@#<-"
   }
 } 

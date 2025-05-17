@@ -3,10 +3,13 @@ from STask import STask_
 import _Log
 from datetime import datetime, date, time
 from SDatabase import db  # 导入单例的db实例
-from _Tools import TaskState, _Tools_
+from _G import TaskState, _G_
 from contextlib import contextmanager
 from sqlalchemy.exc import SQLAlchemyError
 from _G import _G_
+import traceback
+from flask import current_app
+from sqlalchemy import func
 
 class STaskMgr_:
     """设备任务管理器"""
@@ -95,7 +98,7 @@ class STaskMgr_:
 
     def _getTasks(self, appName: str, taskName: str, notCompleted: bool = False) -> List[STask_]:
         try:
-            taskId = _Tools_.toTaskId(appName, taskName)
+            taskId = _G_.toTaskId(appName, taskName)
             tasks = [t for t in self.tasks if t.taskId == taskId]
             if notCompleted:
                 tasks = [t for t in tasks if not t.completed]
@@ -275,9 +278,8 @@ class STaskMgr_:
             示例: 服务器任务列表
             """
             # 命令实现...
+            return "服务器任务列表"
         
-        # 其他命令...
-
 @contextmanager
 def session_scope():
     """提供事务范围的会话，自动处理提交/回滚和异常"""

@@ -342,7 +342,7 @@ class _CmdMgr_:
             if find is None:
                 log.w(f"{cmdStr} 不是命令: 当成脚本执行")
                 tools = g.Tools()
-                tools.do(tools, cmdStr)
+                tools.do(cmdStr)
                 return
             # 提取命名捕获组作为参数
             kwargs = {}

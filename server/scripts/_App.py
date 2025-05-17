@@ -2,7 +2,8 @@ import time
 import _G
 import os
 import json
-from typing import Optional, List, Tuple, TYPE_CHECKING, Dict
+import datetime
+from typing import Optional, List, Tuple, TYPE_CHECKING, Dict, Callable
 
 if TYPE_CHECKING:
     from _Page import _Page_
@@ -13,6 +14,8 @@ class _App_:
     """应用管理类：整合配置与实例"""
     _curAppName = _G.TOP  # 当前检测到的应用名称
     _lastApp = None  # 当前应用实例（延迟初始化）
+    
+    
     @classmethod
     def curName(cls):
         """获取当前应用名称"""
@@ -75,6 +78,7 @@ class _App_:
         self.name = name
         self._curPage: Optional["_Page_"] = None
         self._lastPage: Optional["_Page_"] = None
+        self._toPage: Optional["_Page_"] = None
         self.rootPage: Optional["_Page_"] = None
         self.ratio = info.get("ratio", 10000)
         self.description = info.get("description", '')
@@ -82,14 +86,51 @@ class _App_:
         self._pages: Dict[str, "_Page_"] = {}  # 应用级的页面列表
         self._path: Optional[List["_Page_"]] = None  # 当前缓存的路径 [path]
         self.userEvents: List[str] = []  # 用户事件列表
-        # self._runner = CRun_(self)  # 新增批处理运行器
         self._tasks: Dict[str, "CTask_"] = {}  # 任务字典，KEY为任务名
         self._curTask: Optional["CTask_"] = None  # 当前任务
+        self._counters = {}  # 计数器字典，用于统计页面访问次数和事件触发次数
+        self._countersModified = False  # 计数器是否被修改
+        self._toasts = {}  # toasts配置字典，用于存储toast匹配规则和操作
+        # 加载当天的计数数据
+        self._loadData()
+        self._data = {}
 
-    # @property
-    # def runner(self) -> CRun_:
-    #     """获取批处理运行器"""
-    #     return self._runner
+    def __getattr__(self, name):
+        """重写 __getattr__ 方法，使 self.num 可以访问 self.data['num']"""
+        #解析 name_type,先找最后一个'_'
+        pos = name.rfind('_') + 1
+        key = name
+        if pos > 1:
+            key = name[:pos-1]
+            type = name[pos]
+        else:
+            type = 'str'
+        data = self._data
+        key = f'_{key}'
+        if key in data:
+            val = data[key]
+            if type == 'n':
+                return int(val)
+            elif type == 'f':
+                return float(val)
+            elif type == 'b':
+                return bool(val)
+            else:
+                return val
+        return None
+    
+    @property
+    def data(self):
+        """获取数据"""
+        return self._data
+    
+    @data.setter
+    def data(self, value):
+        self._data = value
+    @property
+    def toPage(self)->"_Page_":
+        """获取当前页面"""
+        return self._toPage
 
     PathSplit = '-'
     @classmethod
@@ -120,17 +161,49 @@ class _App_:
 
     def _setCurrentPage(self, page: "_Page_")->bool:
         """设置当前页面"""
-        if page is None or page == self._curPage:
-            return False
         g = _G._G_
         log = g.Log()
-        log.d(f"当前页面为: {page.name}")
-        ret = self._startPage(page)
-        if ret is None:
+        try:
+            if page is None or page == self._curPage:
+                return False
+            ret = page.begin()
+            if ret is None:
+                return False
+            self._lastPage = self._curPage
+            self._curPage = page
+            log.i(f"> {page.name}")
+            return True
+        except Exception as e:
+            log.ex(e, f"设置当前页面失败: {page.name}")
             return False
-        self._lastPage = self._curPage
-        self._curPage = page
-        return True
+
+    # 检测toast
+    # 先检查toast的key是否匹配，如果匹配，则执行action
+    # 如果action以@开头，则认为是一个表达式，需要执行表达式,将执行结果赋值给action，在执行后续action逻辑
+    # action中包含逗号，则认为是一个按钮和操作的组合，如果没有，则认为是一个按钮
+    def detectToast(self):
+        """检测toast"""
+        g = _G._G_
+        tools = g.Tools()
+        log = g.Log()
+        for key, action in self._toasts.items():
+            if tools.check(key, self):
+                if action.startswith('@'):
+                    # 如果action以@开头，则认为是一个表达式，需要执行表达式
+                    try:
+                        action = tools.eval(self, action[1:], log)
+                    except Exception as e:
+                        log.ex(e, f"执行表达式失败: {action}")
+                        continue
+                # 如果action中包含逗号，则认为是一个按钮和操作的组合，如果没有，则认为是一个按钮
+                click = action
+                do = ''
+                if ',' in action:
+                    click, do = action.split(',')
+                log.d(f"Toast匹配: {key}，点击: {click}，操作: {do}")
+                self.curPage.click(click, do)
+                break
+
 
     def detectPage(self, page: "_Page_", timeout=3):
         """匹配页面"""
@@ -139,35 +212,34 @@ class _App_:
         g = _G._G_
         tools = g.Tools()
         log = g.Log()
-        time.sleep(timeout)
+        if tools.isAndroid():
+            time.sleep(timeout)
         tools.refreshScreenInfos()
         try:
-            curPage = self.curPage
-            # 检测当前应用中的alert类型页面
-            from _Page import ePageType
-            pages = [p for p in self.getPages() if p and p != curPage and p.type == ePageType.alert.value]
-            if len(pages) > 0:
+            #先检测当前页面 self._toPage
+            page = None
+            if self._toPage:
+                if self._toPage.match():
+                    page = self._toPage
+                    self._toPage = None
+            if not page:
+                # 检测当前应用中的alert类型页面
+                pages = self.getPages()
                 for p in pages:
-                    if p.match():
-                        log.i(f"弹窗: {p.name}")
-                        self._setCurrentPage(p)
-                        return
-            #检测exitPages
-            for p in curPage.exitPages:
-                if p.match():
-                    log.i(f"跳转: {p.name}")
-                    self._setCurrentPage(p)
-                    return
-            if g.isAndroid() and not curPage.match():
-                log.e("检测到未配置的弹出界面")
+                    if p.isAlert and p.match():
+                        page = p
+                        break
+            if not page:
+                if g.isAndroid() and not self.curPage.match():
+                    log.e("检测到未配置的弹出界面")
+            if page:
+                self._setCurrentPage(page)
         except Exception as e:
             log.ex(e, f"检测页面 {page.name} 失败")
 
     def back(self)->bool:
         """返回上一页"""
-        if self._lastPage:
-            return self._toPage(self._lastPage)
-        return False
+        return self.goPage(self._lastPage)
        
     def home(self):
         """返回主页"""
@@ -228,19 +300,18 @@ class _App_:
                 config = json.load(f)
             appName = os.path.basename(configPath)[:-5]
             #根据root的name，获取应用
-            rootConfig = config.get('root', {})
+            rootConfig = config.get(_G.ROOT)
             if not rootConfig:
-                log.e(f"配置文件 {configPath} 没配置")
+                log.e(f"配置文件 {configPath} 没配置{_G.ROOT}节点")
                 return False
             appName = rootConfig.get('name', appName)  
             app = cls.getApp(appName, True)
-            rootPage = app.getPage(appName, True)   
+            rootPage = app.getPage(_G.ROOT, True)   
             rootPage.config = rootConfig
             app._curPage = rootPage
             app.rootPage = rootPage
-            pages = app._loadConfig(config)
-            for page in pages.values():
-                page.setParent(rootPage)
+            app._loadConfig(config)
+            app._loadData()
             return True
         except Exception as e:
             log.ex(e, f"加载配置文件失败: {configPath}")
@@ -257,13 +328,14 @@ class _App_:
         log = g.Log()
         try:
             # 加载根页面配置
-            root = config.get('root')
+            root = config.get(_G.ROOT)
             if not root:
-                log.e(f"应用 {self.name} 配置缺少root节点")
+                log.e(f"应用 {self.name} 配置缺少{_G.ROOT}节点")
                 return {}
             # 更新应用信息
             self.ratio = root.get('ratio', 10000)
             self.description = root.get('description', '')
+            self._toasts = root.get('toasts', {})  # 加载toasts配置
             
             # 加载页面配置
             pages = root.get('pages', {})
@@ -277,8 +349,6 @@ class _App_:
                 # 添加到页面列表
                 self._pages[pageName] = page
                 
-            # 不再处理commonPages配置
-            
             log.i(f"应用 {self.name} 配置加载完成，共 {len(self._pages)} 个页面")
             return self._pages
         except Exception as e:
@@ -296,7 +366,7 @@ class _App_:
             # 获取当前应用的所有页面
             pages = self.getPages()
             # 过滤出非临时页面
-            pages = [p for p in pages if p.type != 'temp']
+            pages = [p for p in pages if not p.hasAttr(_G.TEMP)]
             #remove root page
             pages.remove(self.rootPage)
             # 将页面转换为字典格式
@@ -306,7 +376,7 @@ class _App_:
             rootConfig = self.rootPage.config
             rootConfig['pages'] = pageConfigs
             output = {
-                'root': rootConfig
+                _G.ROOT: rootConfig
             }
             # 写入配置文件
             path = self.configDir()
@@ -338,10 +408,33 @@ class _App_:
                 # 直接返回公共页面，getInst会在需要时创建实例
                 return commonPage
             if page or not create:
-                return page
-            # 创建新页面
-            from _Page import _Page_
-            page = _Page_(self.name, name)
+                return page                            
+            if name.startswith('#'):
+                # 解析引用页面格式: #引用页面名{参数}
+                import re
+                match = re.match(r'#([^{]+)(?:{(.+)})?', name)
+                if match:
+                    pageName = match.group(1)
+                    params = match.group(2)
+                    # 获取引用的页面
+                    refPage = self.getPage(pageName, False, True)
+                    if refPage:
+                        # 如果有参数，解析参数
+                        paramsDict = None
+                        if params:
+                            content = f'{{{params.strip()}}}'
+                            content = content.replace("'", '"')
+                            import json
+                            try:
+                                paramsDict = json.loads(content)                                    
+                            except Exception as e:
+                                log.ex(e, f"解析引用页面参数失败: {content}")
+                        # 创建页面实例并设置参数
+                        page = refPage.getInst(paramsDict)
+            else:
+                # 创建新页面
+                from _Page import _Page_
+                page = _Page_(self.name, name)
             if page:
                 self._pages[name] = page
             return page
@@ -373,7 +466,7 @@ class _App_:
             page = self._pages.pop(page_name)
             
             # 如果不是临时页面，保存配置
-            if page.type != 'temp':
+            if not page.hasAttr(_G.TEMP):
                 self.saveConfig()
             return True
         return False
@@ -427,7 +520,6 @@ class _App_:
                 return app
             ok = tools.openApp(appName)
             if not ok:
-                log.e(f"=>{appName}")
                 return None
             cls.setCurName(appName)
             if g.isAndroid():
@@ -441,7 +533,7 @@ class _App_:
             log.ex(e, f"跳转到应用 {appName} 失败")
             return None
 
-    def findPath(self, fromPage: "_Page_", toPage: "_Page_", visited=None, path=None) -> List["_Page_"]:
+    def findPath(self, fromPage: "_Page_", toPage: "_Page_", visited=None, path: List["_Page_"]=None) -> List["_Page_"]:
         """在整个页面树中查找从fromPage到toPage的路径
         Args:
             fromPage: 起始页面
@@ -451,42 +543,36 @@ class _App_:
         Returns:
             list: 从fromPage到toPage的路径，如果没找到则返回[]
         """
+        # 初始化visited和path
         if visited is None:
             visited = set()
         if path is None:
-            path = [fromPage]            
+            path = [fromPage]  # 第一次调用时，path只包含起始页面
+            
+        # 如果已经访问过当前页面，返回空路径避免循环
         if fromPage in visited:
             return []
-        visited.add(fromPage)        
-        # 检查当前页面
+            
+        # 标记当前页面为已访问
+        visited.add(fromPage)
+        
+        # 如果找到目标页面，直接返回当前路径，不管目标页面是否有exit配置
         if fromPage.name == toPage.name:
-            return path        
-        # 搜索子页面
-        toPages = fromPage.exit.keys()
-        for pageName in toPages:
+            return path
+            
+        # 如果当前页面没有exit配置，返回空路径
+        if not fromPage.exit:
+            return []
+            
+        # 遍历所有exit页面
+        for pageName in fromPage.exit.keys():
             page = self.getPage(pageName)
             if page and page not in visited:
+                # 递归搜索下一个页面
                 resultPath = self.findPath(page, toPage, visited, path + [page])
                 if resultPath:
                     return resultPath
-        
-        # 搜索父页面
-        fromPages = fromPage.entry.keys()
-        for pageName in fromPages:
-            page = self.getPage(pageName)
-            if page and page not in visited:
-                resultPath = self.findPath(page, toPage, visited, path + [page])
-                if resultPath:
-                    return resultPath
-        
-        # # 如果这是根页面且没找到，尝试搜索其他应用
-        # if toPage.name != _G.TOP:
-        #     for app in _App_.apps().values():
-        #         if app.rootPage != fromPage and app.rootPage not in visited:
-        #             resultPath = self.findPath(app.rootPage, toPage, visited, path + [app.rootPage])
-        #             if resultPath:
-        #                 return resultPath
-        
+                    
         return []
 
     def _findPath(self, pageNames, name, visited=None) -> Optional["_Page_"]:
@@ -505,7 +591,7 @@ class _App_:
                 return result[-1]  # 返回路径的最后一个节点名称
         return None
     
-    def goPage(self, page: '_Page_') -> bool:
+    def goPage(self, page: '_Page_', direct=False) -> bool:
         """设置要跳转到的目标页面
         设置_targetPage属性，由应用更新循环中的_update方法处理实际跳转
         
@@ -521,7 +607,11 @@ class _App_:
             log = g.Log()
             # 如果已经在目标页面，直接返回成功
             if self._curPage and self._curPage.name == page.name:
-                return self._startPage(self._curPage)                
+                return True
+            # 如果直接跳转，直接设置目标页面
+            if self._curPage and direct:
+                self._toPage = page
+                return True
             # 计算路径并缓存
             if self._curPage:
                 path = self.findPath(self._curPage, page)
@@ -531,11 +621,6 @@ class _App_:
                 else:
                     log.e(f"找不到从 {self._curPage.name} 到 {page.name} 的路径")
                     return False
-            # else:
-                # 如果当前没有页面，直接设置目标页面
-                # log.i(f"设置页面跳转目标: {page.name}, 无需路径")
-                
-            # log.i(f"设置页面跳转目标: {page.name}")
             return True
         except Exception as e:
             log.ex(e, "设置页面跳转目标失败")
@@ -562,7 +647,7 @@ class _App_:
                 app = cls.last()
                 if app:
                     page = app.getPage(pageName)
-                    if app.goPage(page):
+                    if app.goPage(page, False):
                         return page
             return None
         except Exception as e:
@@ -581,6 +666,8 @@ class _App_:
             app = cls.getApp(appName)
             if not app:
                 return False
+            # 保存计数器数据
+            app._saveData()
             app._stop()
             
             # 重置到主屏幕
@@ -624,28 +711,14 @@ class _App_:
         else:
             cls._lastApp = cls.getApp(_G.TOP, True)
         cls.loadConfig()
-
-    def _startPage(self, page: '_Page_') -> '_Page_':
-        """启动页面检查器
-        Returns:
-            _Page_: 页面实例
-        """
-        g = _G._G_
-        log = g.Log()
-        try:
-            if page is None:
-                return None
-            if page.begin():
-                return page
-            else:
-                return None
-        except Exception as e:
-            log.ex(e, f"启动页面{page.name} 失败")
-            return None
    
-    def _update(self, log: "_Log_"):
+    def _update(self):
         """应用级别的更新循环"""
         try:
+            g = _G._G_
+            log = g.Log()  # 需要再这里获取，这样就能支持LOG的动态更新
+            # 检测toast
+            self.detectToast()
             # 检测当前页面
             self.detectPage(self.curPage)
             # 处理页面跳转逻辑
@@ -656,7 +729,7 @@ class _App_:
             self.userEvents = []
             # 更新当前任务
             if self._curTask:
-                self._curTask.update()
+                self._curTask.update(g)
             
         except Exception as e:
             log.ex(e, f"应用更新失败：{self.name}")
@@ -674,25 +747,24 @@ class _App_:
                 self._clearPath()
                 return
             # 找到当前页面在路径中的位置
-            index = self._path.index(curPage)
+            index = self._path.index(curPage) + 1
             # 已经是路径中的最后一个页面，说明已到达目标
-            if index == len(self._path) - 1:
+            if index >= len(self._path):
                 self._clearPath()
                 return
-            # 如果不是最后一个页面，则进行跳转
-            if index >= 0 and index < len(self._path) - 1:
-                self._toPage(self._path[index + 1])
+            self._ToPage(self._path[index])
         except Exception as e:
             log.ex(e, "处理页面跳转逻辑失败")
     
-    def _toPage(self, page: "_Page_")->bool:
+    def _ToPage(self, page: "_Page_")->bool:
         """跳转到路径中的下一个页面"""
+        if not page:
+            return False
         g = _G._G_
         tools = g.Tools()
         self.curPage.doExit(page.name)
         if not tools.isAndroid():
-            # 非安卓平台需要直接设置当前页面，不能用检测页面
-            page.alwaysMatch(True)
+            self._toPage = page
         return True
     
     def _clearPath(self):
@@ -705,16 +777,17 @@ class _App_:
     def update(cls):
         """全局应用更新循环
         """
+        interval = 0.3
+        tools = _G._G_.Tools()
+        if tools.isAndroid():
+            interval = 1
         while True:
-            time.sleep(1)
+            time.sleep(interval)
             cls.detectApp()
             app = cls.cur()
-            log = _G._G_.Log()  # 需要再这里获取，这样就能支持LOG的动态更新
             if app:
                 # 只更新当前已知应用
-                app._update(log)
-            # else:
-            #     log.w(f"未知应用 {cls.curName()}")
+                app._update()
 
     def sendUserEvent(self, eventName: str) -> bool:
         """添加用户事件到事件列表
@@ -733,13 +806,24 @@ class _App_:
             log.ex(e, f"添加用户事件失败: {eventName}")
             return False
   
+    _lastTasks:Dict['_App_', List['CTask_']] = None
+
     @classmethod
-    def getTasks(cls, name)-> Tuple['_App_', List['CTask_']]:
+    def lastTasks(cls):
+        if cls._lastTasks is None:
+            curApp = cls.last()
+            if curApp is not None and curApp.curTask is not None:
+                cls._lastTasks = {curApp: [curApp.curTask]}
+        return cls._lastTasks
+
+    @classmethod
+    def getTasks(cls, name)->Dict['_App_', List['CTask_']]:
         """获取任务实例"""
         g = _G._G_
         log = g.Log()
-        if not name:
-            return None, None
+        name = name.strip() if name else ''
+        if name == '':
+            return cls.lastTasks()
         appName, taskName = cls.parseName(name)
         app = cls.getApp(appName)
         if app is None:
@@ -750,12 +834,24 @@ class _App_:
             tasks = list(app._tasks.values())
         else:
             task = app._tasks.get(name)
-            if task is None:
-                log.e(f"任务 {name} 不存在")
-            else:
+            if task:
                 tasks.append(task)
-        return app, tasks
-
+        return {app: tasks}
+    
+    @classmethod
+    def printTasks(cls, taskName: str, printer) -> str:
+        """显示任务列表"""
+        taskMap = cls.getTasks(taskName)
+        ret = ''
+        for app, tasks in taskMap.items():
+            if len(tasks) == 0:
+                continue
+            ret += f"{app.name}:\n"
+            for task in tasks:
+                if task:
+                    ret += printer(task)
+        return ret
+    
     @classmethod
     def getTask(cls, name)-> Tuple['_App_', 'CTask_']:
         """获取任务实例"""
@@ -769,8 +865,6 @@ class _App_:
             log.e(f"应用 {appName} 不存在")
             return app, None
         task = app._tasks.get(name) if taskName else app._curTask
-        if task is None:
-            log.e(f"任务 {name} 不存在")
         return app, task
 
     @classmethod
@@ -780,29 +874,82 @@ class _App_:
         log = g.Log()
         try:
             app, task = cls.getTask(name)
-            # 如果当前有任务在运行，先停止
-            if app._curTask:
-                app._curTask.stop(cancel=True)
-                app._curTask = None
-            # 检查任务是否已存在，不存在则创建
             if task is None:
                 from CTask import CTask_
                 task = CTask_.create(name, app)
-                if task and task.begin():
-                    app._tasks[name] = task
-                    app._curTask = task
-                    return task
-                else:
-                    return None
+                app._tasks[name] = task
+            if task is None:
+                return None
+            # 检查任务是否已存在，不存在则创建
+            if task.begin():
+                app._curTask = task
+                return task
         except Exception as e:
             log.ex(e, f"启动任务失败: {name}")
             return None
-            
+        
+        
     @property
     def curTask(self):
         """获取当前任务"""
         return self._curTask
     
+    def _getDataFile(self) -> str:
+        """获取计数器文件路径
+        Returns:
+            str: 文件路径
+        """
+        g = _G._G_
+        today = datetime.datetime.now().strftime("%Y-%m-%d")
+        countersDir = os.path.join(g.rootDir(), "data", "apps")
+        if not os.path.exists(countersDir):
+            os.makedirs(countersDir)
+        return os.path.join(countersDir, f"{self.name}_{today}.json")
+    
+    def _loadData(self) -> bool:
+        """从本地文件加载当天的数据
+        Returns:
+            bool: 是否加载成功
+        """
+        g = _G._G_
+        log = g.Log()
+        try:
+            file = self._getDataFile()
+            
+            if os.path.exists(file):
+                with open(file, "r", encoding="utf-8") as f:
+                    try:
+                        data = json.load(f)
+                        # 更新本地计数器
+                        for name, val in data.items():
+                            page = self._pages.get(name)
+                            if page:
+                                page.fromJson(val)
+                        log.d(f"从本地文件加载计数器数据成功: {len(data)}项")
+                        return True
+                    except Exception as e:
+                        log.ex(e, "从本地文件加载计数器数据失败")
+                        return False
+        except Exception as e:
+            log.ex(e, "加载计数器数据异常")
+            return False
+    
+    def _saveData(self) -> bool:
+        """保存数据到本地文件"""
+        g = _G._G_
+        log = g.Log()
+        try:
+            data = {}
+            for page in self._pages.values():
+                if not page.hasAttr(_G.TEMP):  # 跳过临时页面
+                    data[page.name] = page.toJson()
+            file = self._getDataFile()
+            with open(file, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            return True
+        except Exception as e:
+            log.ex(e, "保存数据异常")
+            return False
 
 
 _App_.onLoad()
