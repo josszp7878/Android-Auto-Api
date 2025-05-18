@@ -449,19 +449,7 @@ class _Page_:
             
             # 如果不是用户事件，进行常规检查
             if not execute:
-                # 处理不同类型的key
-                if key.startswith('%'):
-                    # 匹配 %d内容
-                    probability = 0
-                    m = re.match(r'%(\d+)(.*)', key)
-                    if m:
-                        probability = int(m.group(1))
-                        key = m.group(2)
-                    if probability > 0:
-                        import random
-                        execute = random.randint(1, 100) <= probability
-                        log.d(f"{probability}%概率：执行{key}=> {execute}")
-                elif key.startswith('-'):
+                if key.startswith('-'):
                     # 延时执行：-5 表示延时5秒后执行
                     delay = int(key[1:])
                     log.d(f"延时{delay}秒后执行")
@@ -471,6 +459,18 @@ class _Page_:
                     log.d("无条件执行")
                     execute = True
                 else:
+                    if key.startswith('%'):
+                        # 处理概率
+                        probability = 0
+                        m = re.match(r'%(\d+)(.*)', key)
+                        if m:
+                            probability = int(m.group(1))
+                            key = m.group(2)
+                        if probability > 0:
+                            import random
+                            if random.randint(1, 100) > probability:
+                                # log.d(f"{probability}%概率：不执行{key}")
+                                return False
                     # 屏幕匹配文本，如果匹配到则执行
                     execute = tools.check(key, self.app)
                     if execute:
