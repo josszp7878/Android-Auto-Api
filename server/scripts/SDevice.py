@@ -9,6 +9,7 @@ import base64
 from STaskMgr import STaskMgr_
 from SEarningMgr import SEarningMgr_
 import _G
+from SDatabase import Database
 
 class SDevice_:
     """设备类：管理设备状态和信息"""
@@ -100,15 +101,18 @@ class SDevice_:
     def _commit(self):
         """同步设备状态到数据库"""
         try:
-            with current_app.app_context():
+            def do_commit(db):
                 model = DeviceModel.query.filter_by(device_id=self.device_id).first()
                 if model:
                     model.status = self._status
                     model.last_seen = self.last_seen
-                    model.grp = self._grp  # 同步分组信息到数据库，字段名修改
+                    model.grp = self._grp
                     db.session.add(model)
                     db.session.commit()
-                    # print(f'设备 {self.device_id} 状态已同步到数据库')
+                    return True
+                return False
+            
+            Database.sql(do_commit)
         except Exception as e:
             _Log._Log_.ex(e, '同步设备状态到数据库出错')
 

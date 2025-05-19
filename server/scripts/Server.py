@@ -28,6 +28,10 @@ def initSocketIO(sio):
     sio.on('B2S_FilterLogs')(handleB2SFilterLogs)
     sio.on('B2S_GetAvailableDates')(handleB2SGetAvailableDates)
     
+    # 注册任务API中的Socket.IO事件处理函数
+    from STaskAPI import register_socket_events
+    register_socket_events(sio)
+    
     # 设置_G_.socketio
     _G_.sio = sio
     log = _G_.Log()

@@ -1,6 +1,7 @@
 from flask import Blueprint, send_file, render_template, jsonify, request, current_app, send_from_directory
 import _G
 from SDeviceMgr import deviceMgr
+from STaskMgr import STaskMgr_
 import os
 import json
 from datetime import datetime
@@ -10,13 +11,52 @@ bp = Blueprint('main', __name__)
 
 @bp.route('/')
 def index():
-    """首页路由，返回设备列表"""
+    """首页路由，返回任务表格视图（默认视图）"""
     log = _G._G_.Log()
-    log.i('Server', '访问首页')
+    log.i('Server', '访问任务表格视图')
     devices = deviceMgr.toDict()
     curDeviceID = deviceMgr.curDeviceID
-    return render_template('index.html', initial_devices=devices, curDeviceID=curDeviceID)
+    
+    # 获取任务数据
+    tasks_data = []
+    # 从设备中获取任务数据
+    for deviceId, device in deviceMgr.devices.items():
+        if hasattr(device, 'taskMgr') and device.taskMgr and hasattr(device.taskMgr, 'tasks'):
+            for task in device.taskMgr.tasks:
+                # 计算任务进度
+                progress = 0
+                if hasattr(task, 'progress') and hasattr(task, 'total'):
+                    if task.total > 0:
+                        progress = int((task.progress / task.total) * 100)
+                
+                # 收集任务数据
+                task_data = {
+                    'id': task.taskId if hasattr(task, 'taskId') else '',
+                    'group': task.group if hasattr(task, 'group') else '',
+                    'deviceId': task.deviceId if hasattr(task, 'deviceId') else '',
+                    'taskName': task.displayName if hasattr(task, 'displayName') else task.__class__.__name__,
+                    'progress': progress,
+                    'status': task.state if hasattr(task, 'state') else 'pending',
+                    'life': task.life if hasattr(task, 'life') else 100,
+                    'score': task.score if hasattr(task, 'score') else 0,
+                    'date': task.date.strftime('%Y-%m-%d') if hasattr(task, 'date') else ''
+                }
+                tasks_data.append(task_data)
+    
+    return render_template('tasks.html', initial_devices=devices, tasks_data=tasks_data, curDeviceID=curDeviceID)
 
+@bp.route('/tabulator-demo')
+def tabulator_demo():
+    return render_template('tabulator_demo.html') 
+
+@bp.route('/device')
+def device_list():
+    """设备列表视图"""
+    log = _G._G_.Log()
+    log.i('Server', '访问设备列表视图')
+    devices = deviceMgr.toDict()
+    curDeviceID = deviceMgr.curDeviceID
+    return render_template('deviceList.html', initial_devices=devices, curDeviceID=curDeviceID)
 
 @bp.route('/device/<device_id>')
 def device(device_id):
@@ -26,7 +66,6 @@ def device(device_id):
         return "设备不存在", 404
     return render_template('device.html', device_id=device_id, device=device.to_dict())
 
-
 @bp.route('/file/<path:filename>')
 def serve_file(filename):
     """处理文件请求"""
@@ -34,7 +73,6 @@ def serve_file(filename):
     file_path = os.path.join(g.rootDir(), filename)
     # log.i('Server', f'处理文件请求: {file_path}')
     return send_file(file_path)
-
 
 @bp.route('/timestamps')
 def get_timestamps():
@@ -59,7 +97,6 @@ def get_timestamps():
     getVersion(dir, 'scripts', timestamps)
     getVersion(dir, 'config', timestamps)
     return json.dumps(timestamps)
-
 
 @bp.route('/logs')
 def get_logs():

@@ -6,6 +6,11 @@ import json
 import re
 import _G
 from _G import _G_
+from flask import current_app
+
+# 导入数据库模型
+from SModels import LogModel_
+from SDatabase import Database
 
 class TAG(Enum):
     """标签"""
@@ -117,10 +122,10 @@ class _Log_:
         except Exception as e:
             cls.ex(e, '保存日志缓存失败')
 
-    #向控制台打印log
+    #向控制台打印log并保存到数据库
     @classmethod
     def Blog(cls, message, tag=None, level='i'):
-        """添加日志到缓存并发送到前端"""
+        """添加日志到缓存、数据库并发送到前端"""
         try:
             # 在方法开始时导入socketio，确保后续可以使用
             logs = cls._cache
@@ -142,8 +147,10 @@ class _Log_:
                     try:
                         # 确保发送完整的日志对象，包括时间戳
                         _G._G_.sio.emit('S2B_EditLog', lastLog)
+                        # 更新数据库中的日志计数
+                        cls._updateLogInDb(lastLog)
                     except Exception:
-                        cls.ex_(None, '发送EditLog事件失败')
+                        cls.ex_(None, '发送EditLog事件或更新数据库失败')
                     return
                 # 打印带颜色的日志到终端
             # 确保新日志有count字段
@@ -151,7 +158,8 @@ class _Log_:
                 'message': message,
                 'level': level,
                 'tag': tag,
-                'count': 1
+                'count': 1,
+                'time': datetime.now().strftime('%H:%M:%S')
             }
             logs.append(logData)
             g = _G._G_
@@ -159,8 +167,10 @@ class _Log_:
             if hasattr(sio, 'server') and sio.server:
                 try:
                     sio.emit('S2B_AddLog', logData)
+                    # 保存到数据库
+                    cls._saveLogToDb(logData)
                 except Exception as e:
-                    cls.ex_(e, '发送AddLog事件失败')
+                    cls.ex_(e, '发送AddLog事件或保存到数据库失败')
         except Exception as e:
             cls.ex_(e, '发送日志到控制台失败')
 
@@ -391,6 +401,39 @@ class _Log_:
         if oldCls:
             cls._cache = oldCls._cache
             cls._visualLogs = oldCls._visualLogs
+
+    @classmethod
+    def _saveLogToDb(cls, logData):
+        """将日志保存到数据库"""
+        try:
+            def save_log(db):
+                logModel = LogModel_.fromLogData(logData)
+                db.session.add(logModel)
+                return True
+            
+            Database.sql(save_log)
+        except Exception as e:
+            cls.log_(f'保存日志到数据库失败: {str(e)}', level='w')
+
+    @classmethod
+    def _updateLogInDb(cls, logData):
+        """更新数据库中的日志计数"""
+        try:
+            def update_log(db):
+                latestLog = LogModel_.query.filter_by(
+                    tag=logData.get('tag'),
+                    level=logData.get('level'),
+                    message=logData.get('message')
+                ).order_by(LogModel_.id.desc()).first()
+                
+                if latestLog:
+                    latestLog.count = logData.get('count', 1)
+                    db.session.commit()
+                return True
+            
+            Database.sql(update_log)
+        except Exception as e:
+            cls.log_(f'更新数据库日志计数失败: {str(e)}', level='w')
 
 _Log_.onLoad(None)
 c = _Log_()

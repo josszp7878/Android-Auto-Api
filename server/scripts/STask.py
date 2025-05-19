@@ -12,14 +12,13 @@ class STask_(db.Model):
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     deviceId = db.Column(db.String(50), nullable=False)
-    appName = db.Column(db.String(50), nullable=False)
     taskName = db.Column(db.String(50), nullable=False)
     time = db.Column(db.DateTime, default=datetime.now)  # 创建时间
     endTime = db.Column(db.DateTime)  # 添加结束时间字段
     score = db.Column(db.Integer, default=0)
     progress = db.Column(db.Float, default=0.0)
     state = db.Column(db.String(20), default=TaskState.RUNNING.value)
-    expectedScore = db.Column(db.Integer, default=100)  # 设置默认值为100
+    life = db.Column(db.Integer, default=0)  # 任务生命，负数表示次数，正数表示时间长度，0表示无生命约束
 
     @property
     def deviceMgr(self):
@@ -28,7 +27,7 @@ class STask_(db.Model):
     
     @property
     def taskId(self):
-        return _G_.toTaskId(self.appName, self.taskName)
+        return self.taskName
     
     @property
     def completed(self):
@@ -42,15 +41,14 @@ class STask_(db.Model):
             self._device = deviceMgr.get(self.deviceId)
         return self._device
 
-    def __init__(self, deviceId: str, appName: str, taskName: str):
+    def __init__(self, deviceId: str, taskName: str):
         """初始化任务"""
         self.deviceId = deviceId
-        self.appName = appName
         self.taskName = taskName
         self.progress = 0.0
         self.state = TaskState.RUNNING.value
         self.time = datetime.now()
-        self.expectedScore = 100  # 初始化时计算预期分数
+        self.life = 0  # 初始化时设置默认生命值
 
     def start(self):
         """开始任务"""
@@ -135,7 +133,6 @@ class STask_(db.Model):
             today = datetime.now().date()
             similar_tasks = STask_.query.filter(
                 STask_.deviceId == self.deviceId,
-                STask_.appName == self.appName,
                 STask_.taskName == self.taskName,
                 func.date(STask_.time) == today,
                 STask_.state == TaskState.SUCCESS.value
@@ -149,26 +146,24 @@ class STask_(db.Model):
             
             return {
                 'id': self.id or 0,  # 确保id不为null
-                'appName': self.appName,
                 'taskName': self.taskName,
-                'displayName': f'{self.id or 0}:{self.appName}-{self.taskName}',
+                'displayName': f'{self.id or 0}:{self.taskName}',
                 'progress': self.progress,
                 'state': self.state,
                 'score': self.score,
-                'expectedScore': self.expectedScore or 100,  # 确保expectedScore不为null
+                'life': self.life or 0,  # 确保life不为null
                 'efficiency': efficiency
             }
         except Exception as e:
             _Log._Log_.ex(e, '获取任务信息失败')
             return {
                 'id': self.id or 0,
-                'appName': self.appName,
                 'taskName': self.taskName,
-                'displayName': f'{self.id or 0}:{self.appName}-{self.taskName}',
+                'displayName': f'{self.id or 0}:{self.taskName}',
                 'progress': self.progress,
                 'state': self.state,
                 'score': self.score,
-                'expectedScore': self.expectedScore or 100,
+                'life': self.life or 0,
                 'efficiency': 0
             }
 

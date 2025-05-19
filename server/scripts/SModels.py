@@ -76,6 +76,39 @@ class AppModel(db.Model):
             status=device.status
         )
 
+class LogModel_(db.Model):
+    """日志数据模型"""
+    __tablename__ = 'logs'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    time = db.Column(db.String(20))
+    tag = db.Column(db.String(50))
+    level = db.Column(db.String(10))
+    message = db.Column(db.Text)
+    count = db.Column(db.Integer, default=1)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    
+    @staticmethod
+    def fromLogData(logData):
+        """从日志数据创建数据库记录"""
+        return LogModel_(
+            time=logData.get('time'),
+            tag=logData.get('tag'),
+            level=logData.get('level'),
+            message=logData.get('message'),
+            count=logData.get('count', 1)
+        )
+
+    def toDict(self):
+        """转换为字典格式"""
+        return {
+            'time': self.time,
+            'tag': self.tag,
+            'level': self.level,
+            'message': self.message,
+            'count': self.count
+        }
+
 @contextmanager
 def session_scope():
     """提供事务范围的会话，自动处理提交/回滚和异常"""
@@ -88,9 +121,3 @@ def session_scope():
         raise
     finally:
         db.session.remove()
-
-# 移除这里的示例代码
-# with session_scope() as session:
-#     # 使用 session 进行数据库操作
-#     pass
-

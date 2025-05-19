@@ -6,10 +6,6 @@ from SDatabase import db  # 导入单例的db实例
 from _G import TaskState, _G_
 from contextlib import contextmanager
 from sqlalchemy.exc import SQLAlchemyError
-from _G import _G_
-import traceback
-from flask import current_app
-from sqlalchemy import func
 
 class STaskMgr_:
     """设备任务管理器"""
@@ -33,7 +29,6 @@ class STaskMgr_:
                 # 如果当前有任务，尝试获取同类型的下一个未完成任务
                 if self._current_task:
                     next_task = self.getRunningTask(
-                        self._current_task.appName, 
                         self._current_task.taskName, 
                         create=False
                     )
@@ -107,19 +102,15 @@ class STaskMgr_:
             _Log._Log_.ex(e, f'获取任务失败: {taskId}')
             return []
 
-    def getRunningTask(self, appName: str, taskName: str, create: bool = False) -> Optional[STask_]:
+    def getRunningTask(self, taskName: str, create: bool = False) -> Optional[STask_]:
         """获取运行中的任务,如果没有且create=True则创建新任务
         同一个应用的同名任务可以有多个实例
         """
         try:
-            # 更新当前应用
-            self._currentApp = appName
-            
             # 从缓存中查找该应用下的所有运行中任务
             running_tasks = [
                 t for t in self.tasks 
-                if (t.appName == appName and 
-                    t.taskName == taskName and 
+                if (t.taskName == taskName and 
                     t.state in [TaskState.RUNNING.value, TaskState.PAUSED.value])
             ]
             
@@ -130,7 +121,6 @@ class STaskMgr_:
             # 从数据库查询该应用下的运行中任务
             tasks = STask_.query.filter(
                 STask_.deviceId == self._device.id,
-                STask_.appName == appName,
                 STask_.taskName == taskName,
                 STask_.state.in_([
                     TaskState.RUNNING.value,
@@ -147,17 +137,17 @@ class STaskMgr_:
                 
             # 没找到任务且需要创建
             if create:
-                task = STask_(self._device.id, appName, taskName)
+                task = STask_(self._device.id, taskName)
                 db.session.add(task)
                 db.session.commit()
                 self.tasks.append(task)
-                _Log._Log_.i(f"设备 {self._device.id} 创建新任务: {appName}/{taskName}")
+                _Log._Log_.i(f"设备 {self._device.id} 创建新任务: {taskName}")
                 return task
             
             return None
             
         except Exception as e:
-            _Log._Log_.ex(e, f'获取任务失败: {appName}/{taskName}')
+            _Log._Log_.ex(e, f'获取任务失败: {taskName}')
             return None
         
     def getTaskStats(self) -> dict:
@@ -191,7 +181,7 @@ class STaskMgr_:
     def pauseTask(self, appName: str, taskName: str) -> bool:
         """暂停任务"""
         try:
-            task = self.getRunningTask(appName, taskName)
+            task = self.getRunningTask(taskName)
             if task:
                 task.pause()
                 return True
@@ -205,7 +195,7 @@ class STaskMgr_:
     def endTask(self, appName: str, taskName: str, score: int, result: str) -> bool:
         """结束任务"""
         try:
-            task = self.getRunningTask(appName, taskName)
+            task = self.getRunningTask(taskName)
             if task:
                 task.end({
                     'score': score,
@@ -223,7 +213,7 @@ class STaskMgr_:
     def stopTask(self, appName: str, taskName: str) -> bool:
         """停止任务"""
         try:
-            task = self.getRunningTask(appName, taskName)
+            task = self.getRunningTask(taskName)
             if task:
                 task.stop()
                 return True
@@ -237,7 +227,7 @@ class STaskMgr_:
     def cancelTask(self, appName: str, taskName: str) -> bool:
         """取消任务"""
         try:
-            task = self.getRunningTask(appName, taskName)
+            task = self.getRunningTask(taskName)
             if task:
                 task.cancel()                
                 self.tasks.remove(task)
@@ -254,7 +244,7 @@ class STaskMgr_:
     def updateTask(self, appName: str, taskName: str, progress: int) -> bool:
         """更新任务进度"""
         try:
-            task = self.getRunningTask(appName, taskName)
+            task = self.getRunningTask(taskName)
             if task:
                 task.update(progress)
                 return True

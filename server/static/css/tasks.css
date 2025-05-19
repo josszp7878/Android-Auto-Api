@@ -1,0 +1,68 @@
+/* 任务表格视图基本布局样式 */
+
+/* 表格容器样式 */
+#main-table {
+    width: 100%;
+    height: calc(100vh - 20px); /* 优化高度，只留一点边距 */
+    border: none;
+    margin: 0;
+    padding: 0;
+}
+
+/* 确保表格容器本身也是满宽度的 */
+.main-content {
+    width: 100%;
+    height: calc(100vh - 10px);
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
+}
+
+.container-fluid {
+    padding: 0;
+    margin: 0;
+    width: 100%;
+    height: 100vh;
+}
+
+/* 上下文菜单样式 */
+.context-menu {
+    display: none;
+    position: absolute;
+    z-index: 1000;
+}
+
+.context-menu.show {
+    display: block;
+}
+
+.context-menu .dropdown-item {
+    cursor: pointer;
+    padding: 0.5rem 1rem;
+    font-size: 14px;
+}
+
+.context-menu .dropdown-item i {
+    margin-right: 8px;
+    width: 16px;
+    text-align: center;
+}
+
+.context-menu .dropdown-item:hover {
+    background-color: #f8f9fa;
+}
+
+/* 强制Tabulator标签页放在左侧 */
+.tabulator-spreadsheet .tabulator-spreadsheet-tabs {
+    justify-content: flex-start !important;
+}
+
+/* 如果标签在底部，确保它们从左边开始 */
+.tabulator-spreadsheet-tabs-bottom .tabulator-spreadsheet-tabs {
+    justify-content: flex-start !important;
+}
+
+/* 如果有页面导航，将其放在右侧 */
+.tabulator-paginator {
+    justify-content: flex-end !important;
+} 

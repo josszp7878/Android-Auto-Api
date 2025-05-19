@@ -45,8 +45,8 @@ class Dashboard {
                 isRealtime: true,  // 是否实时显示
                 logsPanelWidth: '33.33%',  // 日志面板宽度
                 isResizing: false,         // 是否正在调整大小
-                startX: 0,                 // 开始拖动的X坐标
-                startWidth: 0,             // 开始拖动时的宽度
+                initialX: 0,                // 开始拖动时的X坐标
+                initialWidth: 0,            // 开始拖动时的宽度
                 logFilter: '',             // 日志过滤字符串
                 activeFilter: false,       // 是否有激活的过滤器
                 filterType: '',            // 过滤器类型
@@ -358,39 +358,47 @@ class Dashboard {
                     ctx.textBaseline = 'middle';
                     ctx.fillText(`${Math.round(progress * 100)}%`, centerX, centerY);
                 },
-                startResize(event) {
+                startResize(e) {
+                    // 记录开始拖动位置
                     this.isResizing = true;
-                    this.startX = event.clientX;
-                    this.startWidth = parseInt(this.logsPanelWidth);
+                    this.initialX = e.clientX;
+                    this.initialWidth = parseInt(this.logsPanelWidth);
                     
-                    // 添加鼠标移动和松开事件监听
-                    document.addEventListener('mousemove', this.doResize);
+                    // 添加事件监听
+                    document.addEventListener('mousemove', this.handleResize);
                     document.addEventListener('mouseup', this.stopResize);
                     
-                    // 防止文本选择
-                    event.preventDefault();
+                    // 添加body类用于全屏遮罩
+                    document.body.classList.add('resizing');
+                    
+                    // 防止选中文本
+                    e.preventDefault();
                 },
-                doResize(event) {
+                handleResize(e) {
                     if (!this.isResizing) return;
                     
-                    // 计算新宽度
-                    const offsetX = event.clientX - this.startX;
-                    const newWidth = Math.max(20, Math.min(80, this.startWidth - offsetX / window.innerWidth * 100));
+                    // 计算宽度变化
+                    const offsetX = this.initialX - e.clientX;
+                    let newWidth = this.initialWidth + offsetX;
+                    
+                    // 限制最小和最大宽度
+                    const minWidth = 250;  // 最小宽度
+                    const maxWidth = window.innerWidth * 0.8;  // 最大宽度
+                    
+                    newWidth = Math.max(minWidth, Math.min(newWidth, maxWidth));
                     
                     // 更新宽度
-                    this.logsPanelWidth = `${newWidth}%`;
-                    
-                    // 通知日志管理器宽度变化
-                    if (this.logManager) {
-                        this.logManager.setWidth(this.logsPanelWidth);
-                    }
+                    this.logsPanelWidth = newWidth + 'px';
                 },
                 stopResize() {
                     this.isResizing = false;
                     
                     // 移除事件监听
-                    document.removeEventListener('mousemove', this.doResize);
+                    document.removeEventListener('mousemove', this.handleResize);
                     document.removeEventListener('mouseup', this.stopResize);
+                    
+                    // 移除body类
+                    document.body.classList.remove('resizing');
                 },
                 applyLogFilter() {
                     const filter = this.logFilter.trim();

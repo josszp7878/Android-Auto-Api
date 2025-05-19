@@ -159,7 +159,7 @@ class SCmds_:
                 result = f"设备 {device_id} 的任务列表 ({state}):\n"
                 for task in tasks:
                     progress = task.progress * 100
-                    result += f"{task.appName}/{task.taskName}: {progress:.1f}% [{task.state}]\n"
+                    result += f"{task.taskName}: {progress:.1f}% [{task.state}]\n"
 
                 return result
 
@@ -193,13 +193,13 @@ class SCmds_:
 
                 if task.state != TaskState.RUNNING.value:
                     return 'w~当前任务不在运行状态'
-                deviceMgr.sendClientCmd(device_id, f"stopTask {task.appName} {task.taskName}")
+                deviceMgr.sendClientCmd(device_id, f"stopTask {task.taskName}")
 
             except Exception as e:
                 _Log._Log_.ex(e, "停止任务失败")
                 return f"e~停止任务失败: {str(e)}"
 
-            return f"已发送停止命令: {task.appName} {task.taskName}"
+            return f"已发送停止命令: {task.taskName}"
 
         @regCmd('#保存结果|bcjg')
         def saveResult():
@@ -509,8 +509,8 @@ class SCmds_:
                     return "e~未指定设备ID"
 
                 task = STask_(
-                    appName=taskName,
-                    deviceIds=device_ids
+                    deviceId=device_ids[0],
+                    taskName=taskName
                 )
                 task.save()
                 return f"已创建任务: {taskName}, 设备: {', '.join(device_ids)}"

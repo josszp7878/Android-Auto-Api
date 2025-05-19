@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tabulator多标签页示例</title>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+    <link href="https://unpkg.com/tabulator-tables@6.3.1/dist/css/tabulator_site_dark.css" rel="stylesheet">
+    <script type="text/javascript" src="https://unpkg.com/tabulator-tables@6.3.1/dist/js/tabulator.min.js"></script>
+</head>
+<body>
+    <h2>Tabulator多标签页示例</h2>
+    <div id="example-table"></div>
+
+    <script>
+        //定义多个sheet的数据
+        var sheets = [
+            {
+                title: "第一个标签页",
+                key: "first",
+                rows: 20,
+                columns: 20,
+                data: [
+                    [9937, "", "", 7749, 9816, 4355, 8279, "", ""],
+                    [2380, "", 6977, 8896, 4012, 3803, 5408, 3415, 3056],
+                    [9180, "", 39, 9445, 3917, "", 18, 5239, 2516],
+                    [1924, 8734, 1819, 1838, 2330, 7921, 9219, "", 3537],
+                ]
+            },
+            {
+                title: "第二个标签页",
+                key: "second",
+                data: [
+                    [2380, "", 6977, 8896, 4012, 3803, 5408, 3415, 3056],
+                    [9180, "", 39, 9445, 3917, "", 18, 5239, 2516],
+                    [1924, 8734, 1819, 1838, 2330, 7921, 9219, "", 3537],
+                    ["", 8665, 5875, 9732, 1926, "", 9743, 8388, ""],
+                    [7040, 4861, 2988, 5584, 2344, 9749, 8872, 9177, 6246],
+                    [6334, 1674, 2967, "", 9353, 396, 6006, 8572, ""],
+                    [6359, "", 2580, 5723, 9801, 554, 1044, 5266, 8532],
+                ]
+            },
+            {
+                title: "第三个标签页",
+                key: "third",
+                rows: 5,
+                columns: 5,
+                data: [
+                    [1924, 8734, 1819, 1838, 2330, 7921, 9219, "", 3537],
+                    ["", 8665, 5875, 9732, 1926, "", 9743, 8388, ""],
+                    [7040, 4861, 2988, 5584, 2344, 9749, 8872, 9177, 6246],
+                    [6334, 1674, 2967, "", 9353, 396, 6006, 8572, ""],
+                    [6359, "", 2580, 5723, 9801, 554, 1044, 5266, 8532],
+                    [7278, 6971, 2232, 5720, 5665, 7231, 1165, "", 168],
+                ]
+            },
+        ];
+            
+        //构建Tabulator
+        var table = new Tabulator("#example-table", {
+            layout: "fitColumns",            
+            movableColumns: true,
+            resizableRows: true,
+            placeholder: "暂无数据",
+            persistence: {
+                sort: true,
+                filter: true
+            },
+
+            spreadsheet: true,
+            spreadsheetRows: 10,
+            spreadsheetColumns: 10,
+            spreadsheetColumnDefinition: {editor: "input", resizable: "header"},
+            spreadsheetSheets: sheets,
+            spreadsheetSheetTabs: true,
+
+            rowHeader: {field: "_id", hozAlign: "center", headerSort: false, frozen: true},
+            pagination: "local",
+            paginationSize: 15,
+            paginationSizeSelector: [10, 15, 20, 30, 50],
+
+            editTriggerEvent: "dblclick", //修改编辑触发事件为双击
+            editorEmptyValue: undefined, //确保空值被设置为undefined
+        });
+    </script>
+</body>
+</html> 

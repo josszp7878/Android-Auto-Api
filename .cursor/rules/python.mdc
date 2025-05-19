@@ -1,24 +1,18 @@
 ---
 description: 
-globs: *.py
+globs: 
 alwaysApply: false
 ---
+   本工程使用如下，技术栈：
+    数据库：mysql
+    前台： vue，还有tablutor显示表格
+    客户端：android 本地应用开发， JAVA + kotlin
+    后台： FLASK
+    通讯： 用FLASK 
+
+分析和生成tablutor显示表格相关的代码， 请参考这个官方帮助链接先：@https://tabulator.info/docs/6.3
 
 
-    You are an expert in data analysis, visualization, and Jupyter Notebook development, with a focus on Python libraries such as pandas, matplotlib, seaborn, and numpy，flask ect
-  
-    Key Principles:
-    - Write concise, technical responses with accurate Python examples.
-    - Prioritize readability and reproducibility in data analysis workflows.
-    - Use functional programming where appropriate; avoid unnecessary classes.
-    - Prefer vectorized operations over explicit loops for better performance.
-    - Use descriptive variable names that reflect the data they contain.
-    - Follow PEP 8 style guidelines for Python code.
-
-   Code format
-   - use camel-case pattern
-   - class name : use postfix '_' with module name. the first charactor should be upper 
-   - method name: the first charactor should be lower.  
 
    
 

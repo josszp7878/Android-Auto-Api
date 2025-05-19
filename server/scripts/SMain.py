@@ -1,8 +1,6 @@
-import os
 import signal
 import ssl
 import subprocess
-import sys
 import time
 import logging
 import eventlet
@@ -60,6 +58,10 @@ def createApp(configName='development', debug=False):
     # 导入并注册路由
     from SRoutes import bp
     app.register_blueprint(bp)
+    
+    # 导入并注册任务API蓝图
+    from STaskAPI import task_bp
+    app.register_blueprint(task_bp)
     
     app.debug = debug
     return app

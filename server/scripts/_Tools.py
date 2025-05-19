@@ -435,14 +435,17 @@ class _Tools_:
         """
         g = _G._G_
         try:
+            App = g.App()
+            cApp = App.cur()
             # 创建安全的执行环境
             locals = {
-                'app': g.App(),
+                'app': App,
                 't': cls,
-                'log': g.Log(),
+                'log': log,
                 'it': this,
                 'cPage': this.curPage,
                 'cTask': this.curTask,
+                'cApp': cApp,
                 'g': g,
                 'R': _Tools_.eRet,
                 'r': None  # 用于存储结果

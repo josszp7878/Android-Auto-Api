@@ -3,7 +3,6 @@ from SModels import db, DeviceModel
 from SDevice import SDevice_
 import _Log
 from datetime import datetime
-from flask_socketio import emit
 from typing import Optional, Callable, List
 import threading
 import hashlib
@@ -11,6 +10,7 @@ import time
 import _G
 from typing import cast
 from _G import _G_
+from SDatabase import Database
 
 class SDeviceMgr_:
     """设备管理器：管理所有设备"""
@@ -45,14 +45,17 @@ class SDeviceMgr_:
     def _load(self):
         try:
             deviceList = {}
-            # _Log._Log_.i('加载数据库设备列表')
-            with current_app.app_context():  # 添加应用上下文
+            
+            def load_devices(db):
+                nonlocal deviceList
                 for device_model in DeviceModel.query.all():
                     device = SDevice_(device_model.device_id)
                     device.init(device_model)
                     deviceList[device.device_id] = device
+                return deviceList
+            
+            Database.sql(load_devices)
             _Log._Log_.i(f'从数据库加载了 {len(deviceList)} 个设备')
-
             return deviceList
         except Exception as e:
             _Log._Log_.ex(e, '加载数据库出错')
@@ -61,7 +64,7 @@ class SDeviceMgr_:
     def _save(self, device):
         """保存设备到数据库"""
         try:
-            with current_app.app_context():
+            def save_device(db):
                 device_model = DeviceModel.query.filter_by(
                     device_id=device.device_id.lower()
                 ).first()
@@ -73,6 +76,9 @@ class SDeviceMgr_:
                     device_model.last_seen = device.last_seen
                     device_model.info = device.info
                 db.session.commit()
+                return True
+            
+            Database.sql(save_device)
         except Exception as e:
             _Log._Log_.ex(e, '保存数据库出错')
 
