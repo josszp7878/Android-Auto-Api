@@ -467,7 +467,7 @@ class SCmds_:
             try:
                 device = deviceMgr.get(deviceID)
                 if device:
-                    return device.to_dict()
+                    return device.toDict()
                 else:
                     return "e~设备不存在"
             except Exception as e:

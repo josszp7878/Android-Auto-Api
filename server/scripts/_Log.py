@@ -1,16 +1,15 @@
 from datetime import datetime
 from enum import Enum
 import os
-from pathlib import Path
-import json
 import re
 import _G
-from _G import _G_
-from flask import current_app
-
-# 导入数据库模型
-from SModels import LogModel_
-from SDatabase import Database
+from typing import List
+# 导入数据库模块
+from SDatabase import Database, db
+from sqlalchemy import func
+import time
+import random
+import hashlib
 
 class TAG(Enum):
     """标签"""
@@ -18,11 +17,32 @@ class TAG(Enum):
     SCMD = "SCMD"
     Server = "@"
 
+class LogModel_(db.Model):
+    """日志数据模型"""
+    __tablename__ = 'logs'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    time = db.Column(db.String(20))
+    tag = db.Column(db.String(50))
+    level = db.Column(db.String(10))
+    message = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    
+    def toDict(self):
+        """转换为字典格式"""
+        return {
+            'id': self.id,
+            'time': self.time,
+            'tag': self.tag,
+            'level': self.level,
+            'message': self.message,
+        }
+
 class _Log_:
     """统一的日志管理类"""
-    _cache = []
-    _visualLogs = []
-    APP_LOGS = os.path.join(_G.g.rootDir(), 'data', 'logs')
+    _cache: List[LogModel_] = []
+    _cache = []  # 任务列表
+    _lastDate = None  # 最近一次缓存的日期
 
     # ANSI颜色代码
     COLORS = {
@@ -45,7 +65,6 @@ class _Log_:
         """清空日志缓存"""
         cls.i('清空日志缓存')
         cls._cache.clear()
-        cls._visualLogs.clear()
 
 
     @classmethod
@@ -66,111 +85,91 @@ class _Log_:
 
     @classmethod
     def uninit(cls):
-        """反初始化日志系统"""
+        """反初始化日志系统，保存到数据库"""
         cls.save()
         cls.clear()
 
     @classmethod
-    def _path(cls, date=None):
-        """获取日志文件路径"""
+    def gets(cls, date=None) -> List['LogModel_']:
+        """
+        获取特定日期的所有日志
+        :param date: 日期，默认为今天
+        :return: 日志列表
+        """
         if date is None:
-            date = datetime.now().strftime('%Y-%m-%d')
-        return Path(cls.APP_LOGS) / f"{date}.log"
-
-    @classmethod
-    def load(cls, date=None):
-        """从JSON文件加载日志"""
+            date = datetime.now().date()
+        if cls._lastDate == date:
+            return cls._cache
+        # 清除当前缓存
         try:
-            cls._cache = []
-            log_path = cls._path(date)
-            if log_path.exists():
-                with open(log_path, 'r', encoding='utf-8') as f:
-                    for line in f:
-                        try:
-                            # 逐行处理并忽略错误行
-                            log = json.loads(line.strip())
-                            if isinstance(log, dict):
-                                cls._cache.append(log)
-                        except Exception as e:
-                            continue  # 忽略错误行
-
-                # 保留原有发送逻辑
-                try:
-                    _G_.sio.emit('S2B_LoadLogs', {
-                        'logs': cls._cache,
-                        'date': date or datetime.now().strftime('%Y-%m-%d')
-                    })
-                except Exception as e:
-                    cls.ex_(e, '发送日志到前端失败')
+            # 使用Database.sql确保在事务内完成查询和序列化
+            def _getLogs(db):
+                # 正确使用Model.query而不是db.query
+                return LogModel_.query.filter(
+                    func.date(LogModel_.time) == date
+                ).all()
+                
+            cls._cache = Database.sql(_getLogs)
+            cls._lastDate = date
+            return cls._cache
         except Exception as e:
-            cls.ex(e, '加载日志文件失败')
+            cls.ex(e, f'获取日期日志列表失败: {date}')
+            return []
 
     @classmethod
     def save(cls):
-        """将日志缓存保存为JSON文件"""
+        """将日志缓存保存到数据库"""
         try:
-            log_path = cls._path()
-            if not cls._cache:
+            # cls.log_('保存日志到数据库')
+            newLogs = [log for log in cls._cache if hasattr(log, '_isNew')]
+            if len(newLogs) < 50:
                 return
-
-            cls.log_(f'保存日志到文件: {log_path}')
-            with open(log_path, 'w', encoding='utf-8') as f:
-                for log in cls._cache:
-                    # print(log)
-                    json_line = json.dumps(log, ensure_ascii=False)
-                    f.write(json_line + '\n')  # 每个JSON对象单独一行
+            # 使用Eventlet的spawn而不是线程
+            def _save():
+                try:
+                    # 保存到数据库
+                    def _saveLogs(db):
+                        for log in newLogs:
+                            db.session.add(log)
+                            del log._isNew
+                        db.session.commit()
+                    Database.sql(_saveLogs)
+                    # cls.log_("日志数据库保存完成", None, 'd')
+                except Exception as thread_err:
+                    cls.log_(f"日志保存异步操作异常: {thread_err}", None, 'e')
+            
+            # 使用Eventlet的spawn替代线程
+            import eventlet
+            eventlet.spawn(_save)            
         except Exception as e:
             cls.ex(e, '保存日志缓存失败')
 
-    #向控制台打印log并保存到数据库
+    @classmethod
+    def createID(cls)->int:
+        # 精确到毫秒的时间戳
+        timestamp = int(time.time() * 1000)
+        # 6位随机数
+        random_num = random.randint(100000, 999999)
+        # 组合并取哈希的最后10位（纯数字版本）
+        combined = f"{timestamp}{random_num}"
+        return int(combined) % 10000000000  # 保证不超过10位数
+    
     @classmethod
     def Blog(cls, message, tag=None, level='i'):
-        """添加日志到缓存、数据库并发送到前端"""
         try:
-            # 在方法开始时导入socketio，确保后续可以使用
-            logs = cls._cache
-            # 检查是否与最后一条日志内容相同
-            lastLog = logs[-1] if len(logs) > 0 else None
-            if lastLog:
-                # 检查标签、级别、消息和结果是否相同
-                tagEqual = lastLog.get('tag') == tag
-                levelEqual = lastLog.get('level') == level
-                msgEqual = lastLog.get('message') == message
-                # 去除可能的重复标记
-                if (tagEqual and levelEqual and msgEqual):
-                    # 更新重复计数
-                    count = lastLog.get('count', 1) + 1
-                    lastLog['count'] = count
-                    # 打印调试信息
-                    # print(f'更新重复计数: {count}, 消息: {lastLog.get("message")}')
-                    # 通知前端更新
-                    try:
-                        # 确保发送完整的日志对象，包括时间戳
-                        _G._G_.sio.emit('S2B_EditLog', lastLog)
-                        # 更新数据库中的日志计数
-                        cls._updateLogInDb(lastLog)
-                    except Exception:
-                        cls.ex_(None, '发送EditLog事件或更新数据库失败')
-                    return
-                # 打印带颜色的日志到终端
-            # 确保新日志有count字段
-            logData = {
-                'message': message,
-                'level': level,
-                'tag': tag,
-                'count': 1,
-                'time': datetime.now().strftime('%H:%M:%S')
-            }
-            logs.append(logData)
-            g = _G._G_
-            sio = g.sio
-            if hasattr(sio, 'server') and sio.server:
-                try:
-                    sio.emit('S2B_AddLog', logData)
-                    # 保存到数据库
-                    cls._saveLogToDb(logData)
-                except Exception as e:
-                    cls.ex_(e, '发送AddLog事件或保存到数据库失败')
+            id = cls.createID()
+            time_str = datetime.now().strftime('%H:%M:%S')
+            log = LogModel_(
+                id=id,
+                tag=tag,
+                level=level,
+                message=message,
+                time=time_str
+            )
+            log._isNew = True
+            cls._cache.append(log)
+            cls.save()
+            _G._G_.emit('S2B_sheetUpdate', {'type': 'logs', 'data': [log.toDict()]})
         except Exception as e:
             cls.ex_(e, '发送日志到控制台失败')
 
@@ -195,7 +194,7 @@ class _Log_:
         m = re.search(r'([dDiIwWEecC])[~]', content)
         if m:
             level = m.group(1).lower()  # 提取level字符
-            #提取剩余内容(去掉level标记,可能LEVEL标记在中间)
+            # 提取剩余内容(去掉level标记,可能LEVEL标记在中间)
             content = re.sub(m.group(0), '', content).strip()
             if content == '':
                 content = None
@@ -204,45 +203,44 @@ class _Log_:
         return (level, content)
 
     @classmethod
-    def createLogData(cls, tag, content, level='i')->dict:
+    def createLogData(cls, tag, content, level='i'):
         """创建日志数据"""
-        # time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         time = datetime.now().strftime('%H:%M:%S')
         level, content = cls._parseLevel(content, level)
         if content is None:
             return None
-        return {
-            'time': time,
-            'tag': tag,
-            'level': level,
-            'message': content,
-            'count': 1
-        }
+            
+        log_model = LogModel_(
+            tag=tag,
+            level=level,
+            message=content,
+            time=time
+        )
+        return log_model
 
 
     @classmethod
-    def _serverLog(cls, tag, level, content)->dict:
+    def _serverLog(cls, tag, level, content):
         try:
-            logData = cls.createLogData(tag, content, level)
-            if logData:
-                cls.Blog(logData)
-            return logData
+            log_model = cls.createLogData(tag, content, level)
+            if log_model:
+                cls.Blog(log_model.message, log_model.tag, log_model.level)
+            return log_model
         except Exception as e:
             cls.ex_(e, '发送日志到服务器失败')
             return None
 
     @classmethod
-    def _clientLog(cls, logData)->dict:
+    def _clientLog(cls, logData):
         """发送日志到前端"""
         try:
             # 确保logData是有效的
-            if logData and isinstance(logData, dict):
+            if logData and isinstance(logData, LogModel_):
                 return logData
             return None
         except Exception as e:
             cls.ex_(e, '发送日志到服务器失败')
             return None
-
 
 
     @classmethod
@@ -296,9 +294,9 @@ class _Log_:
             print(f"{color}{content}{cls.COLORS['reset']}")
 
 
-    #正常打印日志，会向本地和远程前台发送日志
+    # 正常打印日志，会向本地和远程前台发送日志
     @classmethod
-    def log(cls, content, tag=None, level='i')->dict:
+    def log(cls, content, tag=None, level='i'):
         """记录日志"""
         try:
             # 强制转换非字符串内容
@@ -307,24 +305,34 @@ class _Log_:
             isServer = g.isServer()
             logData = None
             if isServer:
-                logData = cls.createLogData(tag, content, level)
-                cls.Blog(content, tag, level)
-                cls.log_(content, tag, level)
+                log_model = cls.createLogData(tag, content, level)
+                if log_model:
+                    cls.Blog(log_model.message, log_model.tag, log_model.level)
+                    cls.log_(content, tag, level)
+                    logData = log_model
             else:
                 # 客户端环境，获取设备对象并发送日志到服务端
                 device = g.CDevice()
                 if device:
                     deviceId = device.deviceID()
                     tag = f'{deviceId}{tag}' if tag else deviceId
-                    logData = cls.createLogData(tag, content, level)
+                    # 创建字典格式的日志数据
+                    logDict = {
+                        'message': content,
+                        'level': level,
+                        'tag': tag,
+                        'time': datetime.now().strftime('%H:%M:%S')
+                    }
                     # 通过设备对象发送日志到服务端
                     if device.connected():
-                        device.emit('C2S_Log', logData)
+                        device.emit('C2S_Log', logDict)
                 # 同时打印到终端
                 cls.log_(content, tag, level)
+                logData = logDict
             return logData
         except Exception as e:
             cls.ex_(e, '记录日志失败')
+            return None
 
 
     @classmethod
@@ -371,7 +379,7 @@ class _Log_:
     def formatEx(cls, message, e=None, tag=None):
         import traceback
         stack = traceback.format_exc()
-        #将stack中的文件名手机本地路径形式。路径改成相对路径，方便编辑器里面点击跳转
+        # 将stack中的文件名手机本地路径形式。路径改成相对路径，方便编辑器里面点击跳转
         # 比如：data/user/0/cn.vove7.andro_accessibility_api.demo/files/scripts/_CmdMgr.py
         # 改成：scripts/_CmdMgr.py
         stack = stack.replace('data/user/0/cn.vove7.andro_accessibility_api.demo/files/', '')
@@ -392,48 +400,19 @@ class _Log_:
     @classmethod
     def isError(cls, message):
         return isinstance(message, str) and message.startswith('e~')
+        
     @classmethod
     def isWarning(cls, message):
         return isinstance(message, str) and message.startswith('w~')
 
     @classmethod
     def onLoad(cls, oldCls):
+        """初始化日志系统，从数据库加载日志"""
         if oldCls:
             cls._cache = oldCls._cache
-            cls._visualLogs = oldCls._visualLogs
 
-    @classmethod
-    def _saveLogToDb(cls, logData):
-        """将日志保存到数据库"""
-        try:
-            def save_log(db):
-                logModel = LogModel_.fromLogData(logData)
-                db.session.add(logModel)
-                return True
-            
-            Database.sql(save_log)
-        except Exception as e:
-            cls.log_(f'保存日志到数据库失败: {str(e)}', level='w')
 
-    @classmethod
-    def _updateLogInDb(cls, logData):
-        """更新数据库中的日志计数"""
-        try:
-            def update_log(db):
-                latestLog = LogModel_.query.filter_by(
-                    tag=logData.get('tag'),
-                    level=logData.get('level'),
-                    message=logData.get('message')
-                ).order_by(LogModel_.id.desc()).first()
-                
-                if latestLog:
-                    latestLog.count = logData.get('count', 1)
-                    db.session.commit()
-                return True
-            
-            Database.sql(update_log)
-        except Exception as e:
-            cls.log_(f'更新数据库日志计数失败: {str(e)}', level='w')
-
+# 初始化日志系统
 _Log_.onLoad(None)
-c = _Log_()
+
+

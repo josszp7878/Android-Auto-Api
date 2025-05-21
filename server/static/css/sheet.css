@@ -1,0 +1,138 @@
+/* 任务表格视图基本布局样式 */
+
+/* 表格容器样式 */
+#tables-container {
+    width: 100%;
+    height: calc(100vh - 60px); /* 减少高度，为标签页留出空间 */
+    border: none;
+    margin: 0;
+    padding: 0;
+    position: relative; /* 添加相对定位 */
+}
+
+/* 每个独立表格容器样式 */
+.table-container {
+    width: 100%;
+    height: 100%;
+    border: none;
+    margin: 0;
+    padding: 0;
+}
+
+/* 确保表格容器本身也是满宽度的 */
+.main-content {
+    width: 100%;
+    height: calc(100vh - 10px);
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
+    position: relative; /* 添加相对定位 */
+}
+
+.container-fluid {
+    padding: 0;
+    margin: 0;
+    width: 100%;
+    height: 100vh;
+}
+
+/* 标签页样式 */
+.table-tabs {
+    display: flex;
+    justify-content: flex-start;
+    background-color: #222;
+    padding: 5px 10px;
+    border-top: 1px solid #333;
+    width: 100%;
+    position: fixed; /* 固定位置 */
+    bottom: 0; /* 放在底部 */
+    left: 0;
+    z-index: 100; /* 确保在表格上方 */
+}
+
+.tab-button {
+    margin-right: 5px;
+    padding: 8px 15px;
+    border: 2px solid #006400;
+    border-radius: 3px;
+    cursor: pointer;
+    background-color: #222;
+    color: white;
+    transition: all 0.2s ease;
+}
+
+.tab-button.active {
+    border-color: #4caf50;
+    font-weight: bold;
+}
+
+/* 命令输入区域样式 */
+.command-area {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+    background-color: #222;
+    padding: 5px;
+    position: fixed;
+    bottom: 0;
+    right: 10px;
+    z-index: 101;
+}
+
+.command-area input {
+    width: 300px;
+    padding: 8px;
+    border: 1px solid #333;
+    border-radius: 3px;
+    background-color: #333;
+    color: white;
+    margin-right: 5px;
+}
+
+.command-area button {
+    background-color: #4caf50;
+    border: none;
+    padding: 8px 15px;
+}
+
+/* 上下文菜单样式 */
+.context-menu {
+    display: none;
+    position: absolute;
+    z-index: 1000;
+}
+
+.context-menu.show {
+    display: block;
+}
+
+.context-menu .dropdown-item {
+    cursor: pointer;
+    padding: 0.5rem 1rem;
+    font-size: 14px;
+}
+
+.context-menu .dropdown-item i {
+    margin-right: 8px;
+    width: 16px;
+    text-align: center;
+}
+
+.context-menu .dropdown-item:hover {
+    background-color: #f8f9fa;
+}
+
+/* 强制Tabulator标签页放在左侧 */
+.tabulator-spreadsheet .tabulator-spreadsheet-tabs {
+    justify-content: flex-start !important;
+}
+
+/* 如果标签在底部，确保它们从左边开始 */
+.tabulator-spreadsheet-tabs-bottom .tabulator-spreadsheet-tabs {
+    justify-content: flex-start !important;
+}
+
+/* 如果有页面导航，将其放在右侧 */
+.tabulator-paginator {
+    justify-content: flex-end !important;
+} 

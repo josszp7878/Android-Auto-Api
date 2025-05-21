@@ -27,8 +27,7 @@ def index():
                 progress = 0
                 if hasattr(task, 'progress') and hasattr(task, 'total'):
                     if task.total > 0:
-                        progress = int((task.progress / task.total) * 100)
-                
+                        progress = int((task.progress / task.total) * 100)                
                 # 收集任务数据
                 task_data = {
                     'id': task.taskId if hasattr(task, 'taskId') else '',
@@ -43,7 +42,7 @@ def index():
                 }
                 tasks_data.append(task_data)
     
-    return render_template('tasks.html', initial_devices=devices, tasks_data=tasks_data, curDeviceID=curDeviceID)
+    return render_template('sheet.html', initial_devices=devices, tasks_data=tasks_data, curDeviceID=curDeviceID)
 
 @bp.route('/tabulator-demo')
 def tabulator_demo():
@@ -64,7 +63,7 @@ def device(device_id):
     device = deviceMgr.get(device_id)
     if not device:
         return "设备不存在", 404
-    return render_template('device.html', device_id=device_id, device=device.to_dict())
+    return render_template('device.html', device_id=device_id, device=device.toDict())
 
 @bp.route('/file/<path:filename>')
 def serve_file(filename):

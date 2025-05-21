@@ -1,9 +1,9 @@
 from flask import current_app
-from SModels import db, DeviceModel
-from SDevice import SDevice_
+from SModels import db
+from SDevice import SDevice_, DeviceModel
 import _Log
 from datetime import datetime
-from typing import Optional, Callable, List
+from typing import Optional, Callable, List, Dict
 import threading
 import hashlib
 import time
@@ -25,7 +25,7 @@ class SDeviceMgr_:
     def __init__(self):
         # 只在第一次初始化时执行
         if not hasattr(self, 'initialized'):
-            self._devices = None  # 初始化为None，通过property懒加载
+            self._devices: Dict[str, SDevice_] = None  # 初始化为None，通过property懒加载
             self.consoles = set()  # 存储控制台的 SID
             self.curDeviceIDs = []
             self.initialized = True
@@ -82,21 +82,30 @@ class SDeviceMgr_:
         except Exception as e:
             _Log._Log_.ex(e, '保存数据库出错')
 
-    def add(self, id):
+    def add(self, id: str, sid: str):
         """添加新设备"""
-        id = id.lower()
-        device = SDevice_(id)
-        device.init()
-        self.devices[id] = device
-        self._save(device)
-        _Log._Log_.i(f'添加设备: {id}')
-        return device
+        try:
+            device = self.get(id)
+            if not device:
+                id = id.lower()
+                device = SDevice_(id)
+                device.init()
+                self.devices[id] = device
+                self._save(device)
+                _Log._Log_.i(f'添加设备: {id}')
+            device.info['sid'] = sid
+            device.info['connected_at'] = str(datetime.now())
+            device.onConnect() 
+            return device
+        except Exception as e:
+            _Log._Log_.ex(e, '添加设备失败')
+            return None
 
     def get(self, id) -> Optional[SDevice_]:
         """获取设备"""
         return self.devices.get(id.lower())
 
-    def gets(self, idOrGroup) -> List[SDevice_]:
+    def getsBy(self, idOrGroup) -> List[SDevice_]:
         """获取设备"""
         if idOrGroup is None or idOrGroup == '':
             return []
@@ -104,6 +113,10 @@ class SDeviceMgr_:
         if device:
             return [device]
         return self.GetByGroup(idOrGroup)
+    
+    def gets(self) -> Dict[str, SDevice_]:
+        """获取所有设备"""
+        return self.devices
 
     def getBySID(self, sid) -> Optional[SDevice_]:
         """根据sid获取设备"""
@@ -124,7 +137,7 @@ class SDeviceMgr_:
         """转换所有设备为字典格式"""
         return {
             device_id: {
-                **device.to_dict()
+                **device.toDict()
             }
             for device_id, device in self.devices.items()
         }
@@ -404,7 +417,7 @@ class SDeviceMgr_:
                     result = cmd.get('result', '')
                     g.SCommandHistory().add(command, target, result)
                 else:
-                    devices = self.gets(target)
+                    devices = self.getsBy(target)
                     if len(devices) == 0:
                         log.w(f'设备 {target} 不存在')
                         continue

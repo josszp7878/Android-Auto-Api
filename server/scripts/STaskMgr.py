@@ -85,11 +85,12 @@ class STaskMgr_:
             
         except Exception as e:
             _Log._Log_.ex(e, '获取今日任务得分失败')
-            return 0
-
+            return 0 
+        
     def init(self,device_id:str):
         # _Log._Log_.i(f"初始化任务管理器########: {device_id}")
         self._device.id = device_id
+
 
     def _getTasks(self, appName: str, taskName: str, notCompleted: bool = False) -> List[STask_]:
         try:
@@ -210,6 +211,7 @@ class STaskMgr_:
         except Exception as e:
             _Log._Log_.ex(e, f'结束任务失败: {appName}/{taskName}')
             return False
+        
     def stopTask(self, appName: str, taskName: str) -> bool:
         """停止任务"""
         try:

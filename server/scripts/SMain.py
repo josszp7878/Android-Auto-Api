@@ -60,8 +60,8 @@ def createApp(configName='development', debug=False):
     app.register_blueprint(bp)
     
     # 导入并注册任务API蓝图
-    from STaskAPI import task_bp
-    app.register_blueprint(task_bp)
+    # from STaskAPI import task_bp
+    # app.register_blueprint(task_bp)
     
     app.debug = debug
     return app

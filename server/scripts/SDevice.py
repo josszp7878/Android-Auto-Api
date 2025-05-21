@@ -3,13 +3,44 @@ from pathlib import Path
 import json
 import os
 from flask import current_app
-from SModels import db, DeviceModel, AppModel
+from SModels import db, AppModel
 import _Log
 import base64
 from STaskMgr import STaskMgr_
 from SEarningMgr import SEarningMgr_
 import _G
 from SDatabase import Database
+
+class DeviceModel(db.Model):
+    """设备数据模型"""
+    __tablename__ = 'devices'
+    id = db.Column(db.BigInteger, primary_key=True)
+    device_id = db.Column(db.String(50), default='')
+    status = db.Column(db.String(20), default='offline')
+    info = db.Column(db.JSON)
+    last_seen = db.Column(db.DateTime, default=datetime.now)
+    grp = db.Column(db.String(50), default='')  # 分组字段改名为grp
+
+    def __repr__(self):
+        return f'<Device {self.device_id}>'
+
+    def to_dict(self):
+        return {
+            'status': self.status,
+            'last_seen': self.last_seen,
+            'info': self.info or {},
+            'grp': self.grp  # 分组信息字段名修改
+        }
+
+    @staticmethod
+    def from_device(device):
+        """从Device对象创建数据库记录"""
+        return DeviceModel(
+            device_id=device.device_id,
+            status=device.status,
+            last_seen=device.last_seen,
+            info=device.info
+        )
 
 class SDevice_:
     """设备类：管理设备状态和信息"""
@@ -121,16 +152,9 @@ class SDevice_:
         """设备连接回调"""
         try:
             self.status = 'online'
-            _Log._Log_.i(f'设备 {self.device_id} 已连接')
+            _Log._Log_.i(f'设备 +++++{self.device_id} 已连接')
             self._commit()
-            
-            # 将刷新操作放在单独的 try-except 块中
-            try:
-                self.refresh()  # 统一刷新状态
-            except Exception as e:
-                _Log._Log_.ex(e, f'设备 {self.device_id} 刷新状态失败，但连接已建立')
-                # 连接失败不影响设备连接状态
-            
+            self.refresh()  # 统一刷新状态
             return True
         except Exception as e:
             _Log._Log_.ex(e, '设备连接处理失败')
@@ -141,7 +165,7 @@ class SDevice_:
         try:
             self.status = 'offline'
             self.last_seen = datetime.now()  # 更新断开时间
-            _Log._Log_.i(f'设备 {self.device_id} 已断开连接')
+            _Log._Log_.i(f'设备 -----{self.device_id} 已断开连接')
             self._commit()
             self.refresh()  # 统一刷新状态
             return True
@@ -178,66 +202,28 @@ class SDevice_:
         try:
             from SDeviceMgr import deviceMgr
             # 先获取设备信息，如果出错则记录日志
-            device_info = self.to_dict()
-            deviceMgr.emit2B('S2B_DeviceUpdate', device_info)
-            # _Log._Log_.i(f'设备 {self.device_id} 状态已刷新')
-            self.taskMgr.currentTask = None
+            dev = self.toDict()
+            # 通知前端设备列表已更新
+            deviceMgr.emit2B('S2B_sheetUpdate', {'type': 'devices', 'data': [dev]})
+            _Log._Log_.i(f'设备更新 {dev}')
         except Exception as e:
             _Log._Log_.ex(e, '刷新设备状态失败')
 
-    def to_dict(self):
+    def toDict(self):
         """返回设备信息字典"""
         try:
-            screenshotTime = None
-            screenshotFile = None
-            
-            # 获取截图信息
-            if self._lastScreenshot:
-                try:
-                    mtime = datetime.fromtimestamp(Path(self._lastScreenshot).stat().st_mtime)
-                    screenshotTime = mtime.strftime('%H:%M:%S')
-                    screenshotFile = str(self._lastScreenshot).replace('\\', '/')
-                    if 'static' in screenshotFile:
-                        screenshotFile = '/static' + screenshotFile.split('static')[1]
-                except Exception as e:
-                    _Log._Log_.ex(e, '获取截图时间失败')
-                    # 使用默认值
-                    screenshotTime = datetime.now().strftime('%H:%M:%S')
-            
-            if not screenshotFile:
-                screenshotFile = '/static/screenshots/default.jpg'
-            
-            # 获取任务分数
-            try:
-                todayTaskScore = self.taskMgr.getTodayScore() if hasattr(self, '_taskMgr') else 0
-            except Exception as e:
-                _Log._Log_.ex(e, '获取今日任务分数失败')
-                todayTaskScore = 0
-            
-            # 获取总分
-            try:
-                totalScore = self.total_score
-            except Exception as e:
-                _Log._Log_.ex(e, '获取总分失败')
-                totalScore = 0
-            
             return {
+                'id': self.id,
                 'deviceId': self.device_id,
                 'status': self.status,
-                'screenshot': screenshotFile,
-                'screenshotTime': screenshotTime,
-                'todayTaskScore': todayTaskScore,
-                'totalScore': totalScore,
-                'group': self.group
+                'group': self.group,
+                'currentTask': '',
+                'score': 0,
             }
         except Exception as e:
             _Log._Log_.ex(e, '生成设备信息字典失败')
             # 返回最小化的设备信息
-            return {
-                'deviceId': self.device_id,
-                'status': self.status,
-                'group': self.group
-            }
+            return {}
     
     def saveScreenshot(self, base64_data):
         """保存截图并刷新设备信息
@@ -437,4 +423,5 @@ class SDevice_:
             log.ex(e, f"从文件加载屏幕信息失败: {pageName}")
             return None
 
+   
    

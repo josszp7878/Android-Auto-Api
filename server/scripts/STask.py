@@ -4,6 +4,8 @@ from SDatabase import db, Database
 import _Log
 from flask import current_app
 from sqlalchemy import func
+from typing import List, Optional, Dict, Any
+from collections import deque
 
 
 class STask_(db.Model):
@@ -19,6 +21,10 @@ class STask_(db.Model):
     progress = db.Column(db.Float, default=0.0)
     state = db.Column(db.String(20), default=TaskState.RUNNING.value)
     life = db.Column(db.Integer, default=0)  # 任务生命，负数表示次数，正数表示时间长度，0表示无生命约束
+
+    # 任务缓存
+    _cache = []  # 任务列表
+    _lastDate = None  # 最近一次缓存的日期
 
     @property
     def deviceMgr(self):
@@ -87,11 +93,18 @@ class STask_(db.Model):
                 db.session.delete(self)
                 db.session.commit()
             
+            # 从缓存中移除
+            task_date = self.time.date()
+            cache_key = (self.deviceId, self.taskName, task_date)
+            if cache_key in STask_._cache_map:
+                del STask_._cache_map[cache_key]
+                # 从deque中移除比较麻烦，所以这里不处理，让它自然过期
+            
             # 刷新界面（传入None表示清除任务显示）
             from SDeviceMgr import deviceMgr
-            deviceMgr.emit2B('S2B_TaskUpdate', {
-                'deviceId': self.deviceId,
-                'task': None
+            deviceMgr.emit2B('S2B_sheetDelete', {
+                'type': 'tasks',
+                'id': self.id  # 任务被删除，发送空数组
             })
                 
         except Exception as e:
@@ -102,14 +115,15 @@ class STask_(db.Model):
         try:
             result = data.get('result', True)
             score = data.get('score', 0)
-            _Log._Log_.i(f'任务结束: {self.id}-{self.taskName}, 结果: {"成功" if result else "失败"}, 得分: {score}')
+            _Log._Log_.i(f'任务结束: {self.id}-{self.taskName}, 结果: '
+                        f'{"成功" if result else "失败"}, 得分: {score}')
             
             self.state = TaskState.SUCCESS.value if result else TaskState.FAILED.value
             self.score = score
             self.progress = 1.0 if result else self.progress
             self.endTime = datetime.now()
             if Database.commit(self):
-                _Log._Log_.i(f"任务结束: 成功")
+                _Log._Log_.i("任务结束: 成功")
                 return STask_.refresh(self)
             return False
             
@@ -123,49 +137,23 @@ class STask_(db.Model):
             self.state = TaskState.PAUSED.value
             db.session.commit()
             STask_.refresh(self)
-            _Log._Log_.i(f"任务 {self.id}-{self.taskName} 已暂停，进度: {self.progress*100:.1f}%")
+            _Log._Log_.i(f"任务 {self.id}-{self.taskName} 已暂停，"
+                        f"进度: {self.progress*100:.1f}%")
 
-  
-    def to_dict(self):
+    def toDict(self):
         """返回任务信息字典"""
         try:
-            # 计算任务收益率
-            today = datetime.now().date()
-            similar_tasks = STask_.query.filter(
-                STask_.deviceId == self.deviceId,
-                STask_.taskName == self.taskName,
-                func.date(STask_.time) == today,
-                STask_.state == TaskState.SUCCESS.value
-            ).all()
-            
-            total_score = sum(t.score for t in similar_tasks if t.score)
-            total_time = sum((t.endTime - t.time).total_seconds() / 3600 
-                            for t in similar_tasks if t.endTime)
-            
-            efficiency = round(total_score / total_time, 1) if total_time > 0 else 0
-            
             return {
                 'id': self.id or 0,  # 确保id不为null
                 'taskName': self.taskName,
-                'displayName': f'{self.id or 0}:{self.taskName}',
                 'progress': self.progress,
                 'state': self.state,
                 'score': self.score,
-                'life': self.life or 0,  # 确保life不为null
-                'efficiency': efficiency
+                'life': self.life or 0
             }
         except Exception as e:
             _Log._Log_.ex(e, '获取任务信息失败')
-            return {
-                'id': self.id or 0,
-                'taskName': self.taskName,
-                'displayName': f'{self.id or 0}:{self.taskName}',
-                'progress': self.progress,
-                'state': self.state,
-                'score': self.score,
-                'life': self.life or 0,
-                'efficiency': 0
-            }
+            return None
 
     @classmethod
     def refresh(cls, task: 'STask_'):
@@ -173,27 +161,74 @@ class STask_(db.Model):
         try:
             from SDeviceMgr import deviceMgr
             # 如果task为None，直接返回
-            _Log._Log_.i(f"刷新任务状态1111: 任务：{task}")
+            _Log._Log_.i(f"刷新任务状态: 任务：{task}")
             if not task:
                 return
-            # 获取设备
-            device = task.device
             # 获取任务管理器
-            taskMgr = device.taskMgr
-            today_task_score = taskMgr.getTodayScore()
-            # 获取任务管理器统计信息
-            stats = taskMgr.getTaskStats()
-            
-            # 发送任务更新事件，包含分数信息
-            deviceMgr.emit2B('S2B_TaskUpdate', {
-                'deviceId': task.deviceId,
-                'task': {
-                    **task.to_dict(),
-                    'taskStats': stats,
-                } if task else None,
-                'todayTaskScore': today_task_score,
-                'totalScore': device.total_score
+            deviceMgr.emit2B('S2B_sheetUpdate', {
+                'type': 'tasks',
+                'data': [task.toDict()]
             })
             
         except Exception as e:
-            _Log._Log_.ex(e, f'刷新任务状态失败')
+            _Log._Log_.ex(e, '刷新任务状态失败')
+
+    
+    @classmethod
+    def get(cls, deviceId: str, taskName: str, date=None, create: bool = False) -> Optional['STask_']:
+        """
+        获取指定设备、应用的某天任务
+        :param deviceId: 设备ID
+        :param taskName: 任务名称
+        :param date: 日期，默认为今天
+        :param create: 不存在时是否创建
+        :return: 任务对象或None
+        """
+        if date is None:
+            date = datetime.now().date()
+        # 先从缓存查找
+        task = next((t for t in cls._cache if t.deviceId == deviceId and t.taskName == taskName and t.time.date() == date), None)
+        if task:
+            return task
+        # 从数据库查找
+        try:
+            task = cls.query.filter(
+                cls.deviceId == deviceId,
+                cls.taskName == taskName,
+                func.date(cls.time) == date
+            ).first()
+            # 如果需要创建
+            if task is None and create:
+                task = cls(deviceId, taskName)
+                db.session.add(task)
+                db.session.commit()
+            if task:
+                cls._cache.append(task)
+            return None
+        except Exception as e:
+            _Log._Log_.ex(e, f'获取任务失败: {deviceId}-{taskName}')
+            return None
+    
+    @classmethod
+    def gets(cls, date=None) -> List['STask_']:
+        """
+        获取特定日期的所有任务
+        :param date: 日期，默认为今天
+        :return: 任务列表
+        """
+        if date is None:
+            date = datetime.now().date()
+        if cls._lastDate == date:
+            return cls._cache
+        # 清除当前缓存
+        try:
+            cls._cache = cls.query.filter(
+                func.date(cls.time) == date
+            ).all()
+            cls._lastDate = date
+            return cls._cache
+        except Exception as e:
+            _Log._Log_.ex(e, f'获取日期任务列表失败: {date}')
+            return []    
+   
+    

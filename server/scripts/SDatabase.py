@@ -62,7 +62,6 @@ class Database:
         
     @classmethod
     def init(cls, app: Flask):
-        log = _G._G_.Log()
         db = cls.getDB()
         cls.app = app
         """初始化数据库"""
@@ -71,20 +70,15 @@ class Database:
         import SModels
         # 在应用上下文中创建所有不存在的表
         with app.app_context():
-            try:
-                # 添加连接事件监听器来清除表缓存
-                def on_connect(dbapi_con, connection_record):
-                    with dbapi_con.cursor() as cursor:
-                        cursor.execute('FLUSH TABLES')
-                
-                event.listen(db.engine, 'connect', on_connect)
-                
-                # 只创建不存在的表
-                db.create_all()
-                log.i("数据库初始化成功")
-            except Exception as e:
-                log.ex(e, "数据库初始化错误")
-                raise
+            # 添加连接事件监听器来清除表缓存
+            def on_connect(dbapi_con, connection_record):
+                with dbapi_con.cursor() as cursor:
+                    cursor.execute('FLUSH TABLES')
+            
+            event.listen(db.engine, 'connect', on_connect)
+            
+            # 只创建不存在的表
+            db.create_all()
 
 
 # 导出全局db实例
