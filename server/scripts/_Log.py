@@ -9,7 +9,6 @@ from SDatabase import Database, db
 from sqlalchemy import func
 import time
 import random
-import hashlib
 
 class TAG(Enum):
     """标签"""
@@ -169,10 +168,11 @@ class _Log_:
             log._isNew = True
             cls._cache.append(log)
             cls.save()
-            _G._G_.emit('S2B_sheetUpdate', {'type': 'logs', 'data': [log.toDict()]})
+            g = _G._G_
+            from SDeviceMgr import deviceMgr
+            g.emit('S2B_sheetUpdate', {'type': 'logs', 'data': [log.toDict()]}, deviceMgr.curConsoleSID)
         except Exception as e:
             cls.ex_(e, '发送日志到控制台失败')
-
 
     @classmethod
     def _parseLevel(cls, content, level='i'):
@@ -252,22 +252,27 @@ class _Log_:
     @classmethod
     def i_(cls, content, tag=None):
         """打印日志到终端"""
-        cls.log_(content, tag, 'i', '')
+        cls.log_(content, tag, 'i')
 
     @classmethod
     def d_(cls, content, tag=None):
         """打印日志到终端"""
-        cls.log_(content, tag, 'd', '')
+        cls.log_(content, tag, 'd')
+
+    @classmethod
+    def c_(cls, content, tag=None):
+        """打印日志到终端"""
+        cls.log_(content, tag, 'c')
 
     @classmethod
     def w_(cls, content, tag=None):
         """打印日志到终端"""
-        cls.log_(content, tag, 'w', '')
+        cls.log_(content, tag, 'w')
 
     @classmethod
     def e_(cls, content, tag=None):
         """打印日志到终端"""
-        cls.log_(content, tag, 'e', '')
+        cls.log_(content, tag, 'e')
 
 
     @classmethod
@@ -348,6 +353,11 @@ class _Log_:
             android.log(content, tag, level)
         else:
             cls._PCLog_(content, tag, level)
+
+    @classmethod
+    def c(cls, message, tag=None):
+        """输出调试级别日志"""
+        cls.log(message, tag, 'c')
 
     @classmethod
     def d(cls, message, tag=None):

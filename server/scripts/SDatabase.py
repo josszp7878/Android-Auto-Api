@@ -39,7 +39,20 @@ class Database:
             if hasattr(cls._db, "session"):
                 cls._db.session.rollback()
             return None
-    
+        
+    @classmethod
+    def delete(cls, obj=None):
+        """删除对象"""
+        try:
+            db = cls.getDB()
+            db.session.delete(obj)
+            db.session.commit()
+            return True
+        except Exception as e:
+            _G._G_.Log().ex(e, "数据库删除失败")
+            db.session.rollback()
+            return False
+
     @classmethod
     def commit(cls, obj=None):
         """安全的提交更改

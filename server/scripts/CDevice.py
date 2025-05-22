@@ -217,8 +217,6 @@ class CDevice_:
             cmdData = data.get('data', None)
             cmd_id = data.get('cmd_id')  # 获取命令ID
 
-            # 不再记录执行命令的日志，避免重复记录
-            # log.log(command, cls._deviceID, 'c')
             # 使用 CmdMgr 执行命令
             cmd = {'id': cmd_id, 'data': cmdData, 'cmd': command}
             g.CmdMgr().do(cmd)

@@ -356,7 +356,7 @@ class _CmdMgr_:
             sig = inspect.signature(find.func)
             if 'cmd' in sig.parameters:
                 kwargs['cmd'] = cmd 
-            log.log_(f'<{cmdName}>:{cmdStr}', '', 'c')
+            log.c_(f'<{cmdName}>:{cmdStr}', '')
             result = find.func(**kwargs)
             result = str(result) if result is not None else ''
             if result:

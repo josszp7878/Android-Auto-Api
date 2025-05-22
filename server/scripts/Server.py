@@ -38,12 +38,13 @@ def handleConnect(auth=None)->bool:
     """处理客户端连接"""
     try:
         deviceId = request.args.get('device_id')
-        _Log._Log_.i(f'收到连接请求: {deviceId}')
-        if deviceId is None or deviceId.startswith('@'):
-            deviceMgr.addConsole(request.sid)
-        else:
-            deviceMgr.add(deviceId, request.sid)
-
+        if not deviceId:
+            return False
+        log = _Log._Log_
+        log.i(f'收到设备连接请求: {deviceId}')
+        device = deviceMgr.get(deviceId,True)
+        if device:
+            device.onConnect(request.sid)
     except Exception as e:
         _Log._Log_.ex(e, '处理连接时出错')
         return False
@@ -52,17 +53,10 @@ def handleConnect(auth=None)->bool:
 def handleDisconnect():
     """处理客户端断开连接"""
     try:
-        # _Log._Log_.i(f'Client disconnected: {request.sid}')
-        # 检查是否是控制台断开
-        if request.sid in deviceMgr.consoles:
-            # _Log._Log_.i(f'控制台断开连接: {request.sid}')
-            deviceMgr.removeConsole(request.sid)
-            return
-        # 设备断开处理...
         device = deviceMgr.getBySID(request.sid)
         if device:
-            # _Log._Log_.i(f'设备断开连接: {device.device_id}')
             device.onDisconnect()
+            
     except Exception as e:
         _Log._Log_.ex(e, '处理客户端断开连接失败')
 
@@ -72,8 +66,8 @@ def handleC2SLogin(data):
         deviceId = data.get('device_id')
         if not deviceId:
             return
+        # 普通设备处理
         device = deviceMgr.get(deviceId)
-        # print(f'llllginlll device: {device}{device.device_id}')
         if not device:
             return
         ok = device.login()
@@ -256,13 +250,8 @@ def handle2SCmd(data):
             targets = selectedIDs if selectedIDs else [_Log.TAG.Server.value]
         params = data.get('params', {})
         # 执行命令
-        result = deviceMgr.sendCmd(targets, command, params)
-        # 如果有结果，再发送结果日志
-        if result:
-            # 使用命令结果的日志级别
-            level, content = Log._parseLevel(result, 'i')
-            if content: 
-                Log.Blog(f"  => {content}", None, level)
+        deviceMgr.sendCmd(targets, command, params)
+
     except Exception as e:
         Log.ex(e, '执行命令失败')
 
@@ -300,15 +289,20 @@ def handleB2SLoadDevices(data):
     """处理加载设备数据请求
     
     Args:
-        data: 包含filters字段的字典，用于过滤设备
+        data: 包含filters字段的字典，用于过滤设备   
     """
     try:
+        log = _Log._Log_
+        # 获取普通设备数据
         from SDeviceMgr import deviceMgr
-        datas = deviceMgr.gets()
-        datas = [device.toDict() for device in datas.values()]
-        # _Log._Log_.i(f'设备数据: {len(datas)}')
-        # 更新前端设备数据
-        deviceMgr.emit2B('S2B_sheetUpdate', {'type': 'devices', 'data': datas})
+        devices = []
+        for device in deviceMgr.devices.values():
+            if not device.device_id.startswith('@'):
+                devices.append(device.toDict())
+            else:
+                log.e(f'客户端设备集合里面发现: {device.device_id} 是控制台设备')
+        # 更新前端设备和控制台数据
+        deviceMgr.emit2B('S2B_sheetUpdate', {'type': 'devices', 'data': devices})
 
     except Exception as e:
         _Log._Log_.ex(e, '处理加载设备数据请求失败')
@@ -326,7 +320,7 @@ def handleB2SLoadLogs(data):
         date = filters.get('date')
         datas = log.gets(date)
         datas = [log.toDict() for log in datas]
-        # _Log._Log_.i(f'日志数据: {len(datas)}')
+        # _Log._Log_.i(f'日志数据: {datas}')
         # 更新前端日志数据
         deviceMgr.emit2B('S2B_sheetUpdate', {'type': 'logs', 'data': datas})
         # 返回成功响应，不等待实际加载完成

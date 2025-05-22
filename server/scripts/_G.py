@@ -49,10 +49,13 @@ class _G_:
     sio = None  # SocketIO实例,客户端服务端通用
 
     @classmethod
-    def emit(cls, event, data)->bool:
+    def emit(cls, event, data, sid=None)->bool:
         """发送事件"""
         if cls.sio:
-            cls.sio.emit(event, data)
+            if sid:
+                cls.sio.emit(event, data, room=sid)
+            else:
+                cls.sio.emit(event, data)
             return True
         return False
 
