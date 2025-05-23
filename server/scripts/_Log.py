@@ -21,17 +21,17 @@ class LogModel_(db.Model):
     __tablename__ = 'logs'
     
     id = db.Column(db.Integer, primary_key=True)
-    time = db.Column(db.String(20))
+    time = db.Column(db.DateTime, default=datetime.now)
     tag = db.Column(db.String(50))
     level = db.Column(db.String(10))
     message = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.now)
     
     def toDict(self):
         """转换为字典格式"""
         return {
             'id': self.id,
-            'time': self.time,
+            'date': self.time.strftime('%Y-%m-%d') if self.time else '',
+            'time': self.time.strftime('%H:%M:%S') if self.time else '',
             'tag': self.tag,
             'level': self.level,
             'message': self.message,
@@ -89,14 +89,22 @@ class _Log_:
         cls.clear()
 
     @classmethod
-    def gets(cls, date=None) -> List['LogModel_']:
+    def gets(cls, date:str=None) -> List['LogModel_']:
         """
         获取特定日期的所有日志
-        :param date: 日期，默认为今天
+        :param date: 可以是datetime.date对象或'YYYY-MM-DD'格式字符串，默认为今天
         :return: 日志列表
         """
+        # 处理默认值
         if date is None:
             date = datetime.now().date()
+        else:
+            try:
+                date = datetime.strptime(date, '%Y-%m-%d').date()
+            except ValueError:
+                cls.ex('日期格式错误，应为YYYY-MM-DD')
+                return []
+        # cls.i(f'获取日期日志列表: {date}, cls._lastDate: {cls._lastDate}')    
         if cls._lastDate == date:
             return cls._cache
         # 清除当前缓存
@@ -107,8 +115,8 @@ class _Log_:
                 return LogModel_.query.filter(
                     func.date(LogModel_.time) == date
                 ).all()
-                
             cls._cache = Database.sql(_getLogs)
+            # cls.i(f'获取日期日志列表: {date}, 数量: {len(cls._cache)}')    
             cls._lastDate = date
             return cls._cache
         except Exception as e:
@@ -157,13 +165,13 @@ class _Log_:
     def Blog(cls, message, tag=None, level='i'):
         try:
             id = cls.createID()
-            time_str = datetime.now().strftime('%H:%M:%S')
+            # 使用datetime对象而不是字符串
             log = LogModel_(
                 id=id,
                 tag=tag,
                 level=level,
                 message=message,
-                time=time_str
+                time=datetime.now()  # 直接使用datetime对象
             )
             log._isNew = True
             cls._cache.append(log)

@@ -36,6 +36,13 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/server/scripts;${workspaceFolder}/server"
             }
+        },
+        {
+            "type": "pwa-chrome",
+            "request": "launch",
+            "name": "调试前端页面",
+            "url": "http://localhost:5000",
+            "webRoot": "${workspaceFolder}/server/static/js"
         }
     ]
 } 

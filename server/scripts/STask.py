@@ -146,7 +146,9 @@ class STask_(db.Model):
             return {
                 'id': self.id or 0,  # 确保id不为null
                 'taskName': self.taskName,
+                'deviceId': self.deviceId,
                 'progress': self.progress,
+                'date': self.time.strftime('%Y-%m-%d') if self.time else '',
                 'state': self.state,
                 'score': self.score,
                 'life': self.life or 0
