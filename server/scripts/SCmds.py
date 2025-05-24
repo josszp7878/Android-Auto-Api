@@ -68,7 +68,7 @@ class SCmds_:
             device_manager = SDeviceMgr_()
             devices = device_manager.toDict()
             return '\n'.join([
-                f"{id}: {dev['status']}"
+                f"{id}: {dev['state']}"
                 for id, dev in devices.items()
             ])
 
@@ -84,12 +84,6 @@ class SCmds_:
             示例：进度 _ 微信 签到
             """
             try:
-                # 处理当前设备ID
-                if deviceId == '_':
-                    deviceId = deviceMgr.curDeviceID
-                    if not deviceId:
-                        return "e~未选择设备"
-
                 # 处理最近任务
                 if appName == '_' or taskName == '_':
                     # 从数据库获取最近任务
@@ -136,7 +130,7 @@ class SCmds_:
             """
             try:
                 # 解析参数
-                device_id = deviceId if deviceId else deviceMgr.curDeviceID
+                device_id = deviceId
                 state = state.lower() if state else 'all'
 
                 if not device_id:
@@ -167,40 +161,7 @@ class SCmds_:
                 _Log._Log_.ex(e, "获取任务列表失败")
                 return f"e~获取任务列表失败: {str(e)}"
 
-
-        @regCmd(r"(?:停止|tz)(?P<taskName>[^ ]+)?")
-        def stop(taskName=None):
-            """功能：停止当前设备正在运行的任务
-            指令名：stop
-            中文名：停止
-            参数：
-              taskName - 任务名称 (可选，默认为当前任务)
-            示例：停止 签到
-            """
-            try:
-                device_id = deviceMgr.curDeviceID
-                if not device_id:
-                    return "e~未选择设备"
-
-                # 获取正在运行的任务
-                task = STask_.query.filter_by(
-                    deviceId=device_id,
-                    state=TaskState.RUNNING.value
-                ).order_by(STask_.time.desc()).first()
-
-                if not task:
-                    return "未找到正在运行的任务"
-
-                if task.state != TaskState.RUNNING.value:
-                    return 'w~当前任务不在运行状态'
-                deviceMgr.sendClientCmd(device_id, f"stopTask {task.taskName}")
-
-            except Exception as e:
-                _Log._Log_.ex(e, "停止任务失败")
-                return f"e~停止任务失败: {str(e)}"
-
-            return f"已发送停止命令: {task.taskName}"
-
+        
         @regCmd('#保存结果|bcjg')
         def saveResult():
             """功能：保存最近一次命令执行结果到JSON文件
@@ -427,33 +388,8 @@ class SCmds_:
               选择 device001 # 选择指定设备
               选择 测试组     # 选择指定分组的所有设备
             """
-            from SDeviceMgr import deviceMgr
-            target = target.strip() if target else ''
-            # 如果目标是@，选择服务端
-            if target == "@" or target == '':
-                #清空当前选择，表示选择服务端
-                deviceMgr.curDeviceIDs =[]
-            elif target == '?':
-                return f"选中设备为: {deviceMgr.curDeviceIDs}"
-            elif target == 'all':
-                deviceMgr.curDeviceIDs = list(deviceMgr.devices.keys())
-            else:
-                # 尝试作为设备ID查找
-                device = deviceMgr.get(target)
-                if device:
-                    deviceMgr.curDeviceIDs = [target]
-                else:
-                    # 尝试作为分组名查找
-                    if target == 'def':
-                        target = ''
-                    group_devices = list(deviceMgr.GetByGroup(target).keys())
-                    if group_devices:
-                        deviceMgr.curDeviceIDs = group_devices
-                    else:
-                        return f"e~无效目标: {target}"
-
             # 通知前端更新选择
-            deviceMgr.emit2B('S2B_UpdateSelection', {'device_ids': deviceMgr.curDeviceIDs})
+            deviceMgr.emit2B('S2B_UpdateSelection', {'device_ids': [target]})
 
         @regCmd(r'#设备信息|sbxx (?P<deviceID>\S+)?')
         def deviceInfo(deviceID):

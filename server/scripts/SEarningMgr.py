@@ -67,7 +67,7 @@ class SEarningMgr_:
                 
             # 获取设备ID
             from SDeviceMgr import deviceMgr
-            device_id = deviceMgr.curDeviceID
+            device_id = None
             if not device_id:
                 _Log._Log_.e("未选择设备")
                 return False

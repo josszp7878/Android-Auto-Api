@@ -5,6 +5,7 @@ import time
 from _G import TaskState
 import _G
 from typing import TYPE_CHECKING
+import socket
 
 if TYPE_CHECKING:
     from _Page import _Page_
@@ -46,10 +47,27 @@ class CTask_:
         """任务得分"""
         return self._score
     
+    @score.setter
+    def score(self, value):
+        if self._score != value:
+            self._score = value
+            self._emitUpdate({
+                'score': value
+            })
+    
     @property
-    def state(self):
+    def state(self)->TaskState:
         """任务状态"""
-        return self._state.value
+        return self._state
+
+    @state.setter
+    def state(self, value: TaskState):
+        if self._state != value:
+            self._state = value
+            self._emitUpdate({
+                'state': value.value
+            })
+
 
     @classmethod
     def _getConfigPath(cls):
@@ -211,7 +229,7 @@ class CTask_:
     
     def isCompleted(self):
         """判断任务是否完成"""
-        return self._state == TaskState.SUCCESS or self._state == TaskState.FAILED
+        return self.state == TaskState.SUCCESS or self.state == TaskState.FAILED
 
     def _Do(self, g: "_G_") -> bool:
         """执行任务具体工作"""
@@ -229,7 +247,7 @@ class CTask_:
         g = _G._G_
         log = g.Log()
         
-        if self._state is TaskState.RUNNING:
+        if self.state is TaskState.RUNNING:
             log.w(f"任务{self._name}已开始")
             return True
             
@@ -242,7 +260,7 @@ class CTask_:
                 return True
                 
         try:
-            if self._state == TaskState.IDLE:            
+            if self.state == TaskState.IDLE:            
                 # 开始运行
                 # 执行begin脚本（使用属性访问）
                 if self.beginScript:
@@ -256,10 +274,9 @@ class CTask_:
             if not self._Do(g):
                 log.e(f"任务{self._name}执行失败")
                 return False
-            # 发送服务端通知
-            g.emit('TaskStart', {
-                'app': self._app.name,
-                'task': self._name
+            # 发送任务开始事件
+            g.emit('C2S_StartTask', {
+                'taskName': self.name
             })
             return True
         except Exception as e:
@@ -288,9 +305,9 @@ class CTask_:
         Returns:
             bool: 是否成功停止任务，如果任务不在运行状态则返回False
         """
-        if self._state != TaskState.RUNNING:
+        if self.state != TaskState.RUNNING:
             return False
-        self._state = TaskState.PAUSED
+        self.state = TaskState.PAUSED
         return True
     
     def exitTrigger(self)->bool:
@@ -315,7 +332,7 @@ class CTask_:
     
     def update(self, g: "_G_"):
         """任务更新函数"""
-        if self._state != TaskState.RUNNING:
+        if self.state != TaskState.RUNNING:
             return
         check = g.Tools().check(self.check) if self.check else True
         if check:
@@ -347,45 +364,50 @@ class CTask_:
         """任务进度"""
         return self._progress
     
+    @progress.setter
+    def progress(self, value):
+        if self._progress != value:
+            self._progress = value
+            self._emitUpdate({
+                'progress': value
+            })
+
     def _refreshProgress(self)->bool:
         """统一处理进度更新
         
         考虑任务暂停后再次开始的情况，累计计算进度
         """
-        if self._state != TaskState.RUNNING:
+        if self.state != TaskState.RUNNING:
             return False
         life = self.life
         if life != 0:
+            progress = self.progress
             if life > 0:  # 时间模式
                 # 计算当前会话运行时间
                 currentSessionTime = (datetime.now() - self._lastTime).total_seconds()
                 # 累加到总进度中
-                self._progress += currentSessionTime / life
+                progress += currentSessionTime / life
             else:  # 次数模式
                 # 次数模式下，_execCount已经在_do中累加
-                self._progress = self._execCount / abs(life)
+                progress = self._execCount / abs(life)
             
-            self._progress = min(max(0.0, self._progress), 1.0)
+            self.progress = min(max(0.0, progress), 1.0)
         else:
-            self._progress = 1.0
-        _G.g.Log().i(f"任务{self._name}进度: {self._progress:0.2f}")
+            self.progress = 1.0
+        _G.g.Log().i(f"任务{self._name}进度: {self.progress:0.2f}")
         # 进度完成处理
-        if self._progress >= 1.0:
+        if self.progress >= 1.0:
             self._end()
             return False
         return True
 
     def _end(self):
         # 确定最终状态
-        self._state = TaskState.SUCCESS if self._score > 0 else TaskState.FAILED
-        g = _G._G_
-        log = g.Log()
-        log.i(f"任务结束, 分数={self._score}")
-        # 发送服务端通知
-        g.emit('TaskEnded', {
-            'appName': self._app.name,
-            'taskName': self._name,
-            **{'score': self._score}
-        })
+        self.state = TaskState.SUCCESS if self._score > 0 else TaskState.FAILED
         # 执行结束脚本（使用属性访问）
-        g.Tools().do(self.exitScript)
+        _G.g.Tools().do(self.exitScript)
+
+    def _emitUpdate(self, data):
+        """发送任务更新事件"""
+        data['taskName'] = self.name
+        _G.g.emit('C2S_UpdateTask', data)

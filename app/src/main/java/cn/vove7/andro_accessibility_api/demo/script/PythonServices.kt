@@ -224,7 +224,7 @@ class PythonServices {
                 val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
                 val isNowRunning =
                     am.runningAppProcesses?.any { it.processName == packageName } ?: false
-                Timber.tag(TAG).d("App running status after launch: %s", isNowRunning)
+                Timber.tag(TAG).d("App running state after launch: %s", isNowRunning)
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                     val foregroundApp =

@@ -31,7 +31,7 @@ class AppModel(db.Model):
     appName = db.Column(db.String(100), nullable=False)
     totalScore = db.Column(db.Float, default=0.0)
     income = db.Column(db.Float, default=0.0)
-    status = db.Column(db.String(20), default='active')
+    state = db.Column(db.String(20), default='active')
     lastUpdate = db.Column(db.DateTime, default=datetime.now)
 
     @classmethod
@@ -41,7 +41,7 @@ class AppModel(db.Model):
             appName=device.appName,
             totalScore=device.totalScore,
             income=device.income,
-            status=device.status
+            state=device.state
         )
 
 @contextmanager

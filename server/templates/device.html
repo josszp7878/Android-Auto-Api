@@ -14,7 +14,7 @@
             <div class="card">
                 <div class="card-body">
                     <h5 class="card-title">设备ID: {{ device_id }}</h5>
-                    <p class="card-text">状态: {{ device.status if device else 'unknown' }}</p>
+                    <p class="card-text">状态: {{ device.state if device else 'unknown' }}</p>
                     
                     <div class="mb-3">
                         <label class="form-label">指令输入:</label>
@@ -25,7 +25,7 @@
                     </div>
 
                     <!-- <div class="mb-3" v-if="commandResult">
-                        <div class="alert" :class="commandResult.status === 'success' ? 'alert-success' : 'alert-danger'">
+                        <div class="alert" :class="commandResult.state === 'success' ? 'alert-success' : 'alert-danger'">
                             {{ commandResult.result | default('没有结果') }}
                         </div>
                     </div> -->
@@ -33,7 +33,7 @@
                     <div class="mb-3">
                         <button class="btn btn-outline-primary me-2" @click="sendPresetCommand('getinfo')">获取设备信息</button>
                         <button class="btn btn-outline-primary me-2" @click="sendPresetCommand('screenshot')">截图</button>
-                        <button class="btn btn-outline-primary" @click="sendPresetCommand('status')">状态检查</button>
+                        <button class="btn btn-outline-primary" @click="sendPresetCommand('state')">状态检查</button>
                     </div>
                 </div>
             </div>
@@ -55,7 +55,7 @@
                 command: '',
                 commandResult: null,
                 socket: null,
-                deviceStatus: '{{ device.status if device else "unknown" }}'
+                deviceStatus: '{{ device.state if device else "unknown" }}'
             },
             mounted() {
                 this.socket = io();

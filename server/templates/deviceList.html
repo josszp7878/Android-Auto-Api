@@ -29,7 +29,7 @@
                 <div class="devices-container">
                     <div class="device-wrapper" v-for="([deviceId, device], index) in sortedDevices" :key="deviceId">
                         <div class="device-card" 
-                             :class="{'selected': selectedDevices.includes(deviceId), 'offline': device.status === 'offline'}" 
+                             :class="{'selected': selectedDevices.includes(deviceId), 'offline': device.state === 'offline'}" 
                              :data-device-id="deviceId"
                              @click="selectDevice(deviceId, $event.ctrlKey || $event.metaKey)"
                              @contextmenu.prevent="showDeviceMenu(deviceId, $event)">

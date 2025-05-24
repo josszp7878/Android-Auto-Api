@@ -43,10 +43,7 @@
     
     <script src="/static/js/sheet.js"></script>
     <script>
-        // 初始化表格页面
-        const sheetPage = new SheetPage(
-            {{ curDeviceID | tojson | safe }}  // 传入当前设备ID
-        );
+        const sheetPage = new SheetPage();
     </script>
 </body>
 

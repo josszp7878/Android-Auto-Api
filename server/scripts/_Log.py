@@ -338,7 +338,7 @@ class _Log_:
                     }
                     # 通过设备对象发送日志到服务端
                     if device.connected():
-                        device.emit('C2S_Log', logDict)
+                        g.emit('C2S_Log', logDict)
                 # 同时打印到终端
                 cls.log_(content, tag, level)
                 logData = logDict

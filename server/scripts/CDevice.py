@@ -182,10 +182,10 @@ class CDevice_:
         while retry_count > 0:
             try:
                 # log.i(f"尝试登录设备 {cls._deviceID}，剩余尝试次数: {retry_count}")
-                cls.emit('C2S_Login', {
+                g.emit('C2S_Login', {
                     'device_id': cls._deviceID,
                     'timestamp': str(datetime.now()),
-                    'status': 'login'
+                    'state': 'login'
                 })
                 return True
             except Exception as e:
@@ -201,7 +201,7 @@ class CDevice_:
         """注销设备"""
         g = _G._G_
         log = g.Log()
-        cls.emit('C2S_Logout', {
+        g.emit('C2S_Logout', {
             'device_id': cls._deviceID
         })
         log.i("设备已注销")
@@ -233,7 +233,8 @@ class CDevice_:
     @classmethod
     def _sendCmdResult(cls, cmd):
         """发送命令结果"""
-        cls.emit('C2S_CmdResult', {
+        g = _G._G_
+        g.emit('C2S_CmdResult', {
             'result': cmd.get('result'),
             'device_id': cls._deviceID,
             'cmdName': cmd.get('name'),
@@ -303,31 +304,31 @@ class CDevice_:
     def onS2C_CmdResult(cls, data):
         print(f'结果: {data["result"]}')
 
-    @classmethod
-    def emit(cls, event, data=None):
-        """发送事件到服务器
-        Args:
-            event: 事件名称
-            data: 事件数据
-        Returns:
-            bool: 是否发送成功
-        """
-        g = _G._G_
-        log = g.Log()
-        try:
-            sio = g.sio
-            if not sio:
-                log.log_('e', "Socket未初始化")
-                return False
-            if not sio.connected:
-                log.log_('e', "未连接到服务器")
-                return False
-            data['device_id'] = cls._deviceID
-            sio.emit(event, data)
-            return True
-        except Exception as e:
-            log.ex_(e, f'发送事件失败: {event}')
-            return False
+    # @classmethod
+    # def emit(cls, event, data=None):
+    #     """发送事件到服务器
+    #     Args:
+    #         event: 事件名称
+    #         data: 事件数据
+    #     Returns:
+    #         bool: 是否发送成功
+    #     """
+    #     g = _G._G_
+    #     log = g.Log()
+    #     try:
+    #         sio = g.sio
+    #         if not sio:
+    #             log.log_('e', "Socket未初始化")
+    #             return False
+    #         if not sio.connected:
+    #             log.log_('e', "未连接到服务器")
+    #             return False
+    #         data['device_id'] = cls._deviceID
+    #         sio.emit(event, data)
+    #         return True
+    #     except Exception as e:
+    #         log.ex_(e, f'发送事件失败: {event}')
+    #         return False
 
     @classmethod
     def TakeScreenshot(cls):
@@ -342,7 +343,7 @@ class CDevice_:
             image = android.takeScreenshot()
             log.i(f'截图成功: {image}')
             if image:
-                cls.emit("C2S_Screenshot", {"device_id": cls._deviceID, "image": image})
+                g.emit("C2S_Screenshot", {"device_id": cls._deviceID, "image": image})
         except Exception as e:
             log.ex(e, "截图失败")
 

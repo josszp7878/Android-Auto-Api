@@ -2,7 +2,7 @@
  * 表格页面管理类
  */
 class SheetPage {
-    constructor(curDeviceID) {
+    constructor() {
         // 数据类型枚举定义
         this.DataType = {
             TASKS: 'tasks',
@@ -20,7 +20,6 @@ class SheetPage {
         this.devices = []; // 初始化为空数组
         this.tasks = []; // 初始化为空数组
         this.logs = []; // 初始化日志数据
-        this.curDeviceID = curDeviceID;
         this.socket = null;
         this.mainTable = null;
         this.contextMenu = document.getElementById('context-menu');
@@ -44,88 +43,42 @@ class SheetPage {
             this.contextMenu.style.minWidth = '150px';
         }
         
-        this.selectedTaskId = null;
         this.today = new Date().toISOString().split('T')[0]; // 获取当天日期，格式：YYYY-MM-DD
         this.currentTab = null;
         
         // 目标设备列表 - 用于命令发送
-        this.targetDevices = [];
+        this.targets = {
+            [this.DataType.TASKS]: [],
+            [this.DataType.DEVICES]: [],
+            [this.DataType.LOGS]: []
+        };
         
         // 右键菜单配置
         this.menuConfig = {
             '任务': [
                 {
-                    label: "执行",
+                    label: "目标 (Space)",
                     action: (e, row) => {
-                        const data = row.getData();
-                        this.handleTaskAction('execute', data.taskName);
-                    },
-                    disabled: (row) => row.getData().status !== 'pending'
+                        this.updateTarget();
+                    }
                 },
                 {
-                    label: "暂停",
-                    action: (e, row) => {
-                        const data = row.getData();
-                        this.handleTaskAction('pause', data.taskName);
+                    label: (row) => {
+                        const state = row.getData().state;
+                        return state == 'running' ? '停止' : '执行';
                     },
-                    disabled: (row) => row.getData().status !== 'running'
-                },
-                {
-                    label: "取消",
                     action: (e, row) => {
-                        const data = row.getData();
-                        this.handleTaskAction('cancel', data.taskName);
+                        this.handleTaskAction(row.getData());
                     },
-                    disabled: (row) => !['running', 'paused'].includes(row.getData().status)
+                    disabled: (row) => ['success', 'failed'].includes(row.getData().state)
                 }
             ],
             '设备': [
                 {
-                    label: "选择/取消目标 (CSpace)",
+                    label: "目标 (Space)",
                     action: (e, row) => {
-                        console.log("选择/取消目标 (CSpace)");
-                        if (!row) return;
-                        let selectedRows = [];
-                        try {
-                            selectedRows = row.getTable().getSelectedRows();
-                            if (selectedRows.length === 0) {
-                                selectedRows = [row];
-                            }
-                        } catch (e) {
-                            console.warn("获取选中行出错:", e);
-                            if (row) selectedRows = [row];
-                        }
-                        if (selectedRows.length === 0) {
-                            console.warn("没有可操作的行");
-                            return;
-                        }
-                        const deviceIds = selectedRows.map(r => r.getData().deviceId);
-                        this.toggleDeviceTarget(deviceIds);
+                        this.updateTarget();
                     }
-                },
-                {
-                    label: "连接",
-                    action: (e, row) => {
-                        const data = row.getData();
-                        this.handleDeviceAction('connect', data.deviceId);
-                    },
-                    disabled: (row) => row.getData().status !== 'offline'
-                },
-                {
-                    label: "断开",
-                    action: (e, row) => {
-                        const data = row.getData();
-                        this.handleDeviceAction('disconnect', data.deviceId);
-                    },
-                    disabled: (row) => row.getData().status !== 'online'
-                },
-                {
-                    label: "重启",
-                    action: (e, row) => {
-                        const data = row.getData();
-                        this.handleDeviceAction('restart', data.deviceId);
-                    },
-                    disabled: (row) => row.getData().status !== 'online'
                 }
             ],
             '日志': [
@@ -151,7 +104,11 @@ class SheetPage {
         this._tempCommand = undefined;
         
         // 分页相关
-        this.userPaged = false; // 用户是否手动翻页
+        this.userPaged = {
+            [this.DataType.TASKS]: false,
+            [this.DataType.DEVICES]: false,
+            [this.DataType.LOGS]: false
+        };
         
         // 选择相关
         this.selectedTasks = []; // 选中的任务ID列表
@@ -224,6 +181,13 @@ class SheetPage {
                 icon: 'fas fa-check-circle',
                 formatter: "<span style='color: #23d160'><i class='fas fa-check-circle'></i> 命令</span>"
             }
+        };
+
+        // 新增加载状态跟踪
+        this.isLoading = {
+            [this.DataType.TASKS]: false,
+            [this.DataType.DEVICES]: false,
+            [this.DataType.LOGS]: false
         };
 
         // 初始化Socket连接
@@ -300,13 +264,15 @@ class SheetPage {
                     filter: true
                 },
                 rowContextMenu: this.menuConfig['任务'],
-                selectable: true,
+
+                selectable: false,
+                selectableRows: true, // 启用行选择
                 selectableRollingSelection: true,
-                selectableRangeMode: "click",
-                selectableRowsCheck: () => { return true; },
-                selectablePersistence: true,
-                selectableRange: true,
-                selectableCheckbox: true,
+                // selectableRangeMode: "click",
+                // selectableRowsCheck: () => { return true; },
+                // selectablePersistence: true,
+                // selectableRange: true,
+                
                 columns: this.getTaskColumns(),
                 data: this.tasks,
                 headerFilterLiveFilter: false
@@ -341,11 +307,11 @@ class SheetPage {
                 selectableRows: true,
                 selectableRowsRangeMode:"click",
                 selectablePersistence: true,
-                selectableRange:true,
-                selectableRangeColumns:true,
-                selectableRangeRows:true,
+                // selectableRange:true,
+                // selectableRangeColumns:true,
+                // selectableRangeRows:true,
                 columns: this.getDeviceColumns(),
-                data: this.prepareDeviceData(),
+                data: this.devices,
                 headerFilterLiveFilter: false
             });
             this._deviceTable.dataType = this.DataType.DEVICES;
@@ -376,17 +342,17 @@ class SheetPage {
                 rowContextMenu: this.menuConfig['日志'],
                 selectable: true,
                 selectableRollingSelection: true,
-                selectableRangeMode: "click",
-                selectableRowsCheck: () => { return true; },
-                selectablePersistence: true,
-                selectableRange: true,
+                // selectableRangeMode: "click",
+                // selectableRowsCheck: () => { return true; },
+                // selectablePersistence: true,
+                // selectableRange: true,
                 selectableCheckbox: true,
                 columns: this.getLogColumns(),
                 data: this.logs,
                 headerFilterLiveFilter: false,
                 tableBuilt: () => {
                     this._logTable.on("pageLoaded", () => {
-                        this.userPaged = true;
+                        this.userPaged[this.DataType.LOGS] = true;
                     });
                 }
             });
@@ -396,53 +362,66 @@ class SheetPage {
     }
     
     /**
-     * 加载表格数据
-     * @param {Tabulator} table - 要加载数据的表格
+     * 加载表格数据（修复循环问题）
      */
-    _loadDatas(table) {
-        if (!table || !table.initialized) return;
+    _loadDatas(table, force=false) {
+        if (!table || !table.initialized || this.isLoading[table.dataType]) return;
 
-        const filters = table.getHeaderFilters() || [];
-        const dateFilter = filters.find(filter => filter.field === 'date');
-        let currentDate = dateFilter ? dateFilter.value : null;
-        if (currentDate === null) {
-            // 设置当前的日期过滤为今天
-            currentDate = this.today;
-            table.setHeaderFilterValue("date", this.today);
-        }
-
-        // 如果 lastDateFilter 为 undefined，表示表格未初始化或未切换到此标签页，直接跳过
-        if (table.lastDateFilter === undefined) {
-            console.log("表格未初始化或未切换到此标签页，跳过数据加载");
-            return;
-        }
-
-        // 首次加载（lastDateFilter 为 null）或过滤条件变化时触发
-        if (table.lastDateFilter === null || currentDate !== table.lastDateFilter) {
-            table.lastDateFilter = currentDate;
-            console.log("日期过滤条件变化, 获取新的数据", currentDate);
-
-            const filterParams = {};
-            if (currentDate) filterParams.date = currentDate;
-
-            const type = table.dataType;
-            const tabLabel = Object.keys(this.tabTypeMap).find(
-                key => this.tabTypeMap[key] === type
-            );
-            if (!tabLabel) return;
-
-            console.log(`加载${tabLabel}数据，过滤参数:`, filterParams);
-            switch (type) {
-                case this.DataType.TASKS:
-                    this.socket.emit('B2S_loadTasks', { filters: filterParams });
-                    break;
-                case this.DataType.DEVICES:
-                    this.socket.emit('B2S_loadDevices', { filters: filterParams });
-                    break;
-                case this.DataType.LOGS:
-                    this.socket.emit('B2S_loadLogs', { filters: filterParams });
-                    break;
+        this.isLoading[table.dataType] = true; // 设置加载状态
+        
+        try {
+            const filters = table.getHeaderFilters() || [];        
+            const dateFilter = filters.find(filter => filter.field === 'date');
+            let currentDate = dateFilter ? dateFilter.value : null;
+            
+            if (table.dataType === this.DataType.TASKS || table.dataType === this.DataType.LOGS) {
+                if (currentDate === null) {
+                    currentDate = this.today;
+                    table.setHeaderFilterValue("date", this.today);
+                }
             }
+            if (force) {
+                // 强制刷新时，重置lastDateFilter
+                table.lastDateFilter = null;
+            }
+            // 如果 lastDateFilter 为 undefined，表示表格未初始化或未切换到此标签页，直接跳过
+            if (table.lastDateFilter === undefined) {
+                // console.log("表格未初始化或未切换到此标签页，跳过数据加载");
+                return;
+            }
+            // 首次加载（lastDateFilter 为 null）或过滤条件变化时触发
+            if (table.lastDateFilter === null || currentDate !== table.lastDateFilter) {
+                table.lastDateFilter = currentDate;
+                // console.log("日期过滤条件变化, 获取新的数据", currentDate);
+
+                const filterParams = {};
+                if (currentDate) filterParams.date = currentDate;
+
+                const type = table.dataType;
+                const tabLabel = Object.keys(this.tabTypeMap).find(
+                    key => this.tabTypeMap[key] === type
+                );
+                if (!tabLabel) return;
+
+                // console.log(`加载${tabLabel}数据，过滤参数:`, filterParams);
+                // 发送请求前设置加载状态
+                switch (type) {
+                    case this.DataType.TASKS:
+                        this.socket.emit('B2S_loadTasks', { filters: filterParams });
+                        break;
+                    case this.DataType.DEVICES:
+                        this.socket.emit('B2S_loadDevices', { filters: filterParams });
+                        break;
+                    case this.DataType.LOGS:
+                        this.socket.emit('B2S_loadLogs', { filters: filterParams });
+                        break;
+                }
+            }
+        } finally {
+            // 3秒后自动重置状态防止卡死
+            setTimeout(() => {
+                this.isLoading[table.dataType] = false;
+            }, 3000);
         }
     }
     
@@ -482,7 +461,7 @@ class SheetPage {
         // 设备状态更新事件
         this.socket.on('S2B_DeviceUpdate', (data) => {
             console.log("设备状态更新:", data);
-            if (data.status === 'online') {
+            if (data.state === 'online') {
                 this.lastConnectedDevice = data.deviceId;
                 
                 // 如果没有选中的设备，并且设备表格已经初始化，则自动选中最后连接的设备
@@ -526,8 +505,8 @@ class SheetPage {
                 this.mainTable.setData(targetData);
                 // console.log("表格数据已更新，当前行数:", this.mainTable.getDataCount());
             }
-        } catch (error) {
-            console.error("_updateData出错:", error);
+        } finally {
+            this.isLoading[dataType] = false; // 数据更新完成后重置状态
         }
     }
     
@@ -596,7 +575,7 @@ class SheetPage {
                                 const progress = parseFloat(item[field]);
                                 result[field] = isNaN(progress) ? 'ERR' : Math.min(Math.max(progress, 0), 100);
                                 break;
-                            case 'status':
+                            case 'state':
                                 // 验证状态值
                                 if (dataType === this.DataType.DEVICES) {
                                     const validStatuses = Object.keys(this.deviceStatusMap);
@@ -626,7 +605,6 @@ class SheetPage {
                     }
                 }
             });
-            
             return result;
         }).filter(item => {
             // 过滤掉无效日期
@@ -634,26 +612,6 @@ class SheetPage {
         });
     }
     
-    /**
-     * 准备设备数据
-     */
-    prepareDeviceData() {
-        return this.devices.map(device => {
-            // 确保设备状态只能是预定义的值或空字符串
-            const validStatuses = Object.keys(this.deviceStatusMap);
-            const status = validStatuses.includes(device.status) ? device.status : "";
-            
-            return {
-                id: device.id,
-                deviceId: device.deviceId,
-                group: device.group || '',
-                status: status,
-                currentTask: device.currentTask ? device.currentTask.displayName : '',
-                score: device.totalScore || 0,
-                isTarget: this.targetDevices.includes(device.deviceId) // 使用deviceId而不是id
-            };
-        });
-    }
     
     /**
      * 初始化标签页
@@ -715,7 +673,7 @@ class SheetPage {
             case "日志":
                 this.mainTable = this._logTable;
                 // 切换到日志标签页时重置用户翻页标志
-                this.userPaged = false;
+                this.userPaged[this.DataType.LOGS] = false;
                 break;
         }
         // 更新命令输入框的占位文本
@@ -724,7 +682,7 @@ class SheetPage {
         if (this.mainTable.lastDateFilter === undefined) {
             this.mainTable.lastDateFilter = null;
         }
-        this._loadDatas(this.mainTable);
+        this._loadDatas(this.mainTable, true);
     }
     
     /**
@@ -734,23 +692,29 @@ class SheetPage {
         return [
             {title: "ID", field: "id", visible: false},
             {title: "设备", field: "deviceId", width: 120, headerFilter: "input"},
-            {title: "任务名称", field: "taskName", headerFilter: "input"},
+            {
+                title: "任务名称", 
+                field: "taskName", 
+                headerFilter: "input",
+                formatter: (cell, formatterParams, onRendered) => {
+                    const data = cell.getData();
+                    const isTarget = this.targets[this.DataType.TASKS].includes(data.id);
+                    return isTarget 
+                        ? `<span style="color: #23d160; font-weight: bold;">${data.taskName}</span>`
+                        : data.taskName;
+                }
+            },
             {
                 title: "日期", 
                 field: "date", 
-                width: 130, 
+                width: 130,
                 headerFilter: "input",
-                headerFilterPlaceholder: "筛选日期...",
-                headerFilterParams: {
-                    initial: this.today,
-                    defaultValue: this.today,
-                    values: [this.today] // 强制设置可选值
-                },
-                editor: "date",
-                editorParams: {
-                    format: "YYYY-MM-DD"
-                },
-                headerFilterLiveFilter: false
+                headerFilterPlaceholder: "YYYY-MM-DD",
+                headerFilterFunc: "like", // 使用模糊匹配替代精确匹配
+                editor: false, // 禁用编辑
+                formatter: function(cell) {
+                    return cell.getValue() || "";
+                }
             },
             {title: "分组", field: "group", width: 120, headerFilter: "input"},
             {
@@ -768,46 +732,26 @@ class SheetPage {
             },
             {
                 title: "状态", 
-                field: "status", 
+                field: "state", 
                 width: 120, 
                 headerFilter: "list",
                 headerFilterParams: {
                     values: {
                         "": "全部",
+                        "idle": "空闲中",
                         "running": "运行中",
                         "paused": "已暂停",
                         "success": "已完成",
-                        "failed": "失败",
-                        "pending": "待处理"
+                        "failed": "失败"
                     }
                 },
                 formatter: "lookup",
                 formatterParams: {
+                    "idle": "<span style='color: #a0aec0'><i class='fas fa-stop'></i> 空闲中</span>",
                     "running": "<span style='color: #23d160'><i class='fas fa-play'></i> 运行中</span>",
                     "paused": "<span style='color: #ffdd57'><i class='fas fa-pause'></i> 已暂停</span>",
                     "success": "<span style='color: #3273dc'><i class='fas fa-check'></i> 已完成</span>",
-                    "failed": "<span style='color: #ff3860'><i class='fas fa-times'></i> 失败</span>",
-                    "pending": "<span style='color: #ffbd4a'><i class='fas fa-clock'></i> 待处理</span>"
-                }
-            },
-            {
-                title: "开始时间", 
-                field: "startTime", 
-                width: 160, 
-                headerFilter: "input",
-                editor: "datetime", // 使用日期时间编辑器
-                editorParams: {
-                    format: "YYYY-MM-DD HH:mm:ss"
-                }
-            },
-            {
-                title: "完成时间", 
-                field: "endTime", 
-                width: 160, 
-                headerFilter: "input",
-                editor: "datetime", // 使用日期时间编辑器
-                editorParams: {
-                    format: "YYYY-MM-DD HH:mm:ss"
+                    "failed": "<span style='color: #ff3860'><i class='fas fa-times'></i> 失败</span>"
                 }
             },
             {title: "得分", field: "score", width: 100, headerFilter: "number"},
@@ -823,10 +767,10 @@ class SheetPage {
         const statusFormatterParams = { "": "<span style='color: #b5b5b5'><i class='fas fa-question'></i> 未知</span>" };
         
         // 从设备状态映射中获取值
-        Object.keys(this.deviceStatusMap).forEach(status => {
-            const statusInfo = this.deviceStatusMap[status];
-            statusFilterValues[status] = statusInfo.label;
-            statusFormatterParams[status] = statusInfo.formatter;
+        Object.keys(this.deviceStatusMap).forEach(state => {
+            const statusInfo = this.deviceStatusMap[state];
+            statusFilterValues[state] = statusInfo.label;
+            statusFormatterParams[state] = statusInfo.formatter;
         });
         
         return [
@@ -835,21 +779,19 @@ class SheetPage {
                 title: "设备ID", 
                 field: "deviceId", 
                 headerFilter: "input",
-                formatter: function(cell, formatterParams) {
+                formatter: (cell, formatterParams) => {
                     const value = cell.getValue();
-                    const isTarget = cell.getData().isTarget;
-                    
-                    if (isTarget) {
-                        return `<span style="color: #23d160; font-weight: bold;">${value}</span>`;
-                    } else {
-                        return value;
-                    }
+                    const dataType = this.DataType.DEVICES;
+                    const isTarget = this.targets[dataType].includes(value);
+                    return isTarget 
+                        ? `<span style="color: #23d160; font-weight: bold;">${value}</span>`
+                        : value;
                 }
             },
             {title: "分组", field: "group", width: 120, headerFilter: "input"},
             {
                 title: "状态", 
-                field: "status", 
+                field: "state", 
                 width: 120, 
                 headerFilter: "list",
                 headerFilterParams: {
@@ -928,7 +870,19 @@ class SheetPage {
                     return levelFormatterParams[value] || value;
                 }
             },
-            {title: "发送者", field: "sender", width: 150, headerFilter: "input"},
+            {
+                title: "发送者", 
+                field: "sender", 
+                width: 150, 
+                headerFilter: "input",
+                formatter: (cell, formatterParams, onRendered) => {
+                    const data = cell.getData();
+                    const isTarget = this.targets[this.DataType.LOGS].includes(data.id);
+                    return isTarget
+                        ? `<span style="color: #23d160; font-weight: bold;">${data.sender}</span>`
+                        : data.sender;
+                }
+            },
             {title: "内容", field: "message", headerFilter: "input"},
         ];
     }
@@ -959,6 +913,16 @@ class SheetPage {
     _initTable(table) {
         table.initialized = true;
         this.initTableFilterListener(table);
+        
+        // 为所有表格添加分页监听
+        table.on("dataProcessed", () => {
+            if (!this.userPaged[table.dataType]) {
+                const pageCount = table.getPageMax();
+                if (pageCount > 0) {
+                    table.setPage(pageCount);
+                }
+            }
+        });
     }
     
     /**
@@ -966,118 +930,56 @@ class SheetPage {
      */
     registerKeyboardShortcuts() {
         document.addEventListener('keydown', (e) => {
-            const tableType = this.tabTypeMap[this.currentTab];
-            let used = false;
-            switch(tableType)
-            {
-                case this.DataType.TASKS:
-                    break;
-                case this.DataType.DEVICES:
-                    if (e.code === 'Space') {
-                        used = true;
-                        // 如果当前在设备表并且有选中的设备
-                        const selectedRows = this._deviceTable.getSelectedRows();
-                        this.toggleDeviceTarget(selectedRows.map(row => row.getData().deviceId));
-                    }
-                    break;
-                case this.DataType.LOGS:
-                    break;
+            if (e.code === 'Space' && e.target.closest('.tabulator')) {
+                this.updateTarget();
+                e.preventDefault();
             }
-            if (used) {
-                e.preventDefault(); // 阻止默认行为
-                e.stopPropagation(); // 阻止事件传播
-            }
-        }, true); // 使用捕获阶段，确保事件被首先处理
+        }, true);
     }
     
     /**
-     * 设置设备为目标
-     * @param {string|string[]} deviceIds - 设备ID或设备ID数组
+     * 新增通用目标管理方法
      */
-    setDeviceAsTarget(deviceIds) {
-        // 确保deviceIds是数组
-        const ids = Array.isArray(deviceIds) ? deviceIds : [deviceIds];        
-        // 目标设备是否是在线，如果是离线，则不添加到目标设备列表
-        ids.forEach(id => {
-            const device = this.devices.find(dev => dev.deviceId === id || dev.id === id);
-            if (device && device.status !== 'offline') {
-                if (!this.targetDevices.includes(device.deviceId)) {
-                    this.targetDevices.push(device.deviceId);
+    updateTarget() {
+        const dataType = this.mainTable?.dataType;
+        if (!dataType) return;
+
+        // 获取选中行ID
+        const ids = this.mainTable.getSelectedRows()
+            .map(row => {
+                switch(dataType) {
+                    case this.DataType.TASKS: return row.getData().id;
+                    case this.DataType.DEVICES: return row.getData().deviceId;
+                    case this.DataType.LOGS: return row.getData().id;
+                    default: return null;
                 }
-            }
-        });
-        
-        console.log("设备已设为目标:", this.targetDevices);
-        
-        // 更新命令输入框的占位文本
-        this.updateCommandInputPlaceholder();
-        
-        // 刷新设备表以更新目标显示
-        if (this._deviceTable) {
-            this._deviceTable.setData(this.prepareDeviceData());
-        }
-    }
-    
-    /**
-     * 取消设备的目标状态
-     * @param {string|string[]} deviceIds - 设备ID或设备ID数组
-     */
-    removeDeviceAsTarget(deviceIds) {
-        // 确保deviceIds是数组
-        const ids = Array.isArray(deviceIds) ? deviceIds : [deviceIds];
-        
-        // 将id转换为deviceId
-        const deviceIdsToRemove = [];
+            })
+            .filter(Boolean);
+        // 更新目标列表
         ids.forEach(id => {
-            const device = this.devices.find(dev => dev.deviceId === id || dev.id === id);
-            if (device) {
-                deviceIdsToRemove.push(device.deviceId);
-            }
+            const index = this.targets[dataType].indexOf(id);
+            index === -1 
+                ? this.targets[dataType].push(id)
+                : this.targets[dataType].splice(index, 1);
         });
         
-        // 从目标设备列表中移除
-        this.targetDevices = this.targetDevices.filter(id => !deviceIdsToRemove.includes(id));
-        
-        console.log("设备已取消目标:", this.targetDevices);
-        
-        // 更新命令输入框的占位文本
-        this.updateCommandInputPlaceholder();
-        
-        // 刷新设备表以更新目标显示
-        if (this._deviceTable) {
-            this._deviceTable.setData(this.prepareDeviceData());
+        // 刷新对应表格
+        switch(dataType) {
+            case this.DataType.DEVICES:
+                this._deviceTable?.setData(this.devices);
+                break;
+            case this.DataType.TASKS:
+                this._taskTable?.setData(this.tasks);
+                break;
+            case this.DataType.LOGS:
+                this._logTable?.setData(this.logs);
+                break;
         }
-    }
-    
-    /**
-     * 反转设备的目标状态
-     * @param {string|string[]} deviceIds - 设备ID或设备ID数组
-     */
-    toggleDeviceTarget(deviceIds) {
-        // 确保deviceIds是数组
-        const ids = Array.isArray(deviceIds) ? deviceIds : [deviceIds];
-        const deviceIdsToToggle = [];
-        ids.forEach(id => {
-            const device = this.devices.find(dev => dev.deviceId === id || dev.id === id);
-            if (device) {
-                deviceIdsToToggle.push(device.deviceId);
-            }
-        });
-
-        if (deviceIdsToToggle.length === 0) {
-            console.warn("没有有效的设备ID");
-            return;
+        
+        // 更新命令输入提示
+        if(dataType === this.DataType.DEVICES){
+            this.updateCommandInputPlaceholder();
         }
-
-        // 对每个设备单独处理
-        deviceIdsToToggle.forEach(deviceId => {
-            const isTarget = this.targetDevices.includes(deviceId);
-            if (isTarget) {
-                this.removeDeviceAsTarget(deviceId);
-            } else {
-                this.setDeviceAsTarget(deviceId);
-            }
-        });
     }
     
     /**
@@ -1211,38 +1113,38 @@ class SheetPage {
     /**
      * 处理任务操作
      */
-    handleTaskAction(action, taskName) {
-        console.log(`处理任务操作: ${action}, 任务名称: ${taskName}`);
+    handleTaskAction(data) {
+        console.log(`处理任务操作: ${data.state}, 任务名称: ${data.taskName}`);
         let cmd = '';
-        let task = this.tasks.find(t => t.id === this.selectedTaskId);
-        
+        let task = this.tasks.find(t => t.id === data.id);        
         if (!task) {
             console.warn('未找到对应的任务');
             return;
         }
         
         // 根据操作类型确定命令
-        switch (action) {
-            case 'execute':
-                cmd = 'run';
+        switch (data.state) {
+            case 'running':
+                cmd = `stop !${task.taskName}`;
                 break;
-            case 'pause':
-                cmd = 'stop';
-                break;
-            case 'cancel':
-                cmd = 'cancel';
+            case 'paused':
+                cmd = `run !${task.taskName}`;
                 break;
             default:
-                console.warn(`未知的任务操作: ${action}`);
                 return;
         }
-        
-        this.socket.emit('2S_cmd', { 
-            cmd: cmd, 
-            taskId: taskName,
-            deviceId: this.curDeviceID
+        this.sendCmd([data.deviceId], cmd);
+    }
+
+    sendCmd(targets, cmd, params) {
+        this.socket.emit('2S_Cmd', { 
+            command: cmd, 
+            params: params,
+            device_ids: targets
         });
     }
+
+
     
     /**
      * 处理设备操作
@@ -1265,11 +1167,7 @@ class SheetPage {
                 console.warn(`未知的设备操作: ${action}`);
                 return;
         }
-        
-        this.socket.emit('2S_cmd', { 
-            cmd: cmd, 
-            deviceId: deviceId
-        });
+        this.sendCmd([deviceId], cmd);
     }
     
     /**
@@ -1387,10 +1285,10 @@ class SheetPage {
         
         // 确定目标设备ID列表
         let deviceIds = [];
+        const currentTargets = this.targets[this.DataType.DEVICES];
         
-        if (this.targetDevices.length > 0) {
-            // 优先使用目标设备
-            deviceIds = this.targetDevices;
+        if (currentTargets.length > 0) {
+            deviceIds = currentTargets;
         } else {
             // 其次使用选中设备
             const selectedRows = this._deviceTable ? this._deviceTable.getSelectedRows() : [];
@@ -1449,8 +1347,8 @@ class SheetPage {
         if (!commandInput) return;
         
         let placeholder = '';
-        if (this.targetDevices.length > 0) {
-            placeholder = `输入命令=>${this.targetDevices.length}个目标`;
+        if (this.targets[this.DataType.DEVICES].length > 0) {
+            placeholder = `输入命令=>${this.targets[this.DataType.DEVICES].length}个目标`;
         } else {
             placeholder = `输入命令=>服务器`;
         }
@@ -1459,13 +1357,16 @@ class SheetPage {
     }
 
     /**
-     * 初始化表格过滤器监听
-     * @param {Tabulator} table - 表格实例
+     * 初始化表格过滤器监听（修复循环问题）
      */
     initTableFilterListener(table) {
         table.on("dataFiltered", (filters) => {
-            this._loadDatas(table);
+            // 仅当不是服务端触发的更新时加载数据
+            if (!this.isLoading[table.dataType]) {
+                this._loadDatas(table);
+            }
         });
     }
+
 
 } 

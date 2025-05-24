@@ -48,16 +48,26 @@ class _G_:
     android = None   # Android服务对象，由客户端设置
     sio = None  # SocketIO实例,客户端服务端通用
 
+    
     @classmethod
     def emit(cls, event, data, sid=None)->bool:
         """发送事件"""
-        if cls.sio:
+        if cls.sio is None:
+            return False
+        if cls.isServer():
             if sid:
                 cls.sio.emit(event, data, room=sid)
             else:
                 cls.sio.emit(event, data)
             return True
+        else:
+            device = cls.CDevice()
+            if device:
+                data['device_id'] = device.deviceID()
+                cls.sio.emit(event, data)
+                return True
         return False
+
 
     @classmethod
     def isAndroid(cls):

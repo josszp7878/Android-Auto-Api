@@ -1,11 +1,11 @@
 import re
-from flask import request, current_app
+from flask import request
 from flask_socketio import emit
 from _G import _G_
 from datetime import datetime
 import _Log
 from SDeviceMgr import deviceMgr
-
+from SDatabase import Database
 
 # 先定义一个函数，用于延迟注册事件处理器
 def initSocketIO(sio):
@@ -17,19 +17,14 @@ def initSocketIO(sio):
     sio.on('C2S_Logout')(handleC2SLogout)
     sio.on('C2S_Screenshot')(handleC2SScreenshot)
     sio.on('C2S_Log')(handleC2SLog)
-    # sio.on('B2S_GetLogs')(handleB2SGetLogs)
-    # sio.on('C2S_StartTask')(handleC2SStartTask)
-    # sio.on('C2S_UpdateTask')(handleC2SUpdateTask)
-    # sio.on('C2S_StopTask')(handleC2SStopTask)
-    # sio.on('C2S_TaskEnd')(handleC2STaskEnd)
-    # sio.on('C2S_CancelTask')(handleC2SCancelTask)
+    sio.on('C2S_StartTask')(handleC2SStartTask)
+    sio.on('C2S_UpdateTask')(handleC2SUpdateTask)
     sio.on('2S_Cmd')(handle2SCmd)
     sio.on('C2S_CmdResult')(handleC2SCmdResult)
     # 表格数据加载事件
     sio.on('B2S_loadTasks')(handleB2SLoadTasks)
     sio.on('B2S_loadDevices')(handleB2SLoadDevices)
     sio.on('B2S_loadLogs')(handleB2SLoadLogs)
-    # 设置_G_.socketio
     _G_.sio = sio
 
 
@@ -131,87 +126,34 @@ def handleB2SGetLogs(data=None):
 
 def handleC2SStartTask(data):
     """处理任务启动请求"""
+    log = _Log._Log_
     try:
         deviceId = data.get('device_id')
-        appName = data.get('app_name')
-        taskName = data.get('task_name')
-
-        device = deviceMgr.get(deviceId)
-        if not device:
-            _Log._Log_.e(f'设备不存在: {deviceId}')
-            return
-        taskMgr = device.taskMgr
-        task = taskMgr.getRunningTask(appName, taskName, create=True)
-        taskMgr.startTask(task)
+        taskName = data.get('taskName')
+        from STask import STask_
+        task = STask_.get(deviceId, taskName, date=datetime.now().date(), create=True)
+        log.i(f'处理任务启动请求: {deviceId}/{taskName}, task: {task}')
+        if task:
+            task.start()
     except Exception as e:
-        _Log._Log_.ex(e, '处理任务启动请求失败')
+        log.ex(e, '处理任务启动请求失败')
+
 
 def handleC2SUpdateTask(data):
     """处理任务进度更新"""
+    log = _Log._Log_
     try:
         deviceId = data.get('device_id')
-        appName = data.get('app_name')
-        taskName = data.get('task_name')
-        progress = data.get('progress', 0)
-
-        device = deviceMgr.get(deviceId)
-        if not device:
-            _Log._Log_.e(f'设备不存在: {deviceId}')
+        taskName = data.get('taskName')
+        from STask import STask_
+        task = STask_.get(deviceId, taskName, date=datetime.now().date(), create=False)
+        log.i(f'处理任务进度更新请求: {deviceId}/{taskName}, task: {task}')
+        if task is None:
+            log.i(f'任务不存在: {deviceId}/{taskName}')
             return
-        device.taskMgr.updateTask(appName, taskName, progress)
+        task.update(data)
     except Exception as e:
-        _Log._Log_.ex(e, '处理任务进度更新失败')
-
-
-def handleC2SStopTask(data):
-    """处理任务停止请求"""
-    try:
-        deviceId = data.get('device_id')
-        appName = data.get('app_name')
-        taskName = data.get('task_name')
-        _Log._Log_.i(f'收到任务停止消息: {deviceId}/{appName}/{taskName}')
-        device = deviceMgr.get(deviceId)
-        if not device:
-            _Log._Log_.e(f'设备不存在: {deviceId}')
-            return
-        device.taskMgr.stopTask(appName, taskName)
-    except Exception as e:
-        _Log._Log_.ex(e, '处理任务停止请求失败')
-
-
-def handleC2STaskEnd(data):
-    """处理任务结束"""
-    try:
-        deviceId = data.get('device_id')
-        appName = data.get('app_name')
-        taskName = data.get('task_name')
-        result = data.get('result')  # true表示成功，false表示失败
-
-        _Log._Log_.i(f'收到任务结束消息: {deviceId}/{appName}/{taskName}, 结果: {result}')
-        device = deviceMgr.get(deviceId)
-        if not device:
-            _Log._Log_.e(f'设备不存在: {deviceId}')
-            return
-        device.taskMgr.endTask(appName, taskName, result)
-    except Exception as e:
-        _Log._Log_.ex(e, '处理任务结束失败')
-
-
-def handleC2SCancelTask(data):
-    """处理任务取消"""
-    try:
-        deviceId = data.get('device_id')
-        appName = data.get('app_name')
-        taskName = data.get('task_name')
-
-        _Log._Log_.i(f'收到任务取消消息: {deviceId}/{appName}/{taskName}')
-        device = deviceMgr.get(deviceId)
-        if not device:
-            _Log._Log_.e(f'设备不存在: {deviceId}')
-            return
-        device.taskMgr.cancelTask(appName, taskName)
-    except Exception as e:
-        _Log._Log_.ex(e, '处理任务取消失败')
+        log.ex(e, '处理任务进度更新失败')
 
 
 def handle2SCmd(data):
@@ -221,14 +163,12 @@ def handle2SCmd(data):
         selectedIDs = data.get('device_ids', [])
         # _Log._Log_.i(f'目标: {selectedIDs}')
         strCommand = data.get('command', '')
-        deviceMgr.curDeviceIDs = selectedIDs
 
         # 检查命令是否指定了executor
         clientTag = re.match(r'^\s*([^>》]*)[>》]+\s*(.+)$', strCommand)
         serverTag = re.match(r'^\s*@\s*(.+)$', strCommand)
         targets = []
-        command = strCommand
-        
+        command = strCommand        
         if serverTag:
             # @开头的命令发送给服务端
             targets = [_Log.TAG.Server.value]
@@ -274,10 +214,14 @@ def handleB2SLoadTasks(data):
     try:
         filters = data.get('filters', {})
         date = filters.get('date')
-        from STask import STask_
-        datas = STask_.gets(date)
-        datas = [task.toDict() for task in datas]
-        # _Log._Log_.i(f'任务数据: {len(datas)}')
+        def getTasks(db):
+            """获取任务数据"""
+            nonlocal date
+            from STask import STask_
+            datas = STask_.gets(date)
+            datas = [task.toDict() for task in datas]
+            return datas
+        datas = Database.sql(getTasks)
         # 更新前端任务数据
         deviceMgr.emit2B('S2B_sheetUpdate', {'type': 'tasks', 'data': datas})
 
@@ -318,15 +262,21 @@ def handleB2SLoadLogs(data):
         log = _Log._Log_
         filters = data.get('filters', {})
         date = filters.get('date')
-        datas = log.gets(date)
-        datas = [log.toDict() for log in datas]
+        def getLogs(db):    
+            """获取日志数据"""
+            nonlocal date
+            datas = log.gets(date)
+            datas = [log.toDict() for log in datas]
+            return datas
+        datas = Database.sql(getLogs)
         # _Log._Log_.i(f'日志数据: {datas}')
         # 更新前端日志数据
         deviceMgr.emit2B('S2B_sheetUpdate', {'type': 'logs', 'data': datas})
         # 返回成功响应，不等待实际加载完成
-        return {'status': 'ok', 'message': '日志加载请求已处理'}
+        return {'state': 'ok', 'message': '日志加载请求已处理'}
     except Exception as e:
         _Log._Log_.ex(e, '处理加载日志数据请求失败')
-        return {'status': 'error', 'message': str(e)}
+        return {'state': 'error', 'message': str(e)}
+
 
 

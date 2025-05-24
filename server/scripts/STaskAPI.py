@@ -29,7 +29,7 @@
 #                     'deviceId': task.deviceId if hasattr(task, 'deviceId') else '',
 #                     'taskName': task.displayName if hasattr(task, 'displayName') else task.__class__.__name__,
 #                     'progress': progress,
-#                     'status': task.state if hasattr(task, 'state') else 'pending',
+#                     'state': task.state if hasattr(task, 'state') else 'pending',
 #                     'life': task.life if hasattr(task, 'life') else 100,
 #                     'score': task.score if hasattr(task, 'score') else 0,
 #                     'date': task.date.strftime('%Y-%m-%d') if hasattr(task, 'date') else ''
@@ -69,7 +69,7 @@
 #                             'deviceId': task.deviceId if hasattr(task, 'deviceId') else '',
 #                             'taskName': task.displayName if hasattr(task, 'displayName') else task.__class__.__name__,
 #                             'progress': progress,
-#                             'status': task.state if hasattr(task, 'state') else 'pending',
+#                             'state': task.state if hasattr(task, 'state') else 'pending',
 #                             'life': task.life if hasattr(task, 'life') else 100,
 #                             'score': task.score if hasattr(task, 'score') else 0,
 #                             'date': task.date.strftime('%Y-%m-%d') if hasattr(task, 'date') else ''

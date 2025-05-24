@@ -5,7 +5,7 @@ class Dashboard {
         
         // 确保所有初始设备状态为离线
         for (let deviceId in initialDevices) {
-            initialDevices[deviceId].status = 'offline';
+            initialDevices[deviceId].state = 'offline';
         }
         
         // 先创建socket实例
@@ -137,7 +137,7 @@ class Dashboard {
                     }
                 },
                 showFullScreenshot(device) {
-                    if (device.status === 'online' && device.screenshot) {
+                    if (device.state === 'online' && device.screenshot) {
                         this.fullScreenshot = device.screenshot;
                     }
                 },
@@ -497,11 +497,11 @@ class Dashboard {
                 },
                 // 处理设备状态更新
                 handleDeviceUpdate(device) {
-                    if (device.status === 'online') {
+                    if (device.state === 'online') {
                         this.$set(this.devices, device.id, device);
                         // 添加上线日志
                         this.logManager.addLog('i', 'SYSTEM', `${device.id} 已上线`);
-                    } else if (device.status === 'offline') {
+                    } else if (device.state === 'offline') {
                         // 添加离线日志
                         this.logManager.addLog('w', 'SYSTEM', `${device.id} 已离线`);
                     }
@@ -635,8 +635,8 @@ class Dashboard {
                 sortedDevices() {
                     return Object.entries(this.devices).sort((a, b) => {
                         // 在线状态优先排序
-                        const aOnline = a[1].status === 'online' ? 1 : 0;
-                        const bOnline = b[1].status === 'online' ? 1 : 0;
+                        const aOnline = a[1].state === 'online' ? 1 : 0;
+                        const bOnline = b[1].state === 'online' ? 1 : 0;
                         
                         // 修正排序逻辑：在线设备在前，按最后活跃时间倒序
                         if (aOnline !== bOnline) {
@@ -701,7 +701,7 @@ class Dashboard {
                     // 使用深拷贝强制触发响应式更新
                     const newDevices = JSON.parse(JSON.stringify(this.devices));
                     if (newDevices[data.deviceId]) {
-                        newDevices[data.deviceId].status = data.status;
+                        newDevices[data.deviceId].state = data.state;
                         newDevices[data.deviceId].last_seen = Date.now();
                     }
                     this.devices = newDevices;
@@ -709,7 +709,7 @@ class Dashboard {
                     // 更新设备卡片的离线状态
                     const deviceCard = document.querySelector(`[data-device-id="${data.deviceId}"]`);
                     if (deviceCard) {
-                        deviceCard.classList.toggle('offline', data.status === 'offline');
+                        deviceCard.classList.toggle('offline', data.state === 'offline');
                     }
                     
                     // 强制重新计算排序

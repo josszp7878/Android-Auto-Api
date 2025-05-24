@@ -1,17 +1,14 @@
 from datetime import datetime
-from _G import TaskState, _G_
+from _G import TaskState
 from SDatabase import db, Database
 import _Log
-from flask import current_app
 from sqlalchemy import func
-from typing import List, Optional, Dict, Any
-from collections import deque
+from typing import List, Optional
 
 
 class STask_(db.Model):
     """服务端任务类"""
     __tablename__ = 'tasks'
-
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     deviceId = db.Column(db.String(50), nullable=False)
     taskName = db.Column(db.String(50), nullable=False)
@@ -61,84 +58,35 @@ class STask_(db.Model):
         self.state = TaskState.RUNNING.value
         db.session.commit()
         _Log._Log_.i(f'任务启动: {self.id}-{self.taskName}')
+        STask_.refresh(self)
 
-    def update(self, progress: float):
+    def update(self, data: dict):
         """更新任务进度"""
+        log = _Log._Log_
         try:
-            if self.state != TaskState.RUNNING.value:
-                _Log._Log_.i(f"任务 {self.taskName} 不在运行状态，无法更新进度")
-                return False
-            # 确保 progress 是 float 类型
-            self.progress = float(min(max(progress, 0), 1))
-            if Database.commit(self):
-                return STask_.refresh(self)
+            # 获取data里面属性，可能有多个，更新任务属性，并比较是否有变化，有变化的需要提交到数据库            
+            changed = False
+            for key, value in data.items():
+                if key == 'progress':
+                    if self.progress != value:
+                        self.progress = value
+                        changed = True
+                elif key == 'state':
+                    if self.state != value:
+                        self.state = value
+                        changed = True
+                elif key == 'score':
+                    if self.score != value:
+                        self.score = value
+                        changed = True
+            log.i(f'更新任务数据:  changed: {changed}')
+            if changed:
+                if Database.commit(self):
+                    return STask_.refresh(self)
             return False
-            
         except Exception as e:
-            _Log._Log_.ex(e, '更新任务进度失败')
+            log.ex(e, '更新任务进度失败')
             return False
-
-    def cancel(self):
-        """取消任务，从数据库中删除"""
-        try:
-            _Log._Log_.i(f"任务 {self.taskName} 已取消")
-            device = self.device
-            if device and device.taskMgr:
-                # 如果是当前任务，先清除
-                if device.taskMgr.currentTask == self:
-                    device.taskMgr.currentTask = None
-            
-            # 从数据库中删除
-            with current_app.app_context():
-                db.session.delete(self)
-                db.session.commit()
-            
-            # 从缓存中移除
-            task_date = self.time.date()
-            cache_key = (self.deviceId, self.taskName, task_date)
-            if cache_key in STask_._cache_map:
-                del STask_._cache_map[cache_key]
-                # 从deque中移除比较麻烦，所以这里不处理，让它自然过期
-            
-            # 刷新界面（传入None表示清除任务显示）
-            from SDeviceMgr import deviceMgr
-            deviceMgr.emit2B('S2B_sheetDelete', {
-                'type': 'tasks',
-                'id': self.id  # 任务被删除，发送空数组
-            })
-                
-        except Exception as e:
-            _Log._Log_.ex(e, '取消任务失败')
-
-    def end(self, data: dict):
-        """结束任务"""
-        try:
-            result = data.get('result', True)
-            score = data.get('score', 0)
-            _Log._Log_.i(f'任务结束: {self.id}-{self.taskName}, 结果: '
-                        f'{"成功" if result else "失败"}, 得分: {score}')
-            
-            self.state = TaskState.SUCCESS.value if result else TaskState.FAILED.value
-            self.score = score
-            self.progress = 1.0 if result else self.progress
-            self.endTime = datetime.now()
-            if Database.commit(self):
-                _Log._Log_.i("任务结束: 成功")
-                return STask_.refresh(self)
-            return False
-            
-        except Exception as e:
-            _Log._Log_.ex(e, '结束任务失败')
-            return False
-
-    def stop(self):
-        """停止任务"""
-        if self.state == TaskState.RUNNING.value:
-            self.state = TaskState.PAUSED.value
-            db.session.commit()
-            STask_.refresh(self)
-            _Log._Log_.i(f"任务 {self.id}-{self.taskName} 已暂停，"
-                        f"进度: {self.progress*100:.1f}%")
 
     def toDict(self):
         """返回任务信息字典"""
@@ -166,10 +114,12 @@ class STask_(db.Model):
             _Log._Log_.i(f"刷新任务状态: 任务：{task}")
             if not task:
                 return
-            # 获取任务管理器
-            deviceMgr.emit2B('S2B_sheetUpdate', {
-                'type': 'tasks',
-                'data': [task.toDict()]
+            Database.sql(lambda db: {
+                # 获取任务管理器
+                deviceMgr.emit2B('S2B_sheetUpdate', {
+                        'type': 'tasks',
+                        'data': [task.toDict()]
+                    })
             })
             
         except Exception as e:
@@ -186,10 +136,15 @@ class STask_(db.Model):
         :param create: 不存在时是否创建
         :return: 任务对象或None
         """
+        log = _Log._Log_
+        if deviceId is None:
+            log.e('获取任务失败', f'设备ID为空: {deviceId}-{taskName}')
+            return None
         if date is None:
             date = datetime.now().date()
         # 先从缓存查找
         task = next((t for t in cls._cache if t.deviceId == deviceId and t.taskName == taskName and t.time.date() == date), None)
+        log.i(f'获取任务: {deviceId}-{taskName}-{date}, task: {task}')
         if task:
             return task
         # 从数据库查找
@@ -199,14 +154,16 @@ class STask_(db.Model):
                 cls.taskName == taskName,
                 func.date(cls.time) == date
             ).first()
+            log.i(f'从数据库查找任务: {deviceId}-{taskName}-{date}, task: {task}')
             # 如果需要创建
             if task is None and create:
                 task = cls(deviceId, taskName)
                 db.session.add(task)
                 db.session.commit()
+                log.i(f'创建任务: {deviceId}-{taskName}-{date}, task: {task}')
             if task:
                 cls._cache.append(task)
-            return None
+            return task
         except Exception as e:
             _Log._Log_.ex(e, f'获取任务失败: {deviceId}-{taskName}')
             return None

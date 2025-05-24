@@ -6,7 +6,7 @@ from flask import current_app
 from SModels import db, AppModel
 import _Log
 import base64
-from STaskMgr import STaskMgr_
+# from STaskMgr import STaskMgr_
 from SEarningMgr import SEarningMgr_
 import _G
 from SDatabase import Database
@@ -17,7 +17,7 @@ class SDevice_(db.Model):
     __tablename__ = 'devices'
     id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
     device_id = db.Column(db.String(50), default='')
-    status = db.Column(db.String(20), default='offline')
+    state = db.Column(db.String(20), default='offline')
     info = db.Column(db.JSON)
     last_seen = db.Column(db.DateTime, default=datetime.now)
     grp = db.Column(db.String(50), default='')  # 分组字段
@@ -27,7 +27,7 @@ class SDevice_(db.Model):
     def __init__(self, device_id):
         self.device_id = device_id
         self.info = {}
-        self.status = 'offline'
+        self.state = 'offline'
         self._taskMgr = None  # 任务管理器
         self.last_seen = datetime.now()
         self._lastScreenshot = None
@@ -54,7 +54,7 @@ class SDevice_(db.Model):
     def init(self, model=None):
         if model:
             self.device_id = model.device_id
-            self.status = model.status
+            self.state = model.state
             self.last_seen = model.last_seen
             self.grp = model.grp or ''  # 从模型加载分组信息
 
@@ -80,12 +80,12 @@ class SDevice_(db.Model):
             _Log._Log_.ex(e, '获取设备总分失败')
             return 0.0
     
-    @property
-    def taskMgr(self) -> STaskMgr_:
-        """懒加载任务管理器"""
-        if self._taskMgr is None:
-            self._taskMgr = STaskMgr_(self)  
-        return self._taskMgr
+    # @property
+    # def taskMgr(self) -> STaskMgr_:
+    #     """懒加载任务管理器"""
+    #     if self._taskMgr is None:
+    #         self._taskMgr = STaskMgr_(self)  
+    #     return self._taskMgr
     
     def _ensure_screenshot_dir(self):
         """确保设备的截图目录存在"""
@@ -94,7 +94,7 @@ class SDevice_(db.Model):
 
     @property
     def isConnected(self):
-        return self.status != 'offline'
+        return self.state != 'offline'
 
     def _commit(self):
         """同步设备状态到数据库"""
@@ -102,7 +102,7 @@ class SDevice_(db.Model):
             def do_commit(db):
                 model = SDevice_.query.filter_by(device_id=self.device_id).first()
                 if model:
-                    model.status = self.status
+                    model.state = self.state
                     model.last_seen = self.last_seen
                     model.grp = self.grp
                     db.session.add(model)
@@ -117,7 +117,7 @@ class SDevice_(db.Model):
     def onConnect(self,sid):
         """设备连接回调"""
         try:
-            self.status = 'online'
+            self.state = 'online'
             self.info['sid'] = sid
             self.info['connected_at'] = str(datetime.now())
             _Log._Log_.i(f'设备 +++++{self.device_id} 已连接 sid={sid}')
@@ -131,7 +131,7 @@ class SDevice_(db.Model):
     def onDisconnect(self):
         """设备断开连接回调"""
         try:
-            self.status = 'offline'
+            self.state = 'offline'
             self.last_seen = datetime.now()  # 更新断开时间
             _Log._Log_.i(f'设备 -----{self.device_id} 已断开连接')
             self._commit()
@@ -144,7 +144,7 @@ class SDevice_(db.Model):
     def login(self):
         """设备登录"""
         try:
-            self.status = 'login'
+            self.state = 'login'
             self.info['login_time'] = str(datetime.now())
             self._commit()
             self.refresh()  # 统一刷新状态
@@ -156,7 +156,7 @@ class SDevice_(db.Model):
     def logout(self):
         """设备登出"""
         try:
-            self.status = 'logout'
+            self.state = 'logout'
             self.info['logout_time'] = str(datetime.now())
             self._commit()
             self.refresh()  # 统一刷新状态
@@ -185,7 +185,7 @@ class SDevice_(db.Model):
             return {
                 'id': self.id,
                 'deviceId': self.device_id,
-                'status': self.status,
+                'state': self.state,
                 'group': self.group,
                 'currentTask': '',
                 'score': 0,
@@ -234,7 +234,7 @@ class SDevice_(db.Model):
     def takeScreenshot(self):
         """向客户端发送截屏指令"""
         try:
-            if self.status != 'login':
+            if self.state != 'login':
                 _Log._Log_.w(f'设备 {self.device_id} 未登录，无法截屏')
                 return False
             from SDeviceMgr import deviceMgr
@@ -298,7 +298,7 @@ class SDevice_(db.Model):
                                     appName=app_name,
                                     totalScore=0.0,
                                     income=0.0,
-                                    status='detected'
+                                    state='detected'
                                 )
                                 db.session.add(record)
                             record.lastUpdate = datetime.now()

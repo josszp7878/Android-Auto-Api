@@ -26,7 +26,6 @@ class SDeviceMgr_:
         # 只在第一次初始化时执行
         if not hasattr(self, 'initialized'):
             self._load()
-            self.curDeviceIDs = []
             self.initialized = True
             self.result = None
             self.onCmdResult: Callable[[str], None] = None
@@ -86,6 +85,7 @@ class SDeviceMgr_:
         """获取设备"""
         if idOrGroup is None or idOrGroup == '':
             return []
+        idOrGroup = idOrGroup.lower()
         device = self.devices.get(idOrGroup)
         if device:
             return [device]
@@ -123,24 +123,7 @@ class SDeviceMgr_:
             for device_id, device in self.devices.items()
         }
 
-    @property
-    def curDeviceID(self):
-        """获取当前设备ID"""
-        return self.curDeviceIDs[0] if self.curDeviceIDs and len(self.curDeviceIDs) > 0 else None
-
-    @property
-    def currentApp(self) -> Optional[str]:
-        """获取当前设备的当前应用名称"""
-        try:
-            if not self.curDeviceID:
-                return None
-            device = self.get(self.curDeviceID)
-            if not device:
-                return None
-            return device.taskMgr.currentApp
-        except Exception as e:
-            _Log._Log_.ex(e, "获取当前应用失败")
-            return None
+    #         return None
 
     @property
     def curDevice(self) -> Optional[SDevice_]:
@@ -281,7 +264,7 @@ class SDeviceMgr_:
                     return f'e~发送命令异常{e}'
 
                 # 等待结果或超时
-                cmd_event.wait(timeout)
+                # cmd_event.wait(timeout)
                 # 获取结果
                 result = self.cmdResults.get(cmd_id, f"e~命令执行超时: {command}")
                 # 清理资源

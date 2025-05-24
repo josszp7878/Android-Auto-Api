@@ -193,7 +193,7 @@
     left: 0;
 }
 
-.device-status {
+.device-state {
     font-weight: bold;
     margin-top: 5px;
     font-size: 0.8rem;
@@ -369,7 +369,7 @@
     display: none;  /* 或者直接删除这些规则 */
 }
 
-.log-status {
+.log-state {
     padding: 5px 10px;
     background: #2d2d2d;
     color: #ff9800;
