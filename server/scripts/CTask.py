@@ -62,6 +62,9 @@ class CTask_:
 
     @state.setter
     def state(self, value: TaskState):
+        """任务状态"""
+        log = _G.g.Log()
+        log.i(f"任务{self._name}状态: self._state={self._state}, ==>value={value}")
         if self._state != value:
             self._state = value
             self._emitUpdate({

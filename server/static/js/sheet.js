@@ -16,6 +16,7 @@ class SheetPage {
             '设备': this.DataType.DEVICES,
             '日志': this.DataType.LOGS
         };
+        this.defTab = '日志';
 
         this.devices = []; // 初始化为空数组
         this.tasks = []; // 初始化为空数组
@@ -149,6 +150,40 @@ class SheetPage {
             }
         };
 
+        // 新增任务状态定义
+        this.taskStatusMap = {
+            'idle': {
+                label: '空闲中',
+                color: '#a0aec0',
+                icon: 'fas fa-stop',
+                formatter: "<span style='color: #a0aec0'><i class='fas fa-stop'></i> 空闲中</span>"
+            },
+            'running': {
+                label: '运行中',
+                color: '#23d160',
+                icon: 'fas fa-play',
+                formatter: "<span style='color: #23d160'><i class='fas fa-play'></i> 运行中</span>"
+            },
+            'paused': {
+                label: '已暂停',
+                color: '#ffdd57',
+                icon: 'fas fa-pause',
+                formatter: "<span style='color: #ffdd57'><i class='fas fa-pause'></i> 已暂停</span>"
+            },
+            'success': {
+                label: '已完成',
+                color: '#3273dc',
+                icon: 'fas fa-check',
+                formatter: "<span style='color: #3273dc'><i class='fas fa-check'></i> 已完成</span>"
+            },
+            'failed': {
+                label: '失败',
+                color: '#ff3860',
+                icon: 'fas fa-times',
+                formatter: "<span style='color: #ff3860'><i class='fas fa-times'></i> 失败</span>"
+            }
+        };
+
         // 日志等级定义
         this.logLevelMap = {
             'i': {
@@ -208,8 +243,6 @@ class SheetPage {
         // 初始化命令输入区域
         this.initCommandArea();
 
-        //设置当前标签页
-        this.switchTab("日志");
     }
     
     /**
@@ -349,12 +382,7 @@ class SheetPage {
                 selectableCheckbox: true,
                 columns: this.getLogColumns(),
                 data: this.logs,
-                headerFilterLiveFilter: false,
-                tableBuilt: () => {
-                    this._logTable.on("pageLoaded", () => {
-                        this.userPaged[this.DataType.LOGS] = true;
-                    });
-                }
+                headerFilterLiveFilter: false                
             });
             this._logTable.dataType = this.DataType.LOGS;
         }
@@ -365,6 +393,11 @@ class SheetPage {
      * 加载表格数据（修复循环问题）
      */
     _loadDatas(table, force=false) {
+        if (force) {
+            // 强制刷新时，重置lastDateFilter和加载状态
+            table.lastDateFilter = null;
+            this.isLoading[table.dataType] = false;
+        }
         if (!table || !table.initialized || this.isLoading[table.dataType]) return;
 
         this.isLoading[table.dataType] = true; // 设置加载状态
@@ -379,10 +412,6 @@ class SheetPage {
                     currentDate = this.today;
                     table.setHeaderFilterValue("date", this.today);
                 }
-            }
-            if (force) {
-                // 强制刷新时，重置lastDateFilter
-                table.lastDateFilter = null;
             }
             // 如果 lastDateFilter 为 undefined，表示表格未初始化或未切换到此标签页，直接跳过
             if (table.lastDateFilter === undefined) {
@@ -481,9 +510,6 @@ class SheetPage {
         try {
             // 规整数据，确保符合表格要求
             const sheetData = this.toSheetData(newData, dataType);
-            // console.log("sheetData类型:", Array.isArray(sheetData) ? "Array" : typeof sheetData);
-            // console.log("sheetData内容:", JSON.stringify(sheetData));
-
             if (!Array.isArray(sheetData) || sheetData.length === 0) {
                 console.warn("无效的sheetData:", sheetData);
                 return;
@@ -494,7 +520,7 @@ class SheetPage {
                 // console.log("newItem：", newItem);
                 const existingItemIndex = targetData.findIndex(item => item.id === newItem.id);
                 if (existingItemIndex !== -1) {
-                    targetData[existingItemIndex] = newItem;
+                    Object.assign(targetData[existingItemIndex], newItem);
                 } else {
                     targetData.push(newItem);
                 }
@@ -505,6 +531,7 @@ class SheetPage {
                 this.mainTable.setData(targetData);
                 // console.log("表格数据已更新，当前行数:", this.mainTable.getDataCount());
             }
+
         } finally {
             this.isLoading[dataType] = false; // 数据更新完成后重置状态
         }
@@ -573,16 +600,13 @@ class SheetPage {
                         switch (field) {
                             case 'progress':
                                 const progress = parseFloat(item[field]);
-                                result[field] = isNaN(progress) ? 'ERR' : Math.min(Math.max(progress, 0), 100);
+                                result[field] = isNaN(progress) ? 0 : Math.min(Math.max(progress, 0), 1);
                                 break;
                             case 'state':
-                                // 验证状态值
                                 if (dataType === this.DataType.DEVICES) {
-                                    const validStatuses = Object.keys(this.deviceStatusMap);
-                                    result[field] = validStatuses.includes(item[field]) ? item[field] : 'offline';
+                                    result[field] = this._validateEnum(item[field], this.deviceStatusMap, 'offline');
                                 } else if (dataType === this.DataType.TASKS) {
-                                    result[field] = ['running', 'paused', 'success', 'failed', 'pending'].includes(item[field]) ? 
-                                        item[field] : 'pending';
+                                    result[field] = this._validateEnum(item[field], this.taskStatusMap, 'idle');
                                 } else {
                                     result[field] = item[field];
                                 }
@@ -592,9 +616,7 @@ class SheetPage {
                                 result[field] = isNaN(score) ? 'ERR' : score;
                                 break;
                             case 'level':
-                                const validLevels = Object.keys(this.logLevelMap);
-                                result[field] = validLevels.includes(item[field]) ? 
-                                    item[field] : 'i';
+                                result[field] = this._validateEnum(item[field], this.logLevelMap, 'i');
                                 break;
                             default:
                                 result[field] = item[field];
@@ -672,10 +694,9 @@ class SheetPage {
                 break;
             case "日志":
                 this.mainTable = this._logTable;
-                // 切换到日志标签页时重置用户翻页标志
-                this.userPaged[this.DataType.LOGS] = false;
                 break;
         }
+        this.userPaged[tabType] = false;
         // 更新命令输入框的占位文本
         this.updateCommandInputPlaceholder();
         // 显式初始化 lastDateFilter
@@ -720,15 +741,23 @@ class SheetPage {
             {
                 title: "进度", 
                 field: "progress", 
-                width: 150, 
-                formatter: "progress", 
+                width: 150,
+                formatter: (cell) => {
+                    const value = cell.getValue();
+                    if (value === undefined || value === null) return "";
+                    const percent = Math.round(value * 100);
+                    return `
+                        <div class="progress-container">
+                            <div class="progress-bar" style="width:${percent}%">
+                                <span class="progress-text">${percent}%</span>
+                            </div>
+                        </div>
+                    `;
+                },
                 formatterParams: {
                     min: 0,
-                    max: 100,
-                    color: ["#ff3860", "#ffdd57", "#23d160"],
-                    legend: true
-                },
-                headerFilter: "number"
+                    max: 1
+                }
             },
             {
                 title: "状态", 
@@ -736,23 +765,14 @@ class SheetPage {
                 width: 120, 
                 headerFilter: "list",
                 headerFilterParams: {
-                    values: {
-                        "": "全部",
-                        "idle": "空闲中",
-                        "running": "运行中",
-                        "paused": "已暂停",
-                        "success": "已完成",
-                        "failed": "失败"
-                    }
+                    values: Object.fromEntries(
+                        Object.entries(this.taskStatusMap).map(([k, v]) => [k, v.label])
+                    )
                 },
                 formatter: "lookup",
-                formatterParams: {
-                    "idle": "<span style='color: #a0aec0'><i class='fas fa-stop'></i> 空闲中</span>",
-                    "running": "<span style='color: #23d160'><i class='fas fa-play'></i> 运行中</span>",
-                    "paused": "<span style='color: #ffdd57'><i class='fas fa-pause'></i> 已暂停</span>",
-                    "success": "<span style='color: #3273dc'><i class='fas fa-check'></i> 已完成</span>",
-                    "failed": "<span style='color: #ff3860'><i class='fas fa-times'></i> 失败</span>"
-                }
+                formatterParams: Object.fromEntries(
+                    Object.entries(this.taskStatusMap).map(([k, v]) => [k, v.formatter])
+                )
             },
             {title: "得分", field: "score", width: 100, headerFilter: "number"},
         ];
@@ -914,6 +934,12 @@ class SheetPage {
         table.initialized = true;
         this.initTableFilterListener(table);
         
+        table.on("tableBuilt", () => {
+            this.userPaged[table.dataType] = true;
+            if(table.dataType === this.tabTypeMap[this.defTab]) {
+                this.switchTab(this.defTab);
+            }
+        });
         // 为所有表格添加分页监听
         table.on("dataProcessed", () => {
             if (!this.userPaged[table.dataType]) {
@@ -1368,5 +1394,16 @@ class SheetPage {
         });
     }
 
+    /**
+     * 验证枚举类型字段值
+     * @param {string} value - 待验证的值
+     * @param {Array|Object} validValues - 有效值集合（数组或对象key）
+     * @param {string} defaultValue - 默认返回值
+     * @returns {string} 验证后的值
+     */
+    _validateEnum(value, validValues, defaultValue) {
+        const validKeys = Array.isArray(validValues) ? validValues : Object.keys(validValues);
+        return validKeys.includes(value) ? value : defaultValue;
+    }
 
 } 

@@ -135,4 +135,11 @@
 /* 如果有页面导航，将其放在右侧 */
 .tabulator-paginator {
     justify-content: flex-end !important;
+}
+
+.progress-bar {
+    height: 100%;
+    background: #22048d;
+    border-radius: 3px;
+    transition: width 0.3s;
 } 
