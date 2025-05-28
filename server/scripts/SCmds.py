@@ -446,7 +446,7 @@ class SCmds_:
 
                 task = STask_(
                     deviceId=device_ids[0],
-                    taskName=taskName
+                    name=taskName
                 )
                 task.save()
                 return f"已创建任务: {taskName}, 设备: {', '.join(device_ids)}"

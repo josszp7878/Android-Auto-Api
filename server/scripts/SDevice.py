@@ -14,7 +14,7 @@ class SDevice_(SModelBase_):
     """设备管理类"""
     SCREENSHOTS_DIR = os.path.join(_G.g.rootDir(), 'data', 'screenshots')
     def __init__(self, name):
-        super().__init__(DeviceModel, name)
+        super().__init__(DeviceModel, {'name': name})
         self.sid = None
         self._state = 'offline'
         self._isDirty = False
@@ -46,7 +46,7 @@ class SDevice_(SModelBase_):
             self.data[key] = value
             self._isDirty = True
 
-    def toSheetData(self):
+    def toSheetData(self)->dict:
         return {
             'state': self._state,
             **self.data

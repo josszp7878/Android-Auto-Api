@@ -28,8 +28,9 @@ class DeviceModel(db.Model):
             return []
 
     @classmethod
-    def get(cls, name, create=False):
+    def get(cls, params: dict, create=False):
         """获取或创建设备记录"""
+        name = params.get('name')
         instance = cls.query.filter_by(name=name).first()
         if not instance and create:
             instance = cls(name=name)
@@ -43,7 +44,7 @@ class DeviceModel(db.Model):
             'name': self.name,
             'score': self.score,
             'lastTime': self.lastTime.strftime('%Y-%m-%d %H:%M:%S') if self.lastTime else None
-        }
+        }    
     
     def commit(self, data: dict):
         """提交数据更新"""
@@ -123,6 +124,55 @@ class AppModel(db.Model):
             income=device.income,
             state=device.state
         )
+
+class TaskModel(db.Model):
+    """任务数据模型"""
+    __tablename__ = 'tasks'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    deviceId = db.Column(db.String(50), nullable=False)
+    name = db.Column(db.String(50), nullable=False)
+    time = db.Column(db.DateTime, default=datetime.now)
+    endTime = db.Column(db.DateTime)
+    score = db.Column(db.Integer, default=0)
+    progress = db.Column(db.Float, default=0.0)
+    state = db.Column(db.String(20))
+    life = db.Column(db.Integer, default=0)
+
+    @classmethod
+    def get(cls, params: dict, create=False):
+        """获取或创建任务记录"""
+        deviceId = params.get('deviceId')   
+        name = params.get('name')
+        instance = cls.query.filter_by(deviceId=deviceId, name=name).first()
+        if not instance and create:
+            instance = cls(deviceId=deviceId, name=name)
+            db.session.add(instance)
+            db.session.commit()
+        return instance
+
+    def toDict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'deviceId': self.deviceId,
+            'progress': self.progress,
+            'date': self.time.strftime('%Y-%m-%d') if self.time else '',
+            'state': self.state,
+            'score': self.score,
+            'life': self.life
+        }
+
+    def commit(self, data: dict) -> bool:
+        """提交数据更新"""
+        try:
+            for key, value in data.items():
+                if hasattr(self, key):
+                    setattr(self, key, value)
+            db.session.commit()
+            return True
+        except Exception as e:
+            _G._G_.Log().ex(e, '提交数据失败')
+            return False
 
 @contextmanager
 def session_scope():

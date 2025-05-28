@@ -4,15 +4,15 @@ import _G
 
 class SModelBase_:
     """模型基类"""
-    def __init__(self, modelClass, name: str):
-        model = modelClass.get(name, create=False)
+    def __init__(self, modelClass, params: dict):
+        model = modelClass.get(params, create=False)
         self.cls = modelClass
         if model:
             self.model = model
-            self.data = model.toDict()
+            self.data: dict = model.toDict()
         else:
             self.model = None
-            self.data = {'name': name}
+            self.data: dict = params
         self._isDirty = False
 
     @property
@@ -53,14 +53,37 @@ class SModelBase_:
 
     def toSheetData(self) -> dict:
         # 子类可重写
-        return dict(self.data)
-
+        return self.data
+    
+    def update(self, data: dict, commit: bool = True, refresh: bool = True):
+        """更新数据"""
+        log = _G._G_.Log()
+        try:
+            for key, value in data.items():
+                if self.data.get(key) != value:
+                    self.data[key] = value
+                    self._isDirty = True
+            if commit:
+                return self.commit()
+            if refresh:
+                self.refresh()
+            return True
+        except Exception as e:
+            log.ex(e, '更新数据失败')
+            return False
+        
     def refresh(self):
         # 子类可重写
         g = _G._G_
         log = g.Log()
         try:
-            log.i(f'刷新设备状态: {self.data}')
-            g.emit('S2B_sheetUpdate', {'type': 'devices', 'data': [self.toSheetData()]})
+            strType = None
+            if self.cls.__name__ == 'DeviceModel':
+                strType = 'devices'
+            elif self.cls.__name__ == 'TaskModel':
+                strType = 'tasks'
+            log.i(f'刷新{strType}状态: {self.data}, self.cls.__name__: {self.cls.__name__}') 
+            if strType:
+                g.emit('S2B_sheetUpdate', {'type': strType, 'data': [self.toSheetData()]})
         except Exception as e:
             log.ex(e, '刷新设备状态失败') 

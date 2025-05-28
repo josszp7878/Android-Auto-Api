@@ -163,7 +163,7 @@ def handleC2SUpdateTask(data):
             return
         taskName = data.get('taskName')
         from STask import STask_
-        task = STask_.get(device.name, taskName, date=datetime.now().date(), create=False)
+        task = STask_.get({'deviceId': device.id, 'name': taskName}, create=False)
         log.i(f'处理任务进度更新请求: {device.name}/{taskName}, task: {task}')
         if task is None:
             log.i(f'任务不存在: {device.name}/{taskName}')
@@ -211,8 +211,7 @@ def handle2SCmd(data):
 
     except Exception as e:
         Log.ex(e, '执行命令失败')
-
-
+        
 
 def handleC2SCmdResult(data):
     """处理命令响应"""
@@ -230,14 +229,9 @@ def handleB2SLoadTasks(data):
     try:
         filters = data.get('filters', {})
         date = filters.get('date')
-        def getTasks(db):
-            """获取任务数据"""
-            nonlocal date
-            from STask import STask_
-            datas = STask_.gets(date)
-            datas = [task.toDict() for task in datas]
-            return datas
-        datas = Database.sql(getTasks)
+        from STask import STask_
+        datas = STask_.gets(date)
+        datas = [task.toSheetData() for task in datas]
         # 更新前端任务数据
         _G._G_.emit('S2B_sheetUpdate', {'type': 'tasks', 'data': datas})
 
@@ -256,9 +250,7 @@ def handleB2SLoadDevices(data):
         # 获取普通设备数据
         from SDeviceMgr import deviceMgr
         log.i(f'获取设备数据: {deviceMgr.devices}')
-        datas = []
-        for device in deviceMgr.devices:
-            datas.append(device.toSheetData())
+        datas = [device.toSheetData() for device in deviceMgr.devices]
         log.i(f'更新前端设备数据: {datas}')
         # 更新前端设备和控制台数据
         _G._G_.emit('S2B_sheetUpdate', {'type': 'devices', 'data': datas})
