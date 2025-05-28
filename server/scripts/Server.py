@@ -266,13 +266,14 @@ def handleB2SLoadLogs(data):
             """获取日志数据"""
             nonlocal date
             datas = log.gets(date)
-            datas = [log.toDict() for log in datas]
-            return datas
+            # 在同一个数据库会话中完成数据转换
+            result = []
+            for log_item in datas:
+                result.append(log_item.toDict())
+            return result
+            
         datas = Database.sql(getLogs)
-        # _Log._Log_.i(f'日志数据: {datas}')
-        # 更新前端日志数据
         deviceMgr.emit2B('S2B_sheetUpdate', {'type': 'logs', 'data': datas})
-        # 返回成功响应，不等待实际加载完成
         return {'state': 'ok', 'message': '日志加载请求已处理'}
     except Exception as e:
         _Log._Log_.ex(e, '处理加载日志数据请求失败')
