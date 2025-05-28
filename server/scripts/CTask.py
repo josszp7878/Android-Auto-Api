@@ -400,11 +400,11 @@ class CTask_:
         _G.g.Log().i(f"任务{self._name}进度: {self.progress:0.2f}")
         # 进度完成处理
         if self.progress >= 1.0:
-            self._end()
+            self.end()
             return False
         return True
 
-    def _end(self):
+    def end(self):
         # 确定最终状态
         self.state = TaskState.SUCCESS if self._score > 0 else TaskState.FAILED
         # 执行结束脚本（使用属性访问）

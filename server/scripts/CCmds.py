@@ -3,6 +3,8 @@ import time
 import _G
 from typing import List, Optional
 import re
+import threading
+from _G import TaskState
 
 g = _G._G_
 log = g.Log()
@@ -318,6 +320,79 @@ class CCmds_:
             except Exception as e:
                 log.ex(e, '下载操作异常')
                 return False
+            
+        @regCmd(r"#连接|lj")
+        def connect():
+            """
+            功能：连接设备
+            指令名: connect
+            中文名: 连接-连接
+            """
+            g = _G._G_  
+            log = g.Log()
+            log.i("连接设备")
+            # 获取当前设备
+            CDevice = g.CDevice()
+            ret = CDevice.connect()
+            if ret:
+                return "连接成功"
+            else:
+                return "连接失败"
+        
+        @regCmd(r"#断开|dk")
+        def disconnect():
+            """
+            功能：断开设备
+            指令名: disconnect
+            中文名: 断开-断开
+            """ 
+            g = _G._G_  
+            log = g.Log()
+            log.i("断开设备")
+            # 获取当前设备
+            CDevice = g.CDevice()
+            ret = CDevice.disconnect()
+            if ret:
+                return "断开成功"
+            else:
+                return "断开失败"
+            
+        @regCmd(r"#登录|dl")
+        def login():
+            """
+            功能：登录
+            指令名: login
+            中文名: 登录
+            参数: 无
+            """
+            g = _G._G_
+            log = g.Log()
+            log.i("登录")
+            # 获取当前设备
+            CDevice = g.CDevice()
+            ret = CDevice.login()
+            if ret:
+                return "登录成功"
+            else:
+                return "登录失败"
+            
+        @regCmd(r"#退出登录|tc")
+        def logout():
+            """
+            功能：退出登录
+            指令名: logout
+            中文名: 退出登录
+            """
+            g = _G._G_
+            log = g.Log()
+            log.i("退出登录")
+            # 获取当前设备
+            CDevice = g.CDevice()
+            ret = CDevice.logout()
+            if ret:
+                return "退出登录成功"
+            else:
+                return "退出登录失败"
 
         @regCmd(r"#获取文件(?P<fileName>.+)")
         def getFileName(fileName):
@@ -579,7 +654,10 @@ class CCmds_:
                 # 执行纯代码
                 return g.Tools().do(content)
             elif content.startswith('!'):
-                return g.App().startTask(content[1:])
+                task = g.App().getTask(content[1:])
+                if not task:
+                    return f"e~任务不存在: {content[1:]}"
+                return task.begin()
             else:
                 return g.App().go(content)
                
@@ -689,4 +767,30 @@ class CCmds_:
             """
             return g.App().printTasks(taskName, lambda task: f"\t{task.name} {task.score}")
             
-            
+        @regCmd(r"#测试任务|testTask")
+        def testTask():
+            """
+            功能：启动自动进度更新的测试任务
+            """
+            try:
+                app = _G._G_.App()
+                taskName = "快手极速版-看广告"
+                task = app.getTask(taskName)
+                if not task:
+                    return "e~任务不存在"
+                # 创建并启动测试任务
+                if task.begin():
+                    task.progress = 0.0
+                    task.score = 0
+                    log.i(f"测试任务 {taskName} 已启动, 每秒更新进度")
+                    while task.state == TaskState.RUNNING and task.progress < 1.0:
+                        task.progress = min(task.progress + 0.1, 1.0)
+                        task.score += 1
+                        time.sleep(1)  # 精确1秒间隔
+                    task.end()
+                    return f"测试任务 {taskName} 已完成"
+                return "e~任务启动失败"
+                
+            except Exception as e:
+                _G._G_.Log().ex(e, "测试任务创建失败")
+                return f"e~{str(e)}"            

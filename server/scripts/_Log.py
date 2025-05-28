@@ -137,8 +137,17 @@ class _Log_:
                     # 保存到数据库
                     def _saveLogs(db):
                         for log in newLogs:
-                            db.session.add(log)
-                            del log._isNew
+                            # 创建新的日志对象而不是重用现有对象
+                            new_log = LogModel_(
+                                id=log.id,
+                                tag=log.tag,
+                                level=log.level,
+                                message=log.message,
+                                time=log.time
+                            )
+                            db.session.add(new_log)
+                            if hasattr(log, '_isNew'):
+                                del log._isNew
                         db.session.commit()
                     Database.sql(_saveLogs)
                     # cls.log_("日志数据库保存完成", None, 'd')
@@ -176,9 +185,7 @@ class _Log_:
             log._isNew = True
             cls._cache.append(log)
             cls.save()
-            g = _G._G_
-            from SDeviceMgr import deviceMgr
-            g.emit('S2B_sheetUpdate', {'type': 'logs', 'data': [log.toDict()]}, deviceMgr.curConsoleSID)
+            _G._G_.emit('S2B_sheetUpdate', {'type': 'logs', 'data': [log.toDict()]})  
         except Exception as e:
             cls.ex_(e, '发送日志到控制台失败')
 

@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 TOP = "top"
 TEMP = "temp"
 ROOT = "root"
+ServerTag = "@"
 
 class TaskState(Enum):
     """任务状态"""
@@ -47,6 +48,15 @@ class _G_:
     
     android = None   # Android服务对象，由客户端设置
     sio = None  # SocketIO实例,客户端服务端通用
+    _consoles = []  # 当前连接的控制台列表
+    _curConsole = None  # 当前控制台
+
+    @classmethod
+    def setCurConsole(cls, sid):
+        """设置当前控制台"""
+        if sid not in cls._consoles:
+            cls._consoles.append(sid)
+        cls._curConsole = sid
 
     
     @classmethod
@@ -67,8 +77,19 @@ class _G_:
                 cls.sio.emit(event, data)
                 return True
         return False
-
-
+    
+    @classmethod
+    def emit2B(cls, event, data, sids=None)->bool:
+        """发送事件到控制台"""
+        if sids is None:
+            sids = cls._consoles
+        result = True
+        for sid in sids:
+            re = cls.emit(event, data, sid)
+            if not re:
+                result = False
+        return result
+    
     @classmethod
     def isAndroid(cls):
         """检查是否是Android环境"""

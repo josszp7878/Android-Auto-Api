@@ -2,6 +2,86 @@ from datetime import datetime
 from SDatabase import db
 from contextlib import contextmanager
 from sqlalchemy.exc import SQLAlchemyError
+import _G
+
+class DeviceModel(db.Model):
+    """设备数据模型"""
+    __tablename__ = 'devices'
+    id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    name = db.Column(db.String(100), unique=True)  # 只保留name
+    lastTime = db.Column(db.DateTime, default=datetime.now)
+    score = db.Column(db.Integer, default=0)
+
+    @classmethod
+    def all(cls, dataCls: type):
+        """获取所有设备记录"""
+        try:
+            from SDatabase import Database
+            
+            def load(db):
+                datas = DeviceModel.query.all()
+                return [dataCls(d.name) for d in datas]
+                
+            return Database.sql(load)
+        except Exception as e:
+            _G._G_.Log().ex(e, "获取所有设备记录失败")
+            return []
+
+    @classmethod
+    def get(cls, name, create=False):
+        """获取或创建设备记录"""
+        instance = cls.query.filter_by(name=name).first()
+        if not instance and create:
+            instance = cls(name=name)
+            db.session.add(instance)
+            db.session.commit()
+        return instance
+
+    def toDict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'score': self.score,
+            'lastTime': self.lastTime.strftime('%Y-%m-%d %H:%M:%S') if self.lastTime else None
+        }
+    
+    def commit(self, data: dict):
+        """提交数据更新"""
+        from SDatabase import Database
+        
+        def _commit(db):
+            try:
+                session = db.session
+                # 通过ID获取最新数据
+                model = DeviceModel.query.get(self.id)
+                
+                if not model:
+                    return False
+                # 更新字段
+                model.name = data.get('name', model.name)
+                if 'score' in data:
+                    model.score = data['score']
+                
+                # 处理时间字段
+                last_time = data.get('lastTime')
+                if last_time:
+                    if isinstance(last_time, str):
+                        model.lastTime = datetime.strptime(last_time, '%Y-%m-%d %H:%M:%S')
+                    else:
+                        model.lastTime = last_time
+
+                session.commit()
+                return True
+            except Exception as e:
+                print(f"数据库提交失败: {str(e)}")
+                session.rollback()
+                return False
+
+        try:
+            return Database.sql(_commit)
+        except Exception as e:
+            _G._G_.Log().ex(e, "提交数据更新失败")
+            return False
 
 class EarningRecord(db.Model):
     """收益记录表"""

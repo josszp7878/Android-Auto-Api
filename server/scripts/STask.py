@@ -1,4 +1,5 @@
 from datetime import datetime
+import _G
 from _G import TaskState
 from SDatabase import db, Database
 import _Log
@@ -111,12 +112,13 @@ class STask_(db.Model):
         try:
             from SDeviceMgr import deviceMgr
             # 如果task为None，直接返回
-            _Log._Log_.i(f"刷新任务状态: 任务：{task}")
+            log = _Log._Log_
+            log.i(f"刷新任务状态: 任务：{task}")
             if not task:
                 return
             Database.sql(lambda db: {
                 # 获取任务管理器
-                deviceMgr.emit2B('S2B_sheetUpdate', {
+                _G._G_.emit('S2B_sheetUpdate', {
                         'type': 'tasks',
                         'data': [task.toDict()]
                     })

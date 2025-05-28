@@ -1,3 +1,4 @@
+import threading
 import time
 import _G
 import os
@@ -710,29 +711,7 @@ class _App_:
             cls._lastApp = oldCls._curApp  # 修改属性名称
         else:
             cls._lastApp = cls.getApp(_G.TOP, True)
-        cls.loadConfig()
-   
-    def _update(self):
-        """应用级别的更新循环"""
-        try:
-            g = _G._G_
-            log = g.Log()  # 需要再这里获取，这样就能支持LOG的动态更新
-            # 检测toast
-            self.detectToast()
-            # 检测当前页面
-            self.detectPage(self.curPage)
-            # 处理页面跳转逻辑
-            self._updateGoPath(log)
-            # 更新当前页面
-            if self.curPage:
-                self.curPage.update()
-            self.userEvents = []
-            # 更新当前任务
-            if self._curTask:
-                self._curTask.update(g)
-            
-        except Exception as e:
-            log.ex(e, f"应用更新失败：{self.name}")
+        cls.loadConfig()   
 
     # 处理页面跳转逻辑
     def _updateGoPath(self, log: "_Log_"):
@@ -771,10 +750,31 @@ class _App_:
         """清空路径目标"""
         self._path = None
 
+    def _doUpdate(self):
+        """应用级别的更新循环"""
+        try:
+            g = _G._G_
+            log = g.Log()  # 需要再这里获取，这样就能支持LOG的动态更新
+            # 检测toast
+            self.detectToast()
+            # 检测当前页面
+            self.detectPage(self.curPage)
+            # 处理页面跳转逻辑
+            self._updateGoPath(log)
+            # 更新当前页面
+            if self.curPage:
+                self.curPage.update()
+            self.userEvents = []
+            # 更新当前任务
+            if self._curTask:
+                self._curTask.update(g)
+            
+        except Exception as e:
+            log.ex(e, f"应用更新失败：{self.name}")
         
 
     @classmethod
-    def update(cls):
+    def _update(cls):
         """全局应用更新循环
         """
         interval = 0.3
@@ -787,7 +787,13 @@ class _App_:
             app = cls.cur()
             if app:
                 # 只更新当前已知应用
-                app._update()
+                app._doUpdate()
+
+    @classmethod
+    def update(cls):
+        """全局应用更新循环线程"""
+        thread = threading.Thread(target=cls._update)
+        thread.start()
 
     def sendUserEvent(self, eventName: str) -> bool:
         """添加用户事件到事件列表
@@ -843,6 +849,8 @@ class _App_:
         """显示任务列表"""
         taskMap = cls.getTasks(taskName)
         ret = ''
+        if taskMap is None:
+            return f'e~任务{taskName}不存在'
         for app, tasks in taskMap.items():
             if len(tasks) == 0:
                 continue
@@ -853,41 +861,23 @@ class _App_:
         return ret
     
     @classmethod
-    def getTask(cls, name)-> Tuple['_App_', 'CTask_']:
+    def getTask(cls, name, create: bool = True)-> 'CTask_':
         """获取任务实例"""
         g = _G._G_
         log = g.Log()
         if not name:
-            return None, None
+            return None
         appName, taskName = cls.parseName(name)
         app = cls.getApp(appName)
         if app is None:
             log.e(f"应用 {appName} 不存在")
             return app, None
         task = app._tasks.get(name) if taskName else app._curTask
-        return app, task
-
-    @classmethod
-    def startTask(cls, name: str)->'CTask_':
-        """启动任务"""
-        g = _G._G_
-        log = g.Log()
-        try:
-            app, task = cls.getTask(name)
-            if task is None:
-                from CTask import CTask_
-                task = CTask_.create(name, app)
-                app._tasks[name] = task
-            if task is None:
-                return None
-            # 检查任务是否已存在，不存在则创建
-            if task.begin():
-                app._curTask = task
-                return task
-        except Exception as e:
-            log.ex(e, f"启动任务失败: {name}")
-            return None
-        
+        if task is None and create:
+            from CTask import CTask_
+            task = CTask_.create(name, app)
+            app._tasks[name] = task
+        return task
         
     @property
     def curTask(self):

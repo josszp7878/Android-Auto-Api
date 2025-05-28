@@ -1,16 +1,10 @@
 from flask import current_app
-from SModels import db
 from SDevice import SDevice_
-import _Log
-from datetime import datetime
-from typing import Optional, Callable, List, Dict
-import threading
 import hashlib
 import time
 import _G
-from typing import cast
-from _G import _G_
-from SDatabase import Database
+from typing import Optional, List
+import threading
 
 class SDeviceMgr_:
     """设备管理器：管理所有设备"""
@@ -23,150 +17,93 @@ class SDeviceMgr_:
         return cls._instance
 
     def __init__(self):
-        # 只在第一次初始化时执行
         if not hasattr(self, 'initialized'):
-            self._load()
+            import _Log
+            self._log = _Log._Log_
+            self.__devices = None  # 初始化为None
             self.initialized = True
             self.result = None
-            self.onCmdResult: Callable[[str], None] = None
-            self.cmdTimeout = 15  # 命令超时时间(秒)
-            self.pendingCmds = {}  # 存储待处理的命令 {cmd_id: timer}
-            self.cmdResults = {}  # 存储命令结果 {cmd_id: result}
-            self.cmdEvents = {}   # 存储命令完成事件 {cmd_id: Event}
+            self._curDevice = None
+            self.onCmdResult = None
+            self.cmdTimeout = 15
+            self.pendingCmds = {}
+            self.cmdResults = {}
+            self.cmdEvents = {}
 
     @property
-    def consoles(self):
-        return self._consoles.keys()
+    def _devices(self) -> List['SDevice_']:
+        """延迟加载设备列表"""
+        if self.__devices is None:
+            from SModels import DeviceModel
+            self.__devices = DeviceModel.all(SDevice_)
+        return self.__devices
     
     @property
     def devices(self):
-        return self._devices
+        return [d for d in self._devices if not d.isConsole]
 
-    def _load(self):
+    def get(self, name: str, create=False) -> Optional[SDevice_]:
         try:
-            self._consoles : Dict[str, SDevice_] = {}
-            self._devices : Dict[str, SDevice_] = {}
-            def __load(db):
-                for device in SDevice_.query.all():
-                    deviceID = device.device_id
-                    if deviceID.startswith('@'):
-                        self._consoles[deviceID] = device
-                    else:
-                        self._devices[deviceID] = device
-            Database.sql(__load)
-            print(f'从数据库加载了 self._devices={self._devices}, \n self._consoles={self._consoles}')
+            devices = self._devices
+            device = next((d for d in devices if d.name == name), None)
+            if device is None and create:
+                log = _G._G_.Log()
+                log.i(f'创建设备: {name}')
+                device = SDevice_(name)
+                devices.append(device)
+            return device
         except Exception as e:
-            print(f'加载数据库出错: {e}')
-        
-    def remove(self, sid) -> Optional[SDevice_]:
-        """移除设备"""
-        device = self.getBySID(sid)
-        if device:
-            del self._devices[device.device_id]
-            if Database.delete(device):
-                return device
-        return None
-
-    def get(self, id:str, create=False) -> Optional[SDevice_]:
-        """获取设备"""
-        device = None
-        devices = self._devices if not id.startswith('@') else self._consoles
-        device = devices.get(id.lower())
-        if device is None and create:
-            _Log._Log_.i(f'创建设备aaaa: {id}')
-            device = SDevice_(id)
-            device.init()
-            devices[id.lower()] = device
-            if Database.commit(device):
-                return device
-        return device
-
-    def getDevicesBy(self, idOrGroup) -> List[SDevice_]:
-        """获取设备"""
-        if idOrGroup is None or idOrGroup == '':
-            return []
-        idOrGroup = idOrGroup.lower()
-        device = self.devices.get(idOrGroup)
-        if device:
-            return [device]
-        return self.GetByGroup(idOrGroup)
-    
-    def getDevices(self) -> Dict[str, SDevice_]:
-        """获取所有设备"""
-        return self.devices
+            self._log.ex(e, f'获取设备失败: {name}')
+            return None
 
     def getBySID(self, sid) -> Optional[SDevice_]:
-        """根据sid获取设备"""
-        # 先检查是否是控制台设备
-        if sid in self._consoles:
-            return self._consoles[sid]
-        # 再检查普通设备
-        for device in self.devices.values():
-            if device.info.get('sid') == sid:
-                return device
-        return None
+        return next((d for d in self._devices if d.sid == sid), None)
 
-    def commit(self, device):
-        """更新设备信息"""
-        try:
-            db.session.commit()
-            _Log._Log_.i('Server', f'设备 {device.device_id} 信息已更新')
-        except Exception as e:
-            _Log._Log_.ex(e, '更新设备信息失败')
-
-    def toDict(self):
-        """转换所有设备为字典格式"""
-        return {
-            device_id: {
-                **device.toDict()
-            }
-            for device_id, device in self.devices.items()
-        }
-
-    #         return None
-
-    @property
-    def curDevice(self) -> Optional[SDevice_]:
-        return self.devices.get(self.curDeviceID)
+    def getByID(self, id) -> Optional[SDevice_]:
+        return next((d for d in self._devices if d.id == id), None)
     
-    @property
-    def curConsole(self)->Optional[SDevice_]:
-        """获取当前控制台"""
-        if not self._consoles:
-            return None
-        return list(self._consoles.values())[0]
-    
-    @property
-    def curConsoleSID(self):
-        """获取当前控制台的SID"""
-        if not self.curConsole:
-            return None
-        return self.curConsole.info.get('sid')
-
-    def emit2B(self, event, data=None, targets=None):
-        """向所有控制台发送事件"""
+    def setName(self, deviceId, name=None):
         g = _G._G_
         log = g.Log()
         try:
-            if not self._consoles or len(self._consoles) == 0:
-                log.w_('没有控制台设备')
-                return
-            if targets is None:
-                targets = [self.curConsole]
-            for device in targets:
-                g.emit(event, data, device.info.get('sid'))
+            device = self.getByID(deviceId)
+            log.i(f'更新设备属性: {deviceId}, {name}, {device}')
+            if device is None or name is None:
+                return False
+            exist = self.get(name)
+            log.i(f'检测设备是否存在: {name},  {exist}')
+            if exist:
+                log.e(f'设备名字重复: {name}')
+                return False
+            device.setDBProp('name', name)
+            log.i(f'更新设备属性@@@@: {deviceId}, dirty= {device._isDirty}')
+            if device.commit():
+                g.emit('S2C_updateDevice', {
+                    'name': name
+                }, device.sid)
+                return True
+            return False
         except Exception as e:
-            log.ex(e, f'向控制台发送事件 {event} 失败')
+            log.ex(e, '更新设备属性失败')
+            return False
+
+    @property
+    def curDevice(self) -> Optional[SDevice_]:
+        """获取当前设备"""
+        return self._curDevice
+
+    @curDevice.setter
+    def curDevice(self, value):
+        self._curDevice = value
 
 ##########################################################
 # 命令处理
 ##########################################################
     def handleCmdResult(self, data):
         """处理命令响应"""
-        log = _G._G_.Log()
         try:
             result = str(data.get('result', ''))
-            device_id = data.get('device_id')
+            name = data.get('name')
             cmdName = data.get('cmdName')
             cmd_id = data.get('cmd_id')
 
@@ -178,7 +115,7 @@ class SDeviceMgr_:
                 # 特殊处理截图命令
                 if cmdName == 'captureScreen':
                     if isinstance(result, str) and result.startswith('data:image'):
-                        device = self.get(device_id)
+                        device = self.get(name)
                         if device:
                             if device.saveScreenshot(result):
                                 result = '截图已更新'
@@ -189,15 +126,15 @@ class SDeviceMgr_:
                 if cmd_id in self.cmdEvents:
                     self.cmdEvents[cmd_id].set()
         except Exception as e:
-            _Log._Log_.ex(e, '处理命令响应出错')
+            self._log.ex(e, '处理命令响应出错')
 
         if self.onCmdResult:
             self.onCmdResult(result)
 
-    def genCmdId(self, device_id, command):
+    def genCmdId(self, name, command):
         """生成命令唯一ID"""
         # 使用设备ID、命令和时间戳生成唯一ID
-        cmd_str = f"{device_id}:{command}:{time.time()}"
+        cmd_str = f"{name}:{command}:{time.time()}"
         return hashlib.md5(cmd_str.encode()).hexdigest()[:16]
 
     def handleCmdTimeout(self, cmd_id, command):
@@ -210,17 +147,8 @@ class SDeviceMgr_:
             if cmd_id in self.cmdEvents:
                 self.cmdEvents[cmd_id].set()
 
-    def sendClientCmd(self, deviceID, command, data=None, timeout=10):
-        if deviceID is None:
-            return False
-        device = self.get(deviceID)
-        if device is None:
-            return False
-        return self._sendClientCmd(device, command, data, timeout)
-
-    def _sendClientCmd(self, device, command, data=None, timeout=10):
+    def sendClientCmd(self, device, command, data=None, timeout=10):
         """执行设备命令并等待结果
-
         Args:
             device: 设备
             command: 命令名称
@@ -230,17 +158,15 @@ class SDeviceMgr_:
         Returns:
             str: 命令执行结果
         """
-        log = _G._G_.Log()
         try:
-            device = cast(SDevice_, device)
             with current_app.app_context():
                 if not device.isConnected:
                     return 'w~设备未连接'
-                sid = device.info.get('sid')
+                sid = device.sid
                 if not sid:
                     return 'w~设备会话无效'
                 # 生成命令ID并创建事件
-                cmd_id = self.genCmdId(device.device_id, command)
+                cmd_id = self.genCmdId(device.name, command)
                 cmd_event = threading.Event()
                 self.cmdEvents[cmd_id] = cmd_event
                 # 设置超时定时器
@@ -253,14 +179,14 @@ class SDeviceMgr_:
 
                 # 发送命令
                 try:
-                    _G_.sio.emit('S2C_DoCmd', {
+                    _G._G_.sio.emit('S2C_DoCmd', {
                         'command': command,
                         'sender': current_app.config['SERVER_ID'],
                         'data': data,
                         'cmd_id': cmd_id
                     }, to=sid)
                 except Exception as e:
-                    log.ex(e, '发送命令时出错')
+                    self._log.ex(e, '发送命令时出错')
                     return f'e~发送命令异常{e}'
 
                 # 等待结果或超时
@@ -274,100 +200,39 @@ class SDeviceMgr_:
                     del self.cmdResults[cmd_id]
                 return result
         except Exception as e:
-            log.ex(e, '执行设备命令出错')
+            self._log.ex(e, '执行设备命令出错')
             return f'e~执行命令失败:{e}'
-
-    def GetByGroup(self, group_name) -> List[SDevice_]:
-        """按分组获取设备列表
-
-        Args:
-            group_name: 分组名称
-
-        Returns:
-            list: 设备列表
-        """
-        try:
-            result = []
-            for device_id, device in self.devices.items():
-                if device.group == group_name:
-                    result.append(device)
-            return result
-        except Exception as e:
-            _Log._Log_.ex(e, f"获取分组 {group_name} 的设备失败")
-            return []
-
-    def GetAllGroups(self):
-        """获取所有设备分组
-
-        Returns:
-            list: 分组名称列表
-        """
-        try:
-            groups = set()
-            for device in self.devices.values():
-                if device.group:  # 只添加非空分组
-                    groups.add(device.group)
-            return sorted(list(groups))
-        except Exception as e:
-            _Log._Log_.ex(e, "获取所有设备分组失败")
-            return []
-
-    def SetDeviceGroup(self, device_id, group_name):
-        """设置设备分组
-
-        Args:
-            device_id: 设备ID
-            group_name: 分组名称
-
-        Returns:
-            bool: 是否设置成功
-        """
-        try:
-            device = self.get(device_id)
-            if device:
-                device.group = group_name
-                _Log._Log_.i(f"设备 {device_id} 已分配到分组 {group_name}")
-                return True
-            return False
-        except Exception as e:
-            _Log._Log_.ex(e, f"设置设备 {device_id} 分组失败")
-            return False
 
     def sendCmd(self, targets, command, data=None):
         """发送命令"""
         result = ''
+        log = _G._G_.Log()
         try:
-            g = _G._G_
-            log = g.Log()
-            cmdMgr = g.CmdMgr()
+            if targets is None or len(targets) == 0:
+                return
             for target in targets:
-                if target == _Log.TAG.Server.value:
+                if target == _G.ServerTag:
                     # 记录服务端命令日志
                     cmdID = self.genCmdId('@', command)
                     cmd = {'id': cmdID, 'data': data, 'cmd': command}
                     log.Blog(command, '', 'c')
+                    cmdMgr = _G._G_.CmdMgr()
                     cmdMgr.do(cmd)
                     result = cmd.get('result', '')
-                    g.SCommandHistory().add(command, target, result)
                 else:
-                    devices = self.getDevicesBy(target)
-                    if len(devices) == 0:
-                        log.w(f'设备 {target} 不存在')
-                        continue
-                    for device in devices:
+                    for device in self.devices:
                         # 记录客户端命令日志
-                        log.c(command, device.device_id)
-                        result = self._sendClientCmd(device, command, data)
-                        g.SCommandHistory().add(command, target, result)
-                    # 如果有结果，再发送结果日志
+                        self._log.c(command, device.name)
+                        result = self.sendClientCmd(device, command, data)
+                _G._G_.SCommandHistory().add(command, target, result)
+                # 如果有结果，再发送结果日志
                 if result:
                     # 使用命令结果的日志级别
-                    level, content = log._parseLevel(result, 'i')
+                    level, content = self._log._parseLevel(result, 'i')
                     if content: 
-                        log.Blog(f"  结果： {content}", '', level)
+                        self._log.Blog(f"  结果： {content}", '', level)
         except Exception as e:
-            log.ex(e, '发送命令失败')
-
+            self._log.ex(e, '发送命令失败')
 
 
 deviceMgr = SDeviceMgr_()

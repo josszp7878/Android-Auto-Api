@@ -3,61 +3,55 @@ from pathlib import Path
 import json
 import os
 from flask import current_app
-from SModels import db, AppModel
+from SModels import DeviceModel
 import _Log
 import base64
-# from STaskMgr import STaskMgr_
 from SEarningMgr import SEarningMgr_
 import _G
-from SDatabase import Database
+from SModelBase import SModelBase_
 
-
-class SDevice_(db.Model):
-    """设备类：管理设备状态和信息"""
-    __tablename__ = 'devices'
-    id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
-    device_id = db.Column(db.String(50), default='')
-    state = db.Column(db.String(20), default='offline')
-    info = db.Column(db.JSON)
-    last_seen = db.Column(db.DateTime, default=datetime.now)
-    grp = db.Column(db.String(50), default='')  # 分组字段
-    
+class SDevice_(SModelBase_):
+    """设备管理类"""
     SCREENSHOTS_DIR = os.path.join(_G.g.rootDir(), 'data', 'screenshots')
-    
-    def __init__(self, device_id):
-        self.device_id = device_id
-        self.info = {}
-        self.state = 'offline'
-        self._taskMgr = None  # 任务管理器
-        self.last_seen = datetime.now()
+    def __init__(self, name):
+        super().__init__(DeviceModel, name)
+        self.sid = None
+        self._state = 'offline'
+        self._isDirty = False
         self._lastScreenshot = None
         self._ensure_screenshot_dir()
-        self.apps = []  # 应用列表缓存
-        self.grp = ''  # 默认分组
-    
-    def __repr__(self):
-        return f'<Device {self.device_id}>'
-        
-    @property
-    def deviceID(self):
-        return self.device_id
-        
-    @property
-    def group(self):
-        return self.grp
-    
-    @group.setter
-    def group(self, value):
-        self.grp = value
-        self._commit()
-        
-    def init(self, model=None):
-        if model:
-            self.device_id = model.device_id
-            self.state = model.state
-            self.last_seen = model.last_seen
-            self.grp = model.grp or ''  # 从模型加载分组信息
+        self.apps = []
 
+
+    
+    @property
+    def group(self) -> str:
+        """获取设备组"""
+        return self.name.split(':')[0]
+    
+    @property
+    def isConsole(self) -> bool:
+        """是否是控制台设备"""
+        log = _G._G_.Log()
+        log.i(f'设备 {self.name} 是否是控制台设备: {self.group == "@"}')
+        return self.group == '@'
+    
+    def getDBProp(self, key:str, default=None):
+        return self.data.get(key, default)
+    
+    def setDBProp(self, key:str, value):
+        if isinstance(value, datetime):
+            value = value.strftime('%Y-%m-%d %H:%M:%S')
+        if self.data.get(key) != value:
+            self.data[key] = value
+            self._isDirty = True
+
+    def toSheetData(self):
+        return {
+            'state': self._state,
+            **self.data
+        }
+    
     @property
     def total_score(self) -> float:
         """获取设备总积分
@@ -70,7 +64,7 @@ class SDevice_(db.Model):
             end_date = datetime.now()
             
             return SEarningMgr_().GetEarnings(
-                deviceId=self.device_id,
+                deviceId=self.id,
                 appName='',  # 空字符串表示所有应用
                 earnType='score',
                 start_date=start_date,
@@ -80,49 +74,24 @@ class SDevice_(db.Model):
             _Log._Log_.ex(e, '获取设备总分失败')
             return 0.0
     
-    # @property
-    # def taskMgr(self) -> STaskMgr_:
-    #     """懒加载任务管理器"""
-    #     if self._taskMgr is None:
-    #         self._taskMgr = STaskMgr_(self)  
-    #     return self._taskMgr
-    
     def _ensure_screenshot_dir(self):
         """确保设备的截图目录存在"""
-        self.screenshot_dir = Path(self.SCREENSHOTS_DIR) / self.device_id
+        self.screenshot_dir = Path(self.SCREENSHOTS_DIR) / (str(self.id))
         self.screenshot_dir.mkdir(parents=True, exist_ok=True)
 
     @property
     def isConnected(self):
-        return self.state != 'offline'
+        return self._state != 'offline'
 
-    def _commit(self):
-        """同步设备状态到数据库"""
-        try:
-            def do_commit(db):
-                model = SDevice_.query.filter_by(device_id=self.device_id).first()
-                if model:
-                    model.state = self.state
-                    model.last_seen = self.last_seen
-                    model.grp = self.grp
-                    db.session.add(model)
-                    db.session.commit()
-                    return True
-                return False
-            
-            Database.sql(do_commit)
-        except Exception as e:
-            _Log._Log_.ex(e, '同步设备状态到数据库出错')
-
-    def onConnect(self,sid):
+    def onConnect(self, sid):
         """设备连接回调"""
         try:
-            self.state = 'online'
-            self.info['sid'] = sid
-            self.info['connected_at'] = str(datetime.now())
-            _Log._Log_.i(f'设备 +++++{self.device_id} 已连接 sid={sid}')
-            self._commit()
-            self.refresh()  # 统一刷新状态
+            self._state = 'online'
+            self.setDBProp('lastTime', datetime.now())
+            self.sid = sid
+            self.commit()
+            _Log._Log_.i(f'设备 +++++{self.name} 已连接')
+            self.refresh()
             return True
         except Exception as e:
             _Log._Log_.ex(e, '设备连接处理失败')
@@ -131,10 +100,10 @@ class SDevice_(db.Model):
     def onDisconnect(self):
         """设备断开连接回调"""
         try:
-            self.state = 'offline'
-            self.last_seen = datetime.now()  # 更新断开时间
-            _Log._Log_.i(f'设备 -----{self.device_id} 已断开连接')
-            self._commit()
+            self._state = 'offline'
+            self.setDBProp('lastTime', datetime.now())
+            _Log._Log_.i(f'设备 -----{self.name} 已断开连接')
+            self.commit()
             self.refresh()  # 统一刷新状态
             return True
         except Exception as e:
@@ -144,9 +113,9 @@ class SDevice_(db.Model):
     def login(self):
         """设备登录"""
         try:
-            self.state = 'login'
-            self.info['login_time'] = str(datetime.now())
-            self._commit()
+            self._state = 'login'
+            self.setDBProp('lastTime', datetime.now())
+            self.commit()
             self.refresh()  # 统一刷新状态
             return True
         except Exception as e:
@@ -156,45 +125,15 @@ class SDevice_(db.Model):
     def logout(self):
         """设备登出"""
         try:
-            self.state = 'logout'
-            self.info['logout_time'] = str(datetime.now())
-            self._commit()
+            self._state = 'logout'
+            self.setDBProp('lastTime', datetime.now())
+            self.commit()
             self.refresh()  # 统一刷新状态
             return True
         except Exception as e:
             _Log._Log_.ex(e, '设备登出失败')
             return False    
-
         
-    def refresh(self):
-        """刷新设备状态到前端"""
-        try:
-            from SDeviceMgr import deviceMgr
-            # 先获取设备信息，如果出错则记录日志
-            dev = self.toDict()            
-            # 通知前端设备列表已更新
-            deviceMgr.emit2B('S2B_sheetUpdate', 
-                             {'type': 'devices', 'data': [dev]})
-            # _Log._Log_.i(f'设备更新 {dev}')
-        except Exception as e:
-            _Log._Log_.ex(e, '刷新设备状态失败')
-
-    def toDict(self):
-        """返回设备信息字典"""
-        try:
-            return {
-                'id': self.id,
-                'deviceId': self.device_id,
-                'state': self.state,
-                'group': self.group,
-                'currentTask': '',
-                'score': 0,
-            }
-        except Exception as e:
-            _Log._Log_.ex(e, '生成设备信息字典失败')
-            # 返回最小化的设备信息
-            return {}
-    
     def saveScreenshot(self, base64_data):
         """保存截图并刷新设备信息
         Args:
@@ -221,7 +160,7 @@ class SDevice_(db.Model):
                 
                 # 更新截图路径
                 self._lastScreenshot = file_path
-                self._lastScreenshotTime = datetime.now()
+                self.data['_lastScreenshotTime'] = datetime.now()
                 
                 # 刷新设备信息到前端
                 self.refresh()
@@ -234,18 +173,18 @@ class SDevice_(db.Model):
     def takeScreenshot(self):
         """向客户端发送截屏指令"""
         try:
-            if self.state != 'login':
-                _Log._Log_.w(f'设备 {self.device_id} 未登录，无法截屏')
+            if self._state != 'login':
+                _Log._Log_.w(f'设备 {self.name} 未登录，无法截屏')
                 return False
             from SDeviceMgr import deviceMgr
             deviceMgr.sendClientCmd(
-                self.device_id, 
+                self.name, 
                 'takeScreenshot'
             )
-            _Log._Log_.i(f'向设备 {self.device_id} 发送截屏指令')
+            _Log._Log_.i(f'向设备 {self.name} 发送截屏指令')
             return True
         except Exception as e:
-            _Log._Log_.ex(e, f'向设备 {self.device_id} 发送截屏指令失败')
+            _Log._Log_.ex(e, f'向设备 {self.name} 发送截屏指令失败')
             return False
 
     def getAppOnScreen(self):
@@ -287,25 +226,22 @@ class SDevice_(db.Model):
                     # 更新数据库
                     with current_app.app_context():
                         for app_name in detected_apps:
-                            record = AppModel.query.filter_by(
-                                deviceId=self.device_id,
-                                appName=app_name
+                            record = DeviceModel.query.filter_by(
+                                name=self.name,
+                                state='detected'
                             ).first()
                             
                             if not record:
-                                record = AppModel(
-                                    deviceId=self.device_id,
-                                    appName=app_name,
-                                    totalScore=0.0,
-                                    income=0.0,
+                                record = DeviceModel(
+                                    name=self.name,
                                     state='detected'
                                 )
                                 db.session.add(record)
-                            record.lastUpdate = datetime.now()
+                            record.state = 'detected'
                         
                         db.session.commit()
-                        self.apps = AppModel.query.filter_by(
-                            deviceId=self.device_id).all()
+                        self.apps = DeviceModel.query.filter_by(
+                            name=self.name).all()
                         
                     _Log._Log_.i(f'成功更新{len(detected_apps)}个应用到数据库')
 
@@ -314,7 +250,7 @@ class SDevice_(db.Model):
 
             from SDeviceMgr import deviceMgr
             deviceMgr.sendClientCmd(
-                self.device_id, 'getScreen', None, 10, parseResult)
+                self, 'getScreen', None, 10, parseResult)
             return True
         except Exception as e:
             _Log._Log_.ex(e, "分析屏幕应用失败")
@@ -395,5 +331,9 @@ class SDevice_(db.Model):
         except Exception as e:
             log.ex(e, f"从文件加载屏幕信息失败: {pageName}")
             return None
-   
-   
+
+    
+
+
+
+      

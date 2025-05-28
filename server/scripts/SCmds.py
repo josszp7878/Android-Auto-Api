@@ -66,9 +66,9 @@ class SCmds_:
             示例: 设备列表
             """
             device_manager = SDeviceMgr_()
-            devices = device_manager.toDict()
+            devices = device_manager.devices
             return '\n'.join([
-                f"{id}: {dev['state']}"
+                f"{id}: {dev.state}"
                 for id, dev in devices.items()
             ])
 
@@ -274,7 +274,7 @@ class SCmds_:
                         log.ex(e, "处理屏幕信息失败")
 
                 # 发送客户端命令获取屏幕信息
-                res = deviceMgr.sendClientCmd(device.deviceID, "eval T.getScreenInfo(True)", None, 10)
+                res = deviceMgr.sendClientCmd(device, "eval T.getScreenInfo(True)", None, 10)
                 handleScreenInfo(res)
                 return "正在获取屏幕信息..."
             except Exception as e:
@@ -302,7 +302,7 @@ class SCmds_:
 
                 # 使用三引号包裹多行JSON字符串
                 cmd = f"eval T.setScreenInfo('''{screenInfo}''')"
-                deviceMgr.sendClientCmd(device.deviceID, cmd)
+                deviceMgr.sendClientCmd(device, cmd)
 
                 return f"i-成功设置屏幕信息: {pageName}"
             except Exception as e:
@@ -389,7 +389,7 @@ class SCmds_:
               选择 测试组     # 选择指定分组的所有设备
             """
             # 通知前端更新选择
-            deviceMgr.emit2B('S2B_UpdateSelection', {'device_ids': [target]})
+            _G._G_.emit('S2B_UpdateSelection', {'device_ids': [target]})
 
         @regCmd(r'#设备信息|sbxx (?P<deviceID>\S+)?')
         def deviceInfo(deviceID):

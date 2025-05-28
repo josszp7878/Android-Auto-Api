@@ -1,4 +1,3 @@
-*.iml
 .gradle
 /local.properties
 /.idea/caches
@@ -20,3 +19,4 @@ server/logs
 *.pyc
 /app/src/main/assets/scripts
 /venv
+server/scripts/__pycache__

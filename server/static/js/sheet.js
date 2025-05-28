@@ -225,6 +225,13 @@ class SheetPage {
             [this.DataType.LOGS]: false
         };
 
+        // 添加上一次过滤器值的记录
+        this.lastDateFilters = {
+            [this.DataType.TASKS]: null,
+            [this.DataType.DEVICES]: null,
+            [this.DataType.LOGS]: null
+        };
+
         // 初始化Socket连接
         this.initSocket();
         
@@ -345,7 +352,10 @@ class SheetPage {
                 // selectableRangeRows:true,
                 columns: this.getDeviceColumns(),
                 data: this.devices,
-                headerFilterLiveFilter: false
+                headerFilterLiveFilter: false,
+                initialSort: [
+                    {column: "state", dir: "desc"}
+                ]
             });
             this._deviceTable.dataType = this.DataType.DEVICES;
         }
@@ -390,17 +400,10 @@ class SheetPage {
     }
     
     /**
-     * 加载表格数据（修复循环问题）
+     * 加载表格数据
      */
     _loadDatas(table, force=false) {
-        if (force) {
-            // 强制刷新时，重置lastDateFilter和加载状态
-            table.lastDateFilter = null;
-            this.isLoading[table.dataType] = false;
-        }
-        if (!table || !table.initialized || this.isLoading[table.dataType]) return;
-
-        this.isLoading[table.dataType] = true; // 设置加载状态
+        if (!table || !table.initialized) return;
         
         try {
             const filters = table.getHeaderFilters() || [];        
@@ -413,44 +416,29 @@ class SheetPage {
                     table.setHeaderFilterValue("date", this.today);
                 }
             }
-            // 如果 lastDateFilter 为 undefined，表示表格未初始化或未切换到此标签页，直接跳过
-            if (table.lastDateFilter === undefined) {
-                // console.log("表格未初始化或未切换到此标签页，跳过数据加载");
-                return;
+
+            const filterParams = {};
+            if (currentDate) filterParams.date = currentDate;
+
+            const type = table.dataType;
+            const tabLabel = Object.keys(this.tabTypeMap).find(
+                key => this.tabTypeMap[key] === type
+            );
+            if (!tabLabel) return;
+
+            switch (type) {
+                case this.DataType.TASKS:
+                    this.socket.emit('B2S_loadTasks', { filters: filterParams });
+                    break;
+                case this.DataType.DEVICES:
+                    this.socket.emit('B2S_loadDevices', { filters: filterParams });
+                    break;
+                case this.DataType.LOGS:
+                    this.socket.emit('B2S_loadLogs', { filters: filterParams });
+                    break;
             }
-            // 首次加载（lastDateFilter 为 null）或过滤条件变化时触发
-            if (table.lastDateFilter === null || currentDate !== table.lastDateFilter) {
-                table.lastDateFilter = currentDate;
-                // console.log("日期过滤条件变化, 获取新的数据", currentDate);
-
-                const filterParams = {};
-                if (currentDate) filterParams.date = currentDate;
-
-                const type = table.dataType;
-                const tabLabel = Object.keys(this.tabTypeMap).find(
-                    key => this.tabTypeMap[key] === type
-                );
-                if (!tabLabel) return;
-
-                // console.log(`加载${tabLabel}数据，过滤参数:`, filterParams);
-                // 发送请求前设置加载状态
-                switch (type) {
-                    case this.DataType.TASKS:
-                        this.socket.emit('B2S_loadTasks', { filters: filterParams });
-                        break;
-                    case this.DataType.DEVICES:
-                        this.socket.emit('B2S_loadDevices', { filters: filterParams });
-                        break;
-                    case this.DataType.LOGS:
-                        this.socket.emit('B2S_loadLogs', { filters: filterParams });
-                        break;
-                }
-            }
-        } finally {
-            // 3秒后自动重置状态防止卡死
-            setTimeout(() => {
-                this.isLoading[table.dataType] = false;
-            }, 3000);
+        } catch (error) {
+            console.error('加载数据时出错:', error);
         }
     }
     
@@ -460,7 +448,7 @@ class SheetPage {
     initSocket() {        
         this.socket = io({
             query: {
-                device_id: '@Console1'
+                device_id: '@:Console1'
             }
         });               
         // 监听表格数据更新
@@ -486,21 +474,7 @@ class SheetPage {
                     break;
             }
         });
-        
-        // 设备状态更新事件
-        this.socket.on('S2B_DeviceUpdate', (data) => {
-            console.log("设备状态更新:", data);
-            if (data.state === 'online') {
-                this.lastConnectedDevice = data.deviceId;
-                
-                // 如果没有选中的设备，并且设备表格已经初始化，则自动选中最后连接的设备
-                if (this.selectedDevices.length === 0 && this._deviceTable) {
-                    setTimeout(() => {
-                        this._deviceTable.selectRow(this.lastConnectedDevice);
-                    }, 200);
-                }
-            }
-        });
+
     }
     
     /**
@@ -743,13 +717,33 @@ class SheetPage {
                 field: "progress", 
                 width: 150,
                 formatter: (cell) => {
-                    const value = cell.getValue();
-                    if (value === undefined || value === null) return "";
-                    const percent = Math.round(value * 100);
+                    const value = cell.getValue() || 0;
+                    const percent = Math.min(Math.max(Math.round(value * 100), 0), 100);
                     return `
-                        <div class="progress-container">
-                            <div class="progress-bar" style="width:${percent}%">
-                                <span class="progress-text">${percent}%</span>
+                        <div style="
+                            background: transparent;
+                            border-radius: 10px;
+                            height: 20px;
+                            position: relative;
+                            overflow: hidden;
+                        ">
+                            <div style="
+                                width: ${percent}%;
+                                height: 100%;
+                                background: #388E3C;
+                                transition: width 0.3s ease;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                            ">
+                                <span style="
+                                    color: white;
+                                    font-size: 12px;
+                                    font-weight: bold;
+                                    position: absolute;
+                                    left: 50%;
+                                    transform: translateX(-50%);
+                                ">${percent}%</span>
                             </div>
                         </div>
                     `;
@@ -782,43 +776,34 @@ class SheetPage {
      * 获取设备表格列定义
      */
     getDeviceColumns() {
-        // 构建状态过滤器选项和格式化参数
-        const statusFilterValues = { "": "全部" };
-        const statusFormatterParams = { "": "<span style='color: #b5b5b5'><i class='fas fa-question'></i> 未知</span>" };
-        
-        // 从设备状态映射中获取值
-        Object.keys(this.deviceStatusMap).forEach(state => {
-            const statusInfo = this.deviceStatusMap[state];
-            statusFilterValues[state] = statusInfo.label;
-            statusFormatterParams[state] = statusInfo.formatter;
-        });
-        
         return [
-            {title: "ID", field: "id", visible: false},
-            {
-                title: "设备ID", 
-                field: "deviceId", 
+            { 
+                title: "设备名称", 
+                field: "name",
+                editor: "input",
                 headerFilter: "input",
-                formatter: (cell, formatterParams) => {
-                    const value = cell.getValue();
-                    const dataType = this.DataType.DEVICES;
-                    const isTarget = this.targets[dataType].includes(value);
-                    return isTarget 
-                        ? `<span style="color: #23d160; font-weight: bold;">${value}</span>`
-                        : value;
+                formatter: (cell, formatterParams, onRendered) => {
+                    const data = cell.getData();
+                    const isTarget = this.targets[this.DataType.DEVICES].includes(data.id);
+                    return isTarget
+                        ? `<span style="color: #23d160; font-weight: bold;">${data.name}</span>`
+                        : data.name;
                 }
             },
-            {title: "分组", field: "group", width: 120, headerFilter: "input"},
             {
                 title: "状态", 
                 field: "state", 
-                width: 120, 
+                width: 120,
                 headerFilter: "list",
                 headerFilterParams: {
-                    values: statusFilterValues
+                    values: Object.fromEntries(
+                        Object.entries(this.deviceStatusMap).map(([k, v]) => [k, v.label])
+                    )
                 },
                 formatter: "lookup",
-                formatterParams: statusFormatterParams
+                formatterParams: Object.fromEntries(
+                    Object.entries(this.deviceStatusMap).map(([k, v]) => [k, v.formatter])
+                )
             },
             {title: "当前任务", field: "currentTask", width: 200, headerFilter: "input"},
             {title: "累计得分", field: "score", width: 120, headerFilter: "number"}
@@ -928,11 +913,25 @@ class SheetPage {
         this._initTable(this.deviceTable);
         this.logTable;     // 创建日志表格
         this._initTable(this.logTable);        
+        
+        // 修改后的设备表格编辑事件监听
+        this.deviceTable.on("cellEdited", (cell) => {
+            const row = cell.getRow();
+            const colName = cell.getColumn().getDefinition().field;
+            const data = {'deviceId': row.getData().id};
+            let changed = false;
+            if (colName === 'name') {
+                data.name = cell.getValue();
+                changed = true;
+            }
+            if (changed) {
+                this.socket.emit('B2S_setDeviceProp', data);
+            }
+        });
     }
 
     _initTable(table) {
         table.initialized = true;
-        this.initTableFilterListener(table);
         
         table.on("tableBuilt", () => {
             this.userPaged[table.dataType] = true;
@@ -940,6 +939,7 @@ class SheetPage {
                 this.switchTab(this.defTab);
             }
         });
+
         // 为所有表格添加分页监听
         table.on("dataProcessed", () => {
             if (!this.userPaged[table.dataType]) {
@@ -947,6 +947,21 @@ class SheetPage {
                 if (pageCount > 0) {
                     table.setPage(pageCount);
                 }
+            }
+        });
+        
+        // 使用 dataFiltered 事件，并比较日期值变化
+        table.on("dataFiltered", () => {
+            const dateFilter = table.getHeaderFilters().find(f => f.field === "date");
+            const currentDateValue = dateFilter ? dateFilter.value : null;
+            const lastDateValue = this.lastDateFilters[table.dataType];
+
+            // 只有当日期值发生变化时才加载数据
+            if (currentDateValue !== lastDateValue) {
+                console.log("日期过滤器值改变:", lastDateValue, "->", currentDateValue);
+                if (lastDateValue != null)
+                    this._loadDatas(table);
+                this.lastDateFilters[table.dataType] = currentDateValue;
             }
         });
     }
@@ -972,15 +987,7 @@ class SheetPage {
 
         // 获取选中行ID
         const ids = this.mainTable.getSelectedRows()
-            .map(row => {
-                switch(dataType) {
-                    case this.DataType.TASKS: return row.getData().id;
-                    case this.DataType.DEVICES: return row.getData().deviceId;
-                    case this.DataType.LOGS: return row.getData().id;
-                    default: return null;
-                }
-            })
-            .filter(Boolean);
+            .map(row => row.getData().id);
         // 更新目标列表
         ids.forEach(id => {
             const index = this.targets[dataType].indexOf(id);
@@ -1319,7 +1326,7 @@ class SheetPage {
             // 其次使用选中设备
             const selectedRows = this._deviceTable ? this._deviceTable.getSelectedRows() : [];
             if (selectedRows && selectedRows.length > 0) {
-                deviceIds = selectedRows.map(row => row.getData().deviceId);
+                deviceIds = selectedRows.map(row => row.getData().name);
             } else if (this.lastConnectedDevice) {
                 // 最后使用最后连接的设备
                 deviceIds = [this.lastConnectedDevice];
@@ -1380,18 +1387,6 @@ class SheetPage {
         }
         
         commandInput.placeholder = placeholder;
-    }
-
-    /**
-     * 初始化表格过滤器监听（修复循环问题）
-     */
-    initTableFilterListener(table) {
-        table.on("dataFiltered", (filters) => {
-            // 仅当不是服务端触发的更新时加载数据
-            if (!this.isLoading[table.dataType]) {
-                this._loadDatas(table);
-            }
-        });
     }
 
     /**

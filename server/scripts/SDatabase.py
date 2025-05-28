@@ -1,7 +1,7 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import event
 import _G
+from flask import current_app
 
 class Database:
     """数据库管理类"""
@@ -79,20 +79,19 @@ class Database:
         cls.app = app
         """初始化数据库"""
         db.init_app(app)        
-        # 导入所有模型以确保它们被注册
-        import SModels
-        # 在应用上下文中创建所有不存在的表
+        # 立即创建应用上下文
         with app.app_context():
-            # 添加连接事件监听器来清除表缓存
-            def on_connect(dbapi_con, connection_record):
-                with dbapi_con.cursor() as cursor:
-                    cursor.execute('FLUSH TABLES')
-            
-            event.listen(db.engine, 'connect', on_connect)
-            
-            # 只创建不存在的表
-            db.create_all()
+            db.create_all()  # 创建所有表
 
 
 # 导出全局db实例
 db = Database.getDB()
+
+def sql(func):
+    """执行数据库操作"""
+    with current_app.app_context():  # 添加应用上下文
+        try:
+            return func(db.session)
+        except Exception as e:
+            _G._G_.Log().ex(e, "数据库操作失败")
+            return None

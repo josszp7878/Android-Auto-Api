@@ -1,3 +1,4 @@
+import threading
 import time
 import _G
 
@@ -33,6 +34,7 @@ class CClient_:
             CDevice.connect()
             g.CFileServer().init(server)
             g.CmdMgr().regAllCmds()
+            #起一个线程去更新app
             g.App().update()
             print("按Ctrl+C退出")
             while True:
