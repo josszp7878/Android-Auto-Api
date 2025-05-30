@@ -1,3 +1,4 @@
+
 /**
  * 表格页面管理类
  */
@@ -21,7 +22,9 @@ class SheetPage {
         this.devices = []; // 初始化为空数组
         this.tasks = []; // 初始化为空数组
         this.logs = []; // 初始化日志数据
-        this.socket = null;
+        this.socket = io({
+            query: { device_id: '@:Console1' }
+        });
         this.mainTable = null;
         this.contextMenu = document.getElementById('context-menu');
         
@@ -45,7 +48,8 @@ class SheetPage {
         }
         
         this.today = new Date().toISOString().split('T')[0]; // 获取当天日期，格式：YYYY-MM-DD
-        this.currentTab = null;
+        this.currentTabName = null;
+        
         
         // 目标设备列表 - 用于命令发送
         this.targets = {
@@ -232,8 +236,6 @@ class SheetPage {
             [this.DataType.LOGS]: null
         };
 
-        // 初始化Socket连接
-        this.initSocket();
         
         // 创建表格容器 - 必须在初始化标签页之前
         this.createTableContainers();
@@ -250,8 +252,19 @@ class SheetPage {
         // 初始化命令输入区域
         this.initCommandArea();
 
+        // 初始化Socket连接
+        this.socketer = Socketer.init({
+            deviceId: '@:Console1',
+            queryParams: { 
+                platform: 'web',
+                version: '1.2.0'
+            }
+        });
     }
-    
+    get curTabType() {
+        return this.tabTypeMap[this.currentTabName];
+    }
+
     /**
      * 创建表格容器
      */
@@ -317,9 +330,30 @@ class SheetPage {
                 data: this.tasks,
                 headerFilterLiveFilter: false
             });            
-            this._taskTable.dataType = this.DataType.TASKS;
+            let type = this.DataType.TASKS;
+            this._taskTable.dataType = type;
+            this._taskTable.on('cellEdited', (cell) => {
+                const colName = cell.getColumn().getField();
+                if (colName === 'life') {
+                    this.handleCellClick(cell, type);
+                }
+            });
+            
         }
         return this._taskTable;
+    }
+
+    handleCellClick(cell, type) {
+        const row = cell.getRow();
+        const colName = cell.getColumn().getField();
+        const params = { [colName]: cell.getValue() };
+        
+        const data = {
+            'target': row.getData().id,
+            'type': type,
+            'params': params
+        };
+        this.socket.emit('B2S_setProp', data);
     }
     
     /**
@@ -357,7 +391,16 @@ class SheetPage {
                     {column: "state", dir: "desc"}
                 ]
             });
-            this._deviceTable.dataType = this.DataType.DEVICES;
+            let type = this.DataType.DEVICES;
+            this._deviceTable.dataType = type;
+            
+            // 修改后的设备表格编辑事件监听
+            this._deviceTable.on("cellEdited", (cell) => {
+                const colName = cell.getColumn().getField();
+                if (colName === 'name') {
+                    this.handleCellClick(cell, type);
+                }
+            });
         }
         return this._deviceTable;
     }
@@ -426,15 +469,22 @@ class SheetPage {
             );
             if (!tabLabel) return;
 
+            const socket = this.socketer;
             switch (type) {
-                case this.DataType.TASKS:
-                    this.socket.emit('B2S_loadTasks', { filters: filterParams });
+                case this.DataType.TASKS:        
+                    socket.emitRet('B2S_loadDatas', { type: 'tasks', filters: filterParams }).then(tasks => {
+                        this._updateData(tasks, this.DataType.TASKS, this.tasks);
+                    });
                     break;
                 case this.DataType.DEVICES:
-                    this.socket.emit('B2S_loadDevices', { filters: filterParams });
+                    socket.emitRet('B2S_loadDatas', { type: 'devices', filters: filterParams }).then(devices => {
+                        this._updateData(devices, this.DataType.DEVICES, this.devices);
+                    });
                     break;
                 case this.DataType.LOGS:
-                    this.socket.emit('B2S_loadLogs', { filters: filterParams });
+                    socket.emitRet('B2S_loadDatas', { type: 'logs', filters: filterParams }).then(logs => {
+                        this._updateData(logs, this.DataType.LOGS, this.logs);
+                    });
                     break;
             }
         } catch (error) {
@@ -459,7 +509,7 @@ class SheetPage {
                 key => this.tabTypeMap[key] === data.type
             );
             if (!targetTab) return;
-            if (data.type !== this.tabTypeMap[this.currentTab]) return;
+            if (data.type !== this.curTabType) return;
 
             // 更新对应数据
             switch (data.type) {
@@ -476,6 +526,7 @@ class SheetPage {
         });
 
     }
+
     
     /**
      * 通用数据更新方法
@@ -541,7 +592,7 @@ class SheetPage {
         return data.map(item => {
             // 必须包含所有必填字段
             const requiredFields = {
-                [this.DataType.TASKS]: ['date', 'taskName', 'deviceId']
+                [this.DataType.TASKS]: ['date', 'name', 'deviceId']
             }[dataType] || [];
             
             // 检查必填字段,并将缺少的字段打印出来     
@@ -560,13 +611,17 @@ class SheetPage {
                 if (field === 'id') return;
                 
                 if (item[field] === undefined || item[field] === null) {
-                    switch (field) {
-                        case 'date':  // 移除默认日期设置
-                            console.error('数据项缺少date字段:', item);
-                            result[field] = 'INVALID_DATE';
-                            break;
-                        // 其他字段保持原有默认值逻辑...
+                    // 特殊处理life字段
+                    if(field === 'life') {
+                        result[field] = item.life || 0;
+                        return;
                     }
+                    // 特殊处理state字段
+                    if(field === 'state') {
+                        result[field] = this._validateEnum(item[field], this.taskStatusMap, 'idle');
+                        return;
+                    }
+                    // 其他字段保持原有默认值逻辑...
                 } else {
                     // 验证字段值的合法性
                     try {
@@ -575,15 +630,6 @@ class SheetPage {
                             case 'progress':
                                 const progress = parseFloat(item[field]);
                                 result[field] = isNaN(progress) ? 0 : Math.min(Math.max(progress, 0), 1);
-                                break;
-                            case 'state':
-                                if (dataType === this.DataType.DEVICES) {
-                                    result[field] = this._validateEnum(item[field], this.deviceStatusMap, 'offline');
-                                } else if (dataType === this.DataType.TASKS) {
-                                    result[field] = this._validateEnum(item[field], this.taskStatusMap, 'idle');
-                                } else {
-                                    result[field] = item[field];
-                                }
                                 break;
                             case 'score':
                                 const score = parseFloat(item[field]);
@@ -626,7 +672,7 @@ class SheetPage {
             tabButton.className = 'tab-button';
             
             // 设置当前活动标签样式
-            if (tab === this.currentTab) {
+            if (tab === this.currentTabName) {
                 tabButton.classList.add('active');
             }
             
@@ -642,8 +688,8 @@ class SheetPage {
      * 切换标签页
      */
     switchTab(tab) {
-        if (tab === this.currentTab) return;
-        this.currentTab = tab;
+        if (tab === this.currentTabName) return;
+        this.currentTabName = tab;
         const tabType = this.tabTypeMap[tab]; // 获取映射后的数据类型
         
         // 更新标签按钮样式
@@ -685,19 +731,32 @@ class SheetPage {
      */
     getTaskColumns() {
         return [
-            {title: "ID", field: "id", visible: false},
+            {title: "ID", field: "id", width: 60, editor: false, headerFilter: "input", hozAlign: "center"},
+            {
+                title: "目标", 
+                field: "isTarget", 
+                width: 70, 
+                hozAlign: "center",
+                formatter: (cell) => {
+                    const data = cell.getData();
+                    const checked = this.targets[this.DataType.TASKS].includes(data.id);
+                    return `<div style="text-align:center">
+                        <input type='checkbox' ${checked ? 'checked' : ''} 
+                               style='width:18px;height:18px;pointer-events:none;'>
+                    </div>`;
+                },
+                cellClick: (e, cell) => {
+                    e.stopPropagation();
+                    this.handleTargetClick(cell, this.DataType.TASKS);
+                },
+                headerSort: false
+            },
             {title: "设备", field: "deviceId", width: 120, headerFilter: "input"},
             {
                 title: "任务名称", 
-                field: "taskName", 
+                field: "name", 
                 headerFilter: "input",
-                formatter: (cell, formatterParams, onRendered) => {
-                    const data = cell.getData();
-                    const isTarget = this.targets[this.DataType.TASKS].includes(data.id);
-                    return isTarget 
-                        ? `<span style="color: #23d160; font-weight: bold;">${data.taskName}</span>`
-                        : data.taskName;
-                }
+                formatter: (cell) => cell.getValue() // 直接返回值
             },
             {
                 title: "日期", 
@@ -759,14 +818,26 @@ class SheetPage {
                 width: 120, 
                 headerFilter: "list",
                 headerFilterParams: {
-                    values: Object.fromEntries(
-                        Object.entries(this.taskStatusMap).map(([k, v]) => [k, v.label])
-                    )
+                    values: {
+                        "": "全部",
+                        ...Object.fromEntries(
+                            Object.entries(this.taskStatusMap).map(([k, v]) => [k, v.label])
+                        )
+                    }
                 },
                 formatter: "lookup",
                 formatterParams: Object.fromEntries(
-                    Object.entries(this.taskStatusMap).map(([k, v]) => [k, v.formatter])
+                    Object.entries(this.taskStatusMap).map(([k, v]) => [k, v.label]) // 显示状态标签
                 )
+            },
+            {
+                title: "持续时间/次数",
+                field: "life",
+                editor: "input",
+                width: 100,
+                hozAlign: "center",
+                headerFilter: "number",
+                headerFilterFunc: ">="
             },
             {title: "得分", field: "score", width: 100, headerFilter: "number"},
         ];
@@ -777,18 +848,40 @@ class SheetPage {
      */
     getDeviceColumns() {
         return [
+            {title: "ID", field: "id", width: 60, editor: false, headerFilter: "input", hozAlign: "center"},
+            {
+                title: "目标", 
+                field: "isTarget", 
+                width: 70, 
+                hozAlign: "center",
+                formatter: (cell) => {
+                    const data = cell.getData();
+                    const checked = this.targets[this.DataType.DEVICES].includes(data.id);
+                    const isOffline = data.state === 'offline';
+                    
+                    return `<div style="text-align:center">
+                        <input type='checkbox' ${checked ? 'checked' : ''} 
+                               style='width:18px;height:18px;pointer-events:none;
+                                      ${isOffline ? 'opacity:0.5;cursor:not-allowed;' : ''}'>
+                    </div>`;
+                },
+                cellClick: (e, cell) => {
+                    const data = cell.getData();
+                    // 阻止对离线设备的操作
+                    if(data.state === 'offline') {
+                        return;
+                    }
+                    e.stopPropagation();
+                    this.handleTargetClick(cell, this.DataType.DEVICES);
+                },
+                headerSort: false
+            },
             { 
                 title: "设备名称", 
                 field: "name",
                 editor: "input",
                 headerFilter: "input",
-                formatter: (cell, formatterParams, onRendered) => {
-                    const data = cell.getData();
-                    const isTarget = this.targets[this.DataType.DEVICES].includes(data.id);
-                    return isTarget
-                        ? `<span style="color: #23d160; font-weight: bold;">${data.name}</span>`
-                        : data.name;
-                }
+                formatter: (cell) => cell.getValue() // 直接返回值
             },
             {
                 title: "状态", 
@@ -796,9 +889,12 @@ class SheetPage {
                 width: 120,
                 headerFilter: "list",
                 headerFilterParams: {
-                    values: Object.fromEntries(
-                        Object.entries(this.deviceStatusMap).map(([k, v]) => [k, v.label])
-                    )
+                    values: {
+                        "": "全部",
+                        ...Object.fromEntries(
+                            Object.entries(this.deviceStatusMap).map(([k, v]) => [k, v.label])
+                        )
+                    }
                 },
                 formatter: "lookup",
                 formatterParams: Object.fromEntries(
@@ -865,7 +961,10 @@ class SheetPage {
             {title: "等级", field: "level", width: 100, 
                 headerFilter: "list",
                 headerFilterParams: {
-                    values: levelFilterValues
+                    values: {
+                        "": "全部",
+                        ...levelFilterValues
+                    }
                 },
                 formatter: function(cell, formatterParams, onRendered) {
                     const value = cell.getValue();
@@ -912,22 +1011,8 @@ class SheetPage {
         this.deviceTable;  // 创建设备表格
         this._initTable(this.deviceTable);
         this.logTable;     // 创建日志表格
-        this._initTable(this.logTable);        
+        this._initTable(this.logTable); 
         
-        // 修改后的设备表格编辑事件监听
-        this.deviceTable.on("cellEdited", (cell) => {
-            const row = cell.getRow();
-            const colName = cell.getColumn().getDefinition().field;
-            const data = {'deviceId': row.getData().id};
-            let changed = false;
-            if (colName === 'name') {
-                data.name = cell.getValue();
-                changed = true;
-            }
-            if (changed) {
-                this.socket.emit('B2S_setDeviceProp', data);
-            }
-        });
     }
 
     _initTable(table) {
@@ -1063,11 +1148,11 @@ class SheetPage {
      * 显示上下文菜单
      */
     showContextMenu(e, row) {
-        console.log("显示上下文菜单", this.currentTab, e);
+        console.log("显示上下文菜单", this.currentTabName, e);
         
-        const menuConfig = this.menuConfig[this.currentTab];
+        const menuConfig = this.menuConfig[this.currentTabName];
         if (!menuConfig) {
-            console.warn("未找到对应标签页的菜单配置:", this.currentTab);
+            console.warn("未找到对应标签页的菜单配置:", this.currentTabName);
             return false;
         }
 
@@ -1147,7 +1232,7 @@ class SheetPage {
      * 处理任务操作
      */
     handleTaskAction(data) {
-        console.log(`处理任务操作: ${data.state}, 任务名称: ${data.taskName}`);
+        console.log(`处理任务操作: ${data.state}, 任务名称: ${data.name}`);
         let cmd = '';
         let task = this.tasks.find(t => t.id === data.id);        
         if (!task) {
@@ -1158,22 +1243,26 @@ class SheetPage {
         // 根据操作类型确定命令
         switch (data.state) {
             case 'running':
-                cmd = `stop !${task.taskName}`;
+                cmd = `stop !${task.name}`;
                 break;
             case 'paused':
-                cmd = `run !${task.taskName}`;
+                cmd = `run !${task.name}`;
                 break;
             default:
                 return;
         }
-        this.sendCmd([data.deviceId], cmd);
+        this.sendCmd(cmd, [data.deviceId]);
     }
 
-    sendCmd(targets, cmd, params) {
+    sendCmd(cmd, targets, params) {
+        if (targets.length === 0) {
+            // 没有指定目标，使用服务器
+            targets = ['@'];
+        }
         this.socket.emit('2S_Cmd', { 
             command: cmd, 
-            params: params,
-            device_ids: targets
+            targets: targets,
+            params: params
         });
     }
 
@@ -1200,7 +1289,7 @@ class SheetPage {
                 console.warn(`未知的设备操作: ${action}`);
                 return;
         }
-        this.sendCmd([deviceId], cmd);
+        this.sendCmd(cmd, [deviceId]);
     }
     
     /**
@@ -1303,6 +1392,7 @@ class SheetPage {
         }
     }
     
+    
     /**
      * 发送命令
      */
@@ -1315,36 +1405,7 @@ class SheetPage {
         
         // 添加到历史记录
         this.addCommandToHistory(command);
-        
-        // 确定目标设备ID列表
-        let deviceIds = [];
-        const currentTargets = this.targets[this.DataType.DEVICES];
-        
-        if (currentTargets.length > 0) {
-            deviceIds = currentTargets;
-        } else {
-            // 其次使用选中设备
-            const selectedRows = this._deviceTable ? this._deviceTable.getSelectedRows() : [];
-            if (selectedRows && selectedRows.length > 0) {
-                deviceIds = selectedRows.map(row => row.getData().name);
-            } else if (this.lastConnectedDevice) {
-                // 最后使用最后连接的设备
-                deviceIds = [this.lastConnectedDevice];
-            } else {
-                // 都没有则使用当前设备ID
-                deviceIds = [this.curDeviceID];
-            }
-        }
-        
-        console.log("命令目标设备:", deviceIds);
-        
-        // 发送命令到服务器
-        this.socket.emit('2S_Cmd', {
-            device_ids: deviceIds,
-            command: command,
-            params: {}
-        });
-        
+        this.sendCmd(command, this.targets[this.curTabType]);
         // 清空输入框
         commandInput.value = '';
         this.historyIndex = -1;
@@ -1399,6 +1460,25 @@ class SheetPage {
     _validateEnum(value, validValues, defaultValue) {
         const validKeys = Array.isArray(validValues) ? validValues : Object.keys(validValues);
         return validKeys.includes(value) ? value : defaultValue;
+    }
+
+    // 在类中添加目标列通用处理方法
+    handleTargetClick(cell, dataType) {
+        const data = cell.getData();
+        const id = data.id;
+        const targets = this.targets[dataType];
+        const idx = targets.indexOf(id);
+        
+        // 切换目标状态
+        idx === -1 ? targets.push(id) : targets.splice(idx, 1);
+        
+        // 更新当前行
+        cell.getRow().update({isTarget: targets.includes(id)});
+        
+        // 更新命令输入提示（仅设备目标变化时）
+        if(dataType === this.DataType.DEVICES) {
+            this.updateCommandInputPlaceholder();
+        }
     }
 
 } 

@@ -3,12 +3,17 @@ import threading
 from datetime import datetime
 import time
 import _G
+import uuid
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 class CDevice_:
     _instance = None  # 单例实例
     _server = None
     _deviceID = None
     _connected = False
+    _executor = ThreadPoolExecutor(max_workers=4)
+    _state = 'offline'  # 新增，维护设备状态
 
     @classmethod
     def connected(cls):
@@ -44,9 +49,10 @@ class CDevice_:
             sio.on('S2C_DoCmd')(cls.onS2C_DoCmd)
             sio.on('S2C_CmdResult')(cls.onS2C_CmdResult)
             sio.on('S2C_updateDevice')(cls.handleUpdateDevice)
+            sio.on('S2C_updateTask')(cls.handleUpdateTask)
             sio.on('disconnect')(cls.on_disconnect)
             sio.on('connect_error')(cls.on_connect_error)
-            _G._G_.sio = sio
+            _G._G_.setIO(sio)
 
             cls.initialized = True
 
@@ -57,13 +63,6 @@ class CDevice_:
         cls.logout()
         cls.disconnect()
         cls.initialized = False
-    # def on_any_event(self, event, data):
-    #     """捕获所有事件"""
-    #     try:
-    #         if event not in ['connect', 'S2C_DoCmd', 'S2C_CmdResult', 'disconnect', 'connect_error']:
-    #             _Log._Log_.i(f'收到未处理的事件: {event}, 数据: {data}')
-    #     except Exception as e:
-    #         _Log._Log_.ex(e, f'处理事件 {event} 出错')
 
 
     @classmethod
@@ -71,12 +70,16 @@ class CDevice_:
         """断开连接"""
         g = _G._G_
         log = g.Log()
+        if cls._state == 'offline':
+            log.i(f'设备 {cls._deviceID} 已处于离线状态，无需断开')
+            return False
         try:
             if cls._connected:
                 log.i(f'正在断开设备 {cls._deviceID} 的连接...')
-                _G._G_.sio.disconnect()
+                g.sio().disconnect()
                 log.i(f'设备 {cls._deviceID} 已断开连接')
                 cls._connected = False
+                cls._state = 'offline'  # 断开后状态设为offline
                 return True
             else:
                 log.i(f'设备 {cls._deviceID} 未连接，无需断开')
@@ -88,6 +91,9 @@ class CDevice_:
     @classmethod
     def connect(cls)->bool:
         """连接服务器核心逻辑"""
+        if cls._state == 'online' or cls._state == 'login':
+            _G._G_.Log().i(f'设备 {cls._deviceID} 已连接且状态为{cls._state}，无需重复连接')
+            return True
         waitting = True
         tools = _G._G_.Tools()
         def onConnected(ok):
@@ -95,6 +101,8 @@ class CDevice_:
             waitting = False
             if not ok:
                 tools.toast("服务器连接失败")
+            else:
+                cls._state = 'online'  # 连接成功，状态设为online
         cls._connect(onConnected)
         timeout = 30
         start_time = time.time()
@@ -106,6 +114,7 @@ class CDevice_:
             print(".", end="", flush=True)
         if not cls._connected:
             tools.toast("无法连接到服务器")
+            cls._state = 'offline'
         return cls._connected
     
     @classmethod
@@ -126,7 +135,7 @@ class CDevice_:
                     try:
                         # 使用已有的socketio客户端进行连接
                         # log.i("开始 socketio 连接...")
-                        _G._G_.sio.connect(
+                        g.sio().connect(
                             connect_url,
                             transports=['websocket', 'polling'],
                             auth={'device_id': cls._deviceID}
@@ -153,29 +162,22 @@ class CDevice_:
             return False
 
     @classmethod
-    def login(cls)->bool:
-        """登录设备（带重试）"""
+    def login(cls):
+        """异步登录示例"""
         g = _G._G_
         log = g.Log()
-        if not cls._connected:
-            log.w(f"设备 {cls._deviceID} 未连接，无法登录")
-            return False
-
-        retry_count = 3
-        while retry_count > 0:
-            try:
-                # log.i(f"尝试登录设备 {cls._deviceID}，剩余尝试次数: {retry_count}")
-                g.emit('C2S_Login', {})
+        try:
+            ok = g.emitRet('C2S_Login')
+            if ok:
+                log.i_("登录成功")
+                cls._state = 'login'  # 登录成功，状态设为login
                 return True
-            except Exception as e:
-                retry_count -= 1
-                if retry_count == 0:
-                    log.ex(e, '登录重试失败')
-                    return False
-                log.w(f'登录失败，剩余重试次数: {retry_count}')
-                time.sleep(1)  # 重试前等待
-                return False
-
+            log.e_("登录失败")
+            return False
+        except Exception as e:
+            log.ex_(e, "登录异常")
+            return False
+    
     @classmethod
     def logout(cls):
         """注销设备"""
@@ -183,6 +185,7 @@ class CDevice_:
         log = g.Log()
         g.emit('C2S_Logout', {})
         log.i(f'设备 {cls._deviceID} 登出')
+        cls._state = 'logout'  # 登出后状态设为logout
 
 
     @classmethod
@@ -194,7 +197,6 @@ class CDevice_:
             command = data.get('command')
             cmdData = data.get('data', None)
             cmd_id = data.get('cmd_id')  # 获取命令ID
-
             # 使用 CmdMgr 执行命令
             cmd = {'id': cmd_id, 'data': cmdData, 'cmd': command}
             g.CmdMgr().do(cmd)
@@ -203,28 +205,11 @@ class CDevice_:
                 log.i(f'收到重置命令: {command}，不发送结果')
                 # 不发送结果，但也不抛出异常
                 return
-            # 发送命令结果，无需在这里单独记录日志，因为CmdResult会在服务端被处理并记录
-            cls._sendCmdResult(cmd)
+            result = cmd.get('result')
+            return result
         except Exception as e:
             log.ex(e, f'执行命令出错: {command}')
-
-    @classmethod
-    def _sendCmdResult(cls, cmd):
-        """发送命令结果"""
-        g = _G._G_
-        g.emit('C2S_CmdResult', {
-            'result': cmd.get('result'),
-            'cmdName': cmd.get('name'),
-            'cmd_id': cmd.get('id')  # 返回命令ID
-        })
-
-    @classmethod
-    def sendCmdResult(cls, cmd, result):
-        """发送命令结果"""
-        if cmd is None:
-            return
-        cmd['result'] = result
-        cls._sendCmdResult(cmd)
+            return None
 
     @classmethod
     def on_connect(cls):
@@ -233,7 +218,7 @@ class CDevice_:
         log = g.Log()
         log.i(f'已连接到服务器, server: {cls._server}')
         cls._connected = True
-        # 连接成功后在新线程中执行登录
+        cls._state = 'online'  # 连接成功，状态设为online
         def do_login():
             try:
                 if cls.login():
@@ -264,8 +249,9 @@ class CDevice_:
         """断开连接回调"""
         g = _G._G_
         log = g.Log()
-        log.w(f'设备 {cls._deviceID} 断开连接，SID: {_G._G_.sio.sid if hasattr(_G._G_.sio, "sid") else "未知"}')
+        log.w(f'设备 {cls._deviceID} 断开连接')
         cls._connected = False
+        cls._state = 'offline'  # 断开连接，状态设为offline
 
     @classmethod
     def send_command(cls, cmd):
@@ -279,32 +265,7 @@ class CDevice_:
     def onS2C_CmdResult(cls, data):
         print(f'结果: {data["result"]}')
 
-    # @classmethod
-    # def emit(cls, event, data=None):
-    #     """发送事件到服务器
-    #     Args:
-    #         event: 事件名称
-    #         data: 事件数据
-    #     Returns:
-    #         bool: 是否发送成功
-    #     """
-    #     g = _G._G_
-    #     log = g.Log()
-    #     try:
-    #         sio = g.sio
-    #         if not sio:
-    #             log.log_('e', "Socket未初始化")
-    #             return False
-    #         if not sio.connected:
-    #             log.log_('e', "未连接到服务器")
-    #             return False
-    #         data['device_id'] = cls._deviceID
-    #         sio.emit(event, data)
-    #         return True
-    #     except Exception as e:
-    #         log.ex_(e, f'发送事件失败: {event}')
-    #         return False
-
+  
     @classmethod
     def TakeScreenshot(cls):
         """截取当前屏幕并发送到服务器"""
@@ -355,5 +316,24 @@ class CDevice_:
         except Exception as e:
             log.ex(e, '处理设备更新请求失败')
             return False
+
+    def handleUpdateTask(self, data):
+        g = _G._G_
+        log = g.Log()
+        try:
+            taksName = data.get('name')
+            task = g.App().getTask(taksName)
+            if task is None:
+                return
+            task.setLife(data.get('life'))
+            log.i(f'收到任务更新请求: {data}')
+            return True
+        except Exception as e:
+            log.ex(e, '处理任务更新请求失败')
+            return False
+
+    @classmethod
+    def state(cls):
+        return cls._state
 
 CDevice_.onLoad(None)

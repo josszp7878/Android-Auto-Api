@@ -27,8 +27,7 @@ class Database:
             # 检查app_context是否已设置
             if cls.app is None:
                 _G._G_.Log().w("数据库操作需要Flask应用上下文，但未设置")
-                return None
-                
+                return None                
             # 在应用上下文中执行
             with cls.app.app_context():
                 db = cls.getDB()
@@ -87,11 +86,3 @@ class Database:
 # 导出全局db实例
 db = Database.getDB()
 
-def sql(func):
-    """执行数据库操作"""
-    with current_app.app_context():  # 添加应用上下文
-        try:
-            return func(db.session)
-        except Exception as e:
-            _G._G_.Log().ex(e, "数据库操作失败")
-            return None

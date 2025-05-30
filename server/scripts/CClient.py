@@ -60,7 +60,6 @@ class CClient_:
         g = _G._G_
         log = g.Log()
         try:
-            g.App().stopPage(None, True)
             CDevice = g.CDevice()
             if CDevice:
                 CDevice.uninit()

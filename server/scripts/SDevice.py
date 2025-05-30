@@ -13,15 +13,15 @@ from SModelBase import SModelBase_
 class SDevice_(SModelBase_):
     """设备管理类"""
     SCREENSHOTS_DIR = os.path.join(_G.g.rootDir(), 'data', 'screenshots')
+    
     def __init__(self, name):
-        super().__init__(DeviceModel, {'name': name})
+        super().__init__(DeviceModel, createDB=False, params={'name': name})
         self.sid = None
         self._state = 'offline'
         self._isDirty = False
         self._lastScreenshot = None
         self._ensure_screenshot_dir()
         self.apps = []
-
 
     
     @property
@@ -32,20 +32,20 @@ class SDevice_(SModelBase_):
     @property
     def isConsole(self) -> bool:
         """是否是控制台设备"""
-        log = _G._G_.Log()
-        log.i(f'设备 {self.name} 是否是控制台设备: {self.group == "@"}')
         return self.group == '@'
     
-    def getDBProp(self, key:str, default=None):
-        return self.data.get(key, default)
-    
-    def setDBProp(self, key:str, value):
-        if isinstance(value, datetime):
-            value = value.strftime('%Y-%m-%d %H:%M:%S')
-        if self.data.get(key) != value:
-            self.data[key] = value
-            self._isDirty = True
-
+    def setName(self, name: str)->bool:
+        """设置设备名称"""
+        if self.setDBProp('name', name):
+            self.commit()
+            g = _G._G_
+            g.Log().i(f'更新设备名称: {self.name}, {name}')
+            g.emit('S2C_updateDevice', {
+                    'name': name
+                }, self.sid)
+            return True
+        return False    
+   
     def toSheetData(self)->dict:
         return {
             'state': self._state,
@@ -87,10 +87,11 @@ class SDevice_(SModelBase_):
         """设备连接回调"""
         try:
             self._state = 'online'
+            log = _Log._Log_
+            log.i(f'设备 +++++{self.name} 已连接##################')
             self.setDBProp('lastTime', datetime.now())
             self.sid = sid
             self.commit()
-            _Log._Log_.i(f'设备 +++++{self.name} 已连接')
             self.refresh()
             return True
         except Exception as e:
@@ -133,6 +134,37 @@ class SDevice_(SModelBase_):
         except Exception as e:
             _Log._Log_.ex(e, '设备登出失败')
             return False    
+    
+    def sendClientCmd(self, command, data=None):
+        """执行设备命令并等待结果
+        Args:
+            command: 命令名称
+            data: 命令参数
+            timeout: 超时时间(秒)
+
+        Returns:
+            str: 命令执行结果
+        """
+        try:
+            g = _G._G_ 
+            log = g.Log()
+            if not self.isConnected:
+                log.w(f'设备 {self.name} 未连接')
+                return None 
+            sid = self.sid
+            if not sid:
+                log.w(f'设备 {self.name} 会话无效')
+                return None
+            # 发送命令
+            log.i(f'发送客户端命令: {self.name}, {command}, {data}， sid={sid}')
+            return g.emitRet('S2C_DoCmd', {
+                'command': command,
+                'sender': current_app.config['SERVER_ID'],
+                'data': data,
+            }, sid=sid)
+        except Exception as e:
+            log.ex(e, '执行设备命令出错')
+            return None
         
     def saveScreenshot(self, base64_data):
         """保存截图并刷新设备信息
@@ -176,9 +208,7 @@ class SDevice_(SModelBase_):
             if self._state != 'login':
                 _Log._Log_.w(f'设备 {self.name} 未登录，无法截屏')
                 return False
-            from SDeviceMgr import deviceMgr
-            deviceMgr.sendClientCmd(
-                self.name, 
+            self.sendClientCmd(
                 'takeScreenshot'
             )
             _Log._Log_.i(f'向设备 {self.name} 发送截屏指令')
@@ -248,9 +278,8 @@ class SDevice_(SModelBase_):
                 except Exception as e:
                     _Log._Log_.ex(e, "处理应用分析结果失败")
 
-            from SDeviceMgr import deviceMgr
-            deviceMgr.sendClientCmd(
-                self, 'getScreen', None, 10, parseResult)
+            self.sendClientCmd(
+                'getScreen', None, 10, parseResult)
             return True
         except Exception as e:
             _Log._Log_.ex(e, "分析屏幕应用失败")

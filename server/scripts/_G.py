@@ -4,8 +4,11 @@
 import threading
 import os
 import sys  # 添加sys模块导入
+import time
 from typing import TYPE_CHECKING, List, Optional
 from enum import Enum
+import uuid
+import asyncio
 
 if TYPE_CHECKING:
     from CFileServer import CFileServer_
@@ -47,9 +50,38 @@ class _G_:
     _scriptNamesCache = None  # 添加脚本名称缓存
     
     android = None   # Android服务对象，由客户端设置
-    sio = None  # SocketIO实例,客户端服务端通用
+    _sio = None  # 实际的Socket.IO实例
     _consoles = []  # 当前连接的控制台列表
     _curConsole = None  # 当前控制台
+    _pending_requests = {}  # {request_id: (event, callback/future)}
+    _rpc_lock = threading.Lock()
+
+    @classmethod
+    def sio(cls):
+        """获取Socket.IO实例"""
+        return cls._sio
+
+    @classmethod
+    def setIO(cls, sio):
+        """设置Socket.IO实例并初始化事件监听（线程安全）"""
+        if sio is not None:
+            cls._sio = sio
+            sio.on('_Result', cls.on_Result)
+
+    def on_Result(self, response):
+        """统一处理所有RPC响应（类方法）"""
+        request_id = response.get('requestId')
+        with self._rpc_lock:
+            if request_id in self._pending_requests:
+                _, callback = self._pending_requests.pop(request_id)
+                if callback:
+                    if isinstance(callback, asyncio.Future):
+                        # 异步回调处理
+                        callback.set_result(response)
+                    else:
+                        # 同步回调处理
+                        callback(response)
+
 
     @classmethod
     def setCurConsole(cls, sid):
@@ -58,25 +90,78 @@ class _G_:
             cls._consoles.append(sid)
         cls._curConsole = sid
 
-    
     @classmethod
-    def emit(cls, event, data, sid=None)->bool:
-        """发送事件"""
-        if cls.sio is None:
+    def connect(cls):
+        """连接"""
+        if cls._sio is None:
             return False
-        if cls.isServer():
-            if sid:
-                cls.sio.emit(event, data, room=sid)
+        cls._sio.connect()
+        return True
+
+    @classmethod
+    def emit(cls, event, data=None, sid=None, timeout=8)->bool:
+        """发送事件并等待结果"""
+        try:
+            sio = cls._sio
+            if sio is None:
+                return False
+            log = cls.log
+            if cls.isServer():
+                if sid:
+                    sio.emit(event, data, room=sid)
+                else:
+                    sio.emit(event, data)
             else:
-                cls.sio.emit(event, data)
-            return True
-        else:
-            device = cls.CDevice()
-            if device:
+                device = cls.CDevice()
+                if not device:
+                    log.ex_(f"设备未连接: {event}, {data}")
+                    return False
                 data['device_id'] = device.deviceID()
-                cls.sio.emit(event, data)
-                return True
-        return False
+                sio.emit(event, data)
+        except Exception as e:
+            log.ex_(e, f"发送事件失败: {event}, {data}")
+            return False
+
+    @classmethod
+    def emitRet(cls, event, data=None, sid=None, timeout=8):
+        """发送事件并等待结果"""
+        try:
+            log = cls.log
+            sio = cls._sio
+            log.i(f'发送ddd: sio={sio}, event={event}, data={data}, sid={sid}')
+            if sio is None:
+                return False
+            result = None
+            def onResult(response):
+                nonlocal result
+                # 如果response为None，则返回False,必须返回一个值，否则会一直等待
+                result = response or False
+                log.i(f'收到事件结果: {result}')
+                return result
+            
+            log.i(f'发送事件2222222: isServer={cls.isServer()}')
+            if cls.isServer():
+                if sid:
+                    log.i(f'发送事件: {event}, {data}, room={sid}')
+                    sio.emit(event, data, room=sid, callback=onResult)
+                else:
+                    log.i(f'发送事件: {event}, {data}')
+                    sio.emit(event, data, callback=onResult)
+            else:
+                device = cls.CDevice()
+                if not device:
+                    log.ex_(f"设备未连接: {event}, {data}")
+                    return False
+                if data is None:
+                    data = {}
+                data['device_id'] = device.deviceID()
+                sio.emit(event, data, callback=onResult)
+            while result is None:
+                time.sleep(0.1)
+            return result
+        except Exception as e:
+            log.ex_(e, f"发送事件失败: {event}, {data}")
+            return False
     
     @classmethod
     def emit2B(cls, event, data, sids=None)->bool:
@@ -89,6 +174,61 @@ class _G_:
             if not re:
                 result = False
         return result
+    
+    @classmethod
+    def rpc(cls, event, data=None, timeout=8):
+        """事件式RPC（同步/异步通用）"""
+        request_id = str(uuid.uuid4())
+        future = asyncio.Future()
+
+        with g._rpc_lock:
+            g._pending_requests[request_id] = (event, future)
+
+        # 发送请求
+        g.emit(event, {
+            ** (data or {}),
+            'requestId': request_id
+        })
+
+        try:
+            # 异步等待结果
+            return asyncio.wait_for(future, timeout)
+        except asyncio.TimeoutError:
+            with g._rpc_lock:
+                g._pending_requests.pop(request_id, None)
+            raise TimeoutError(f"RPC call {event} timed out after {timeout}s")
+
+    @classmethod
+    def rpc_call(cls, call, timeout=8):
+        """通用回调式RPC（适合连接等非事件场景）"""
+        g = cls.instance()
+        request_id = str(uuid.uuid4())
+        result = None
+        event = f'_SysCall_{request_id}'  # 生成唯一事件名
+
+        # 创建临时回调
+        def handler(response):
+            nonlocal result
+            if response.get('requestId') == request_id:
+                result = response
+
+        with g._rpc_lock:
+            g._pending_requests[request_id] = (event, handler)
+
+        # 执行调用（这里假设call函数会触发某个事件）
+        call()
+
+        # 等待结果
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            if result is not None:
+                return result
+            time.sleep(0.1)
+        
+        # 超时处理
+        with g._rpc_lock:
+            g._pending_requests.pop(request_id, None)
+        raise TimeoutError(f"RPC call timed out after {timeout}s")
     
     @classmethod
     def isAndroid(cls):
@@ -499,4 +639,5 @@ class _G_:
             text = text.replace(full, half)
         return text        
 
+   
 g = _G_

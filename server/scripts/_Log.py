@@ -5,37 +5,15 @@ import re
 import _G
 from typing import List
 # 导入数据库模块
-from SDatabase import Database, db
+from SDatabase import Database
+from LogModel import LogModel_   
 from sqlalchemy import func
-import time
-import random
 
 class TAG(Enum):
     """标签"""
     CMD = "CMD"
     SCMD = "SCMD"
     Server = "@"
-
-class LogModel_(db.Model):
-    """日志数据模型"""
-    __tablename__ = 'logs'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    time = db.Column(db.DateTime, default=datetime.now)
-    tag = db.Column(db.String(50))
-    level = db.Column(db.String(10))
-    message = db.Column(db.Text)
-    
-    def toDict(self):
-        """转换为字典格式"""
-        return {
-            'id': self.id,
-            'date': self.time.strftime('%Y-%m-%d') if self.time else '',
-            'time': self.time.strftime('%H:%M:%S') if self.time else '',
-            'tag': self.tag,
-            'level': self.level,
-            'message': self.message,
-        }
 
 class _Log_:
     """统一的日志管理类"""
@@ -85,107 +63,39 @@ class _Log_:
     @classmethod
     def uninit(cls):
         """反初始化日志系统，保存到数据库"""
-        cls.save()
         cls.clear()
 
+    
     @classmethod
-    def gets(cls, date:str=None) -> List['LogModel_']:
+    def gets(cls, date=None) -> List[dict]:
         """
         获取特定日期的所有日志
-        :param date: 可以是datetime.date对象或'YYYY-MM-DD'格式字符串，默认为今天
+        :param date: 日期，默认为今天
         :return: 日志列表
         """
-        # 处理默认值
         if date is None:
             date = datetime.now().date()
-        else:
-            try:
-                date = datetime.strptime(date, '%Y-%m-%d').date()
-            except ValueError:
-                cls.ex('日期格式错误，应为YYYY-MM-DD')
-                return []
-        # cls.i(f'获取日期日志列表: {date}, cls._lastDate: {cls._lastDate}')    
         if cls._lastDate == date:
             return cls._cache
         # 清除当前缓存
         try:
-            # 使用Database.sql确保在事务内完成查询和序列化
-            def _getLogs(db):
-                # 正确使用Model.query而不是db.query
-                return LogModel_.query.filter(
-                    func.date(LogModel_.time) == date
-                ).all()
-            cls._cache = Database.sql(_getLogs)
-            # cls.i(f'获取日期日志列表: {date}, 数量: {len(cls._cache)}')    
+            logs = LogModel_.query.filter(
+                func.date(LogModel_.time) == date
+            ).all()
+            cls._cache = [log.toDict() for log in logs]
             cls._lastDate = date
             return cls._cache
         except Exception as e:
-            cls.ex(e, f'获取日期日志列表失败: {date}')
-            return []
-
-    @classmethod
-    def save(cls):
-        """将日志缓存保存到数据库"""
-        try:
-            # cls.log_('保存日志到数据库')
-            newLogs = [log for log in cls._cache if hasattr(log, '_isNew')]
-            if len(newLogs) < 50:
-                return
-            # 使用Eventlet的spawn而不是线程
-            def _save():
-                try:
-                    # 保存到数据库
-                    def _saveLogs(db):
-                        for log in newLogs:
-                            # 创建新的日志对象而不是重用现有对象
-                            new_log = LogModel_(
-                                id=log.id,
-                                tag=log.tag,
-                                level=log.level,
-                                message=log.message,
-                                time=log.time
-                            )
-                            db.session.add(new_log)
-                            if hasattr(log, '_isNew'):
-                                del log._isNew
-                        db.session.commit()
-                    Database.sql(_saveLogs)
-                    # cls.log_("日志数据库保存完成", None, 'd')
-                except Exception as thread_err:
-                    cls.log_(f"日志保存异步操作异常: {thread_err}", None, 'e')
-            
-            # 使用Eventlet的spawn替代线程
-            import eventlet
-            eventlet.spawn(_save)            
-        except Exception as e:
-            cls.ex(e, '保存日志缓存失败')
-
-    @classmethod
-    def createID(cls)->int:
-        # 精确到毫秒的时间戳
-        timestamp = int(time.time() * 1000)
-        # 6位随机数
-        random_num = random.randint(100000, 999999)
-        # 组合并取哈希的最后10位（纯数字版本）
-        combined = f"{timestamp}{random_num}"
-        return int(combined) % 10000000000  # 保证不超过10位数
+            cls.ex(e, f'获取日期任务列表失败: {date}')
+            return [] 
     
     @classmethod
     def Blog(cls, message, tag=None, level='i'):
         try:
-            id = cls.createID()
-            # 使用datetime对象而不是字符串
-            log = LogModel_(
-                id=id,
-                tag=tag,
-                level=level,
-                message=message,
-                time=datetime.now()  # 直接使用datetime对象
-            )
-            log._isNew = True
-            cls._cache.append(log)
-            cls.save()
-            _G._G_.emit('S2B_sheetUpdate', {'type': 'logs', 'data': [log.toDict()]})  
+            log = LogModel_.add(message=message, tag=tag, level=level)
+            if log:
+                cls._cache.append(log)
+                _G._G_.emit('S2B_sheetUpdate', {'type': 'logs', 'data': [log]})  
         except Exception as e:
             cls.ex_(e, '发送日志到控制台失败')
 

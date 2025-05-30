@@ -43,14 +43,13 @@ class SCmds_:
             示例：清除
             """
             try:
+                g = _G._G_
                 # 获取日志对象
-                log = _G._G_.Log()
+                log = g.Log()
                 # 清空日志缓存
                 log.clear()
-                # 使用覆盖模式保存
-                log.save(mode='w')
                 # 通知前端清空日志显示
-                _G_.sio.emit('clear_logs')
+                g.emit('clear_logs')
                 return '控制台日志已清除'
             except Exception as e:
                 _Log._Log_.ex(e, '清除日志缓存出错')
@@ -72,47 +71,27 @@ class SCmds_:
                 for id, dev in devices.items()
             ])
 
-        @regCmd(r'#进度 (?P<deviceId>[^ ]+)?(?P<appName>[^ ]+)?(?P<taskName>[^ ]+)?')
-        def progress(deviceId, appName, taskName):
+        @regCmd(r'#进度 (?P<deviceName>[^ ]+)?')
+        def progress(deviceName):
             """功能：查询任务执行进度
             指令名：progress
             中文名：进度
             参数：
-              deviceId - 设备ID (可选，使用'_'表示当前设备)
-              appName - 应用名称 (可选，使用'_'表示最近任务)
-              taskName - 任务名称 (可选，使用'_'表示最近任务)
-            示例：进度 _ 微信 签到
+               deviceName - 设备名称 (可选，使用'_'表示当前设备)
+            示例：进度 微信
             """
             try:
-                # 处理最近任务
-                if appName == '_' or taskName == '_':
-                    # 从数据库获取最近任务
-                    last_task = STask_.query.filter_by(
-                        deviceId=deviceId
-                    ).order_by(STask_.time.desc()).first()
-
-                    if not last_task:
-                        return "未找到最近任务记录"
-
-                    if appName == '_':
-                        appName = last_task.appName
-                    if taskName == '_':
-                        taskName = last_task.taskName
-
-                # 从数据库查询任务
-                task = STask_.query.filter_by(
-                    deviceId=deviceId,
-                    appName=appName,
-                    taskName=taskName,
-                ).order_by(STask_.time.desc()).first()
-
+                # 通过设备名称获取设备ID
+                device = deviceMgr.getByName(deviceName)
+                if not device:
+                    return "设备不存在"
+                
+                # 使用设备ID而不是名称
+                task = STask_.get(deviceId=device.id, name="任务名称", create=True)
                 if not task:
                     return "未找到正在运行的任务"
-
-                # 格式化输出任务信息（转换为百分比）
                 progress_percent = task.progress * 100
                 return f"任务进度: {progress_percent:.1f}%"
-
             except Exception as e:
                 _Log._Log_.ex(e, "查询任务进度失败")
                 return f"e~查询任务进度失败: {str(e)}"
@@ -129,34 +108,21 @@ class SCmds_:
             示例：任务列表 设备1 running
             """
             try:
-                # 解析参数
-                device_id = deviceId
-                state = state.lower() if state else 'all'
-
-                if not device_id:
+                if not deviceId:
                     return "e~未指定设备ID"
-
-                # 构建查询
+                device_id = int(deviceId)
+                state = state.lower() if state else 'all'
                 query = STask_.query.filter_by(deviceId=device_id)
-
-                # 根据状态过滤
                 if state != 'all':
                     query = query.filter_by(state=state)
-
-                # 获取任务列表
                 tasks = query.order_by(STask_.time.desc()).limit(10).all()
-
                 if not tasks:
                     return f"设备 {device_id} 没有{state}任务记录"
-
-                # 格式化输出
                 result = f"设备 {device_id} 的任务列表 ({state}):\n"
                 for task in tasks:
                     progress = task.progress * 100
                     result += f"{task.taskName}: {progress:.1f}% [{task.state}]\n"
-
                 return result
-
             except Exception as e:
                 _Log._Log_.ex(e, "获取任务列表失败")
                 return f"e~获取任务列表失败: {str(e)}"
@@ -274,7 +240,7 @@ class SCmds_:
                         log.ex(e, "处理屏幕信息失败")
 
                 # 发送客户端命令获取屏幕信息
-                res = deviceMgr.sendClientCmd(device, "eval T.getScreenInfo(True)", None, 10)
+                res = device.sendClientCmd("eval T.getScreenInfo(True)", None)
                 handleScreenInfo(res)
                 return "正在获取屏幕信息..."
             except Exception as e:
@@ -302,7 +268,7 @@ class SCmds_:
 
                 # 使用三引号包裹多行JSON字符串
                 cmd = f"eval T.setScreenInfo('''{screenInfo}''')"
-                deviceMgr.sendClientCmd(device, cmd)
+                device.sendClientCmd(cmd)
 
                 return f"i-成功设置屏幕信息: {pageName}"
             except Exception as e:
@@ -401,7 +367,7 @@ class SCmds_:
             示例：设备信息 设备1
             """
             try:
-                device = deviceMgr.get(deviceID)
+                device = deviceMgr.getByName(deviceID)
                 if device:
                     return device.toDict()
                 else:

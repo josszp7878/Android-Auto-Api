@@ -1,7 +1,5 @@
 from datetime import datetime
 from SDatabase import db
-from contextlib import contextmanager
-from sqlalchemy.exc import SQLAlchemyError
 import _G
 
 class DeviceModel(db.Model):
@@ -28,14 +26,15 @@ class DeviceModel(db.Model):
             return []
 
     @classmethod
-    def get(cls, params: dict, create=False):
+    def get(cls, params: dict, create: bool = False):
         """获取或创建设备记录"""
         name = params.get('name')
-        instance = cls.query.filter_by(name=name).first()
+        session = db.session
+        instance = session.query(cls).filter_by(name=name).first()
         if not instance and create:
             instance = cls(name=name)
-            db.session.add(instance)
-            db.session.commit()
+            session.add(instance)
+            session.commit()
         return instance
 
     def toDict(self):
@@ -46,44 +45,7 @@ class DeviceModel(db.Model):
             'lastTime': self.lastTime.strftime('%Y-%m-%d %H:%M:%S') if self.lastTime else None
         }    
     
-    def commit(self, data: dict):
-        """提交数据更新"""
-        from SDatabase import Database
-        
-        def _commit(db):
-            try:
-                session = db.session
-                # 通过ID获取最新数据
-                model = DeviceModel.query.get(self.id)
-                
-                if not model:
-                    return False
-                # 更新字段
-                model.name = data.get('name', model.name)
-                if 'score' in data:
-                    model.score = data['score']
-                
-                # 处理时间字段
-                last_time = data.get('lastTime')
-                if last_time:
-                    if isinstance(last_time, str):
-                        model.lastTime = datetime.strptime(last_time, '%Y-%m-%d %H:%M:%S')
-                    else:
-                        model.lastTime = last_time
-
-                session.commit()
-                return True
-            except Exception as e:
-                print(f"数据库提交失败: {str(e)}")
-                session.rollback()
-                return False
-
-        try:
-            return Database.sql(_commit)
-        except Exception as e:
-            _G._G_.Log().ex(e, "提交数据更新失败")
-            return False
-
+    
 class EarningRecord(db.Model):
     """收益记录表"""
     __tablename__ = 'earnings'
@@ -105,6 +67,7 @@ class EarningRecord(db.Model):
             'time': self.time.strftime('%Y-%m-%d %H:%M:%S')
         }
 
+
 class AppModel(db.Model):
     __tablename__ = 'apps'
     id = db.Column(db.Integer, primary_key=True)
@@ -124,12 +87,13 @@ class AppModel(db.Model):
             income=device.income,
             state=device.state
         )
+    
 
 class TaskModel(db.Model):
     """任务数据模型"""
     __tablename__ = 'tasks'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    deviceId = db.Column(db.String(50), nullable=False)
+    deviceId = db.Column(db.BigInteger, nullable=False)  # 设备ID，关联 DeviceModel.id
     name = db.Column(db.String(50), nullable=False)
     time = db.Column(db.DateTime, default=datetime.now)
     endTime = db.Column(db.DateTime)
@@ -139,16 +103,23 @@ class TaskModel(db.Model):
     life = db.Column(db.Integer, default=0)
 
     @classmethod
-    def get(cls, params: dict, create=False):
+    def get(cls, params: dict, create: bool = False):
         """获取或创建任务记录"""
-        deviceId = params.get('deviceId')   
-        name = params.get('name')
-        instance = cls.query.filter_by(deviceId=deviceId, name=name).first()
-        if not instance and create:
-            instance = cls(deviceId=deviceId, name=name)
-            db.session.add(instance)
-            db.session.commit()
-        return instance
+        from SDatabase import Database
+        
+        def do_get(db):
+            deviceId = params.get('deviceId')   
+            name = params.get('name')
+            date = params.get('date')
+            instance = cls.query.filter_by(deviceId=deviceId, name=name, time=date).first()
+            if not instance and create:
+                instance = cls(deviceId=deviceId, name=name, time=date)
+                db.session.add(instance)
+                db.session.commit()
+            return instance
+            
+        return Database.sql(do_get)
+
 
     def toDict(self):
         return {
@@ -161,28 +132,3 @@ class TaskModel(db.Model):
             'score': self.score,
             'life': self.life
         }
-
-    def commit(self, data: dict) -> bool:
-        """提交数据更新"""
-        try:
-            for key, value in data.items():
-                if hasattr(self, key):
-                    setattr(self, key, value)
-            db.session.commit()
-            return True
-        except Exception as e:
-            _G._G_.Log().ex(e, '提交数据失败')
-            return False
-
-@contextmanager
-def session_scope():
-    """提供事务范围的会话，自动处理提交/回滚和异常"""
-    try:
-        yield db.session
-        db.session.commit()
-    except SQLAlchemyError as e:
-        db.session.rollback()
-        _G._G_.Log().ex(e, "数据库事务执行失败")
-        raise
-    finally:
-        db.session.remove()
