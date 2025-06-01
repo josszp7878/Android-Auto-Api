@@ -33,25 +33,26 @@ class SDeviceMgr_:
     def _devices(self) -> List['SDevice_']:
         """延迟加载设备列表"""
         if self.__devices is None:
-            from SModels import DeviceModel
-            self.__devices = DeviceModel.all(SDevice_)
+            self.__devices = SDevice_.all()
         return self.__devices
     
     @property
     def devices(self):
         return [d for d in self._devices if not d.isConsole]
 
-    def getByName(self, name: str, create=False) -> Optional[SDevice_]:
+    def get(self, name: str, create=False) -> Optional[SDevice_]:
         log = _G._G_.Log()
         name = name.strip().lower()
         try:
             devices = self._devices
             # log.i(f'######%%%%%%: {name}, devices.len={len(devices)}')
             device = next((d for d in devices if d.name == name), None)
-            if device is None and create:
-                # log.i(f'######%%%%%%%%%%%%%%%%%%%%%@@@创建设备: {name}')
-                device = SDevice_(name)
-                devices.append(device)                
+            if device is None:
+                from SModels import DeviceModel
+                data = DeviceModel.get(name, create)
+                if data:
+                    device = SDevice_(data)
+                    devices.append(device)                
             return device
         except Exception as e:
             log.ex(e, f'获取设备失败: {name}')
@@ -88,7 +89,7 @@ class SDeviceMgr_:
                 # 特殊处理截图命令
                 if cmdName == 'captureScreen':
                     if isinstance(result, str) and result.startswith('data:image'):
-                        device = self.getByName(name)
+                        device = self.get(name)
                         if device:
                             if device.saveScreenshot(result):
                                 result = '截图已更新'
@@ -124,7 +125,7 @@ class SDeviceMgr_:
                     # 记录服务端命令日志
                     cmdID = self.genCmdId('@', command)
                     cmd = {'id': cmdID, 'data': data, 'cmd': command}
-                    log.Blog(command, '', 'c')
+                    log.add(command, '', 'c')
                     cmdMgr = _G._G_.CmdMgr()
                     cmdMgr.do(cmd)
                     result = cmd.get('result', '')
@@ -143,7 +144,7 @@ class SDeviceMgr_:
                 level, content = self._log._parseLevel(result, 'i')
                 # log.i(f'处理命令结果: {result}, {level}, {content}')
                 if content: 
-                    self._log.Blog(f"  结果： {content}", '', level)
+                    self._log.add(f"  结果： {content}", '', level)
             return result
         except Exception as e:
             self._log.ex(e, '发送命令失败')

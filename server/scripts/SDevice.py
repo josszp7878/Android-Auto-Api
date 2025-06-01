@@ -15,14 +15,20 @@ class SDevice_(SModelBase_):
     SCREENSHOTS_DIR = os.path.join(_G.g.rootDir(), 'data', 'screenshots')
     
     def __init__(self, name):
-        super().__init__(DeviceModel, createDB=False, params={'name': name})
+        super().__init__(name, DeviceModel)
         self.sid = None
         self._state = 'offline'
-        self._isDirty = False
         self._lastScreenshot = None
         self._ensure_screenshot_dir()
         self.apps = []
 
+    @classmethod
+    def all(cls):
+        """获取所有设备"""
+        devices = []
+        for d in DeviceModel.all():
+            devices.append(cls(d))
+        return devices
     
     @property
     def group(self) -> str:
@@ -34,23 +40,37 @@ class SDevice_(SModelBase_):
         """是否是控制台设备"""
         return self.group == '@'
     
-    def setName(self, name: str)->bool:
+    def setName(self, name: str):
         """设置设备名称"""
         if self.setDBProp('name', name):
             self.commit()
-            g = _G._G_
-            g.Log().i(f'更新设备名称: {self.name}, {name}')
-            g.emit('S2C_updateDevice', {
-                    'name': name
-                }, self.sid)
-            return True
-        return False    
+            self.refresh()
    
     def toSheetData(self)->dict:
         return {
             'state': self._state,
             **self.data
         }
+    
+    @classmethod
+    def sendClient(cls, event: str, deviceID: int, data: dict)->bool:
+        """更新客户端数据"""
+        g = _G._G_
+        log = g.Log()
+        try:
+            if data is None:
+                return False
+            from SDeviceMgr import deviceMgr
+            device = deviceMgr.getByID(deviceID)
+            if device:
+                g.emit(event, data, device.sid)
+                return True
+            else:
+                log.w(f'设备不存在: {deviceID}')
+                return False
+        except Exception as e:
+            log.ex(e, '更新客户端数据失败')
+            return False
     
     @property
     def total_score(self) -> float:
@@ -87,8 +107,6 @@ class SDevice_(SModelBase_):
         """设备连接回调"""
         try:
             self._state = 'online'
-            log = _Log._Log_
-            log.i(f'设备 +++++{self.name} 已连接##################')
             self.setDBProp('lastTime', datetime.now())
             self.sid = sid
             self.commit()

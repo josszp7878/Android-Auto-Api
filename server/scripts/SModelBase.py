@@ -3,22 +3,19 @@ from typing import Any
 import _G
 class SModelBase_:
     """模型基类"""
-    def __init__(self, modelClass, createDB: bool = True, params: dict = None):
+    def __init__(self, name: str, modelClass: type):
         """初始化模型基类
         Args:
-            modelClass: SQLAlchemy模型类
-            createDB: 是否自动创建数据库记录
-            params: 初始化参数
+            name: 名称
+            modelClass: 模型类
         """
-        model = modelClass.get(params, create=createDB)
-        self.cls = modelClass
-        if model:
-            self.model = model
-            self.data: dict = model.toDict()
+        if isinstance(name, dict):
+            self.data = name
+            self._isDirty = False
         else:
-            self.model = None
-            self.data: dict = params
-        self._isDirty = False
+            self.data = {'name': name}
+            self._isDirty = True
+        self.modelClass = modelClass
 
     @property
     def id(self) -> int:
@@ -66,36 +63,24 @@ class SModelBase_:
         try:
             if not self._isDirty:
                 return True
-            from SDatabase import Database
-            
-            def do_commit(db):
-                if self.model is None:
-                    self.model = self.cls.get(self.data, create=True)
-                else:
-                    # 确保实例被跟踪
-                    self.model = db.session.merge(self.model)
-                
-                for key, value in self.data.items():
-                    if key == 'id':
-                        continue
-                    if hasattr(self.model, key):
-                        setattr(self.model, key, value)                
-                db.session.add(self.model)
-                return True
-            
-            result = Database.sql(do_commit)
-            if result:
-                self._isDirty = False
-            return result
-            
+            if self.modelClass is None:
+                log.ex(e, '提交数据更新失败,modelClass为空')
+                return False
+            self.modelClass.commit(self.data)
+            self._isDirty = False
+            return True
         except Exception as e:
-            log.ex(e, '提交数据失败')
+            log.ex(e, '提交数据更新失败')
             return False
 
     def toSheetData(self) -> dict:
         # 子类可重写
         return self.data
     
+    def toClientData(self) -> dict:
+        # 子类可重写
+        return self.data
+
     def update(self, data: dict, commit: bool = True, refresh: bool = True):
         """更新数据"""
         log = _G._G_.Log()
@@ -104,10 +89,13 @@ class SModelBase_:
                 if self.data.get(key) != value:
                     self.data[key] = value
                     self._isDirty = True
-            if commit:
-                return self.commit()
-            if refresh:
-                self.refresh()
+            log.i(f'更新数据: data: {data}, self._isDirty: {self._isDirty}')
+            if self._isDirty:
+                if commit:
+                    self.commit()
+                if refresh:
+                    # log.i(f'刷新{self.cls.__name__}状态11: {self.data}')
+                    self.refresh()
             return True
         except Exception as e:
             log.ex(e, '更新数据失败')
@@ -118,15 +106,15 @@ class SModelBase_:
         g = _G._G_
         log = g.Log()
         try:
-            strType = None
-            if self.cls.__name__ == 'DeviceModel':
-                strType = 'devices'
-            elif self.cls.__name__ == 'TaskModel':
-                strType = 'tasks'
-            # log.i(f'刷新{strType}状态: {self.data}, self.cls.__name__: {self.cls.__name__}') 
-            if strType:
-                data = self.toSheetData()
-                log.i(f'刷新{strType}状态: {data}')
-                g.emit('S2B_sheetUpdate', {'type': strType, 'data': [data]})
+            dataType = None
+            if self.modelClass.__name__ == 'DeviceModel_':
+                dataType = 'devices'
+            elif self.modelClass.__name__ == 'TaskModel_':
+                dataType = 'tasks'
+            elif self.modelClass.__name__ == 'LogModel_':
+                dataType = 'logs'
+            data = self.toSheetData()
+            # log.i(f'刷新{self.modelClass.__name__}状态: {data}')
+            g.emit('S2B_sheetUpdate', {'type': dataType, 'data': [data]})
         except Exception as e:
             log.ex(e, '刷新设备状态失败') 

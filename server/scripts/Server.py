@@ -59,15 +59,14 @@ def onConnect(auth=None)->bool:
     log = _Log._Log_
     try:
         deviceName = request.args.get('device_id')
-        device = deviceMgr.getByName(deviceName, True)
-        log.i(f'设置当前设备3333: name={deviceName}, device id ={device.id}')
+        device = deviceMgr.get(deviceName, True)
+        # log.i(f'设置当前设备3333: name={deviceName}, device id ={device.id}')
         if device.isConsole:
             g.setCurConsole(device.sid)
         else:
             deviceMgr.curDevice = device
         if device:
             device.onConnect(request.sid)
-            device.commit()
     except Exception as e:
         log.ex(e, '处理连接时出错')
         return False
@@ -84,17 +83,18 @@ def onDisconnect():
 
 def onC2S_Login(data):
     """处理设备登录"""
+    log = _Log._Log_
     try:
-        log = _Log._Log_
         device = deviceMgr.getBySID(request.sid)
         if not device:
             return
         # 普通设备处理
         ok = device.login()
-        _Log._Log_.i(f'设备ssssssssss {device.name} 登录结果: {ok}')
+        # log.i(f'设备ssssssssss {device.name} 登录结果: {ok}')
         return ok
     except Exception as e:
-        _Log._Log_.ex(e, '处理设备登录失败')
+        log.ex(e, '处理设备登录失败')
+        return False
 
 
 def onC2S_Logout(data):
@@ -162,9 +162,11 @@ def onC2S_StartTask(data):
         log.i(f'处理任务启动请求: {device.name}/{taskName}, task: {task}')
         if task:
             task.start()
+            return task.toClientData()
+        return []
     except Exception as e:
         log.ex(e, '处理任务启动请求失败')
-
+        return []
 
 def onC2S_UpdateTask(data):
     """处理任务进度更新"""
@@ -173,12 +175,12 @@ def onC2S_UpdateTask(data):
         device = deviceMgr.getBySID(request.sid)
         if not device:
             return
-        taskName = data.get('taskName')
+        taskID = data.get('id')
         from STask import STask_
-        task = STask_.get(device.id, taskName, create=False)
-        log.i(f'处理任务进度更新请求: {device.name}/{taskName}, task: {task}')
+        task = STask_.getByID(taskID)
+        log.i(f'处理任务进度更新请求: {device.name}/{taskID}, task: {task}')
         if task is None:
-            log.i(f'任务不存在: {device.name}/{taskName}')
+            log.i(f'任务不存在: {device.name}/{taskID}')
             return
         task.update(data)
     except Exception as e:
@@ -222,19 +224,22 @@ def onB2S_loadDatas(data):
         type = data.get('type')
         filters = data.get('filters', {})
         date = filters.get('date')
+        log.i(f'获取数据: type={type}, filters={filters}, date={date}')
         if type == 'devices':
             # 获取普通设备数据
             from SDeviceMgr import deviceMgr
             datas = [device.toSheetData() for device in deviceMgr.devices]
         elif type == 'tasks':
             # 获取任务数据
+            log.i(f'获取任务数据: {date}')
             from STask import STask_
             datas = [task.toSheetData() for task in STask_.gets(date)]
         elif type == 'logs':
-            # 获取日志数据
-            datas = log.gets(date)
+            from _Log import _Log_  
+            datas = [log.toSheetData() for log in _Log_.gets(date)]
         else:
             return []
+        # log.i(f'获取数据结果: {datas}')
         return datas
     except Exception as e:
         _Log._Log_.ex(e, '处理加载设备数据请求失败')

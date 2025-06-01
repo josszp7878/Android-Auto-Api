@@ -5,9 +5,8 @@ import re
 import _G
 from typing import List
 # 导入数据库模块
-from SDatabase import Database
 from LogModel import LogModel_   
-from sqlalchemy import func
+from SModelBase import SModelBase_
 
 class TAG(Enum):
     """标签"""
@@ -15,11 +14,14 @@ class TAG(Enum):
     SCMD = "SCMD"
     Server = "@"
 
-class _Log_:
+class _Log_(SModelBase_):
     """统一的日志管理类"""
-    _cache: List[LogModel_] = []
-    _cache = []  # 任务列表
+    _cache: List['_Log_'] = []
     _lastDate = None  # 最近一次缓存的日期
+
+    def __init__(self, name: str):
+        """初始化任务"""
+        super().__init__(name, LogModel_)
 
     # ANSI颜色代码
     COLORS = {
@@ -67,7 +69,7 @@ class _Log_:
 
     
     @classmethod
-    def gets(cls, date=None) -> List[dict]:
+    def gets(cls, date=None) -> List['_Log_']:
         """
         获取特定日期的所有日志
         :param date: 日期，默认为今天
@@ -79,23 +81,22 @@ class _Log_:
             return cls._cache
         # 清除当前缓存
         try:
-            logs = LogModel_.query.filter(
-                func.date(LogModel_.time) == date
-            ).all()
-            cls._cache = [log.toDict() for log in logs]
+            logs = LogModel_.all(date)
+            cls._cache = [cls(t) for t in logs]
             cls._lastDate = date
             return cls._cache
         except Exception as e:
-            cls.ex(e, f'获取日期任务列表失败: {date}')
-            return [] 
+            cls.ex(e, f'获取日期日志列表失败: {date}')
+            return []    
     
     @classmethod
-    def Blog(cls, message, tag=None, level='i'):
+    def add(cls, message, tag=None, level='i'):
         try:
-            log = LogModel_.add(message=message, tag=tag, level=level)
-            if log:
+            data = LogModel_.get(message, tag, level, True)
+            if data:
+                log = cls(data)
                 cls._cache.append(log)
-                _G._G_.emit('S2B_sheetUpdate', {'type': 'logs', 'data': [log]})  
+                log.refresh()
         except Exception as e:
             cls.ex_(e, '发送日志到控制台失败')
 
@@ -143,29 +144,6 @@ class _Log_:
         )
         return log_model
 
-
-    @classmethod
-    def _serverLog(cls, tag, level, content):
-        try:
-            log_model = cls.createLogData(tag, content, level)
-            if log_model:
-                cls.Blog(log_model.message, log_model.tag, log_model.level)
-            return log_model
-        except Exception as e:
-            cls.ex_(e, '发送日志到服务器失败')
-            return None
-
-    @classmethod
-    def _clientLog(cls, logData):
-        """发送日志到前端"""
-        try:
-            # 确保logData是有效的
-            if logData and isinstance(logData, LogModel_):
-                return logData
-            return None
-        except Exception as e:
-            cls.ex_(e, '发送日志到服务器失败')
-            return None
 
 
     @classmethod
@@ -235,11 +213,9 @@ class _Log_:
             isServer = g.isServer()
             logData = None
             if isServer:
-                log_model = cls.createLogData(tag, content, level)
-                if log_model:
-                    cls.Blog(log_model.message, log_model.tag, log_model.level)
-                    cls.log_(content, tag, level)
-                    logData = log_model
+                cls.add(content, tag, level)
+                cls.log_(content, tag, level)
+                logData = content
             else:
                 # 客户端环境，获取设备对象并发送日志到服务端
                 device = g.CDevice()
@@ -328,6 +304,12 @@ class _Log_:
     def ex(cls, e, message, tag=None):
         message = cls.formatEx(message, e, tag)
         cls.log(message, tag, 'e')
+
+    @classmethod
+    def t(cls, message):
+        import traceback
+        traceback.print_stack()
+        cls.log_(message, None, 'w')
 
     # 定义一个常量，用于标记执行操作的日志
     TagDo = 'Do'

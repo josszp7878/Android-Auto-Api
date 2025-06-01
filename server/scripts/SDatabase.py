@@ -1,7 +1,7 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 import _G
-from flask import current_app
+
 
 class Database:
     """数据库管理类"""
@@ -14,31 +14,20 @@ class Database:
             cls._db = SQLAlchemy()
         return cls._db
     
-      
     @classmethod
     def sql(cls, dbFun):
-        """在Flask应用上下文中执行数据库操作
-        Args:
-            dbFun: 数据库操作函数，接收db参数
-        Returns:
-            操作结果
-        """
+        """在Flask应用上下文中执行数据库操作"""
         try:
-            # 检查app_context是否已设置
             if cls.app is None:
-                _G._G_.Log().w("数据库操作需要Flask应用上下文，但未设置")
-                return None                
-            # 在应用上下文中执行
+                raise RuntimeError("未初始化Flask应用")
+                
             with cls.app.app_context():
                 db = cls.getDB()
-                result = dbFun(db)
-                return result
+                return dbFun(db)
         except Exception as e:
-            _G._G_.Log().ex(e, "数据库操作失败")
-            if hasattr(cls._db, "session"):
-                cls._db.session.rollback()
+            print(f"数据库上下文异常: {str(e)}")
             return None
-        
+
     @classmethod
     def delete(cls, obj=None):
         """删除对象"""
@@ -48,7 +37,7 @@ class Database:
             db.session.commit()
             return True
         except Exception as e:
-            _G._G_.Log().ex(e, "数据库删除失败")
+            print(f"数据库删除失败: {str(e)}")
             db.session.rollback()
             return False
 
@@ -68,19 +57,18 @@ class Database:
             db.session.commit()
             return True
         except Exception as e:
-            _G._G_.Log().ex(e, "数据库提交失败")
+            print(f"数据库提交失败: {str(e)}")
             db.session.rollback()
             return False
         
     @classmethod
     def init(cls, app: Flask):
-        db = cls.getDB()
-        cls.app = app
         """初始化数据库"""
-        db.init_app(app)        
-        # 立即创建应用上下文
+        cls.app = app
+        db = cls.getDB()
+        db.init_app(app)
         with app.app_context():
-            db.create_all()  # 创建所有表
+            db.create_all()
 
 
 # 导出全局db实例

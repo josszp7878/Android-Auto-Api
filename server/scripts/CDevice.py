@@ -219,15 +219,7 @@ class CDevice_:
         log.i(f'已连接到服务器, server: {cls._server}')
         cls._connected = True
         cls._state = 'online'  # 连接成功，状态设为online
-        def do_login():
-            try:
-                if cls.login():
-                    log.i("登录成功")
-                else:
-                    log.e("登录失败")
-            except Exception as e:
-                log.ex(e, "登录过程出错")
-        threading.Thread(target=do_login, daemon=True).start()
+        threading.Thread(target=cls.login, daemon=True).start()
 
     @classmethod
     def on_connect_error(cls, data):

@@ -1,4 +1,3 @@
-
 /**
  * 表格页面管理类
  */
@@ -590,6 +589,16 @@ class SheetPage {
         const fieldNames = columns.map(col => col.field);
         
         return data.map(item => {
+            // 日志类型自动补全 date 字段
+            if (dataType === this.DataType.LOGS) {
+                if (!item.date && item.time) {
+                    // 假设 time 格式为 "YYYY-MM-DD HH:mm:ss"
+                    item.date = item.time.split(' ')[0];
+                }
+                if (!item.level) item.level = 'i';
+                if (!item.tag) item.tag = '';
+                if (!item.sender) item.sender = '';
+            }
             // 必须包含所有必填字段
             const requiredFields = {
                 [this.DataType.TASKS]: ['date', 'name', 'deviceId']

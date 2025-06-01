@@ -106,6 +106,9 @@ class _G_:
             if sio is None:
                 return False
             log = cls.log
+            from _Log import _Log_
+            if isinstance(data, _Log_):
+                log.t(f'bbbbbbbbbbb: {event}, {data}')
             if cls.isServer():
                 if sid:
                     sio.emit(event, data, room=sid)
@@ -128,7 +131,7 @@ class _G_:
         try:
             log = cls.log
             sio = cls._sio
-            log.i(f'发送ddd: sio={sio}, event={event}, data={data}, sid={sid}')
+            log.i(f'发送ddd: event={event}, data={data}')
             if sio is None:
                 return False
             result = None
@@ -139,7 +142,7 @@ class _G_:
                 log.i(f'收到事件结果: {result}')
                 return result
             
-            log.i(f'发送事件2222222: isServer={cls.isServer()}')
+            # log.i(f'发送事件2222222: isServer={cls.isServer()}')
             if cls.isServer():
                 if sid:
                     log.i(f'发送事件: {event}, {data}, room={sid}')
@@ -506,7 +509,7 @@ class _G_:
             cls._store = oldCls._store
             cls.android = oldCls.android  # 保留android对象
         import _Log
-        log = _Log._Log_()
+        log = _Log._Log_
         cls.log = log
         # 如果是客户端环境，尝试初始化android对象
         if not cls._isServer and cls.android is None:

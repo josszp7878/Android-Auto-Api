@@ -28,7 +28,7 @@ class CTask_:
         self._progress = 0.0
         self._state = TaskState.IDLE
         self._lastInPage = False
-
+        self._id = 0    
         self._name = name
         self._life = None
         self._interval = None
@@ -241,7 +241,17 @@ class CTask_:
         if not self._goPage(g):
             return False
         return True
-            
+    
+    def fromData(self, data: dict):
+        """从数据更新任务"""
+        if data is None:
+            return
+        self._id = data.get('id')
+        self._progress = data.get('progress')
+        self._state = data.get('state')
+        self._score = data.get('score')
+        self._life = data.get('life')
+
     def begin(self, life: int = 0) -> bool:
         """开始任务，支持继续和正常开始
         Args:
@@ -278,9 +288,13 @@ class CTask_:
                 log.e(f"任务{self._name}执行失败")
                 return False
             # 发送任务开始事件
-            g.emit('C2S_StartTask', {
+            taskData = g.emitRet('C2S_StartTask', {
                 'taskName': self.name
             })
+            if taskData is None:
+                log.e(f"任务{self._name}开始失败")
+                return False
+            self.fromData(taskData)
             return True
         except Exception as e:
             log.ex(e, f"任务开始失败: {e}")
@@ -412,5 +426,7 @@ class CTask_:
 
     def _emitUpdate(self, data):
         """发送任务更新事件"""
-        data['taskName'] = self.name
+        data['id'] = self._id
+        log = _G.g.Log()
+        log.i(f'发送任务更新事件: {data}')
         _G.g.emit('C2S_UpdateTask', data)

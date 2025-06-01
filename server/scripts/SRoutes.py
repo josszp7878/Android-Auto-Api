@@ -18,7 +18,7 @@ def tabulator_demo():
 @bp.route('/device/<device_id>')
 def device(device_id):
     """设备控制页面"""
-    device = deviceMgr.getByName(device_id)
+    device = deviceMgr.get(device_id)
     if not device:
         return "设备不存在", 404
     return render_template('device.html', device_id=device_id, device=device.toDict())
@@ -63,7 +63,7 @@ def get_logs():
 @bp.route('/api/device/<device_id>/screenshot', methods=['POST'])
 def take_screenshot(device_id):
     """设备截图API"""
-    device = deviceMgr.getByName(device_id)
+    device = deviceMgr.get(device_id)
     if not device:
         return jsonify({'success': False, 'message': '设备不存在'}), 404
     
@@ -76,7 +76,7 @@ def take_screenshot(device_id):
 @bp.route('/api/device/<device_id>/refresh', methods=['POST'])
 def refresh_device(device_id):
     """刷新设备API"""
-    device = deviceMgr.getByName(device_id)
+    device = deviceMgr.get(device_id)
     if not device:
         return jsonify({'success': False, 'message': '设备不存在'}), 404
     
@@ -92,7 +92,7 @@ def batch_operation():
     
     results = []
     for device_id in device_ids:
-        device = deviceMgr.getByName(device_id)
+        device = deviceMgr.get(device_id)
         if not device:
             results.append({'device_id': device_id, 'success': False, 'message': '设备不存在'})
             continue
