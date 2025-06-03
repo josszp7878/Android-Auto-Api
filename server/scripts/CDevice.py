@@ -1,11 +1,9 @@
 import socketio
 import threading
-from datetime import datetime
-import time
 import _G
-import uuid
-import asyncio
 from concurrent.futures import ThreadPoolExecutor
+import traceback
+from typing import cast
 
 class CDevice_:
     _instance = None  # 单例实例
@@ -14,6 +12,7 @@ class CDevice_:
     _connected = False
     _executor = ThreadPoolExecutor(max_workers=4)
     _state = 'offline'  # 新增，维护设备状态
+    _connectLock = threading.Lock()
 
     @classmethod
     def connected(cls):
@@ -34,17 +33,12 @@ class CDevice_:
             cls._deviceID = deviceID
             cls._server = server
             cls._connected = False
-            # 配置 socketio 客户端
+            # 配置 socketio 客户端（关闭自动重连）
             sio = socketio.Client(
-                reconnection=True,
-                reconnection_attempts=5,
-                reconnection_delay=1,
-                reconnection_delay_max=5,
+                reconnection=False,  # 关闭自动重连
                 logger=False,  # 关闭详细日志
                 engineio_logger=False  # 关闭 Engine.IO 日志
             )
-
-            # 注册事件处理器
             sio.on('connect')(cls.on_connect)
             sio.on('S2C_DoCmd')(cls.onS2C_DoCmd)
             sio.on('S2C_CmdResult')(cls.onS2C_CmdResult)
@@ -53,7 +47,6 @@ class CDevice_:
             sio.on('disconnect')(cls.on_disconnect)
             sio.on('connect_error')(cls.on_connect_error)
             _G._G_.setIO(sio)
-
             cls.initialized = True
 
     @classmethod
@@ -89,76 +82,31 @@ class CDevice_:
             return False
 
     @classmethod
-    def connect(cls)->bool:
-        """连接服务器核心逻辑"""
-        if cls._state == 'online' or cls._state == 'login':
-            _G._G_.Log().i(f'设备 {cls._deviceID} 已连接且状态为{cls._state}，无需重复连接')
-            return True
-        waitting = True
-        tools = _G._G_.Tools()
-        def onConnected(ok):
-            nonlocal waitting
-            waitting = False
-            if not ok:
-                tools.toast("服务器连接失败")
-            else:
-                cls._state = 'online'  # 连接成功，状态设为online
-        cls._connect(onConnected)
-        timeout = 30
-        start_time = time.time()
-        while waitting:
-            if time.time() - start_time > timeout:
-                print("连接超时")
-                break
-            time.sleep(1)
-            print(".", end="", flush=True)
-        if not cls._connected:
-            tools.toast("无法连接到服务器")
-            cls._state = 'offline'
-        return cls._connected
-    
-    @classmethod
-    def _connect(cls, callback=None):
-        """连接到服务器（异步方式）"""
+    def connect(cls) -> bool:
         g = _G._G_
         log = g.Log()
         try:
-            # 如果已连接，先断开
             if cls._connected:
                 log.i('客户端已经连接')
-                return
+                return True
             connect_url = f"{g.Tools().getServerURL(cls._server)}?device_id={cls._deviceID}"
-            # log.i(f"开始连接: {connect_url}")
-
-            def connect_async():
-                try:
-                    try:
-                        # 使用已有的socketio客户端进行连接
-                        # log.i("开始 socketio 连接...")
-                        g.sio().connect(
-                            connect_url,
-                            transports=['websocket', 'polling'],
-                            auth={'device_id': cls._deviceID}
-                        )
-                        # log.d("socketio 连接成功")
-                        if callback:
-                            callback(True)
-                    except Exception as e:
-                        log.e(f"socketio 连接失败: {str(e)}")
-                        if callback:
-                            callback(False)
-                except Exception as e:
-                    log.e(f"连接过程发生异常: {str(e)}")
-                    if callback:
-                        callback(False)
-
-            threading.Thread(target=connect_async, daemon=True).start()
-            return True
-
+            sio = cast(socketio.Client, g.sio())
+            sio.connect(
+                connect_url,
+                transports=['websocket', 'polling'],
+                auth={'device_id': cls._deviceID},
+                wait=True,
+                wait_timeout=5
+            )
+            if sio.connected:
+                cls._state = 'online'
+                return cls.login()
+            else:
+                g.Tools().toast("无法连接到服务器")
+                cls._state = 'offline'
+                return False
         except Exception as e:
-            log.ex(e, '启动连接失败')
-            if callback:
-                callback(False)
+            log.ex(e, '连接失败')
             return False
 
     @classmethod
@@ -294,7 +242,8 @@ class CDevice_:
         """获取设备ID"""
         return self._deviceId
     
-    def handleUpdateDevice(self, data):
+    @classmethod
+    def handleUpdateDevice(cls, data):
         g = _G._G_
         log = g.Log()
         try:
@@ -309,16 +258,31 @@ class CDevice_:
             log.ex(e, '处理设备更新请求失败')
             return False
 
-    def handleUpdateTask(self, data):
+    @classmethod
+    def handleUpdateTask(cls, data):
         g = _G._G_
         log = g.Log()
         try:
+            if not data:
+                return
             taksName = data.get('name')
             task = g.App().getTask(taksName)
             if task is None:
                 return
-            task.setLife(data.get('life'))
-            log.i(f'收到任务更新请求: {data}')
+            for k, v in data.items():
+                # 优先找 setXxx 方法
+                method_name = f'set{k[0].upper()}{k[1:]}'
+                setter = getattr(task, method_name, None)
+                if callable(setter):
+                    setter(v)
+                    log.i_(f'调用方法: {method_name}({v})')
+                else:
+                    try:
+                        setattr(task, k, v)
+                        log.i_(f'设置属性: {k} = {v}')
+                    except AttributeError as e:
+                        # log.w_(f'属性 {k} 不能赋值: {e}')
+                        pass
             return True
         except Exception as e:
             log.ex(e, '处理任务更新请求失败')

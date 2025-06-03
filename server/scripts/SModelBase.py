@@ -1,5 +1,7 @@
 from datetime import datetime
 from typing import Any
+from SModels import DeviceModel_, TaskModel_, LogModel_
+
 import _G
 class SModelBase_:
     """模型基类"""
@@ -89,12 +91,16 @@ class SModelBase_:
                 if self.data.get(key) != value:
                     self.data[key] = value
                     self._isDirty = True
-            log.i(f'更新数据: data: {data}, self._isDirty: {self._isDirty}')
+            # log.i(f'更新数据: self._isDirty: {self._isDirty}, commit: {commit}, refresh: {refresh}, modelClass: {self.modelClass.__name__}')
             if self._isDirty:
+                # log.i('更新数据111111: ')
                 if commit:
-                    self.commit()
+                    if not self.commit():
+                        log.e(f'更新数据失败,commit失败: {self.data}')
+                        return False
+                # log.i('更新数据222222: ')
                 if refresh:
-                    # log.i(f'刷新{self.cls.__name__}状态11: {self.data}')
+                    # log.i(f'刷新{self.modelClass.__name__}状态11')
                     self.refresh()
             return True
         except Exception as e:
@@ -107,14 +113,15 @@ class SModelBase_:
         log = g.Log()
         try:
             dataType = None
-            if self.modelClass.__name__ == 'DeviceModel_':
+            # log.d(f'刷新{self.modelClass.__name__}')
+            if self.modelClass is DeviceModel_:
+                # log.i(f'刷新设备状态ddddfff: {self.name}, {self.data}')
                 dataType = 'devices'
-            elif self.modelClass.__name__ == 'TaskModel_':
+            elif self.modelClass is TaskModel_:
                 dataType = 'tasks'
-            elif self.modelClass.__name__ == 'LogModel_':
+            elif self.modelClass is LogModel_:
                 dataType = 'logs'
             data = self.toSheetData()
-            # log.i(f'刷新{self.modelClass.__name__}状态: {data}')
             g.emit('S2B_sheetUpdate', {'type': dataType, 'data': [data]})
         except Exception as e:
             log.ex(e, '刷新设备状态失败') 

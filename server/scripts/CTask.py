@@ -36,11 +36,15 @@ class CTask_:
         self._pageData = {}
         self._beginScript = None  # 修改为begin脚本
         self._exitScript = None   # 修改为exit脚本
-        self._execCount = 0  # 执行计数器
         self._page: "_Page_" = None  # 目标页面
         
         # 直接使用传入的配置
         self._config = config
+
+    @property
+    def id(self):
+        """任务ID"""
+        return self._id
 
     @property
     def score(self):
@@ -51,7 +55,7 @@ class CTask_:
     def score(self, value):
         if self._score != value:
             self._score = value
-            self._emitUpdate({
+            self._emitUpdate(self._id, {
                 'score': value
             })
     
@@ -67,7 +71,7 @@ class CTask_:
         log.i(f"任务{self._name}状态: self._state={self._state}, ==>value={value}")
         if self._state != value:
             self._state = value
-            self._emitUpdate({
+            self._emitUpdate(self._id, {
                 'state': value.value
             })
 
@@ -244,34 +248,23 @@ class CTask_:
     
     def fromData(self, data: dict):
         """从数据更新任务"""
-        if data is None:
+        if data is None or not isinstance(data, dict):
             return
-        self._id = data.get('id')
-        self._progress = data.get('progress')
-        self._state = data.get('state')
-        self._score = data.get('score')
-        self._life = data.get('life')
+        self._id = int(data.get('id'))
+        self._progress = float(data.get('progress'))
+        self._state = TaskState(data.get('state'))
+        self._score = int(data.get('score'))
+        self._life = int(data.get('life'))
 
-    def begin(self, life: int = 0) -> bool:
+    def begin(self, life: int = None) -> bool:
         """开始任务，支持继续和正常开始
         Args:
             life: 生命的绝对值，默认为0。当任务已经完成时，如果life比当前self.life的绝对值大，就重新设置self.life并启动任务
         """
         g = _G._G_
-        log = g.Log()
-        
-        if self.state is TaskState.RUNNING:
-            log.w(f"任务{self._name}已开始")
-            return True
-            
-        if self.isCompleted():
-            if abs(life) > abs(self.life):
-                self.life = life
-                log.i(f"任务{self._name}已重新设置life为{life}并启动")
-            else:
-                log.w(f"任务{self._name}已完成")
-                return True
-                
+        log = g.Log()        
+        if life is not None:
+            self.life = life
         try:
             if self.state == TaskState.IDLE:            
                 # 开始运行
@@ -295,6 +288,7 @@ class CTask_:
                 log.e(f"任务{self._name}开始失败")
                 return False
             self.fromData(taskData)
+            self._app.curTask = self
             return True
         except Exception as e:
             log.ex(e, f"任务开始失败: {e}")
@@ -315,15 +309,7 @@ class CTask_:
         return True
     
     def stop(self):
-        """停止任务
-        
-        将任务状态设置为暂停状态，任务可以通过begin方法恢复运行
-        
-        Returns:
-            bool: 是否成功停止任务，如果任务不在运行状态则返回False
-        """
-        if self.state != TaskState.RUNNING:
-            return False
+        """停止任务"""
         self.state = TaskState.PAUSED
         return True
     
@@ -357,18 +343,14 @@ class CTask_:
             if self.bonus > 0:
                 self._score += self.bonus
             # 增加执行计数
-            self._execCount += 1  # 增加执行计数
             if self._refreshProgress():
                 if not self._next(g):
                     return False
         return True
 
     def _next(self, g: "_G_")->bool:
-        now = datetime.now()
-        timePassed = (now - self._lastTime).total_seconds()
-        self._lastTime = now
         if self.interval > 0:
-            waitTime = self.interval - timePassed
+            waitTime = self.interval - self._deltaTime
             if waitTime > 0:
                 time.sleep(waitTime)
         if not self._Do(g):
@@ -385,13 +367,12 @@ class CTask_:
     def progress(self, value):
         if self._progress != value:
             self._progress = value
-            self._emitUpdate({
+            self._emitUpdate(self._id, {
                 'progress': value
             })
 
     def _refreshProgress(self)->bool:
-        """统一处理进度更新
-        
+        """统一处理进度更新        
         考虑任务暂停后再次开始的情况，累计计算进度
         """
         if self.state != TaskState.RUNNING:
@@ -401,12 +382,14 @@ class CTask_:
             progress = self.progress
             if life > 0:  # 时间模式
                 # 计算当前会话运行时间
-                currentSessionTime = (datetime.now() - self._lastTime).total_seconds()
+                curTime = datetime.now()
+                self._deltaTime = (curTime - self._lastTime).total_seconds()
+                self._lastTime = curTime
                 # 累加到总进度中
-                progress += currentSessionTime / life
+                progress += self._deltaTime / life
             else:  # 次数模式
                 # 次数模式下，_execCount已经在_do中累加
-                progress = self._execCount / abs(life)
+                progress += 1 / abs(life)
             
             self.progress = min(max(0.0, progress), 1.0)
         else:
@@ -424,9 +407,10 @@ class CTask_:
         # 执行结束脚本（使用属性访问）
         _G.g.Tools().do(self.exitScript)
 
-    def _emitUpdate(self, data):
+    @classmethod
+    def _emitUpdate(cls, taskID, data):
         """发送任务更新事件"""
-        data['id'] = self._id
+        data['id'] = taskID
         log = _G.g.Log()
         log.i(f'发送任务更新事件: {data}')
         _G.g.emit('C2S_UpdateTask', data)

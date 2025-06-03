@@ -350,7 +350,7 @@ class _App_:
                 # 添加到页面列表
                 self._pages[pageName] = page
                 
-            log.i(f"应用 {self.name} 配置加载完成，共 {len(self._pages)} 个页面")
+            # log.i(f"应用 {self.name} 配置加载完成，共 {len(self._pages)} 个页面")
             return self._pages
         except Exception as e:
             log.ex(e, f"加载应用 {self.name} 配置失败")
@@ -861,6 +861,15 @@ class _App_:
         return ret
     
     @classmethod
+    def getTaskByID(cls, id: str)-> 'CTask_':
+        """获取任务实例"""
+        for app in cls.apps().values():
+            task = next((t for t in app._tasks.values() if t and t.id == id), None)
+            if task:
+                return task
+        return None
+
+    @classmethod
     def getTask(cls, name, create: bool = True)-> 'CTask_':
         """获取任务实例"""
         g = _G._G_
@@ -884,6 +893,14 @@ class _App_:
         """获取当前任务"""
         return self._curTask
     
+    @curTask.setter
+    def curTask(self, value):
+        """设置当前任务"""
+        self._curTask = value
+        if self._curTask:
+            self._curTask._app = self
+    
+
     def _getDataFile(self) -> str:
         """获取计数器文件路径
         Returns:

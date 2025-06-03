@@ -393,93 +393,9 @@ class SCmds_:
                     return "e~任务不存在"
             except Exception as e:
                 _Log._Log_.ex(e, "获取任务信息失败")
-                return f"e~获取任务信息失败: {str(e)}"
+                return f"e~获取任务信息失败: {str(e)}" 
 
-        @regCmd(r'#创建任务|cjrw (?P<taskName>\S+)(?:\s+(?P<deviceIDs>.+))?')
-        def createTask(taskName, deviceIDs):
-            """功能：创建任务
-            指令名：createTask
-            中文名：创建任务
-            参数：
-               taskName - 任务名称
-               deviceIDs - 设备ID列表，用空格分隔
-            示例：创建任务 签到 设备1 设备2
-            """
-            try:
-                device_ids = deviceIDs.split() if deviceIDs else []
-                if not device_ids:
-                    return "e~未指定设备ID"
-
-                task = STask_(
-                    deviceId=device_ids[0],
-                    name=taskName
-                )
-                task.save()
-                return f"已创建任务: {taskName}, 设备: {', '.join(device_ids)}"
-            except Exception as e:
-                _Log._Log_.ex(e, "创建任务失败")
-                return f"e~创建任务失败: {str(e)}"
-
-        @regCmd('#删除任务|scrw (?P<taskID>\S+)')
-        def deleteTask(taskID):
-            """功能：删除任务
-            指令名：deleteTask
-            中文名：删除任务
-            参数：
-               taskID - 任务ID
-            示例：删除任务 任务1
-            """
-            try:
-                task = STask_.query.get(taskID)
-                if task:
-                    task.delete()
-                    return f"已删除任务: {taskID}"
-                else:
-                    return "e~任务不存在"
-            except Exception as e:
-                _Log._Log_.ex(e, "删除任务失败")
-                return f"e~删除任务失败: {str(e)}"
-
-        @regCmd('#启动任务|qdrw (?P<taskID>\S+)')
-        def startTask(taskID):
-            """功能：启动任务
-            指令名：startTask
-            中文名：启动任务
-            参数：
-               taskID - 任务ID
-            示例：启动任务 任务1
-            """
-            try:
-                task = STask_.query.get(taskID)
-                if task:
-                    task.start()
-                    return f"已启动任务: {taskID}"
-                else:
-                    return "e~任务不存在"
-            except Exception as e:
-                _Log._Log_.ex(e, "启动任务失败")
-                return f"e~启动任务失败: {str(e)}"
-
-        @regCmd('#停止任务|tzrw (?P<taskID>\S+)')
-        def stOpTask(taskID):
-            """功能：停止任务
-            指令名：stopTask
-            中文名：停止任务
-            参数：
-               taskID - 任务ID
-            示例：停止任务 任务1
-            """
-            try:
-                task = STask_.query.get(taskID)
-                if task:
-                    task.stop()
-                    return f"已停止任务: {taskID}"
-                else:
-                    return "e~任务不存在"
-            except Exception as e:
-                _Log._Log_.ex(e, "停止任务失败")
-                return f"e~停止任务失败: {str(e)}"
-
+        
         @regCmd('#添加设备|tjsb (?P<taskID>\S+)\s+(?P<deviceIDs>.+)')
         def addDevice(taskID, deviceIDs):
             """功能：添加设备到任务

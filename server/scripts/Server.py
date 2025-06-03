@@ -1,4 +1,3 @@
-import re
 from flask import request
 from flask_socketio import emit
 from datetime import datetime
@@ -60,15 +59,10 @@ def onConnect(auth=None)->bool:
     try:
         deviceName = request.args.get('device_id')
         device = deviceMgr.get(deviceName, True)
-        # log.i(f'设置当前设备3333: name={deviceName}, device id ={device.id}')
-        if device.isConsole:
-            g.setCurConsole(device.sid)
-        else:
-            deviceMgr.curDevice = device
         if device:
             device.onConnect(request.sid)
     except Exception as e:
-        log.ex(e, '处理连接时出错')
+        log.ex(e, '处理连接时出错ddddddd')
         return False
     return True
 
@@ -86,11 +80,11 @@ def onC2S_Login(data):
     log = _Log._Log_
     try:
         device = deviceMgr.getBySID(request.sid)
+        log.i(f'处理设备登录: {device}')
         if not device:
-            return
+            return False
         # 普通设备处理
         ok = device.login()
-        # log.i(f'设备ssssssssss {device.name} 登录结果: {ok}')
         return ok
     except Exception as e:
         log.ex(e, '处理设备登录失败')
@@ -155,13 +149,14 @@ def onC2S_StartTask(data):
     try:
         device = deviceMgr.getBySID(request.sid)
         if not device:
-            return
+            return []
         taskName = data.get('taskName')
         from STask import STask_
         task = STask_.get(device.id, taskName, date=datetime.now().date(), create=True)
         log.i(f'处理任务启动请求: {device.name}/{taskName}, task: {task}')
         if task:
-            task.start()
+            from STask import TaskState
+            task.update({'state': TaskState.RUNNING.value})
             return task.toClientData()
         return []
     except Exception as e:
@@ -178,9 +173,9 @@ def onC2S_UpdateTask(data):
         taskID = data.get('id')
         from STask import STask_
         task = STask_.getByID(taskID)
-        log.i(f'处理任务进度更新请求: {device.name}/{taskID}, task: {task}')
+        log.i(f'任务进度更新: {device.name}/{taskID}')
         if task is None:
-            log.i(f'任务不存在: {device.name}/{taskID}')
+            log.w(f'任务不存在: {device.name}/{taskID}')
             return
         task.update(data)
     except Exception as e:
@@ -197,8 +192,10 @@ def on2S_Cmd(data):
         if targets is None or command.strip() == '':
             return
         params = data.get('params')
+        ret = {}
         for target in targets:
-            deviceMgr.onCmd(target, command, params)
+            ret[target] = deviceMgr.onCmd(target, command, params)
+        return ret
 
     except Exception as e:
         Log.ex(e, '执行命令失败')
@@ -224,7 +221,7 @@ def onB2S_loadDatas(data):
         type = data.get('type')
         filters = data.get('filters', {})
         date = filters.get('date')
-        log.i(f'获取数据: type={type}, filters={filters}, date={date}')
+        # log.i(f'获取数据: type={type}, filters={filters}, date={date}')
         if type == 'devices':
             # 获取普通设备数据
             from SDeviceMgr import deviceMgr
@@ -239,7 +236,6 @@ def onB2S_loadDatas(data):
             datas = [log.toSheetData() for log in _Log_.gets(date)]
         else:
             return []
-        # log.i(f'获取数据结果: {datas}')
         return datas
     except Exception as e:
         _Log._Log_.ex(e, '处理加载设备数据请求失败')

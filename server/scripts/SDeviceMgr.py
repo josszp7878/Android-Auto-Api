@@ -23,7 +23,6 @@ class SDeviceMgr_:
             self.__devices = None  # 初始化为None
             self.initialized = True
             self.result = None
-            self._curDevice = None
             self.onCmdResult = None
             self.cmdTimeout = 15
             self.cmdResults = {}
@@ -48,8 +47,8 @@ class SDeviceMgr_:
             # log.i(f'######%%%%%%: {name}, devices.len={len(devices)}')
             device = next((d for d in devices if d.name == name), None)
             if device is None:
-                from SModels import DeviceModel
-                data = DeviceModel.get(name, create)
+                from SModels import DeviceModel_
+                data = DeviceModel_.get(name, create)
                 if data:
                     device = SDevice_(data)
                     devices.append(device)                
@@ -62,17 +61,32 @@ class SDeviceMgr_:
         return next((d for d in self._devices if d.sid == sid), None)
 
     def getByID(self, id) -> Optional[SDevice_]:
+        # log = _G._G_.Log()
+        # for d in self._devices:
+        #     log.i(f'{d.id}, {d.name}')
         return next((d for d in self._devices if d.id == id), None)    
     
     @property
     def curDevice(self) -> Optional[SDevice_]:
         """获取当前设备"""
-        return self._curDevice
+        return self.devices[0]
+    
+    def addDevice(self, device: SDevice_):
+        devices = self._devices
+        exist = next((d for d in devices if d.id == device.id), None)
+        log = _G._G_.Log()
+        log.d_(f'添加设备fff: {device.id}, {device.name} exist={exist}')
+        if exist is None:
+            self._devices.append(device)
+        if device.isConsole:
+            _G._G_.addConsole(device.sid)
+    
+    def removeDevice(self, device: SDevice_):
+        self._devices.remove(device)
+        if device.isConsole:
+            _G._G_.removeConsole(device.sid)    
 
-    @curDevice.setter
-    def curDevice(self, value):
-        self._curDevice = value
-
+   
 ##########################################################
 # 命令处理
 ##########################################################

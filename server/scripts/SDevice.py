@@ -3,7 +3,7 @@ from pathlib import Path
 import json
 import os
 from flask import current_app
-from SModels import DeviceModel
+from SModels import DeviceModel_
 import _Log
 import base64
 from SEarningMgr import SEarningMgr_
@@ -15,7 +15,7 @@ class SDevice_(SModelBase_):
     SCREENSHOTS_DIR = os.path.join(_G.g.rootDir(), 'data', 'screenshots')
     
     def __init__(self, name):
-        super().__init__(name, DeviceModel)
+        super().__init__(name, DeviceModel_)
         self.sid = None
         self._state = 'offline'
         self._lastScreenshot = None
@@ -26,7 +26,7 @@ class SDevice_(SModelBase_):
     def all(cls):
         """获取所有设备"""
         devices = []
-        for d in DeviceModel.all():
+        for d in DeviceModel_.all():
             devices.append(cls(d))
         return devices
     
@@ -47,10 +47,14 @@ class SDevice_(SModelBase_):
             self.refresh()
    
     def toSheetData(self)->dict:
-        return {
+        """转换为表格数据"""
+        data = {
             'state': self._state,
             **self.data
         }
+        log = _G._G_.Log()
+        # log.i(f'转换为表格数据fff: {self.name}, {data}')
+        return data
     
     @classmethod
     def sendClient(cls, event: str, deviceID: int, data: dict)->bool:
@@ -109,6 +113,10 @@ class SDevice_(SModelBase_):
             self._state = 'online'
             self.setDBProp('lastTime', datetime.now())
             self.sid = sid
+            log = _G._G_.Log()
+            log.d_(f'设备连接回调: {self.name}, {sid}')
+            from SDeviceMgr import deviceMgr
+            deviceMgr.addDevice(self)
             self.commit()
             self.refresh()
             return True
@@ -124,6 +132,8 @@ class SDevice_(SModelBase_):
             _Log._Log_.i(f'设备 -----{self.name} 已断开连接')
             self.commit()
             self.refresh()  # 统一刷新状态
+            from SDeviceMgr import deviceMgr
+            deviceMgr.removeDevice(self)
             return True
         except Exception as e:
             _Log._Log_.ex(e, '设备断开连接处理失败')
@@ -132,9 +142,12 @@ class SDevice_(SModelBase_):
     def login(self):
         """设备登录"""
         try:
+            log = _G._G_.Log()
+            log.i(f'设备登录: {self.name}')
             self._state = 'login'
             self.setDBProp('lastTime', datetime.now())
             self.commit()
+            # log.i(f'设备登录2: {self.name}')
             self.refresh()  # 统一刷新状态
             return True
         except Exception as e:
@@ -174,7 +187,7 @@ class SDevice_(SModelBase_):
                 log.w(f'设备 {self.name} 会话无效')
                 return None
             # 发送命令
-            log.i(f'发送客户端命令: {self.name}, {command}, {data}， sid={sid}')
+            # log.i(f'发送客户端命令: {self.name}, {command}, {data}， sid={sid}')
             return g.emitRet('S2C_DoCmd', {
                 'command': command,
                 'sender': current_app.config['SERVER_ID'],
@@ -274,13 +287,13 @@ class SDevice_(SModelBase_):
                     # 更新数据库
                     with current_app.app_context():
                         for app_name in detected_apps:
-                            record = DeviceModel.query.filter_by(
+                            record = DeviceModel_.query.filter_by(
                                 name=self.name,
                                 state='detected'
                             ).first()
                             
                             if not record:
-                                record = DeviceModel(
+                                record = DeviceModel_(
                                     name=self.name,
                                     state='detected'
                                 )
@@ -288,7 +301,7 @@ class SDevice_(SModelBase_):
                             record.state = 'detected'
                         
                         db.session.commit()
-                        self.apps = DeviceModel.query.filter_by(
+                        self.apps = DeviceModel_.query.filter_by(
                             name=self.name).all()
                         
                     _Log._Log_.i(f'成功更新{len(detected_apps)}个应用到数据库')

@@ -5,7 +5,7 @@ import re
 import _G
 from typing import List
 # 导入数据库模块
-from LogModel import LogModel_   
+from SModels import LogModel_   
 from SModelBase import SModelBase_
 
 class TAG(Enum):

@@ -90,4 +90,12 @@ class Socketer {
     static getSocket() {
         return this.#socket;
     }
+
+    /**
+     * 新增: 支持 async/await 的 emitRet 封装
+     * 用法: const result = await Socketer.asyncEmit(event, data, timeout)
+     */
+    static async asyncEmit(event, data = {}, timeout = 5000) {
+        return await Socketer.emitRet(event, data, timeout);
+    }
 }

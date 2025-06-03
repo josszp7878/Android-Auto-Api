@@ -536,10 +536,10 @@ class _CmdMgr_:
             if hasattr(cls_obj, methodName):
                 regist = getattr(cls_obj, methodName)
                 if callable(regist):
-                    # log.i(f"加载类指令: {cls_name}")
+                    # log.d(f"加载类指令: {cls_name}")
                     try:
                         regist()
-                        log.i(f"注册指令模块: {clsName}")
+                        # log.d(f"注册指令模块: {clsName}")
                     except Exception as e:
                         log.ex(e, f"注册指令模块失败: {clsName}")
 

@@ -636,6 +636,66 @@ class CCmds_:
             else:
                 return f"e~无效页面: {name}"
             
+        @regCmd(r"#启动任务|qd(?P<taskName>\S+)")
+        def startTask(taskName:str):
+            """
+            功能：启动任务
+            参数：
+                taskName - 任务名称
+            示例：
+            启动任务 看广告
+            """
+            g = _G._G_
+            log = g.Log()
+            if not taskName:
+                log.e_("任务名称不能为空")
+                return False
+            task = g.App().getTask(taskName)
+            if not task:
+                log.e(f"任务创建失败: {taskName}")
+                return False
+            return task.begin()
+        
+        @regCmd(r"#更新任务|gx")
+        def updateTask():
+            """
+            功能：更新任务
+            示例：
+            更新任务 看广告 10
+            """
+            g = _G._G_
+            log = g.Log()
+            task = g.App().last().curTask
+            if not task:
+                return False
+            return task._refreshProgress()
+
+        @regCmd(r"#停止任务|tz(?P<task>\S+)")
+        def stopTask(task:str):
+            """
+            功能：停止任务
+            参数：
+                task - 任务名称
+            示例：
+            停止任务 看广告
+            """
+             #尝试将taskName转换为taskID
+            taskID = None
+            if task.isdigit():
+                taskID = int(task)
+            if taskID:
+                task = g.App().getTaskByID(taskID)
+                if not task:
+                    from CTask import CTask_
+                    CTask_._emitUpdate(taskID, {
+                        'state': TaskState.PAUSED.value,
+                    })
+            else:
+                task = g.App().getTask(task)
+            if not task:
+                log.e(f"任务不存在: {task}")
+                return False
+            return task.stop()  
             
         @regCmd(r"#执行|zx(?P<content>\S+)")
         def run(content:str):
@@ -690,12 +750,14 @@ class CCmds_:
             content = content.strip() if content else ''
             if content.startswith('!'):
                 taskName = content[1:]
-                tasks = g.App().getTasks(taskName)
-                for app, tasks in tasks.items():
-                    for task in tasks:
-                        task.stop()
-                        return f"停止任务 {task.name} 成功"
-        
+                task = g.App().getTask(taskName)
+                if not task:
+                    return f"e~任务不存在: {taskName}"
+                task.stop()
+            else:
+                g.App().stopAllTasks()
+                return f"停止所有任务成功"
+                
 
         @regCmd(r"#屏幕信息|pmxx|si(?P<text>.+)")
         def screenInfo(text=None):
@@ -766,31 +828,33 @@ class CCmds_:
             示例: 分值 支付宝-新手任务
             """
             return g.App().printTasks(taskName, lambda task: f"\t{task.name} {task.score}")
-            
-        @regCmd(r"#测试任务|testTask")
-        def testTask():
-            """
-            功能：启动自动进度更新的测试任务
-            """
-            try:
-                app = _G._G_.App()
-                taskName = "快手极速版-看广告"
-                task = app.getTask(taskName)
-                if not task:
-                    return "e~任务不存在"
-                # 创建并启动测试任务
-                if task.begin():
-                    task.progress = 0.0
-                    task.score = 0
-                    log.i(f"测试任务 {taskName} 已启动, 每秒更新进度")
-                    while task.state == TaskState.RUNNING and task.progress < 1.0:
-                        task.progress = min(task.progress + 0.1, 1.0)
-                        task.score += 1
-                        time.sleep(1)  # 精确1秒间隔
-                    task.end()
-                    return f"测试任务 {taskName} 已完成"
-                return "e~任务启动失败"
+        
+        # @regCmd(r"#更新任务|gx (?P<taskID>\d+)")
+        # def updateTask(taskID):
+        #     """
+        #     功能：更新任务
+        #     参数: taskID - 任务ID
+        #     示例: 更新任务 1
+        #     """
+        #     try:
+        #         app = _G._G_.App()
+        #         task = app.getTaskByID(taskID)
+        #         if not task:
+        #             log.e_(f"任务不存在: {taskID}")
+        #             return False
+        #         # 创建并启动测试任务
+        #         if task.begin(10):
+        #             task.progress = 0.0
+        #             task.score = 0
+        #             log.i(f"更新任务 {taskID} 已启动, 每秒更新进度")
+        #             while task.state == TaskState.RUNNING and task.progress < 1.0:
+        #                 task.progress = min(task.progress + 0.1, 1.0)
+        #                 task.score += 1
+        #                 time.sleep(1)  # 精确1秒间隔
+        #             task.end()
+        #             return f"更新任务 {taskID} 已完成"
+        #         return "e~任务启动失败"
                 
-            except Exception as e:
-                _G._G_.Log().ex(e, "测试任务创建失败")
-                return f"e~{str(e)}"            
+        #     except Exception as e:
+        #         _G._G_.Log().ex(e, "测试任务创建失败")
+        #         return f"e~{str(e)}"            

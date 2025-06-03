@@ -21,9 +21,6 @@ class SheetPage {
         this.devices = []; // 初始化为空数组
         this.tasks = []; // 初始化为空数组
         this.logs = []; // 初始化日志数据
-        this.socket = io({
-            query: { device_id: '@:Console1' }
-        });
         this.mainTable = null;
         this.contextMenu = document.getElementById('context-menu');
         
@@ -72,9 +69,9 @@ class SheetPage {
                         return state == 'running' ? '停止' : '执行';
                     },
                     action: (e, row) => {
-                        this.handleTaskAction(row.getData());
+                        this.handleTaskAction(row);
                     },
-                    disabled: (row) => ['success', 'failed'].includes(row.getData().state)
+                    // disabled: (row) => ['success', 'failed'].includes(row.getData().state)
                 }
             ],
             '设备': [
@@ -251,7 +248,7 @@ class SheetPage {
         // 初始化命令输入区域
         this.initCommandArea();
 
-        // 初始化Socket连接
+        // 先初始化Socket连接
         this.socketer = Socketer.init({
             deviceId: '@:Console1',
             queryParams: { 
@@ -259,6 +256,16 @@ class SheetPage {
                 version: '1.2.0'
             }
         });
+        
+        // 确保socket连接建立后再注册事件
+        const socket = Socketer.getSocket();
+        if (socket.connected) {
+            this.initSocketEvents(socket);
+        } else {
+            socket.on('connect', () => {
+                this.initSocketEvents(socket);
+            });
+        }
     }
     get curTabType() {
         return this.tabTypeMap[this.currentTabName];
@@ -352,7 +359,7 @@ class SheetPage {
             'type': type,
             'params': params
         };
-        this.socket.emit('B2S_setProp', data);
+        this.socketer.emit('B2S_setProp', data);
     }
     
     /**
@@ -494,14 +501,14 @@ class SheetPage {
     /**
      * Socket事件监听
      */
-    initSocket() {        
-        this.socket = io({
-            query: {
-                device_id: '@:Console1'
-            }
-        });               
+    initSocketEvents(sio) {        
         // 监听表格数据更新
-        this.socket.on('S2B_sheetUpdate', (data) => { 
+        console.log('initSocketEvents', sio);
+        if (!sio) {
+            console.error('Socket未初始化');
+            return;
+        }
+        sio.on('S2B_sheetUpdate', (data) => { 
             // 统一使用映射表检查类型
             if (!Array.isArray(data.data)) return;
             const targetTab = Object.keys(this.tabTypeMap).find(
@@ -523,7 +530,6 @@ class SheetPage {
                     break;
             }
         });
-
     }
 
     
@@ -569,8 +575,6 @@ class SheetPage {
      */
     toSheetData(data, dataType) {
         if (!Array.isArray(data)) return [];
-        
-        // 获取对应表格的列定义
         let columns = [];
         switch (dataType) {
             case this.DataType.TASKS:
@@ -583,84 +587,84 @@ class SheetPage {
                 columns = this.getLogColumns();
                 break;
             default:
-                return data; // 未知类型，直接返回原数据
+                return data;
         }
-        
         const fieldNames = columns.map(col => col.field);
-        
         return data.map(item => {
-            // 日志类型自动补全 date 字段
-            if (dataType === this.DataType.LOGS) {
-                if (!item.date && item.time) {
-                    // 假设 time 格式为 "YYYY-MM-DD HH:mm:ss"
-                    item.date = item.time.split(' ')[0];
-                }
-                if (!item.level) item.level = 'i';
-                if (!item.tag) item.tag = '';
-                if (!item.sender) item.sender = '';
-            }
-            // 必须包含所有必填字段
-            const requiredFields = {
-                [this.DataType.TASKS]: ['date', 'name', 'deviceId']
-            }[dataType] || [];
-            
-            // 检查必填字段,并将缺少的字段打印出来     
-            for (const f of requiredFields) {
-                if (!item[f]) {
-                    console.error('数据项缺少必填字段:', { 
-                        id: item.id, 
-                        missing: f,
-                        rawData: item 
-                    });
-                }
-            }
-
-            const result = { id: item.id };            
+            const result = { id: item.id };
             fieldNames.forEach(field => {
                 if (field === 'id') return;
-                
-                if (item[field] === undefined || item[field] === null) {
-                    // 特殊处理life字段
-                    if(field === 'life') {
-                        result[field] = item.life || 0;
-                        return;
-                    }
-                    // 特殊处理state字段
-                    if(field === 'state') {
-                        result[field] = this._validateEnum(item[field], this.taskStatusMap, 'idle');
-                        return;
-                    }
-                    // 其他字段保持原有默认值逻辑...
-                } else {
-                    // 验证字段值的合法性
-                    try {
-                        // 针对不同类型字段的验证
-                        switch (field) {
-                            case 'progress':
-                                const progress = parseFloat(item[field]);
-                                result[field] = isNaN(progress) ? 0 : Math.min(Math.max(progress, 0), 1);
-                                break;
-                            case 'score':
-                                const score = parseFloat(item[field]);
-                                result[field] = isNaN(score) ? 'ERR' : score;
-                                break;
-                            case 'level':
-                                result[field] = this._validateEnum(item[field], this.logLevelMap, 'i');
-                                break;
-                            default:
-                                result[field] = item[field];
+                let value = item[field];
+                // 统一处理默认值和合法性
+                switch (field) {
+                    case 'date':
+                        // date字段，优先用item.date，没有则尝试从time中提取，否则today
+                        if (!value) {
+                            if (item.time && typeof item.time === 'string' && item.time.includes(' ')) {
+                                value = item.time.split(' ')[0];
+                            } else {
+                                value = this.today;
+                            }
                         }
-                    } catch (e) {
-                        console.error(`字段${field}处理出错:`, e);
-                        result[field] = 'ERR';
-                    }
+                        break;
+                    case 'time':
+                        // time字段，从item.time提取当天时间部分，没有则空字符串
+                        if (item.time && typeof item.time === 'string' && item.time.includes(' ')) {
+                            value = item.time.split(' ')[1];
+                        } else {
+                            value = '';
+                        }
+                        break;
+                    case 'level':
+                        value = this._validateEnum(value, this.logLevelMap, 'i');
+                        break;
+                    case 'tag':
+                        value = value || '';
+                        break;
+                    case 'sender':
+                        value = value || '';
+                        break;
+                    case 'progress':
+                        value = parseFloat(value);
+                        value = isNaN(value) ? 0 : Math.min(Math.max(value, 0), 1);
+                        break;
+                    case 'score':
+                        value = parseFloat(value);
+                        value = isNaN(value) ? 'ERR' : value;
+                        break;
+                    case 'state':
+                        // 分不同表格，使用不同的枚举表
+                        switch (dataType) {
+                            case this.DataType.TASKS:
+                                value = this._validateEnum(value, this.taskStatusMap, 'idle');
+                                break;
+                            case this.DataType.DEVICES:
+                                value = this._validateEnum(value, this.deviceStatusMap, 'offline');
+                                break;
+                        }
+                        break;
+                    case 'life':
+                        value = value || 0;
+                        break;
+                    default:
+                        // 其它字段直接赋值
+                        break;
                 }
+                result[field] = value;
             });
+            // // 检查必填字段
+            // const requiredFields = {
+            //     [this.DataType.TASKS]: ['time', 'name', 'deviceId'],
+            //     [this.DataType.DEVICES]: ['name', 'deviceId'],
+            //     [this.DataType.LOGS]: ['time', 'level', 'tag', 'sender']
+            // }[dataType] || [];
+            // for (const f of requiredFields) {
+            //     if (!result[f]) {
+            //         console.error('数据项缺少必填字段:', { id: item.id, missing: f, rawData: item });
+            //     }
+            // }
             return result;
-        }).filter(item => {
-            // 过滤掉无效日期
-            return item !== null && item.date !== 'INVALID_DATE';
-        });
+        }).filter(item => item !== null && item.date !== 'INVALID_DATE');
     }
     
     
@@ -836,7 +840,7 @@ class SheetPage {
                 },
                 formatter: "lookup",
                 formatterParams: Object.fromEntries(
-                    Object.entries(this.taskStatusMap).map(([k, v]) => [k, v.label]) // 显示状态标签
+                    Object.entries(this.taskStatusMap).map(([k, v]) => [k, v.formatter]) // 显示状态标签
                 )
             },
             {
@@ -1240,7 +1244,8 @@ class SheetPage {
     /**
      * 处理任务操作
      */
-    handleTaskAction(data) {
+    async handleTaskAction(row) {
+        const data = row.getData();
         console.log(`处理任务操作: ${data.state}, 任务名称: ${data.name}`);
         let cmd = '';
         let task = this.tasks.find(t => t.id === data.id);        
@@ -1248,31 +1253,38 @@ class SheetPage {
             console.warn('未找到对应的任务');
             return;
         }
-        
         // 根据操作类型确定命令
-        switch (data.state) {
-            case 'running':
-                cmd = `stop !${task.name}`;
-                break;
-            case 'paused':
-                cmd = `run !${task.name}`;
-                break;
-            default:
-                return;
+        let toState = null;
+        if (data.state === 'running') {
+            cmd = `stopTask ${task.id}`;
+            toState = 'paused';
+        } else {
+            cmd = `startTask ${task.name}`;
+            toState = 'running';
         }
-        this.sendCmd(cmd, [data.deviceId]);
+        const ret = await this.sendCmd(cmd, [data.deviceId]);
+        if (ret) {
+            task.state = toState;
+            // 单独更新任务对应的行
+            row.update({state: toState});
+        }
+        console.log("发送命令: 结果。。。。。", cmd, ret);
     }
 
-    sendCmd(cmd, targets, params) {
+    async sendCmd(cmd, targets, params) {
         if (targets.length === 0) {
             // 没有指定目标，使用服务器
             targets = ['@'];
         }
-        this.socket.emit('2S_Cmd', { 
+        const socket = this.socketer;
+        const ret = await socket.emitRet('2S_Cmd', { 
             command: cmd, 
             targets: targets,
             params: params
         });
+        if (ret.length === 1) 
+            return ret[0];
+        return ret;
     }
 
 
@@ -1414,7 +1426,22 @@ class SheetPage {
         
         // 添加到历史记录
         this.addCommandToHistory(command);
-        this.sendCmd(command, this.targets[this.curTabType]);
+        //默认deviceIds为当前选中设备
+        let deviceIds = this.targets[this.DataType.DEVICES];
+        // 命令格式为 设备名列表> 命令
+        if (command.includes('>')) {
+            const targets = command.split('>')[0].split(',');        
+            //将targets中的设备名转换为设备ID，如果他不是数字的话
+            deviceIds = targets.map(name => {
+                // 如果name是数字，则直接返回
+                if (!isNaN(name)) {
+                    return name;
+                }
+                // 如果name不是数字，则查找设备ID
+                return this.devices.find(d => d.name === name)?.id;
+            });
+        }
+        this.sendCmd(command, deviceIds);
         // 清空输入框
         commandInput.value = '';
         this.historyIndex = -1;

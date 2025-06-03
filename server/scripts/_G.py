@@ -27,18 +27,14 @@ TEMP = "temp"
 ROOT = "root"
 ServerTag = "@"
 
-class TaskState(Enum):
+class TaskState(str,Enum):
     """任务状态"""
     IDLE = "idle"
     RUNNING = "running"
     PAUSED = "paused"
     SUCCESS = "success"
     FAILED = "failed"
-
-    @staticmethod
-    def values():
-        """返回所有状态值"""
-        return [state.value for state in TaskState]
+    
 
 class _G_:
     # 使用线程安全的存储
@@ -51,8 +47,7 @@ class _G_:
     
     android = None   # Android服务对象，由客户端设置
     _sio = None  # 实际的Socket.IO实例
-    _consoles = []  # 当前连接的控制台列表
-    _curConsole = None  # 当前控制台
+    _consoles = set()  # 当前连接的控制台列表
     _pending_requests = {}  # {request_id: (event, callback/future)}
     _rpc_lock = threading.Lock()
 
@@ -84,11 +79,18 @@ class _G_:
 
 
     @classmethod
-    def setCurConsole(cls, sid):
-        """设置当前控制台"""
-        if sid not in cls._consoles:
-            cls._consoles.append(sid)
-        cls._curConsole = sid
+    def addConsole(cls, sid: str):
+        """添加控制台"""
+        if sid:
+            cls._consoles.add(sid)
+            print(f'addConsole: {cls._consoles}')
+    
+    @classmethod
+    def removeConsole(cls, sid: str):
+        """删除控制台"""
+        if sid:
+            cls._consoles.remove(sid)
+            print(f'removeConsole: {cls._consoles}')
 
     @classmethod
     def connect(cls):
@@ -99,28 +101,32 @@ class _G_:
         return True
 
     @classmethod
-    def emit(cls, event, data=None, sid=None, timeout=8)->bool:
+    def emit(cls, event, data=None, sid=None, timeout=8, callback=None)->bool:
         """发送事件并等待结果"""
         try:
             sio = cls._sio
-            if sio is None:
-                return False
             log = cls.log
-            from _Log import _Log_
-            if isinstance(data, _Log_):
-                log.t(f'bbbbbbbbbbb: {event}, {data}')
+            # log.i_(f'emit: {event}, {callback}')
+            if sio is None:
+                log.e('socketio无效')
+                return False
+            # print(f'emit: {event}, {data}, {sid}')
             if cls.isServer():
                 if sid:
-                    sio.emit(event, data, room=sid)
-                else:
-                    sio.emit(event, data)
+                    sio.emit(event, data, room=sid, callback=callback)
+                else:                    
+                    # log.i_(f'emit: {event}, console count={len(cls._consoles)}, data={data}')
+                    for sid in cls._consoles:
+                        sio.emit(event, data, room=sid, callback=callback)
             else:
                 device = cls.CDevice()
                 if not device:
                     log.ex_(f"设备未连接: {event}, {data}")
                     return False
+                if data is None:
+                    data = {}
                 data['device_id'] = device.deviceID()
-                sio.emit(event, data)
+                sio.emit(event, data, callback=callback)
         except Exception as e:
             log.ex_(e, f"发送事件失败: {event}, {data}")
             return False
@@ -130,53 +136,25 @@ class _G_:
         """发送事件并等待结果"""
         try:
             log = cls.log
-            sio = cls._sio
-            log.i(f'发送ddd: event={event}, data={data}')
-            if sio is None:
-                return False
+            # log.i_(f'发送ddd: event={event}, data={data}')
             result = None
-            def onResult(response):
+            wait = True
+            def onResult(*args):
                 nonlocal result
-                # 如果response为None，则返回False,必须返回一个值，否则会一直等待
-                result = response or False
-                log.i(f'收到事件结果: {result}')
+                nonlocal wait
+                response = args[0] if args else None
+                result = response
+                log.i_(f'收到事件结果: {result}')
+                wait = False
                 return result
-            
-            # log.i(f'发送事件2222222: isServer={cls.isServer()}')
-            if cls.isServer():
-                if sid:
-                    log.i(f'发送事件: {event}, {data}, room={sid}')
-                    sio.emit(event, data, room=sid, callback=onResult)
-                else:
-                    log.i(f'发送事件: {event}, {data}')
-                    sio.emit(event, data, callback=onResult)
-            else:
-                device = cls.CDevice()
-                if not device:
-                    log.ex_(f"设备未连接: {event}, {data}")
-                    return False
-                if data is None:
-                    data = {}
-                data['device_id'] = device.deviceID()
-                sio.emit(event, data, callback=onResult)
-            while result is None:
+            if not cls.emit(event, data, sid, timeout, onResult):
+                result = None
+            while wait:
                 time.sleep(0.1)
             return result
         except Exception as e:
             log.ex_(e, f"发送事件失败: {event}, {data}")
-            return False
-    
-    @classmethod
-    def emit2B(cls, event, data, sids=None)->bool:
-        """发送事件到控制台"""
-        if sids is None:
-            sids = cls._consoles
-        result = True
-        for sid in sids:
-            re = cls.emit(event, data, sid)
-            if not re:
-                result = False
-        return result
+            return None
     
     @classmethod
     def rpc(cls, event, data=None, timeout=8):
