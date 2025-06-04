@@ -34,7 +34,13 @@ class TaskState(str,Enum):
     PAUSED = "paused"
     SUCCESS = "success"
     FAILED = "failed"
-    
+
+class ConnectState(str,Enum):
+    """连接状态"""
+    ONLINE = "online"
+    OFFLINE = "offline"
+    LOGIN = "login"
+    LOGOUT = "logout"
 
 class _G_:
     # 使用线程安全的存储
@@ -144,7 +150,7 @@ class _G_:
                 nonlocal wait
                 response = args[0] if args else None
                 result = response
-                log.i_(f'收到事件结果: {result}')
+                log.i_(f'收到事件结果: event={event}, result={result}')
                 wait = False
                 return result
             if not cls.emit(event, data, sid, timeout, onResult):

@@ -40,8 +40,8 @@ def onB2S_setProp(data):
         if type == 'devices':
             target = deviceMgr.getByID(targetID)
         elif type == 'tasks':
-            from STask import STask_
-            target = STask_.getByID(targetID)
+            from SDeviceMgr import deviceMgr
+            target = deviceMgr.getTaskByID(targetID)
         # log.i(f'更新设备属性11: {type}, {targetID}, {params}, {target}')    
         if target is None:
             log.e(f'更新属性失败, 目标：{type} {targetID} 不存在')
@@ -221,16 +221,25 @@ def onB2S_loadDatas(data):
         type = data.get('type')
         filters = data.get('filters', {})
         date = filters.get('date')
-        # log.i(f'获取数据: type={type}, filters={filters}, date={date}')
         if type == 'devices':
-            # 获取普通设备数据
             from SDeviceMgr import deviceMgr
             datas = [device.toSheetData() for device in deviceMgr.devices]
         elif type == 'tasks':
-            # 获取任务数据
             log.i(f'获取任务数据: {date}')
-            from STask import STask_
-            datas = [task.toSheetData() for task in STask_.gets(date)]
+            from SDeviceMgr import deviceMgr
+            from datetime import datetime
+            if date is None:
+                date = datetime.now().date()
+            else:
+                date = datetime.strptime(date, '%Y-%m-%d').date()
+            devices = deviceMgr.devices
+            # 在线设备优先
+            devices = sorted(devices, key=lambda d: not d.isConnected)
+            datas = []
+            for device in devices:
+                tasks = device.getTasks(date)
+                for task in tasks:
+                    datas.append(task.toSheetData())
         elif type == 'logs':
             from _Log import _Log_  
             datas = [log.toSheetData() for log in _Log_.gets(date)]

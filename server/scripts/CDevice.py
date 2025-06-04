@@ -9,15 +9,8 @@ class CDevice_:
     _instance = None  # 单例实例
     _server = None
     _deviceID = None
-    _connected = False
     _executor = ThreadPoolExecutor(max_workers=4)
-    _state = 'offline'  # 新增，维护设备状态
-    _connectLock = threading.Lock()
-
-    @classmethod
-    def connected(cls):
-        return cls._connected
-
+    _state = _G.ConnectState.OFFLINE  # 新增，维护设备状态
 
     @classmethod
     def deviceID(cls):
@@ -32,20 +25,17 @@ class CDevice_:
         if not hasattr(cls, 'initialized'):
             cls._deviceID = deviceID
             cls._server = server
-            cls._connected = False
             # 配置 socketio 客户端（关闭自动重连）
             sio = socketio.Client(
                 reconnection=False,  # 关闭自动重连
                 logger=False,  # 关闭详细日志
                 engineio_logger=False  # 关闭 Engine.IO 日志
             )
-            sio.on('connect')(cls.on_connect)
             sio.on('S2C_DoCmd')(cls.onS2C_DoCmd)
             sio.on('S2C_CmdResult')(cls.onS2C_CmdResult)
             sio.on('S2C_updateDevice')(cls.handleUpdateDevice)
             sio.on('S2C_updateTask')(cls.handleUpdateTask)
             sio.on('disconnect')(cls.on_disconnect)
-            sio.on('connect_error')(cls.on_connect_error)
             _G._G_.setIO(sio)
             cls.initialized = True
 
@@ -63,30 +53,29 @@ class CDevice_:
         """断开连接"""
         g = _G._G_
         log = g.Log()
-        if cls._state == 'offline':
-            log.i(f'设备 {cls._deviceID} 已处于离线状态，无需断开')
-            return False
         try:
-            if cls._connected:
-                log.i(f'正在断开设备 {cls._deviceID} 的连接...')
-                g.sio().disconnect()
-                log.i(f'设备 {cls._deviceID} 已断开连接')
-                cls._connected = False
-                cls._state = 'offline'  # 断开后状态设为offline
-                return True
-            else:
-                log.i(f'设备 {cls._deviceID} 未连接，无需断开')
+            if cls._state == _G.ConnectState.OFFLINE:
+                log.i(f'设备 {cls._deviceID} 已处于离线状态，无需断开')
                 return False
+            log.i(f'正在断开设备 {cls._deviceID} 的连接...')
+            g.sio().disconnect()
+            log.i(f'设备 {cls._deviceID} 已断开连接')
+            cls._state = _G.ConnectState.OFFLINE  # 断开后状态设为offline
+            return True
         except Exception as e:
             log.ex(e, '断开连接时发生错误')
             return False
+
+    @classmethod
+    def connected(cls) -> bool:
+        return cls._state == _G.ConnectState.ONLINE
 
     @classmethod
     def connect(cls) -> bool:
         g = _G._G_
         log = g.Log()
         try:
-            if cls._connected:
+            if cls._state == _G.ConnectState.ONLINE:
                 log.i('客户端已经连接')
                 return True
             connect_url = f"{g.Tools().getServerURL(cls._server)}?device_id={cls._deviceID}"
@@ -99,11 +88,11 @@ class CDevice_:
                 wait_timeout=5
             )
             if sio.connected:
-                cls._state = 'online'
+                cls._state = _G.ConnectState.ONLINE
                 return cls.login()
             else:
                 g.Tools().toast("无法连接到服务器")
-                cls._state = 'offline'
+                cls._state = _G.ConnectState.OFFLINE
                 return False
         except Exception as e:
             log.ex(e, '连接失败')
@@ -118,7 +107,7 @@ class CDevice_:
             ok = g.emitRet('C2S_Login')
             if ok:
                 log.i_("登录成功")
-                cls._state = 'login'  # 登录成功，状态设为login
+                cls._state = _G.ConnectState.LOGIN  # 登录成功，状态设为login
                 return True
             log.e_("登录失败")
             return False
@@ -133,7 +122,7 @@ class CDevice_:
         log = g.Log()
         g.emit('C2S_Logout', {})
         log.i(f'设备 {cls._deviceID} 登出')
-        cls._state = 'logout'  # 登出后状态设为logout
+        cls._state = _G.ConnectState.LOGOUT  # 登出后状态设为logout
 
 
     @classmethod
@@ -159,30 +148,7 @@ class CDevice_:
             log.ex(e, f'执行命令出错: {command}')
             return None
 
-    @classmethod
-    def on_connect(cls):
-        """连接成功回调"""
-        g = _G._G_
-        log = g.Log()
-        log.i(f'已连接到服务器, server: {cls._server}')
-        cls._connected = True
-        cls._state = 'online'  # 连接成功，状态设为online
-        threading.Thread(target=cls.login, daemon=True).start()
 
-    @classmethod
-    def on_connect_error(cls, data):
-        """连接错误回调"""
-        g = _G._G_
-        log = g.Log()
-        log.e(f'连接错误: {data}')
-        # 尝试记录更详细的错误信息
-        if hasattr(data, 'args') and len(data.args) > 0:
-            log.e(f'连接错误详情: {data.args[0]}')
-
-        # 如果是认证错误，可能是设备ID冲突
-        error_msg = str(data)
-        if 'authentication' in error_msg.lower() or 'auth' in error_msg.lower():
-            log.e(f'可能是设备ID {cls._deviceID} 已被使用，请尝试使用其他设备ID')
 
     @classmethod
     def on_disconnect(cls):
@@ -190,8 +156,7 @@ class CDevice_:
         g = _G._G_
         log = g.Log()
         log.w(f'设备 {cls._deviceID} 断开连接')
-        cls._connected = False
-        cls._state = 'offline'  # 断开连接，状态设为offline
+        cls._state = _G.ConnectState.OFFLINE  # 断开连接，状态设为offline
 
     @classmethod
     def send_command(cls, cmd):

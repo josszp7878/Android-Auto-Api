@@ -3,7 +3,7 @@ from pathlib import Path
 import json
 import os
 from flask import current_app
-from SModels import DeviceModel_
+from SModels import DeviceModel_, TaskModel_
 import _Log
 import base64
 from SEarningMgr import SEarningMgr_
@@ -17,11 +17,18 @@ class SDevice_(SModelBase_):
     def __init__(self, name):
         super().__init__(name, DeviceModel_)
         self.sid = None
-        self._state = 'offline'
+        self._state = _G.ConnectState.OFFLINE
         self._lastScreenshot = None
         self._ensure_screenshot_dir()
         self.apps = []
+        self._tasks = None  # 缓存当天任务列表
+        self.tasksDate = None  # 当前缓存的日期
 
+    @property
+    def tasks(self):
+        """获取任务列表"""
+        return self._tasks
+    
     @classmethod
     def all(cls):
         """获取所有设备"""
@@ -103,14 +110,13 @@ class SDevice_(SModelBase_):
         self.screenshot_dir = Path(self.SCREENSHOTS_DIR) / (str(self.id))
         self.screenshot_dir.mkdir(parents=True, exist_ok=True)
 
-    @property
-    def isConnected(self):
-        return self._state != 'offline'
+    def isConnected(self) -> bool:
+        return self._state != _G.ConnectState.OFFLINE
 
     def onConnect(self, sid):
         """设备连接回调"""
         try:
-            self._state = 'online'
+            self._state = _G.ConnectState.ONLINE
             self.setDBProp('lastTime', datetime.now())
             self.sid = sid
             log = _G._G_.Log()
@@ -127,7 +133,7 @@ class SDevice_(SModelBase_):
     def onDisconnect(self):
         """设备断开连接回调"""
         try:
-            self._state = 'offline'
+            self._state = _G.ConnectState.OFFLINE
             self.setDBProp('lastTime', datetime.now())
             _Log._Log_.i(f'设备 -----{self.name} 已断开连接')
             self.commit()
@@ -144,11 +150,11 @@ class SDevice_(SModelBase_):
         try:
             log = _G._G_.Log()
             log.i(f'设备登录: {self.name}')
-            self._state = 'login'
+            self._state = _G.ConnectState.LOGIN
             self.setDBProp('lastTime', datetime.now())
             self.commit()
-            # log.i(f'设备登录2: {self.name}')
             self.refresh()  # 统一刷新状态
+            self._initTasks()
             return True
         except Exception as e:
             _Log._Log_.ex(e, '设备登录失败')
@@ -157,7 +163,7 @@ class SDevice_(SModelBase_):
     def logout(self):
         """设备登出"""
         try:
-            self._state = 'logout'
+            self._state = _G.ConnectState.LOGOUT
             self.setDBProp('lastTime', datetime.now())
             self.commit()
             self.refresh()  # 统一刷新状态
@@ -179,7 +185,7 @@ class SDevice_(SModelBase_):
         try:
             g = _G._G_ 
             log = g.Log()
-            if not self.isConnected:
+            if not self.isConnected():
                 log.w(f'设备 {self.name} 未连接')
                 return None 
             sid = self.sid
@@ -236,7 +242,7 @@ class SDevice_(SModelBase_):
     def takeScreenshot(self):
         """向客户端发送截屏指令"""
         try:
-            if self._state != 'login':
+            if self._state != _G.ConnectState.LOGIN:
                 _Log._Log_.w(f'设备 {self.name} 未登录，无法截屏')
                 return False
             self.sendClientCmd(
@@ -391,6 +397,50 @@ class SDevice_(SModelBase_):
         except Exception as e:
             log.ex(e, f"从文件加载屏幕信息失败: {pageName}")
             return None
+
+    def getTasks(self, date=None):
+        """获取指定日期的任务列表，默认当天，按天缓存"""
+        from SModels import TaskModel_
+        from STask import STask_
+        from datetime import datetime
+        if date is None:
+            date = datetime.now().date()
+        if self._tasks is not None and self.tasksDate == date:
+            return list(self._tasks.values())
+        # 重新加载
+        self._tasks = {}
+        self.tasksDate = date
+        tasks = [STask_(t) for t in TaskModel_.all(date, f"deviceId = {self.id}")]
+        for t in tasks:
+            self._tasks[t.id] = t
+        return tasks
+
+    
+    def _initTasks(self):
+        """初始化今天任务列表"""
+        log = _G._G_.Log()
+        try:
+            from datetime import datetime
+            today = datetime.now().date()
+            tasks = self.getTasks(today)
+            if len(tasks) == 0:
+                from Task import TaskBase
+                from STask import STask_
+                for taskName, config in TaskBase.getConfig().items():
+                    # 先查缓存
+                    task = next((t for t in tasks if t.name == taskName), None)
+                    if not task:
+                        # 不存在则尝试创建（TaskModel_.get已做唯一性判定）
+                        data = TaskModel_.get(self.id, taskName, today, True)
+                        if data:
+                            task = STask_(data)
+                            self._tasks[task.id] = task
+            log.i(f'初始化任务列表: 任务数 {len(self._tasks)}')
+        except Exception as e:
+            log.ex(e, '初始化任务列表失败')
+
+
+ 
 
     
 

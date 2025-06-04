@@ -68,6 +68,7 @@ class SModelBase_:
             if self.modelClass is None:
                 log.ex(e, '提交数据更新失败,modelClass为空')
                 return False
+            log.d(f'提交数据更新111: {self.data}')
             self.modelClass.commit(self.data)
             self._isDirty = False
             return True

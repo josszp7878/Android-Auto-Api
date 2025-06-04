@@ -678,7 +678,7 @@ class _CmdMgr_:
                 device = g.CDevice()
                 return {
                     "deviceID": device.deviceID if device else "未知",
-                    "state": "已连接" if device.connected else "未连接",
+                    "state": device.state(),
                     "timestamp": str(datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
                 }
     

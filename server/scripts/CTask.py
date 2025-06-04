@@ -6,6 +6,7 @@ from _G import TaskState
 import _G
 from typing import TYPE_CHECKING
 import socket
+from Task import TaskBase
 
 if TYPE_CHECKING:
     from _Page import _Page_
@@ -13,27 +14,23 @@ if TYPE_CHECKING:
     from _Log import _Log_
     from _G import _G_
 
-class CTask_:
+class CTask_(TaskBase):
     """客户端任务类"""
-    
-    # 任务配置字典
-    taskConfigs = {}
     
     def __init__(self, name: str, config: dict, app: "_App_"):
         """初始化任务"""
         self._app: "_App_" = app
         self._startTime = datetime.now()
-        self._endTime = None
-        self._score = 0
-        self._progress = 0.0
-        self._state = TaskState.IDLE
-        self._lastInPage = False
-        self._id = 0    
-        self._name = name
-        self._life = None
-        self._interval = None
-        self._pageName = None
-        self._pageData = {}
+        self._score: int = 0
+        self._progress: int = 0
+        self._state: TaskState = TaskState.IDLE
+        self._lastInPage: bool = False
+        self._id: int = 0    
+        self._name: str = name
+        self._life: int = None
+        self._interval: int = None
+        self._pageName: str = None
+        self._pageData: dict = {}
         self._beginScript = None  # 修改为begin脚本
         self._exitScript = None   # 修改为exit脚本
         self._page: "_Page_" = None  # 目标页面
@@ -85,36 +82,11 @@ class CTask_:
             os.makedirs(configDir)
         return os.path.join(configDir, "task.json")
     
-    @classmethod
-    def loadConfig(cls):
-        """加载任务配置"""
-        log = _G.g.Log()
-        try:
-            configPath = cls._getConfigPath()
-            if os.path.exists(configPath):
-                with open(configPath, "r", encoding="utf-8") as f:
-                    configs = json.load(f)
-                    cls.taskConfigs.update(configs)
-        except Exception as e:
-            log.ex(e, f"加载任务配置失败: {configPath}")
-    
-    @classmethod
-    def _saveConfig(cls):
-        """保存任务配置"""
-        log = _G.g.Log()
-        try:
-            configPath = cls._getConfigPath()
-            with open(configPath, "w", encoding="utf-8") as f:
-                json.dump(cls.taskConfigs, f, ensure_ascii=False, indent=4)
-        except Exception as e:
-            log.ex(e, f"保存任务配置失败: {configPath}")
     
     @classmethod
     def _getConfig(cls, taskName):
         """获取任务配置"""
-        if not cls.taskConfigs:
-            cls.loadConfig()
-        return cls.taskConfigs.get(taskName)
+        return TaskBase.getConfig(taskName)
     
     @classmethod
     def create(cls, taskName, app):
@@ -251,7 +223,7 @@ class CTask_:
         if data is None or not isinstance(data, dict):
             return
         self._id = int(data.get('id'))
-        self._progress = float(data.get('progress'))
+        self._progress = int(data.get('progress'))
         self._state = TaskState(data.get('state'))
         self._score = int(data.get('score'))
         self._life = int(data.get('life'))
@@ -339,9 +311,10 @@ class CTask_:
             return
         check = g.Tools().check(self.check) if self.check else True
         if check:
+            bonus = self.bonus or 0
             #本次任务完成
-            if self.bonus > 0:
-                self._score += self.bonus
+            if bonus > 0:
+                self._score += bonus
             # 增加执行计数
             if self._refreshProgress():
                 if not self._next(g):
@@ -378,25 +351,24 @@ class CTask_:
         if self.state != TaskState.RUNNING:
             return False
         life = self.life
-        if life != 0:
-            progress = self.progress
-            if life > 0:  # 时间模式
-                # 计算当前会话运行时间
-                curTime = datetime.now()
-                self._deltaTime = (curTime - self._lastTime).total_seconds()
-                self._lastTime = curTime
-                # 累加到总进度中
-                progress += self._deltaTime / life
-            else:  # 次数模式
-                # 次数模式下，_execCount已经在_do中累加
-                progress += 1 / abs(life)
-            
-            self.progress = min(max(0.0, progress), 1.0)
-        else:
-            self.progress = 1.0
-        _G.g.Log().i(f"任务{self._name}进度: {self.progress:0.2f}")
+        if life == 0:
+            # 没有生命周期，不做进度更新
+            return True
+        progress = self.progress
+        if life > 0:  # 时间模式
+            # 计算当前会话运行时间
+            curTime = datetime.now()
+            self._deltaTime = (curTime - self._lastTime).total_seconds()
+            self._lastTime = curTime
+            # 累加到总进度中
+            progress += self._deltaTime
+        else:  # 次数模式
+            # 次数模式
+            progress += 1
+        percent = progress / float(abs(life))
+        _G.g.Log().i(f"任务{self._name}进度: {percent:0.2f}")
         # 进度完成处理
-        if self.progress >= 1.0:
+        if percent >= 1.0:
             self.end()
             return False
         return True

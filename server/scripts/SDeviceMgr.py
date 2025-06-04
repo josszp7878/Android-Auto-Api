@@ -61,10 +61,17 @@ class SDeviceMgr_:
         return next((d for d in self._devices if d.sid == sid), None)
 
     def getByID(self, id) -> Optional[SDevice_]:
-        # log = _G._G_.Log()
-        # for d in self._devices:
-        #     log.i(f'{d.id}, {d.name}')
         return next((d for d in self._devices if d.id == id), None)    
+    
+    @classmethod
+    def getTaskByID(self, taskID):
+        """根据ID获取任务"""
+        for d in self._devices:
+            task = next((t for t in d.tasks if t.id == taskID), None)
+            if task:
+                return task
+        return None
+
     
     @property
     def curDevice(self) -> Optional[SDevice_]:

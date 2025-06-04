@@ -1,102 +1,149 @@
 from datetime import datetime
 from SDatabase import db, Database
 import _G
+import sqlalchemy
 
 class SModel_:
-    """基础模型类"""
-    def __init__(self, table: str):
+    """基础模型类，只支持('type', default) tuple字段声明"""
+    def __init__(self, table: str, fields: dict = None, pk: str = 'id'):
         self.table = table
+        self.fields = self._normalizeFields(fields or {})
+        self.pk = pk
 
-    def all(self, date: datetime = None):
-        """获取所有任务记录"""
+    def _normalizeFields(self, fields):
+        new_fields = {}
+        for k, v in fields.items():
+            if isinstance(v, tuple) and len(v) == 2:
+                new_fields[k] = {'type': v[0], 'default': v[1]}
+            else:
+                raise ValueError(f"字段{repr(k)}的定义必须为('type', default) tuple")
+        return new_fields
+
+    def _fillDefaults(self, data: dict, skip_pk=True):
+        # 自动补齐未传字段，优先用fields的default
+        result = {}
+        for k, v in self.fields.items():
+            if skip_pk and k == self.pk:
+                continue
+            if k in data:
+                result[k] = data[k]
+            elif 'default' in v:
+                d = v['default']
+                result[k] = d() if callable(d) else d
+            else:
+                result[k] = None
+        return result
+
+    def genInsertSql(self):
+        keys = [k for k in self.fields if k != self.pk]
+        columns = ', '.join(keys)
+        values = ', '.join([f':{k}' for k in keys])
+        return f"INSERT INTO {self.table} ({columns}) VALUES ({values})"
+
+    def genUpdateSql(self):
+        keys = [k for k in self.fields if k != self.pk]
+        setStr = ', '.join([f"{k} = :{k}" for k in keys])
+        return f"UPDATE {self.table} SET {setStr} WHERE {self.pk} = :{self.pk}"
+
+    def genSelectSql(self):
+        columns = ', '.join(self.fields.keys())
+        return f"SELECT {columns} FROM {self.table}"
+
+    def all(self, date: datetime = None, where: str = None):
         try:
-            sql = f"SELECT * FROM {self.table}"
-            if date:
+            sql = self.genSelectSql()
+            params = {}
+            if date and 'time' in self.fields:
                 sql += " WHERE date(time) = :date"
-            result = db.session.execute(sql, {'date': date})
+                params['date'] = date
+            if where:
+                sql += f" AND {where}"
+            result = db.session.execute(sql, params)
             return [self.toDict(row) for row in result.fetchall()]
         except Exception as e:
-            _G._G_.Log().ex(e, f"获取所有任务记录失败: {self.table}")
+            _G._G_.Log().ex(e, f"获取所有记录失败: {self.table}")
             return []
-    
+
+    def insert(self, data: dict):
+        try:
+            data = self._fillDefaults(data)
+            sql = self.genInsertSql()
+            db.session.execute(sql, data)
+            db.session.commit()
+            return True
+        except Exception as e:
+            _G._G_.Log().ex(e, f"插入数据失败: {self.table}")
+            db.session.rollback()
+            return False
+
+    def update(self, data: dict):
+        try:
+            data = self._fillDefaults(data, skip_pk=False)
+            sql = self.genUpdateSql()
+            db.session.execute(sql, data)
+            db.session.commit()
+            return True
+        except Exception as e:
+            _G._G_.Log().ex(e, f"更新数据失败: {self.table}")
+            db.session.rollback()
+            return False
+
     def toDict(self, row):
-        """转换为字典格式（增加空值保护）"""
         if not row:
             return None
         data = dict(row)
-        # print(f'转换为字典格式: {data}')
-        # 转换所有datetime字段
         for k, v in data.items():
             if isinstance(v, datetime):
                 data[k] = v.strftime('%Y-%m-%d %H:%M:%S')
         return data
 
-        
-
 class DeviceModel_:
-    """设备数据模型（直接SQL实现）"""
+    """设备数据模型（自动SQL实现）"""
     table = 'devices'
-    model = SModel_(table)
+    fields = {
+        'id': ('int', None),
+        'name': ('str', ''),
+        'score': ('int', 0),
+        'lastTime': ('datetime', lambda: datetime.now()),
+    }
+    model = SModel_(table, fields)
 
     @classmethod
     def all(cls, date: datetime = None):
-        """获取所有设备"""
         return cls.model.all(date)
 
     @classmethod
     def get(cls, name: str, create: bool = False):
         try:
-            sql = f"SELECT * FROM {cls.table} WHERE name = :name"
+            sql = cls.model.genSelectSql() + " WHERE name = :name"
             result = db.session.execute(sql, {'name': name})
             row = result.fetchone()
             if not row and create:
-                # 创建新设备
-                now = datetime.now()
-                sql = f"INSERT INTO {cls.table} (name, lastTime, score) VALUES (:name, :lastTime, :score)"
-                db.session.execute(sql, {'name': name, 'lastTime': now, 'score': 0})
-                db.session.commit()
-                # 再查一次
+                data = {'name': name}
+                cls.model.insert(data)
                 result = db.session.execute(sql, {'name': name})
                 row = result.fetchone()
             return cls.model.toDict(row) if row else None
         except Exception as e:
             _G._G_.Log().ex(e, f"获取或创建设备记录失败: {cls.table}")
             return None
-        
+
     @classmethod
     def commit(cls, data: dict):
-        """插入或更新设备数据"""
         try:
             name = data.get('name')
-            score = data.get('score', 0)
-            lastTime = data.get('lastTime', datetime.now())
-            # 先查是否存在
             sql = f"SELECT id FROM {cls.table} WHERE name = :name"
             result = db.session.execute(sql, {'name': name})
             row = result.fetchone()
             if row:
-                # 存在则更新
-                sql = f"UPDATE {cls.table} SET score = :score, lastTime = :lastTime WHERE name = :name"
-                db.session.execute(sql, {'score': score, 'lastTime': lastTime, 'name': name})
+                data['id'] = row['id']
+                return cls.model.update(data)
             else:
-                # 不存在则插入
-                sql = f"INSERT INTO {cls.table} (name, score, lastTime) VALUES (:name, :score, :lastTime)"
-                db.session.execute(sql, {'name': name, 'score': score, 'lastTime': lastTime})
-            db.session.commit()
-            return True
+                return cls.model.insert(data)
         except Exception as e:
             _G._G_.Log().ex(e, "提交设备数据失败")
             db.session.rollback()
             return False
-
-    # @classmethod
-    # def toDict(cls, row):
-    #     return {
-    #         'id': row.id,
-    #         'name': row.name,
-    #         'score': row.score,
-    #         'lastTime': row.lastTime.strftime('%Y-%m-%d %H:%M:%S') if row.lastTime else None
-    #     }
 
 class EarningRecord(db.Model):
     """收益记录表"""
@@ -142,55 +189,38 @@ class AppModel(db.Model):
     
 
 class TaskModel_:
-
-    """任务数据模型（直接SQL实现）"""
+    """任务数据模型（自动SQL实现）"""
     table = 'tasks'
-    model = SModel_(table)
+    fields = {
+        'id': ('int', None),
+        'deviceId': ('str', None),
+        'name': ('str', None),
+        'time': ('datetime', lambda: datetime.now()),
+        'progress': ('float', 0.0),
+        'state': ('str', 'pending'),
+        'score': ('int', 0),
+        'life': ('int', 0)
+    }
+    model = SModel_(table, fields)
 
     @classmethod
-    def all(cls, date: datetime = None):
-        """获取所有任务记录"""
-        return cls.model.all(date)
-
+    def all(cls, date: datetime = None, where: str = None):
+        return cls.model.all(date, where)
 
     @classmethod
     def get(cls, deviceId: str, name: str, date: datetime = None, create: bool = False):
-        """获取或创建任务记录"""
         try:
             date = date or datetime.now()
-            # 查询现有记录
-            sql = f"""SELECT * FROM {cls.table} 
-                   WHERE deviceId = :deviceId 
-                     AND name = :name 
-                     AND time = :date"""
-            result = db.session.execute(sql, {
-                'deviceId': deviceId,
-                'name': name,
-                'date': date
-            })
+            date_str = date.strftime('%Y-%m-%d')
+            sql = cls.model.genSelectSql() + " WHERE deviceId = :deviceId AND name = :name AND DATE(time) = :date"
+            params = {'deviceId': deviceId, 'name': name, 'date': date_str}
+            result = db.session.execute(sql, params)
             row = result.fetchone()
-            
             if not row and create:
-                # 创建新任务
-                now = datetime.now()
-                insert_sql = f"""INSERT INTO {cls.table} 
-                              (deviceId, name, time, progress, state, score)
-                              VALUES 
-                              (:deviceId, :name, :time, 0.0, 'pending', 0)"""
-                db.session.execute(insert_sql, {
-                    'deviceId': deviceId,
-                    'name': name,
-                    'time': date or now
-                })
-                db.session.commit()
-                # 重新查询新记录
-                result = db.session.execute(sql, {
-                    'deviceId': deviceId,
-                    'name': name,
-                    'date': date
-                })
+                data = {'deviceId': deviceId, 'name': name, 'time': datetime.now()}
+                cls.model.insert(data)
+                result = db.session.execute(sql, params)
                 row = result.fetchone()
-            
             return cls.model.toDict(row) if row else None
         except Exception as e:
             _G._G_.Log().ex(e, "获取任务记录失败")
@@ -198,80 +228,40 @@ class TaskModel_:
 
     @classmethod
     def commit(cls, data: dict):
-        """提交任务数据"""
-        try:
-            update_sql = f"""UPDATE {cls.table} SET
-                          progress = :progress,
-                          state = :state,
-                          score = :score,
-                          endTime = :endTime
-                        WHERE id = :id"""
-            db.session.execute(update_sql, data)
-            db.session.commit()
-            return True
-        except Exception as e:
-            _G._G_.Log().ex(e, "提交任务数据失败")
-            db.session.rollback()
-            return False
-        
-
+        return cls.model.update(data)
 
 class LogModel_:
-    """日志数据模型（SQL实现）"""
+    """日志数据模型（自动SQL实现）"""
     table = 'logs'
-    model = SModel_(table)
-    
+    fields = {
+        'id': ('int', None),
+        'level': ('str', 'i'),
+        'message': ('str', ''),
+        'time': ('datetime', lambda: datetime.now()),
+        'tag': ('str', None)
+    }
+    model = SModel_(table, fields)
+
     @classmethod
     def all(cls, date: datetime = None):
-        """获取所有日志记录""" 
         return cls.model.all(date)
 
     @classmethod
-    def get(
-        cls, 
-        message: str, 
-        tag: str = None, 
-        level: str = 'i', 
-        create: bool = False
-    ):
-        """获取或创建日志记录（增加插入后验证）"""
-        # print(f'获取或创建日志记录: {message}, {tag}, {level}, {create}')
+    def get(cls, message: str, tag: str = None, level: str = 'i', create: bool = False):
         def db_operation(db):
             try:
-                sql = f"""SELECT * FROM {cls.table} 
-                      WHERE message=:message 
-                      AND level=:level
-                      AND (tag=:tag OR (:tag IS NULL AND tag IS NULL))"""
+                sql = cls.model.genSelectSql() + \
+                      " WHERE message=:message AND level=:level AND (tag=:tag OR (:tag IS NULL AND tag IS NULL))"
                 params = {'message': message, 'tag': tag, 'level': level}
                 result = db.session.execute(sql, params)
                 row = result.fetchone()
-                # print(f'获取或创建日志记录: {row}')
                 if not row and create:
-                    insert_sql = f"""INSERT INTO {cls.table} 
-                                  (level, message, time, tag)
-                                  VALUES 
-                                  (:level, :message, :time, :tag)"""
-                    time = datetime.now()
-                    db.session.execute(insert_sql, {
-                        'level': level,
-                        'message': message,
-                        'time': time,
-                        'tag': tag
-                    })
-                    # print(f"插入影响行数: {insert_result.rowcount}")  # 调试插入结果
-                    db.session.commit()
-                    db.session.expire_all()  # 强制刷新会话缓存
+                    data = {'level': level, 'message': message, 'tag': tag}
+                    cls.model.insert(data)
+                    db.session.expire_all()
                     result = db.session.execute(sql, params)
-                    if result is None:
-                        #print(f"新建记录失败@@@: result={result}, sql={sql}, params={params}")
-                        return None
                     row = result.fetchone()
-                    if not row:
-                        # print("新建记录后查询失败22222")
-                        return None
-                data = cls.model.toDict(row) if row else None
-                # print(f'获取或创建日志记录: {data}')
-                return data
+                return cls.model.toDict(row) if row else None
             except Exception as e:
                 print(f"数据库操作异常: {str(e)}")
                 return None
@@ -279,16 +269,4 @@ class LogModel_:
 
     @classmethod
     def commit(cls, data: dict):
-        """提交日志数据"""
-        try:
-            update_sql = f"""UPDATE {cls.table} SET
-                          level=:level,
-                          message=:message,
-                          time=:time,
-                          tag=:tag
-                        WHERE id=:id"""
-            Database.sql(lambda db: db.session.execute(update_sql, data))
-            return True
-        except Exception as e:
-            print("更新日志失败")
-            return False
+        return cls.model.update(data)
