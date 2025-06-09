@@ -22,23 +22,15 @@ class STask_(SModelBase_, TaskBase):
     
     @property
     def progress(self)->int:
-        return self.getDBProp('progress', 0)
+        return int(self.getDBProp('progress', 0))
     
     @property
     def score(self)->int:
-        return self.getDBProp('score', 0)
+        return int(self.getDBProp('score', 0))
     
     @property
     def life(self)->int:
-        return self.getDBProp('life', 10)
-    
-    @property
-    def time(self)->str:
-        return self.getDBProp('time')
-    
-    @property
-    def deviceId(self):
-        return self.getDBProp('deviceId', 0)
+        return int(self.getDBProp('life', 10))
     
     def setLife(self, life: int):
         if self.setDBProp('life', life):
@@ -47,17 +39,20 @@ class STask_(SModelBase_, TaskBase):
             self.commit()
             from SDevice import SDevice_
             SDevice_.sendClient('S2C_updateTask', self.deviceId, {
-                'name': self.name,
+                'id': self.id,
                 'life': life
             })
     
     @property
-    def deviceId(self):
-        return self.getDBProp('deviceId')    
-
+    def time(self)->str:
+        return self.getDBProp('time')
+    
+    @property
+    def deviceId(self)->int:
+        return int(self.getDBProp('deviceId', 0))
+    
     def toSheetData(self) -> dict:
-        # 子类可重写
         data = super().toSheetData()
-        if self.life != 0:
-            data['progress'] = data.get('progress', 0) / float(abs(self.life))
+        data['progress'] = self.progress  # 直接用整数
+        data['life'] = self.life
         return data

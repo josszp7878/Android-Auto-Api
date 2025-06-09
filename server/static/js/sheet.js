@@ -232,6 +232,7 @@ class SheetPage {
             [this.DataType.LOGS]: null
         };
 
+        this.deviceCache = {}; // 新增设备缓存
         
         // 创建表格容器 - 必须在初始化标签页之前
         this.createTableContainers();
@@ -547,12 +548,15 @@ class SheetPage {
 
             // 支持增量更新
             sheetData.forEach(newItem => {
-                // console.log("newItem：", newItem);
                 const existingItemIndex = targetData.findIndex(item => item.id === newItem.id);
                 if (existingItemIndex !== -1) {
                     Object.assign(targetData[existingItemIndex], newItem);
                 } else {
                     targetData.push(newItem);
+                }
+                // 设备缓存：只缓存设备数据
+                if (dataType === this.DataType.DEVICES) {
+                    this.deviceCache[newItem.id] = newItem;
                 }
             });
 
@@ -764,7 +768,16 @@ class SheetPage {
                 },
                 headerSort: false
             },
-            {title: "设备", field: "deviceId", width: 120, headerFilter: "input"},
+            {title: "设备", field: "deviceId", width: 120, headerFilter: "input",
+                formatter: (cell) => {
+                    const deviceId = cell.getValue();
+                    const device = this.get(deviceId);
+                    if (!device) return deviceId;
+                    const state = device.state;
+                    const status = this.deviceStatusMap[state] || this.deviceStatusMap['offline'];
+                    return `<span style='color: ${status.color}; font-weight: bold;'>${deviceId}</span>`;
+                }
+            },
             {
                 title: "任务名称", 
                 field: "name", 
@@ -777,20 +790,23 @@ class SheetPage {
                 width: 130,
                 headerFilter: "input",
                 headerFilterPlaceholder: "YYYY-MM-DD",
-                headerFilterFunc: "like", // 使用模糊匹配替代精确匹配
-                editor: false, // 禁用编辑
+                headerFilterFunc: "like",
+                editor: false,
+                headerFilterLiveFilter: false,
                 formatter: function(cell) {
                     return cell.getValue() || "";
                 }
             },
-            {title: "分组", field: "group", width: 120, headerFilter: "input"},
             {
                 title: "进度", 
                 field: "progress", 
                 width: 150,
                 formatter: (cell) => {
-                    const value = cell.getValue() || 0;
-                    const percent = Math.min(Math.max(Math.round(value * 100), 0), 100);
+                    const data = cell.getData();
+                    const progress = Number(data.progress) || 0;
+                    const life = Math.abs(Number(data.life)) || 1;
+                    // 进度条比例
+                    const percent = Math.min(Math.max(Math.round((progress / life) * 100), 0), 100);
                     return `
                         <div style="
                             background: transparent;
@@ -815,7 +831,7 @@ class SheetPage {
                                     position: absolute;
                                     left: 50%;
                                     transform: translateX(-50%);
-                                ">${percent}%</span>
+                                ">${progress}</span>
                             </div>
                         </div>
                     `;
@@ -1254,21 +1270,19 @@ class SheetPage {
             return;
         }
         // 根据操作类型确定命令
-        let toState = null;
         if (data.state === 'running') {
             cmd = `stopTask ${task.id}`;
-            toState = 'paused';
         } else {
-            cmd = `startTask ${task.name}`;
-            toState = 'running';
+            cmd = `startTask ${task.id}`;
         }
-        const ret = await this.sendCmd(cmd, [data.deviceId]);
-        if (ret) {
+        const toState = await this.sendCmd(cmd, [data.deviceId]);
+        console.log("dddd发送命令: 结果。。。。。", cmd, toState);
+        if (toState) {
             task.state = toState;
             // 单独更新任务对应的行
             row.update({state: toState});
         }
-        console.log("发送命令: 结果。。。。。", cmd, ret);
+        console.log("发送命令: 结果。。。。。", cmd, toState);
     }
 
     async sendCmd(cmd, targets, params) {
@@ -1282,8 +1296,11 @@ class SheetPage {
             targets: targets,
             params: params
         });
-        if (ret.length === 1) 
-            return ret[0];
+        // 当ret是普通对象时
+        const size = Object.keys(ret).length;
+        if (size === 1) {
+            return Object.values(ret)[0];
+        }
         return ret;
     }
 
@@ -1515,6 +1532,15 @@ class SheetPage {
         if(dataType === this.DataType.DEVICES) {
             this.updateCommandInputPlaceholder();
         }
+    }
+
+    /**
+     * 获取设备数据
+     * @param {string|number} id 设备ID
+     * @returns {object|null} 设备数据
+     */
+    get(id) {
+        return this.deviceCache[id] || null;
     }
 
 } 

@@ -444,7 +444,7 @@ class _Tools_:
                 'log': log,
                 'it': this,
                 'cPage': this.curPage,
-                'cTask': this.curTask,
+                'cTask': g.CDevice().curTask(),
                 'cApp': cApp,
                 'g': g,
                 'R': _Tools_.eRet,

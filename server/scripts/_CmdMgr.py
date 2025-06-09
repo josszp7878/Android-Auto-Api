@@ -6,6 +6,7 @@ import sys
 import importlib
 from typing import Any, Tuple
 import inspect
+import json
 
 class Cmd:
     """命令类，存储命令信息"""
@@ -358,13 +359,21 @@ class _CmdMgr_:
                 kwargs['cmd'] = cmd 
             log.c_(f'<{cmdName}>:{cmdStr}', '')
             result = find.func(**kwargs)
-            result = str(result) if result is not None else ''
+            try:
+                # 检查是否能被json序列化
+                json.dumps(result)
+            except TypeError:
+                raise Exception(f"命令返回值不支持JSON序列化: {type(result)}，请检查实现")
             if result:
                 cmd['result'] = result
                 # 解析结果中可能包含的级别信息
                 level, result = log._parseLevel(result)
-                if result:
+                if isinstance(result, str):
+                    # 如果result是字符串，则直接当结果打印
                     log.log_(f'  => {result}', '', level)
+                else:
+                    # 如果result不是字符串，则转换为字符串并当结果打印
+                    log.log_(f'  => {str(result)}', '', level)
         except Exception as e:
             log.ex(e, f'执行命令出错: {cmdStr}')
         

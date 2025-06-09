@@ -17,7 +17,7 @@ def initSocketIO(sio):
     sio.on('C2S_Logout')(onC2S_Logout)
     sio.on('C2S_Screenshot')(onC2S_Screenshot)
     sio.on('C2S_Log')(onC2S_Log)
-    sio.on('C2S_StartTask')(onC2S_StartTask)
+    # sio.on('C2S_StartTask')(onC2S_StartTask)
     sio.on('C2S_UpdateTask')(onC2S_UpdateTask)
     sio.on('2S_Cmd')(on2S_Cmd)
     sio.on('C2S_CmdResult')(onC2S_CmdResult)
@@ -82,13 +82,13 @@ def onC2S_Login(data):
         device = deviceMgr.getBySID(request.sid)
         log.i(f'处理设备登录: {device}')
         if not device:
-            return False
+            return None
         # 普通设备处理
-        ok = device.login()
-        return ok
+        result = device.login()
+        return result
     except Exception as e:
         log.ex(e, '处理设备登录失败')
-        return False
+        return None
 
 
 def onC2S_Logout(data):
@@ -143,25 +143,24 @@ def handleB2SGetLogs(data=None):
         _Log._Log_.ex(e, '加载日志失败')
 
 
-def onC2S_StartTask(data):
-    """处理任务启动请求"""
-    log = _Log._Log_
-    try:
-        device = deviceMgr.getBySID(request.sid)
-        if not device:
-            return []
-        taskName = data.get('taskName')
-        from STask import STask_
-        task = STask_.get(device.id, taskName, date=datetime.now().date(), create=True)
-        log.i(f'处理任务启动请求: {device.name}/{taskName}, task: {task}')
-        if task:
-            from STask import TaskState
-            task.update({'state': TaskState.RUNNING.value})
-            return task.toClientData()
-        return []
-    except Exception as e:
-        log.ex(e, '处理任务启动请求失败')
-        return []
+# def onC2S_StartTask(data):
+#     """处理任务启动请求"""
+#     log = _Log._Log_
+#     try:
+#         device = deviceMgr.getBySID(request.sid)
+#         if not device:
+#             return []
+#         taskName = data.get('taskName')
+#         task = device.getTask(taskName)
+#         log.i(f'处理任务启动请求: {device.name}/{taskName}, task: {task}')
+#         if task:
+#             from STask import TaskState
+#             task.update({'state': TaskState.RUNNING.value})
+#             return task.toClientData()
+#         return []
+#     except Exception as e:
+#         log.ex(e, '处理任务启动请求失败')
+#         return []
 
 def onC2S_UpdateTask(data):
     """处理任务进度更新"""
@@ -171,8 +170,7 @@ def onC2S_UpdateTask(data):
         if not device:
             return
         taskID = data.get('id')
-        from STask import STask_
-        task = STask_.getByID(taskID)
+        task = device.getTask(taskID)
         log.i(f'任务进度更新: {device.name}/{taskID}')
         if task is None:
             log.w(f'任务不存在: {device.name}/{taskID}')
@@ -225,13 +223,7 @@ def onB2S_loadDatas(data):
             from SDeviceMgr import deviceMgr
             datas = [device.toSheetData() for device in deviceMgr.devices]
         elif type == 'tasks':
-            log.i(f'获取任务数据: {date}')
             from SDeviceMgr import deviceMgr
-            from datetime import datetime
-            if date is None:
-                date = datetime.now().date()
-            else:
-                date = datetime.strptime(date, '%Y-%m-%d').date()
             devices = deviceMgr.devices
             # 在线设备优先
             devices = sorted(devices, key=lambda d: not d.isConnected)
@@ -240,6 +232,7 @@ def onB2S_loadDatas(data):
                 tasks = device.getTasks(date)
                 for task in tasks:
                     datas.append(task.toSheetData())
+            # log.i(f'获取任务数据: {date}, {datas}')
         elif type == 'logs':
             from _Log import _Log_  
             datas = [log.toSheetData() for log in _Log_.gets(date)]

@@ -51,7 +51,7 @@ class Socketer {
      * @param {number} [timeout=5000] 超时时间(ms)
      * @returns {Promise} 返回响应数据
      */
-        emitRet(event, data = {}, timeout = 5000) {
+        emitRet(event, data = {}, timeout = 10000) {
             return new Promise((resolve, reject) => {
                 const timer = setTimeout(() => {
                     reject(new Error(`请求超时: ${event}`));

@@ -55,9 +55,13 @@ class SModel_:
             params = {}
             if date and 'time' in self.fields:
                 sql += " WHERE date(time) = :date"
+                if isinstance(date, datetime):
+                    date = date.strftime('%Y-%m-%d')
                 params['date'] = date
             if where:
                 sql += f" AND {where}"
+            log = _G._G_.Log()
+            # log.i_(f'获取所有记录jjj: {sql}, {params}')
             result = db.session.execute(sql, params)
             return [self.toDict(row) for row in result.fetchall()]
         except Exception as e:
@@ -196,8 +200,8 @@ class TaskModel_:
         'deviceId': ('str', None),
         'name': ('str', None),
         'time': ('datetime', lambda: datetime.now()),
-        'progress': ('float', 0.0),
-        'state': ('str', 'pending'),
+        'progress': ('int', 0.0),
+        'state': ('str', 'idle'),
         'score': ('int', 0),
         'life': ('int', 0)
     }

@@ -1,20 +1,7 @@
-import json
-import time
-import _G
-from typing import List, Optional
 import re
-import threading
 from _G import TaskState
-
-g = _G._G_
-log = g.Log()
-App = g.App()
-
-# 添加缓存相关的变量
-_screenInfoCache = None
-
-# 添加一个全局变量来控制监控状态
-_screenMonitorTask = None
+import _G
+import json
 
 class CCmds_:
 
@@ -476,6 +463,8 @@ class CCmds_:
         def eXit():
             """退出应用
             """
+            g = _G._G_
+            log = g.Log()
             try:
                 # 首先停止所有打开的应用
                 g.App().stopAllApps()
@@ -636,8 +625,8 @@ class CCmds_:
             else:
                 return f"e~无效页面: {name}"
             
-        @regCmd(r"#启动任务|qd(?P<taskName>\S+)")
-        def startTask(taskName:str):
+        @regCmd(r"#启动任务|qd(?P<key>\S+)")
+        def startTask(key:str)->TaskState:
             """
             功能：启动任务
             参数：
@@ -647,17 +636,17 @@ class CCmds_:
             """
             g = _G._G_
             log = g.Log()
-            if not taskName:
+            if not key:
                 log.e_("任务名称不能为空")
-                return False
-            task = g.App().getTask(taskName)
+                return None
+            task = g.CDevice().getTask(key)
             if not task:
-                log.e(f"任务创建失败: {taskName}")
-                return False
+                log.e_(f"任务不存在: {key}")
+                return None
             return task.begin()
         
-        @regCmd(r"#更新任务|gx")
-        def updateTask():
+        @regCmd(r"#更新任务|gx(?P<taskID>\d+)")
+        def updateTask(taskID):
             """
             功能：更新任务
             示例：
@@ -665,13 +654,14 @@ class CCmds_:
             """
             g = _G._G_
             log = g.Log()
-            task = g.App().last().curTask
+            task = g.CDevice().getTask(taskID)
             if not task:
-                return False
+                log.e_(f"任务{taskID}不存在: ")
+                return None
             return task._refreshProgress()
 
         @regCmd(r"#停止任务|tz(?P<task>\S+)")
-        def stopTask(task:str):
+        def stopTask(task:str)->TaskState:
             """
             功能：停止任务
             参数：
@@ -679,22 +669,12 @@ class CCmds_:
             示例：
             停止任务 看广告
             """
-             #尝试将taskName转换为taskID
-            taskID = None
-            if task.isdigit():
-                taskID = int(task)
-            if taskID:
-                task = g.App().getTaskByID(taskID)
-                if not task:
-                    from CTask import CTask_
-                    CTask_._emitUpdate(taskID, {
-                        'state': TaskState.PAUSED.value,
-                    })
-            else:
-                task = g.App().getTask(task)
+            g = _G._G_
+            log = g.Log()
+            task = g.CDevice().getTask(task)
             if not task:
-                log.e(f"任务不存在: {task}")
-                return False
+                log.e_(f"任务不存在: {task}")
+                return None
             return task.stop()  
             
         @regCmd(r"#执行|zx(?P<content>\S+)")
@@ -802,15 +782,6 @@ class CCmds_:
                     return "添加屏幕信息失败"
                 return f"当前屏幕信息：{tools.getScreenInfo()}"
             
-        @regCmd(r"#进度|jd (?P<taskName>\S+)?")
-        def progress(taskName=None):
-            """
-            功能：获取任务进度
-            参数: taskName - 应用名-任务名格式
-            示例: 进度 微信-每日签到
-            """
-            return g.App().printTasks(taskName, lambda task: f"\t{task.name} : {task.progress:0.2f}")
-
         @regCmd(r"#状态|zt (?P<taskName>\S+)?")
         def state(taskName=None):
             """
@@ -818,43 +789,7 @@ class CCmds_:
             参数: taskName - 应用名-任务名格式
             示例: 状态 抖音-广告观看
             """
-            return g.App().printTasks(taskName, lambda task: f"\t{task.name} {task.state}")
-
-        @regCmd(r"#分值|fz (?P<taskName>\S+)?")
-        def score(taskName=None):
-            """
-            功能：获取任务分值
-            参数: taskName - 应用名-任务名格式
-            示例: 分值 支付宝-新手任务
-            """
-            return g.App().printTasks(taskName, lambda task: f"\t{task.name} {task.score}")
+            g = _G._G_
+            # 显示客户端的连接状态
+            return g.CDevice().state()
         
-        # @regCmd(r"#更新任务|gx (?P<taskID>\d+)")
-        # def updateTask(taskID):
-        #     """
-        #     功能：更新任务
-        #     参数: taskID - 任务ID
-        #     示例: 更新任务 1
-        #     """
-        #     try:
-        #         app = _G._G_.App()
-        #         task = app.getTaskByID(taskID)
-        #         if not task:
-        #             log.e_(f"任务不存在: {taskID}")
-        #             return False
-        #         # 创建并启动测试任务
-        #         if task.begin(10):
-        #             task.progress = 0.0
-        #             task.score = 0
-        #             log.i(f"更新任务 {taskID} 已启动, 每秒更新进度")
-        #             while task.state == TaskState.RUNNING and task.progress < 1.0:
-        #                 task.progress = min(task.progress + 0.1, 1.0)
-        #                 task.score += 1
-        #                 time.sleep(1)  # 精确1秒间隔
-        #             task.end()
-        #             return f"更新任务 {taskID} 已完成"
-        #         return "e~任务启动失败"
-                
-        #     except Exception as e:
-        #         _G._G_.Log().ex(e, "测试任务创建失败")
-        #         return f"e~{str(e)}"            

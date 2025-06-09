@@ -2,6 +2,7 @@ from datetime import datetime
 from pathlib import Path
 import json
 import os
+from typing import TYPE_CHECKING
 from flask import current_app
 from SModels import DeviceModel_, TaskModel_
 import _Log
@@ -9,6 +10,8 @@ import base64
 from SEarningMgr import SEarningMgr_
 import _G
 from SModelBase import SModelBase_
+if TYPE_CHECKING:
+    from STask import STask_
 
 class SDevice_(SModelBase_):
     """设备管理类"""
@@ -21,7 +24,7 @@ class SDevice_(SModelBase_):
         self._lastScreenshot = None
         self._ensure_screenshot_dir()
         self.apps = []
-        self._tasks = None  # 缓存当天任务列表
+        self._tasks: dict[int, 'STask_'] = None  # 缓存当天任务列表
         self.tasksDate = None  # 当前缓存的日期
 
     @property
@@ -59,7 +62,7 @@ class SDevice_(SModelBase_):
             'state': self._state,
             **self.data
         }
-        log = _G._G_.Log()
+        # log = _G._G_.Log()
         # log.i(f'转换为表格数据fff: {self.name}, {data}')
         return data
     
@@ -155,7 +158,9 @@ class SDevice_(SModelBase_):
             self.commit()
             self.refresh()  # 统一刷新状态
             self._initTasks()
-            return True
+            today = datetime.now().date()
+            tasks = self.getTasks(today)
+            return {"taskList": [t.toSheetData() for t in tasks]}
         except Exception as e:
             _Log._Log_.ex(e, '设备登录失败')
             return False
@@ -397,6 +402,10 @@ class SDevice_(SModelBase_):
         except Exception as e:
             log.ex(e, f"从文件加载屏幕信息失败: {pageName}")
             return None
+        
+    def getTask(self, taskID):
+        """根据ID获取任务"""
+        return self.tasks.get(taskID)
 
     def getTasks(self, date=None):
         """获取指定日期的任务列表，默认当天，按天缓存"""
@@ -411,6 +420,8 @@ class SDevice_(SModelBase_):
         self._tasks = {}
         self.tasksDate = date
         tasks = [STask_(t) for t in TaskModel_.all(date, f"deviceId = {self.id}")]
+        # log = _G._G_.Log()
+        # log.i_(f'获取任务列表顶顶顶顶: {date}, count={len(tasks)}')
         for t in tasks:
             self._tasks[t.id] = t
         return tasks

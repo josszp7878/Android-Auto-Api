@@ -4,12 +4,12 @@ import _G
 import os
 import json
 import datetime
-from typing import Optional, List, Tuple, TYPE_CHECKING, Dict, Callable
+from typing import Optional, List, Tuple, TYPE_CHECKING, Dict
+from CDevice import CDevice_
 
 if TYPE_CHECKING:
     from _Page import _Page_
     from _Log import _Log_
-    from CTask import CTask_
 
 class _App_:
     """应用管理类：整合配置与实例"""
@@ -87,8 +87,6 @@ class _App_:
         self._pages: Dict[str, "_Page_"] = {}  # 应用级的页面列表
         self._path: Optional[List["_Page_"]] = None  # 当前缓存的路径 [path]
         self.userEvents: List[str] = []  # 用户事件列表
-        self._tasks: Dict[str, "CTask_"] = {}  # 任务字典，KEY为任务名
-        self._curTask: Optional["CTask_"] = None  # 当前任务
         self._counters = {}  # 计数器字典，用于统计页面访问次数和事件触发次数
         self._countersModified = False  # 计数器是否被修改
         self._toasts = {}  # toasts配置字典，用于存储toast匹配规则和操作
@@ -766,8 +764,9 @@ class _App_:
                 self.curPage.update()
             self.userEvents = []
             # 更新当前任务
-            if self._curTask:
-                self._curTask.update(g)
+            curTask = CDevice_.curTask()
+            if curTask:
+                curTask.update(g)
             
         except Exception as e:
             log.ex(e, f"应用更新失败：{self.name}")
@@ -810,96 +809,7 @@ class _App_:
             return True
         except Exception as e:
             log.ex(e, f"添加用户事件失败: {eventName}")
-            return False
-  
-    _lastTasks:Dict['_App_', List['CTask_']] = None
-
-    @classmethod
-    def lastTasks(cls):
-        if cls._lastTasks is None:
-            curApp = cls.last()
-            if curApp is not None and curApp.curTask is not None:
-                cls._lastTasks = {curApp: [curApp.curTask]}
-        return cls._lastTasks
-
-    @classmethod
-    def getTasks(cls, name)->Dict['_App_', List['CTask_']]:
-        """获取任务实例"""
-        g = _G._G_
-        log = g.Log()
-        name = name.strip() if name else ''
-        if name == '':
-            return cls.lastTasks()
-        appName, taskName = cls.parseName(name)
-        app = cls.getApp(appName)
-        if app is None:
-            log.e(f"应用 {appName} 不存在")
-            return app, None
-        tasks = []
-        if taskName is None:
-            tasks = list(app._tasks.values())
-        else:
-            task = app._tasks.get(name)
-            if task:
-                tasks.append(task)
-        return {app: tasks}
-    
-    @classmethod
-    def printTasks(cls, taskName: str, printer) -> str:
-        """显示任务列表"""
-        taskMap = cls.getTasks(taskName)
-        ret = ''
-        if taskMap is None:
-            return f'e~任务{taskName}不存在'
-        for app, tasks in taskMap.items():
-            if len(tasks) == 0:
-                continue
-            ret += f"{app.name}:\n"
-            for task in tasks:
-                if task:
-                    ret += printer(task)
-        return ret
-    
-    @classmethod
-    def getTaskByID(cls, id: str)-> 'CTask_':
-        """获取任务实例"""
-        for app in cls.apps().values():
-            task = next((t for t in app._tasks.values() if t and t.id == id), None)
-            if task:
-                return task
-        return None
-
-    @classmethod
-    def getTask(cls, name, create: bool = True)-> 'CTask_':
-        """获取任务实例"""
-        g = _G._G_
-        log = g.Log()
-        if not name:
-            return None
-        appName, taskName = cls.parseName(name)
-        app = cls.getApp(appName)
-        if app is None:
-            log.e(f"应用 {appName} 不存在")
-            return app, None
-        task = app._tasks.get(name) if taskName else app._curTask
-        if task is None and create:
-            from CTask import CTask_
-            task = CTask_.create(name, app)
-            app._tasks[name] = task
-        return task
-        
-    @property
-    def curTask(self):
-        """获取当前任务"""
-        return self._curTask
-    
-    @curTask.setter
-    def curTask(self, value):
-        """设置当前任务"""
-        self._curTask = value
-        if self._curTask:
-            self._curTask._app = self
-    
+            return False  
 
     def _getDataFile(self) -> str:
         """获取计数器文件路径

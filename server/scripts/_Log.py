@@ -75,8 +75,6 @@ class _Log_(SModelBase_):
         :param date: 日期，默认为今天
         :return: 日志列表
         """
-        if date is None:
-            date = datetime.now().date()
         if cls._lastDate == date:
             return cls._cache
         # 清除当前缓存

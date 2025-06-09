@@ -63,11 +63,10 @@ class SDeviceMgr_:
     def getByID(self, id) -> Optional[SDevice_]:
         return next((d for d in self._devices if d.id == id), None)    
     
-    @classmethod
     def getTaskByID(self, taskID):
         """根据ID获取任务"""
         for d in self._devices:
-            task = next((t for t in d.tasks if t.id == taskID), None)
+            task = d.getTask(taskID)
             if task:
                 return task
         return None

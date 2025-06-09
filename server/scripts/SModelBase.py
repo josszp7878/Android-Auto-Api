@@ -119,6 +119,7 @@ class SModelBase_:
                 # log.i(f'刷新设备状态ddddfff: {self.name}, {self.data}')
                 dataType = 'devices'
             elif self.modelClass is TaskModel_:
+                log.d(f'刷新任务状态: {self.name}, {self.data}')
                 dataType = 'tasks'
             elif self.modelClass is LogModel_:
                 dataType = 'logs'
