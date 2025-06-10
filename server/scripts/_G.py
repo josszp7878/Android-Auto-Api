@@ -570,7 +570,17 @@ class _G_:
                 cls.log.ex(e, f"延迟导入{moduleName}失败")
             return None
     
-     # 全角到半角的
+    @classmethod
+    def toInt(cls, id, default=None) -> int:
+        """将字符串转换为ID"""
+        if isinstance(id, int):
+            return id
+        elif isinstance(id, str):
+            if id.isdigit():
+                return int(id)
+        return default
+        
+    # 全角到半角的
     DefSymbolMap:dict = {
         '＜': '<',
         '＞': '>',

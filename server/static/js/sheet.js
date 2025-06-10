@@ -480,17 +480,17 @@ class SheetPage {
             switch (type) {
                 case this.DataType.TASKS:        
                     socket.emitRet('B2S_loadDatas', { type: 'tasks', filters: filterParams }).then(tasks => {
-                        this._updateData(tasks, this.DataType.TASKS, this.tasks);
+                        this._updateTable(tasks, this.DataType.TASKS, this.tasks);
                     });
                     break;
                 case this.DataType.DEVICES:
                     socket.emitRet('B2S_loadDatas', { type: 'devices', filters: filterParams }).then(devices => {
-                        this._updateData(devices, this.DataType.DEVICES, this.devices);
+                        this._updateTable(devices, this.DataType.DEVICES, this.devices);
                     });
                     break;
                 case this.DataType.LOGS:
                     socket.emitRet('B2S_loadDatas', { type: 'logs', filters: filterParams }).then(logs => {
-                        this._updateData(logs, this.DataType.LOGS, this.logs);
+                        this._updateTable(logs, this.DataType.LOGS, this.logs);
                     });
                     break;
             }
@@ -501,7 +501,7 @@ class SheetPage {
     
     /**
      * Socket事件监听
-     */
+     */        
     initSocketEvents(sio) {        
         // 监听表格数据更新
         console.log('initSocketEvents', sio);
@@ -516,36 +516,37 @@ class SheetPage {
                 key => this.tabTypeMap[key] === data.type
             );
             if (!targetTab) return;
-            if (data.type !== this.curTabType) return;
 
+            let targetData = null;
             // 更新对应数据
             switch (data.type) {
                 case this.DataType.TASKS:
-                    this._updateData(data.data, data.type, this.tasks);
+                    targetData = this.tasks;
                     break;
                 case this.DataType.DEVICES:
-                    this._updateData(data.data, data.type, this.devices);
+                    targetData = this.devices;
                     break;
                 case this.DataType.LOGS:
-                    this._updateData(data.data, data.type, this.logs);
+                    targetData = this.logs;
                     break;
             }
+            this._updateTable(data.data, data.type, targetData);
         });
     }
 
     
     /**
-     * 通用数据更新方法
+     * 更新表格数据
      */
-    _updateData(newData, dataType, targetData) {
+    _updateTable(data, dataType, targetData) {
         try {
+            if (!targetData) return;
             // 规整数据，确保符合表格要求
-            const sheetData = this.toSheetData(newData, dataType);
+            const sheetData = this.toSheetData(data, dataType);
             if (!Array.isArray(sheetData) || sheetData.length === 0) {
                 console.warn("无效的sheetData:", sheetData);
                 return;
             }
-
             // 支持增量更新
             sheetData.forEach(newItem => {
                 const existingItemIndex = targetData.findIndex(item => item.id === newItem.id);
@@ -554,16 +555,15 @@ class SheetPage {
                 } else {
                     targetData.push(newItem);
                 }
-                // 设备缓存：只缓存设备数据
-                if (dataType === this.DataType.DEVICES) {
-                    this.deviceCache[newItem.id] = newItem;
-                }
             });
 
-            // 更新当前表格数据
-            if (this.mainTable) {
-                this.mainTable.setData(targetData);
+            if (dataType === this.curTabType) {
+                // 只更新当前表格数据
+                this.mainTable?.setData(targetData);
                 // console.log("表格数据已更新，当前行数:", this.mainTable.getDataCount());
+            } else {
+                // 更新其它表格数据
+                this._updateOtherTable(data, dataType);
             }
 
         } finally {
@@ -571,6 +571,24 @@ class SheetPage {
         }
     }
     
+    _updateOtherTable(data, dataType) {
+        try {
+            if (dataType === this.DataType.DEVICES) {
+                // 获取所有受影响的设备ID
+                const deviceIDs = data.map(d => d.id);
+                // 遍历所有任务行，找到deviceId匹配的行
+                this._taskTable.getRows().forEach(row => {
+                    const rowData = row.getData();
+                    if (deviceIDs.includes(rowData.deviceId)) {
+                        row.reformat(); // 触发重绘
+                    }
+                });
+            }
+        } catch (error) {
+            console.error('更新其它表格时出错:', error);
+        }
+    }
+
     /**
      * 将数据规整为表格所需格式
      * @param {Array} data - 原始数据
@@ -627,10 +645,6 @@ class SheetPage {
                         break;
                     case 'sender':
                         value = value || '';
-                        break;
-                    case 'progress':
-                        value = parseFloat(value);
-                        value = isNaN(value) ? 0 : Math.min(Math.max(value, 0), 1);
                         break;
                     case 'score':
                         value = parseFloat(value);
@@ -782,7 +796,8 @@ class SheetPage {
                 title: "任务名称", 
                 field: "name", 
                 headerFilter: "input",
-                formatter: (cell) => cell.getValue() // 直接返回值
+                formatter: (cell) => cell.getValue(),
+                editor: "input"
             },
             {
                 title: "日期", 
@@ -805,8 +820,8 @@ class SheetPage {
                     const data = cell.getData();
                     const progress = Number(data.progress) || 0;
                     const life = Math.abs(Number(data.life)) || 1;
-                    // 进度条比例
-                    const percent = Math.min(Math.max(Math.round((progress / life) * 100), 0), 100);
+                    // 进度条比例，允许超过100%
+                    const percent = Math.round((progress / life) * 100);
                     return `
                         <div style="
                             background: transparent;
@@ -1262,7 +1277,7 @@ class SheetPage {
      */
     async handleTaskAction(row) {
         const data = row.getData();
-        console.log(`处理任务操作: ${data.state}, 任务名称: ${data.name}`);
+        // console.log(`处理任务操作: ${data.state}, 任务名称: ${data.name}`);
         let cmd = '';
         let task = this.tasks.find(t => t.id === data.id);        
         if (!task) {
@@ -1275,14 +1290,7 @@ class SheetPage {
         } else {
             cmd = `startTask ${task.id}`;
         }
-        const toState = await this.sendCmd(cmd, [data.deviceId]);
-        console.log("dddd发送命令: 结果。。。。。", cmd, toState);
-        if (toState) {
-            task.state = toState;
-            // 单独更新任务对应的行
-            row.update({state: toState});
-        }
-        console.log("发送命令: 结果。。。。。", cmd, toState);
+ 
     }
 
     async sendCmd(cmd, targets, params) {
@@ -1444,20 +1452,7 @@ class SheetPage {
         // 添加到历史记录
         this.addCommandToHistory(command);
         //默认deviceIds为当前选中设备
-        let deviceIds = this.targets[this.DataType.DEVICES];
-        // 命令格式为 设备名列表> 命令
-        if (command.includes('>')) {
-            const targets = command.split('>')[0].split(',');        
-            //将targets中的设备名转换为设备ID，如果他不是数字的话
-            deviceIds = targets.map(name => {
-                // 如果name是数字，则直接返回
-                if (!isNaN(name)) {
-                    return name;
-                }
-                // 如果name不是数字，则查找设备ID
-                return this.devices.find(d => d.name === name)?.id;
-            });
-        }
+        let deviceIds = this.targets[this.DataType.DEVICES];        
         this.sendCmd(command, deviceIds);
         // 清空输入框
         commandInput.value = '';
@@ -1540,7 +1535,7 @@ class SheetPage {
      * @returns {object|null} 设备数据
      */
     get(id) {
-        return this.deviceCache[id] || null;
+        return this.devices.find(d => d.id === id) || null;
     }
 
 } 

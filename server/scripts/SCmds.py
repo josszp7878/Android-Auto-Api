@@ -82,7 +82,7 @@ class SCmds_:
             """
             try:
                 # 通过设备名称获取设备ID
-                device = deviceMgr.get(deviceName)
+                device = deviceMgr.getByName(deviceName)
                 if not device:
                     return "设备不存在"
                 
@@ -367,7 +367,7 @@ class SCmds_:
             示例：设备信息 设备1
             """
             try:
-                device = deviceMgr.get(deviceID)
+                device = deviceMgr.getByName(deviceID)
                 if device:
                     return device.toDict()
                 else:

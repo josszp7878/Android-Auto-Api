@@ -283,15 +283,22 @@ class CDevice_:
     @classmethod
     def getTask(cls, key)->'CTask_':
         """根据ID获取任务"""
-        # 如果key是数字，则认为是ID,否则当做任务名
-        id = int(key)
-        if id in cls._clsTasks:
-            return cls._clsTasks[id]
-        else:
-            key = key.lower()
-            for t in cls._clsTasks.values():
-                if t.name.lower() == key:
-                    return t
+        g = _G._G_
+        log = g.Log()
+        try:
+            # 同时支持ID和任务名
+            id = g.toInt(key)
+            if id:
+                if id in cls._clsTasks:
+                    return cls._clsTasks[id]
+            else:
+                id = key.lower()
+                for t in cls._clsTasks.values():
+                    if t.name.lower() == id:
+                        return t
+            return None
+        except Exception as e:
+            log.ex(e, f'获取任务失败: {key}')
             return None
 
     @classmethod

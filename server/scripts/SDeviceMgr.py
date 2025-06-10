@@ -39,7 +39,7 @@ class SDeviceMgr_:
     def devices(self):
         return [d for d in self._devices if not d.isConsole]
 
-    def get(self, name: str, create=False) -> Optional[SDevice_]:
+    def getByName(self, name: str, create=False) -> Optional[SDevice_]:
         log = _G._G_.Log()
         name = name.strip().lower()
         try:
@@ -57,16 +57,32 @@ class SDeviceMgr_:
             log.ex(e, f'获取设备失败: {name}')
             return None
 
-    def getBySID(self, sid) -> Optional[SDevice_]:
+    def getBySID(self, sid : str) -> Optional[SDevice_]:
         return next((d for d in self._devices if d.sid == sid), None)
 
-    def getByID(self, id) -> Optional[SDevice_]:
-        return next((d for d in self._devices if d.id == id), None)    
+    def get(self, key) -> Optional[SDevice_]:
+
+        g = _G._G_
+        log = g.Log()
+        try:
+            id = g.toInt(key, 0)
+            if id == 0:
+                key = key.lower()
+            for d in self._devices:
+                log.i(f'设备: {d.id}, {d.name}, key={key}, id={id}')
+                if id == d.id:
+                    return d
+                if d.name.lower() == key:
+                    return d
+            return None
+        except Exception as e:
+            log.ex(e, f'获取设备失败: {key}')
+            return None
     
-    def getTaskByID(self, taskID):
+    def getTask(self, key):
         """根据ID获取任务"""
         for d in self._devices:
-            task = d.getTask(taskID)
+            task = d.getTask(key)
             if task:
                 return task
         return None
@@ -109,7 +125,7 @@ class SDeviceMgr_:
                 # 特殊处理截图命令
                 if cmdName == 'captureScreen':
                     if isinstance(result, str) and result.startswith('data:image'):
-                        device = self.get(name)
+                        device = self.getByName(name)
                         if device:
                             if device.saveScreenshot(result):
                                 result = '截图已更新'
@@ -150,7 +166,7 @@ class SDeviceMgr_:
                     cmdMgr.do(cmd)
                     result = cmd.get('result', '')
             else:
-                device = self.getByID(target)
+                device = self.get(target)
                 if device is None:
                     log.e(f'设备不存在: {target}')
                     return

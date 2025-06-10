@@ -41,7 +41,7 @@ def onB2S_setProp(data):
             target = deviceMgr.getByID(targetID)
         elif type == 'tasks':
             from SDeviceMgr import deviceMgr
-            target = deviceMgr.getTaskByID(targetID)
+            target = deviceMgr.getTask(targetID)
         # log.i(f'更新设备属性11: {type}, {targetID}, {params}, {target}')    
         if target is None:
             log.e(f'更新属性失败, 目标：{type} {targetID} 不存在')
@@ -58,7 +58,7 @@ def onConnect(auth=None)->bool:
     log = _Log._Log_
     try:
         deviceName = request.args.get('device_id')
-        device = deviceMgr.get(deviceName, True)
+        device = deviceMgr.getByName(deviceName, True)
         if device:
             device.onConnect(request.sid)
     except Exception as e:
@@ -84,7 +84,7 @@ def onC2S_Login(data):
         if not device:
             return None
         # 普通设备处理
-        result = device.login()
+        result = device.onLogin()
         return result
     except Exception as e:
         log.ex(e, '处理设备登录失败')
@@ -100,7 +100,7 @@ def onC2S_Logout(data):
         # 普通设备处理
         ret = False
         if device:
-            ret = device.logout()
+            ret = device.onLogout()
         emit('S2C_CmdResult', {'result': ret}, room=device.sid)
         return ret
     except Exception as e:
@@ -187,14 +187,33 @@ def on2S_Cmd(data):
         targets = data.get('targets', None)
         command = data.get('command', '')
         Log.i(f'处理2S命令请求: {targets}, {command}')
-        if targets is None or command.strip() == '':
+        # 从解析Command的头部targets, 格式为 设备名列表> 命令
+        pos = command.find('>')
+        if pos != -1:
+            # targets 以，隔开，可能有空格隔开，需要去掉空格，
+            targets = [name.strip() for name in command[:pos].split(',')]        
+            #将targets中的设备名转换为设备ID，如果他不是数字的话
+            deviceIds = []
+            for name in targets:
+                if name == '':
+                    continue
+                # 如果name是数字，则直接返回
+                if name.isdigit():
+                    deviceIds.append(name)
+                else:
+                    device = deviceMgr.getByName(name)
+                    if device:
+                        deviceIds.append(device.id)
+            command = command[pos+1:]
+        else:
+            deviceIds = targets
+        if deviceIds is None or command.strip() == '':
             return
         params = data.get('params')
         ret = {}
-        for target in targets:
+        for target in deviceIds:
             ret[target] = deviceMgr.onCmd(target, command, params)
         return ret
-
     except Exception as e:
         Log.ex(e, '执行命令失败')
         

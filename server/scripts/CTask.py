@@ -36,7 +36,7 @@ class CTask_(TaskBase):
         self._page: "_Page_" = None  # 目标页面
         self._config = config
         self._dirty = False  # 改为布尔标记
-        self._prev_values = {
+        self.oldValues = {
             'score': self._score,
             'state': self._state.value,  # 存储枚举值
             'progress': self._progress
@@ -67,7 +67,7 @@ class CTask_(TaskBase):
     def state(self, value: TaskState):
         """任务状态"""
         log = _G.g.Log()
-        log.i(f"任务{self._name}状态: self._state={self._state}, ==>value={value}")
+        # log.i(f"任务{self._name}状态: self._state={self._state}, ==>value={value}")
         if self._state != value:
             self._state = value
             self._dirty = True  # 标记为脏
@@ -76,12 +76,12 @@ class CTask_(TaskBase):
             })
 
     @property
-    def progress(self):
+    def progress(self)->int:
         """任务进度"""
         return self._progress
     
     @progress.setter
-    def progress(self, value):
+    def progress(self, value:int):
         if self._progress != value:
             self._progress = value
             self._dirty = True  # 标记为脏
@@ -265,20 +265,27 @@ class CTask_(TaskBase):
             if not self._Do(g):
                 log.e(f"任务{self._name}执行失败")
                 return None
-            # # 发送任务开始事件
-            # taskData = g.emitRet('C2S_StartTask', {
-            #     'taskName': self.name
-            # })
-            # if taskData is None:
-            #     log.e(f"任务{self._name}开始失败")
-            #     return None
-            # self.fromData(taskData)
             from CDevice import CDevice_
             CDevice_.setCurTask(self)
+            self._emitUpdate(self._id, {
+                'state': self._state.value
+            })
             return self._state
         except Exception as e:
             log.ex(e, f"任务开始失败: {e}")
             return None
+        
+    def stop(self, state: TaskState = TaskState.PAUSED)->TaskState:
+        """停止任务"""
+        self.state = state
+        log = _G._G_.Log()
+        log.i(f"任务{self._name}停止@@@@@@@@@@@: {state}")
+        self._emitUpdate(self._id, {
+            'state': self._state.value,
+            'progress': self._progress
+        })
+        return self._state
+    
         
     def _goPage(self, g: "_G_")->bool:
         if not self.pageName:
@@ -294,10 +301,6 @@ class CTask_(TaskBase):
         self._page = page
         return True
     
-    def stop(self)->TaskState:
-        """停止任务"""
-        self.state = TaskState.PAUSED
-        return self._state
     
     def exitTrigger(self)->bool:
         """判断目标页面_page的退出的那一刻(下降沿)
@@ -323,28 +326,28 @@ class CTask_(TaskBase):
         """任务更新函数"""
         if self.state != TaskState.RUNNING:
             return
-        
         # 检测字段变化
         changed = {}
-        
         if self._dirty:
             # 检查所有被追踪字段
-            current_values = {
+            values = {
                 'score': self._score,
                 'state': self._state.value,  # 获取枚举值
                 'progress': self._progress
             }
             
             for field in ['score', 'state', 'progress']:
-                current = current_values[field]
-                prev = self._prev_values[field]
+                current = values[field]
+                prev = self.oldValues[field]
                 
                 if current != prev:
                     changed[field] = current
-                    self._prev_values[field] = current  # 更新存储值
+                    self.oldValues[field] = current  # 更新存储值
             
             # 如果有变化则发送事件
             if changed:
+                log = g.Log()
+                log.i(f'任务{self._name}更新: {changed}')
                 self._emitUpdate(self._id, changed)
                 self._dirty = False  # 重置标记
         
@@ -375,6 +378,8 @@ class CTask_(TaskBase):
         """
         if self.state != TaskState.RUNNING:
             return False
+        g = _G._G_
+        log = g.Log()
         life = self.life
         if life == 0:
             # 没有生命周期，不做进度更新
@@ -386,24 +391,21 @@ class CTask_(TaskBase):
             self._deltaTime = (curTime - self._lastTime).total_seconds()
             self._lastTime = curTime
             # 累加到总进度中
-            progress += self._deltaTime
+            progress += int(self._deltaTime)
         else:  # 次数模式
             # 次数模式
             progress += 1
-        self.progress = progress
+        self.progress = int(progress)
         percent = progress / float(abs(life))
-        _G.g.Log().i(f"任务{self._name}进度: {percent:0.2f}")
+        # log.i(f"任务{self._name}进度: {percent:0.2f}")
         # 进度完成处理
         if percent >= 1.0:
-            self.end()
+            self.stop(TaskState.SUCCESS)
+            # 执行结束脚本（使用属性访问）
+            g.Tools().do(self.exitScript)
             return False
         return True
 
-    def end(self):
-        # 确定最终状态
-        self.state = TaskState.SUCCESS if self._score > 0 else TaskState.FAILED
-        # 执行结束脚本（使用属性访问）
-        _G.g.Tools().do(self.exitScript)
 
     @classmethod
     def _emitUpdate(cls, taskID, data):

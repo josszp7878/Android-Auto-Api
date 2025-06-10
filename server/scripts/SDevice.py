@@ -3,7 +3,6 @@ from pathlib import Path
 import json
 import os
 from typing import TYPE_CHECKING
-from flask import current_app
 from SModels import DeviceModel_, TaskModel_
 import _Log
 import base64
@@ -12,6 +11,7 @@ import _G
 from SModelBase import SModelBase_
 if TYPE_CHECKING:
     from STask import STask_
+    
 
 class SDevice_(SModelBase_):
     """设备管理类"""
@@ -19,13 +19,35 @@ class SDevice_(SModelBase_):
     
     def __init__(self, name):
         super().__init__(name, DeviceModel_)
-        self.sid = None
+        self.sid:str = None
         self._state = _G.ConnectState.OFFLINE
         self._lastScreenshot = None
         self._ensure_screenshot_dir()
         self.apps = []
         self._tasks: dict[int, 'STask_'] = None  # 缓存当天任务列表
         self.tasksDate = None  # 当前缓存的日期
+    
+    @property
+    def state(self)->_G.ConnectState:
+        return self._state
+    
+    # def _refreshTasks(self):
+    #     """刷新任务列表"""
+    #     tasks = self.getTasks()
+    #     g = _G._G_
+    #     log = g.Log()
+    #     log.i(f'刷新任务列表: {self.name}, {tasks}')
+    #     g.emit('S2B_sheetUpdate', {'type': 'tasks', 'data': [t.toSheetData() for t in tasks]})
+    
+    @state.setter
+    def state(self, value: _G.ConnectState):
+        if self._state == value:
+            return
+        self._state = value
+        self.setDBProp('lastTime', datetime.now())
+        # self._refreshTasks()
+        self.commit()
+        self.refresh()
 
     @property
     def tasks(self):
@@ -75,7 +97,7 @@ class SDevice_(SModelBase_):
             if data is None:
                 return False
             from SDeviceMgr import deviceMgr
-            device = deviceMgr.getByID(deviceID)
+            device = deviceMgr.get(deviceID)
             if device:
                 g.emit(event, data, device.sid)
                 return True
@@ -116,18 +138,16 @@ class SDevice_(SModelBase_):
     def isConnected(self) -> bool:
         return self._state != _G.ConnectState.OFFLINE
 
-    def onConnect(self, sid):
+    def onConnect(self, sid:str):
         """设备连接回调"""
         try:
-            self._state = _G.ConnectState.ONLINE
-            self.setDBProp('lastTime', datetime.now())
+            self.state = _G.ConnectState.ONLINE
             self.sid = sid
-            log = _G._G_.Log()
-            log.d_(f'设备连接回调: {self.name}, {sid}')
+            g = _G._G_
+            log = g.Log()
+            log.d(f'设备连接回调: {self.name}, {sid}')
             from SDeviceMgr import deviceMgr
             deviceMgr.addDevice(self)
-            self.commit()
-            self.refresh()
             return True
         except Exception as e:
             _Log._Log_.ex(e, '设备连接处理失败')
@@ -136,11 +156,8 @@ class SDevice_(SModelBase_):
     def onDisconnect(self):
         """设备断开连接回调"""
         try:
-            self._state = _G.ConnectState.OFFLINE
-            self.setDBProp('lastTime', datetime.now())
+            self.state = _G.ConnectState.OFFLINE
             _Log._Log_.i(f'设备 -----{self.name} 已断开连接')
-            self.commit()
-            self.refresh()  # 统一刷新状态
             from SDeviceMgr import deviceMgr
             deviceMgr.removeDevice(self)
             return True
@@ -148,34 +165,21 @@ class SDevice_(SModelBase_):
             _Log._Log_.ex(e, '设备断开连接处理失败')
             return False
 
-    def login(self):
+    def onLogin(self):
         """设备登录"""
         try:
             log = _G._G_.Log()
             log.i(f'设备登录: {self.name}')
-            self._state = _G.ConnectState.LOGIN
-            self.setDBProp('lastTime', datetime.now())
-            self.commit()
-            self.refresh()  # 统一刷新状态
-            self._initTasks()
-            today = datetime.now().date()
-            tasks = self.getTasks(today)
+            tasks = self.getTasks()
+            self.state = _G.ConnectState.LOGIN
             return {"taskList": [t.toSheetData() for t in tasks]}
         except Exception as e:
             _Log._Log_.ex(e, '设备登录失败')
             return False
     
-    def logout(self):
+    def onLogout(self):
         """设备登出"""
-        try:
-            self._state = _G.ConnectState.LOGOUT
-            self.setDBProp('lastTime', datetime.now())
-            self.commit()
-            self.refresh()  # 统一刷新状态
-            return True
-        except Exception as e:
-            _Log._Log_.ex(e, '设备登出失败')
-            return False    
+        self.state = _G.ConnectState.LOGOUT
     
     def sendClientCmd(self, command, data=None):
         """执行设备命令并等待结果
@@ -201,7 +205,7 @@ class SDevice_(SModelBase_):
             # log.i(f'发送客户端命令: {self.name}, {command}, {data}， sid={sid}')
             return g.emitRet('S2C_DoCmd', {
                 'command': command,
-                'sender': current_app.config['SERVER_ID'],
+                'sender': '@',
                 'data': data,
             }, sid=sid)
         except Exception as e:
@@ -403,50 +407,60 @@ class SDevice_(SModelBase_):
             log.ex(e, f"从文件加载屏幕信息失败: {pageName}")
             return None
         
-    def getTask(self, taskID):
-        """根据ID获取任务"""
-        return self.tasks.get(taskID)
+    def getTask(self, key):
+        """根据KEY 获取任务，支持ID和任务名"""
+        g = _G._G_
+        log = g.Log()
+        try:
+            id = g.toInt(key)
+            if id:
+                if id in self._tasks:
+                    return self._tasks[id]
+            else:
+                key = key.lower()
+                for t in self._tasks.values():
+                    if t.name.lower() == key:
+                        return t
+            return None
+        except Exception as e:
+            log.ex(e, f'获取任务失败: {key}')
+            return None
 
     def getTasks(self, date=None):
         """获取指定日期的任务列表，默认当天，按天缓存"""
-        from SModels import TaskModel_
         from STask import STask_
-        from datetime import datetime
+        today = datetime.now().date()
         if date is None:
-            date = datetime.now().date()
+            date = today
         if self._tasks is not None and self.tasksDate == date:
             return list(self._tasks.values())
         # 重新加载
         self._tasks = {}
         self.tasksDate = date
         tasks = [STask_(t) for t in TaskModel_.all(date, f"deviceId = {self.id}")]
+        if len(tasks) == 0 and date == today:
+            self._createTasks(today)
+            tasks = self.getTasks(date)
         # log = _G._G_.Log()
-        # log.i_(f'获取任务列表顶顶顶顶: {date}, count={len(tasks)}')
         for t in tasks:
             self._tasks[t.id] = t
         return tasks
-
     
-    def _initTasks(self):
-        """初始化今天任务列表"""
+    def _createTasks(self, date:datetime):
+        """创建任务列表"""
         log = _G._G_.Log()
         try:
-            from datetime import datetime
-            today = datetime.now().date()
-            tasks = self.getTasks(today)
-            if len(tasks) == 0:
-                from Task import TaskBase
-                from STask import STask_
-                for taskName, config in TaskBase.getConfig().items():
-                    # 先查缓存
-                    task = next((t for t in tasks if t.name == taskName), None)
-                    if not task:
-                        # 不存在则尝试创建（TaskModel_.get已做唯一性判定）
-                        data = TaskModel_.get(self.id, taskName, today, True)
-                        if data:
-                            task = STask_(data)
-                            self._tasks[task.id] = task
-            log.i(f'初始化任务列表: 任务数 {len(self._tasks)}')
+            from STask import STask_
+            from Task import TaskBase
+            for taskName, config in TaskBase.getConfig().items():
+                # 不存在则尝试创建（TaskModel_.get已做唯一性判定）
+                data = TaskModel_.get(self.id, taskName, date, True)
+                if data:
+                    task = STask_(data)
+                    # 根据CONFIG初始化任务
+                    task.setDBProp('life', config.get('life', 10))
+                self._tasks[task.id] = task
+            log.i(f'创建{date} 的任务列表: {len(self._tasks)}')
         except Exception as e:
             log.ex(e, '初始化任务列表失败')
 
