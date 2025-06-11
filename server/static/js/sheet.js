@@ -1276,21 +1276,27 @@ class SheetPage {
      * 处理任务操作
      */
     async handleTaskAction(row) {
-        const data = row.getData();
-        // console.log(`处理任务操作: ${data.state}, 任务名称: ${data.name}`);
-        let cmd = '';
-        let task = this.tasks.find(t => t.id === data.id);        
-        if (!task) {
-            console.warn('未找到对应的任务');
-            return;
+        // 获取所有选中行，如果没有则只处理当前行
+        let rows = this._taskTable.getSelectedRows();
+        if (!rows || rows.length === 0) {
+            rows = [row];
         }
-        // 根据操作类型确定命令
-        if (data.state === 'running') {
-            cmd = `stopTask ${task.id}`;
-        } else {
-            cmd = `startTask ${task.id}`;
+        for (const r of rows) {
+            const data = r.getData();
+            let cmd = '';
+            let task = this.tasks.find(t => t.id === data.id);        
+            if (!task) {
+                console.warn('未找到对应的任务');
+                continue;
+            }
+            // 根据操作类型确定命令
+            if (data.state === 'running') {
+                cmd = `stopTask ${task.id}`;
+            } else {
+                cmd = `startTask ${task.id}`;
+            }
+            await this.sendCmd(cmd, [task.deviceId]);
         }
- 
     }
 
     async sendCmd(cmd, targets, params) {

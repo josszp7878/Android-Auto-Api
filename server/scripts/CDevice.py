@@ -34,9 +34,12 @@ class CDevice_:
             cls._server = server
             # 配置 socketio 客户端（关闭自动重连）
             sio = socketio.Client(
-                reconnection=False,  # 关闭自动重连
+                reconnection=True,  # 开启自动重连
+                reconnection_attempts=5,  # 重连尝试次数
+                reconnection_delay=1,  # 重连延迟时间（秒）
                 logger=False,  # 关闭详细日志
-                engineio_logger=False  # 关闭 Engine.IO 日志
+                engineio_logger=False,  # 关闭 Engine.IO 日志
+                # ping_timeout=10  # 心跳超时时间（秒）
             )
             sio.on('S2C_DoCmd')(cls.onS2C_DoCmd)
             sio.on('S2C_CmdResult')(cls.onS2C_CmdResult)
@@ -90,9 +93,7 @@ class CDevice_:
         try:
             connect_url = f"{g.Tools().getServerURL(cls._server)}?device_id={cls._deviceID}"
             sio = cast(socketio.Client, g.sio())
-            if sio.connected:
-                log.w(f"设备{cls._deviceID}已经连接，无需重复操作")
-                return True
+
             log.i(f'正在连接设备 {cls._deviceID} ...')
             sio.connect(
                 connect_url,
@@ -153,22 +154,19 @@ class CDevice_:
         """处理客户端收到的命令"""
         g = _G._G_
         log = g.Log()
+        cmd = data
+        cmdName = data.get('cmd')
         try:
-            command = data.get('command')
-            cmdData = data.get('data', None)
-            cmd_id = data.get('cmd_id')  # 获取命令ID
-            # 使用 CmdMgr 执行命令
-            cmd = {'id': cmd_id, 'data': cmdData, 'cmd': command}
             g.CmdMgr().do(cmd)
-            cmdName = cmd.get('name')
+            cmdName = cmd.get('cmd')
             if cmdName == 'reset':
-                log.i(f'收到重置命令: {command}，不发送结果')
+                log.i(f'收到重置命令: {cmdName}，不发送结果')
                 # 不发送结果，但也不抛出异常
                 return
             result = cmd.get('result')
             return result
         except Exception as e:
-            log.ex(e, f'执行命令出错: {command}')
+            log.ex(e, f'执行命令出错: {cmdName}')
             return None
 
 
@@ -270,7 +268,7 @@ class CDevice_:
         from CTask import CTask_
         g = _G._G_
         log = g.Log()
-        log.i_(f"登录成功，初始化任务表, data: {data}")
+        # log.i_(f"登录成功，初始化任务表, data: {data}")
         cls._clsTasks = {}
         taskList = data.get('taskList', [])
         for t in taskList:

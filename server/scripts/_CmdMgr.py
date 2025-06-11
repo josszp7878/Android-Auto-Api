@@ -60,50 +60,42 @@ class _CmdMgr_:
 
     @classmethod
     def processParamSpaces(cls, pattern):
-        """简化版的参数间空格处理：只处理参数间的简单空格
+        """将参数组包装为带空格的可选结构，所有参数都设为可选
+        
+        将 (?P<param>\S+) 转换为 (?:\s+(?P<param>\S+))?
+        将 (?P<param>\S+)? 转换为 (?:\s+(?P<param>\S+))?
         
         Args:
             pattern: 命令模式字符串
         Returns:
             str: 处理后的命令模式字符串
         """
-        # 查找所有命名捕获组
-        param_pattern = r'\(\?P<([^>]+)>([^)]+)\)(\??)'
-        matches = list(re.finditer(param_pattern, pattern))
-        
-        if len(matches) <= 1:  # 如果只有一个或没有参数，不需要处理
-            return pattern
+        try:
+            # 查找所有参数捕获组（除了命令名CC组）
+            param_pattern = r'\(\?P<([^>]+)>([^)]+)\)(\??)'
             
-        # 构建结果
-        result = ""
-        last_end = 0
-        
-        # 处理每个匹配项
-        for i, match in enumerate(matches):
-            # 获取当前参数的信息
-            full_match = match.group(0)  # 整个匹配
-            param_start = match.start()
-            param_end = match.end()
-            
-            # 添加上一个参数结束到当前参数开始之间的部分
-            between = pattern[last_end:param_start]
-            # 如果是参数之间的部分(不是开头部分)，且只包含空白
-            if i > 0 and between.strip() == '':
-                # 替换为\s*
-                result += r'\s*'
-            else:
-                result += between
+            def replace_param(match):
+                param_name = match.group(1)
+                param_content = match.group(2)
+                # 忽略原有的可选标记，统一设为可选
                 
-            # 添加当前参数
-            result += full_match
-            last_end = param_end
+                # 如果是命令名捕获组，不处理
+                if param_name == cls.CmdKey:
+                    return match.group(0)
+                
+                # 构建新的参数格式：(?:\s+(?P<param>\S+))? 所有参数都可选
+                new_param = f"(?:\\s+(?P<{param_name}>{param_content}))?"
+                return new_param
             
-        # 添加最后一个参数后的部分
-        result += pattern[last_end:]
-        
-        return result
+            # 替换所有参数组
+            result = re.sub(param_pattern, replace_param, pattern)
+            
+            return result
+            
+        except Exception as e:
+            print(f"ERROR in processParamSpaces: {e}, pattern: {pattern}")
+            return pattern
 
-    
     @classmethod
     def reg(cls, pattern=None):
         """注册命令
@@ -159,7 +151,10 @@ class _CmdMgr_:
                     
                     # 始终添加函数名和缩写到命令别名中，不考虑是否已有别名
                     cmdName = f"{cmdName}|{func_name}|{abbr.lower()}"
-                    namePattern = f"(?P<{cls.CmdKey}>{cmdName})\s*"
+                    
+                    # 因为参数部分会被包装为可选的，所以命令名后不需要强制空格
+                    namePattern = f"(?P<{cls.CmdKey}>{cmdName})"
+                    
                     # 在替换命令名时添加忽略大小写标记
                     pattern = pattern.replace(
                         cmd_pattern, 
@@ -170,18 +165,23 @@ class _CmdMgr_:
                     return func
             
             # 处理参数之间的空格
-            # 查找所有命名捕获组
-            param_pattern = r'\(\?P<([^>]+)>[^)]+\)(\??)'
-            param_matches = list(re.finditer(param_pattern, pattern))
+            pattern = cls.processParamSpaces(pattern)
             
-            # 如果找到参数，处理它们之间的空格
-            if len(param_matches) > 1:
-                # 使用已有的processParamSpaces方法处理参数间空格
-                pattern = cls.processParamSpaces(pattern)
+            # 添加开始和结束锚点，并允许末尾空格容错
+            if not pattern.startswith('^'):
+                pattern = '^' + pattern
+            if not pattern.endswith('$'):
+                pattern = pattern + r'\s*$'
+
+            # 调试输出生成的正则表达式
+            # print(f"DEBUG: 生成的正则表达式 [{func_name}]: {pattern}")
             
-            # 如果pattern结尾是\s+或者\s*,应该去掉
-            if pattern.endswith(r'\s*'):
-                pattern = pattern[:-3]
+            # 测试正则表达式是否有效
+            try:
+                re.compile(pattern, re.IGNORECASE)
+            except re.error as e:
+                log.e(f"正则表达式编译错误 [{func_name}]: {e}, pattern: {pattern}")
+                return func
 
             # 创建命令对象并添加到注册表
             cmd = Cmd(
@@ -294,8 +294,10 @@ class _CmdMgr_:
         return value
     
     CmdKey = "CC"
+
+    # 返回值： cmd对象, 里面result为执行结果，如果不存在，表示该命令无效
     @classmethod
-    def do(cls, cmd:dict):
+    def do(cls, cmd:dict)->dict:
         """执行命令
         Args:
             cmd: dict 成员如下：
@@ -304,8 +306,10 @@ class _CmdMgr_:
                 data: 命令数据
                 cmd: 命令字符串
         """
+        # 清除cmd中的result, 
+        cmd.pop('result', None)
         if cmd is None:
-            return None
+            return cmd
         g = _G._G_
         log = g.Log()
         cmdStr = cmd.get('cmd')
@@ -341,11 +345,11 @@ class _CmdMgr_:
                             bestMatchLength = matchLength
             find = bestMatch
             if find is None:
-                log.w(f"{cmdStr} 不是命令: 当成脚本执行")
+                # log.w(f"{cmdStr} 不是命令: 当成脚本执行")
                 tools = g.Tools()
                 tools.do(cmdStr)
-                return
-            # 提取命名捕获组作为参数
+                return cmd
+            # 设置匹配到的参数
             kwargs = {}
             for key, value in m.groupdict().items():
                 # 跳过命令关键字,这个不能作为参数
@@ -353,10 +357,29 @@ class _CmdMgr_:
                     kwargs[key] = cls._cleanParam(value)
             cmdName = find.name.lower()
             cmd['name'] = cmdName
-            # 检查目标函数是否有cmd参数
+            # 设置参数
+            params = cmd.get('params') or {}
+            params['cmd'] = cmd
             sig = inspect.signature(find.func)
-            if 'cmd' in sig.parameters:
-                kwargs['cmd'] = cmd 
+            for key, value in params.items():
+                if key in sig.parameters:
+                    kwargs[key] = value
+            
+            # 验证必须参数
+            missing_params = []
+            for param_name, param in sig.parameters.items():
+                # 检查参数是否有默认值
+                if param.default == inspect.Parameter.empty:
+                    # 没有默认值的参数是必须的
+                    if param_name not in kwargs or kwargs[param_name] is None:
+                        missing_params.append(param_name)
+            
+            if missing_params:
+                error_msg = f"命令 '{cmdName}' 缺少必须参数: {', '.join(missing_params)}"
+                log.e(error_msg)
+                cmd['result'] = error_msg
+                return cmd
+            
             log.c_(f'<{cmdName}>:{cmdStr}', '')
             result = find.func(**kwargs)
             try:
@@ -366,17 +389,17 @@ class _CmdMgr_:
                 raise Exception(f"命令返回值不支持JSON序列化: {type(result)}，请检查实现")
             if result:
                 cmd['result'] = result
-                # 解析结果中可能包含的级别信息
-                level, result = log._parseLevel(result)
                 if isinstance(result, str):
+                    level, result = log._parseLevel(result)
                     # 如果result是字符串，则直接当结果打印
                     log.log_(f'  => {result}', '', level)
                 else:
                     # 如果result不是字符串，则转换为字符串并当结果打印
-                    log.log_(f'  => {str(result)}', '', level)
+                    log.log_(f'  => {str(result)}')
         except Exception as e:
             log.ex(e, f'执行命令出错: {cmdStr}')
-        
+        return cmd
+    
     @classmethod
     def _reloadModule(cls, moduleName: str) -> bool:
         """处理模块重新加载

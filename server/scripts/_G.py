@@ -95,8 +95,9 @@ class _G_:
     def removeConsole(cls, sid: str):
         """删除控制台"""
         if sid:
-            cls._consoles.remove(sid)
-            print(f'removeConsole: {cls._consoles}')
+            if sid in cls._consoles:
+                cls._consoles.remove(sid)
+                print(f'removeConsole: {cls._consoles}')
 
     @classmethod
     def connect(cls):
@@ -614,6 +615,33 @@ class _G_:
         '｀': '`',
         '　': ' ',  # 全角空格替换为半角空格
     }
+    
+    # OCR容易出错的字符对映射
+    OcrErrorMap: dict = {
+        '市': '币',
+        '币': '市', 
+        '全': '金',
+        '金': '全',
+        '奖': '将',
+        '将': '奖',
+        '现': '观',
+        '看': '着',
+        '着': '看',
+        '告': '苦',
+        '苦': '告',
+        '视': '规',
+        '规': '视',
+        '专': '專',
+        '專': '专',
+        '属': '屬',
+        '屬': '属',
+        '打': '扎',
+        '扎': '打',
+        '支': '文',
+        '文': '支',
+        '付': '什',
+        '什': '付',
+    }
         
     @classmethod
     def replaceSymbols(cls, text: str, symbolMap: dict = None) -> str:
@@ -636,5 +664,43 @@ class _G_:
             text = text.replace(full, half)
         return text        
 
-   
+    @classmethod
+    def ocrCompare(cls, str1: str, str2: str, maxDiff: int = 2) -> bool:
+        """OCR字符串比较，判断两个字符串是否因OCR错误导致的差异
+        
+        Args:
+            str1: 第一个字符串
+            str2: 第二个字符串
+            maxDiff: 最大允许的不同字符数
+            
+        Returns:
+            如果两字符串只有少于等于maxDiff个容易出错的字符不同，返回True
+        """
+        if not str1 or not str2:
+            return str1 == str2
+            
+        if str1 == str2:
+            return True
+            
+        # 长度必须相等才进行OCR比较
+        if len(str1) != len(str2):
+            return False
+            
+        # 统计不同字符数
+        diffCount = 0
+        
+        # 比较相同位置的字符
+        for i in range(len(str1)):
+            char1 = str1[i]
+            char2 = str2[i]
+            if char1 != char2:
+                # 检查是否是OCR容易出错的字符对
+                if cls.OcrErrorMap.get(char1) == char2 or cls.OcrErrorMap.get(char2) == char1:
+                    diffCount += 1
+                else:
+                    # 不是OCR错误字符对，直接返回False
+                    return False
+                    
+        return diffCount <= maxDiff
+
 g = _G_

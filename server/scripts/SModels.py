@@ -149,47 +149,65 @@ class DeviceModel_:
             db.session.rollback()
             return False
 
-class EarningRecord(db.Model):
-    """收益记录表"""
-    __tablename__ = 'earnings'
-    
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    deviceId = db.Column(db.String(50), db.ForeignKey('devices.device_id'), nullable=False)
-    appName = db.Column(db.String(50), nullable=False)
-    earnType = db.Column(db.String(20), nullable=False)  # score或cash
-    amount = db.Column(db.Float, nullable=False)  # 收益数量
-    time = db.Column(db.DateTime, default=datetime.now)  # 收益时间
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'deviceId': self.deviceId,
-            'appName': self.appName,
-            'earnType': self.earnType,
-            'amount': self.amount,
-            'time': self.time.strftime('%Y-%m-%d %H:%M:%S')
-        }
+# class EarningRecordModel_:
+#     """收益记录表（自动SQL实现）"""
+#     table = 'earnings'
+#     fields = {
+#         'id': ('int', None),
+#         'deviceId': ('str', None),
+#         'appName': ('str', None),
+#         'earnType': ('str', None),
+#         'amount': ('float', 0.0),
+#         'time': ('datetime', lambda: datetime.now())
+#     }
+#     model = SModel_(table, fields)
 
+#     @classmethod
+#     def all(cls, date: datetime = None, where: str = None):
+#         return cls.model.all(date, where)
 
-class AppModel(db.Model):
-    __tablename__ = 'apps'
-    id = db.Column(db.Integer, primary_key=True)
-    deviceId = db.Column(db.String(50), nullable=False)
-    appName = db.Column(db.String(100), nullable=False)
-    totalScore = db.Column(db.Float, default=0.0)
-    income = db.Column(db.Float, default=0.0)
-    state = db.Column(db.String(20), default='active')
-    lastUpdate = db.Column(db.DateTime, default=datetime.now)
+#     @classmethod
+#     def get(cls, deviceId: str, appName: str, earnType: str, date: datetime = None, create: bool = False):
+#         try:
+#             date = date or datetime.now()
+#             date_str = date.strftime('%Y-%m-%d')
+#             sql = cls.model.genSelectSql() + " WHERE deviceId = :deviceId AND appName = :appName AND earnType = :earnType AND DATE(time) = :date"
+#             params = {'deviceId': deviceId, 'appName': appName, 'earnType': earnType, 'date': date_str}
+#             result = db.session.execute(sql, params)
+#             row = result.fetchone()
+#             if not row and create:
+#                 data = {'deviceId': deviceId, 'appName': appName, 'earnType': earnType, 'time': datetime.now()}
+#                 cls.model.insert(data)
+#                 result = db.session.execute(sql, params)
+#                 row = result.fetchone()
+#             return cls.model.toDict(row) if row else None
+#         except Exception as e:
+#             _G._G_.Log().ex(e, "获取收益记录失败")
+#             return None
 
-    @classmethod
-    def from_device(cls, device):
-        return cls(
-            deviceId=device.device_id,
-            appName=device.appName,
-            totalScore=device.totalScore,
-            income=device.income,
-            state=device.state
-        )
+#     @classmethod
+#     def commit(cls, data: dict):
+#         return cls.model.update(data)
+
+# class AppModel(db.Model):
+#     __tablename__ = 'apps'
+#     id = db.Column(db.Integer, primary_key=True)
+#     deviceId = db.Column(db.String(50), nullable=False)
+#     appName = db.Column(db.String(100), nullable=False)
+#     totalScore = db.Column(db.Float, default=0.0)
+#     income = db.Column(db.Float, default=0.0)
+#     state = db.Column(db.String(20), default='active')
+#     lastUpdate = db.Column(db.DateTime, default=datetime.now)
+
+#     @classmethod
+#     def from_device(cls, device):
+#         return cls(
+#             deviceId=device.device_id,
+#             appName=device.appName,
+#             totalScore=device.totalScore,
+#             income=device.income,
+#             state=device.state
+#         )
     
 
 class TaskModel_:
@@ -213,21 +231,24 @@ class TaskModel_:
 
     @classmethod
     def get(cls, deviceId: str, name: str, date: datetime = None, create: bool = False):
+        log = _G._G_.Log()
         try:
-            date = date or datetime.now()
+            if not date:
+                date = datetime.now()
             date_str = date.strftime('%Y-%m-%d')
             sql = cls.model.genSelectSql() + " WHERE deviceId = :deviceId AND name = :name AND DATE(time) = :date"
             params = {'deviceId': deviceId, 'name': name, 'date': date_str}
             result = db.session.execute(sql, params)
             row = result.fetchone()
             if not row and create:
-                data = {'deviceId': deviceId, 'name': name, 'time': datetime.now()}
+                data = {'deviceId': deviceId, 'name': name, 'time': date}
                 cls.model.insert(data)
                 result = db.session.execute(sql, params)
                 row = result.fetchone()
+                # log.i_(f"创建任务: {data}, result: {row}")
             return cls.model.toDict(row) if row else None
         except Exception as e:
-            _G._G_.Log().ex(e, "获取任务记录失败")
+            log.ex(e, "获取任务记录失败")
             return None
 
     @classmethod

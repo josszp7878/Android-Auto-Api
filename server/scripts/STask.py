@@ -1,17 +1,22 @@
-from datetime import datetime
 from _G import TaskState
-import _Log
-from typing import List, Optional
 from SModelBase import SModelBase_
 from SModels import TaskModel_
 from Task import TaskBase
-
+from datetime import datetime
 
 class STask_(SModelBase_, TaskBase):
     """服务端任务类"""
     def __init__(self, name: str):
         """初始化任务"""
         super().__init__(name, TaskModel_)
+    
+    @classmethod
+    def get(cls, deviceId: str, name: str, date:datetime=None, create: bool = False):
+        """获取或创建任务"""
+        data = TaskModel_.get(deviceId, name, date, create)
+        if data:
+            return cls(data)
+        return None
     
     @property
     def state(self)->TaskState:
@@ -28,14 +33,18 @@ class STask_(SModelBase_, TaskBase):
     def score(self)->int:
         return int(self.getDBProp('score', 0))
     
+    @score.setter
+    def score(self, score: int):
+        self.setDBProp('score', score)
+
     @property
     def life(self)->int:
         return int(self.getDBProp('life', 10))
     
     def setLife(self, life: int):
         if self.setDBProp('life', life):
-            log = _Log._Log_
-            log.d(f'设2置任务生命周期: {self.id}, life ={life}, isDirty = {self._isDirty}')
+            # log = _Log._Log_
+            # log.d(f'设2置任务生命周期: {self.id}, life ={life}, isDirty = {self._isDirty}')
             self.commit()
             from SDevice import SDevice_
             SDevice_.sendClient('S2C_updateTask', self.deviceId, {
@@ -56,3 +65,6 @@ class STask_(SModelBase_, TaskBase):
         data['progress'] = self.progress  # 直接用整数
         data['life'] = self.life
         return data
+    
+
+    

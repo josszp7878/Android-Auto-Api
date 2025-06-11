@@ -29,6 +29,8 @@ class CTask_(TaskBase):
         self._name: str = name
         self._life: int = None
         self._interval: int = None
+        self._deltaTime: int = 0
+        self._lastTime: datetime = None
         self._pageName: str = None
         self._pageData: dict = {}
         self._beginScript = None  # 修改为begin脚本
@@ -322,11 +324,8 @@ class CTask_(TaskBase):
         self._lastInPage = isCurPage
         return False
     
-    def update(self, g: "_G_"):
-        """任务更新函数"""
-        if self.state != TaskState.RUNNING:
-            return
-        # 检测字段变化
+    def _updateStateChanged(self, g: "_G_"):
+        """更新任务状态"""
         changed = {}
         if self._dirty:
             # 检查所有被追踪字段
@@ -350,21 +349,26 @@ class CTask_(TaskBase):
                 log.i(f'任务{self._name}更新: {changed}')
                 self._emitUpdate(self._id, changed)
                 self._dirty = False  # 重置标记
-        
+    
+    def update(self, g: "_G_"):
+        """任务更新函数"""
+        if self.state != TaskState.RUNNING:
+            return        
         # 原有业务逻辑保持不变
         check = g.Tools().check(self.check) if self.check else True
         if check:
             bonus = self.bonus or 0
             if bonus > 0:
-                self._score += bonus
-            if self._refreshProgress():
+                self.score += bonus
+            if self._updateProgress():
                 if not self._next(g):
                     return False
+        self._updateStateChanged(g)
         return True
 
     def _next(self, g: "_G_")->bool:
         if self.interval > 0:
-            waitTime = self.interval - self._deltaTime
+            waitTime = self.interval - self._deltaTime or 0
             if waitTime > 0:
                 time.sleep(waitTime)
         if not self._Do(g):
@@ -372,18 +376,15 @@ class CTask_(TaskBase):
             return False
         return True
     
-    def _refreshProgress(self)->bool:
+    def _updateProgress(self)->bool:
         """统一处理进度更新        
         考虑任务暂停后再次开始的情况，累计计算进度
         """
         if self.state != TaskState.RUNNING:
             return False
         g = _G._G_
-        log = g.Log()
+        # log = g.Log()
         life = self.life
-        if life == 0:
-            # 没有生命周期，不做进度更新
-            return True
         progress = self.progress
         if life > 0:  # 时间模式
             # 计算当前会话运行时间
@@ -396,16 +397,16 @@ class CTask_(TaskBase):
             # 次数模式
             progress += 1
         self.progress = int(progress)
-        percent = progress / float(abs(life))
         # log.i(f"任务{self._name}进度: {percent:0.2f}")
         # 进度完成处理
-        if percent >= 1.0:
-            self.stop(TaskState.SUCCESS)
-            # 执行结束脚本（使用属性访问）
-            g.Tools().do(self.exitScript)
-            return False
+        if life != 0:
+            percent = progress / float(abs(life))
+            if percent >= 1.0:
+                self.stop(TaskState.SUCCESS)
+                # 执行结束脚本（使用属性访问）
+                g.Tools().do(self.exitScript)
+                return False
         return True
-
 
     @classmethod
     def _emitUpdate(cls, taskID, data):
@@ -414,3 +415,5 @@ class CTask_(TaskBase):
         log = _G.g.Log()
         log.i(f'发送任务更新事件: {data}')
         _G.g.emit('C2S_UpdateTask', data)
+
+    

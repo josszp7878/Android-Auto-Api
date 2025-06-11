@@ -20,3 +20,5 @@ server/logs
 /app/src/main/assets/scripts
 /venv
 server/scripts/__pycache__
+server/scripts/__pycache__/CDevice.cpython-38.pyc
+server/scripts/__pycache__/CDevice.cpython-38.pyc

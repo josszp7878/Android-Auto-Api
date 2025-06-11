@@ -69,7 +69,7 @@ class SDeviceMgr_:
             if id == 0:
                 key = key.lower()
             for d in self._devices:
-                log.i(f'设备: {d.id}, {d.name}, key={key}, id={id}')
+                # log.i(f'设备: {d.id}, {d.name}, key={key}, id={id}')
                 if id == d.id:
                     return d
                 if d.name.lower() == key:
@@ -147,37 +147,39 @@ class SDeviceMgr_:
         cmd_str = f"{name}:{command}:{time.time()}"
         return hashlib.md5(cmd_str.encode()).hexdigest()[:16]
 
+    def _onServerCmd(self, target, command, data=None)->dict:
+        """发送服务器命令"""
+        log = _G._G_.Log()
+        cmdMgr = _G._G_.CmdMgr()
+        params = {'target': target, 'data': data}
+        cmd = {'cmd': command, 'params': params}
+        log.add(command, '', 'c')
+        return cmdMgr.do(cmd)
 
     def onCmd(self, target, command, data=None):
         """发送命令"""
-        result = ''
+        result = None
         log = _G._G_.Log()
         try:
             if target is None:
                 return
-            isServer = target == _G.ServerTag
-            log.i(f'发送命令+++=>: {target}, {command}, isServer={isServer}')
-            if isServer:
-                    # 记录服务端命令日志
-                    cmdID = self.genCmdId('@', command)
-                    cmd = {'id': cmdID, 'data': data, 'cmd': command}
-                    log.add(command, '', 'c')
-                    cmdMgr = _G._G_.CmdMgr()
-                    cmdMgr.do(cmd)
-                    result = cmd.get('result', '')
-            else:
-                device = self.get(target)
-                if device is None:
-                    log.e(f'设备不存在: {target}')
-                    return
-                log.i(f'发送命令: {device.name}, {command}, {data}')
-                result = device.sendClientCmd(command, data)
-                log.i(f'处理客户端命令结果: {result}')
+            cmd = self._onServerCmd(target, command, data)
+            result = cmd.get('result')
+            if target != _G.ServerTag:
+                if result is None:
+                    # 如果失败，就当成纯客户端指令来执行
+                    device = self.get(target)
+                    if device is None:
+                        log.e(f'设备不存在: {target}')
+                        return
+                    log.i(f'发送命令: {device.name}, {command}, {data}')
+                    result = device.sendClientCmd(command, data)
+                    log.i(f'处理客户端命令结果: {result}')
             # _G._G_.SCommandHistory().add(command, target, result)
             # 如果有结果，再发送结果日志
             if result:
                 # 使用命令结果的日志级别
-                level, content = self._log._parseLevel(result, 'i')
+                level, content = log._parseLevel(result, 'i')
                 # log.i(f'处理命令结果: {result}, {level}, {content}')
                 if content: 
                     self._log.add(f"  结果： {content}", '', level)

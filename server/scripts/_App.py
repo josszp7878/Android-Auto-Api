@@ -1,9 +1,10 @@
+import re
 import threading
 import time
 import _G
 import os
 import json
-import datetime
+from datetime import datetime
 from typing import Optional, List, Tuple, TYPE_CHECKING, Dict
 from CDevice import CDevice_
 
@@ -817,7 +818,7 @@ class _App_:
             str: 文件路径
         """
         g = _G._G_
-        today = datetime.datetime.now().strftime("%Y-%m-%d")
+        today = datetime.now().strftime("%Y-%m-%d")
         countersDir = os.path.join(g.rootDir(), "data", "apps")
         if not os.path.exists(countersDir):
             os.makedirs(countersDir)
@@ -868,5 +869,23 @@ class _App_:
             log.ex(e, "保存数据异常")
             return False
 
+    def LoadScore(self, date: datetime = None) -> List[dict]:
+        # 导航到收益页面
+        g = _G._G_
+        App = g.App()
+        App.go('收益')
+        # 等待页面加载
+        time.sleep(1)
+        # 获取页面内容
+        test_file = os.path.join(g.rootDir(), "data", "result.json")
+        content = None
+        if os.path.exists(test_file):
+            with open(test_file, "r", encoding="utf-8") as f:
+                content = f.read()
+        from CScore import CScore_
+        return CScore_.loadScore(content, date)
+    
+    # 关键文本的正则表达式
+  
 
 _App_.onLoad()

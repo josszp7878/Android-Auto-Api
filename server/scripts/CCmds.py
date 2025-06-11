@@ -2,6 +2,7 @@ import re
 from _G import TaskState
 import _G
 import json
+from datetime import datetime
 
 class CCmds_:
 
@@ -16,7 +17,7 @@ class CCmds_:
         # 导入 regCmd
         from _CmdMgr import regCmd
 
-        @regCmd(r"#位置|wz(?P<text>.+?)")
+        @regCmd(r"#位置|wz(?P<text>.+)?")
         def pos(text):
             """
             功能：获取指定位置或文本的位置
@@ -658,7 +659,7 @@ class CCmds_:
             if not task:
                 log.e_(f"任务{taskID}不存在: ")
                 return None
-            return task._refreshProgress()
+            return task._updateProgress()
 
         @regCmd(r"#停止任务|tz(?P<task>\S+)")
         def stopTask(task:str)->TaskState:
@@ -782,6 +783,29 @@ class CCmds_:
                     return "添加屏幕信息失败"
                 return f"当前屏幕信息：{tools.getScreenInfo()}"
             
+        @regCmd(r"#获取收益|hjsy (?P<appName>\S+)(?P<date>\S+)")
+        def getScores(appName, date:str=None):
+            """
+            功能：获取指定应用指定日期的所有任务收益
+            指令名: getScores
+            参数: appName 应用名, date 日期(YYYY-MM-DD)
+            返回: [{"taskName":..., "score":...}, ...]
+            """
+            g = _G._G_
+            App = g.App()
+            app = App.getApp(appName)
+            if not app:
+                return f"e~应用不存在: {appName}"
+            
+            if not date:
+                date = datetime.now()
+            else:
+                date = datetime.strptime(date, '%Y-%m-%d')
+            result = app.LoadScore(date)
+            if not result:
+                return f"e~获取收益失败: {appName} {date}"
+            return result
+
         @regCmd(r"#状态|zt (?P<taskName>\S+)?")
         def state(taskName=None):
             """

@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 from SModels import DeviceModel_, TaskModel_
 import _Log
 import base64
-from SEarningMgr import SEarningMgr_
 import _G
 from SModelBase import SModelBase_
 if TYPE_CHECKING:
@@ -108,28 +107,6 @@ class SDevice_(SModelBase_):
             log.ex(e, '更新客户端数据失败')
             return False
     
-    @property
-    def total_score(self) -> float:
-        """获取设备总积分
-        Returns:
-            float: 设备的总积分
-        """
-        try:
-            # 获取从开始到现在的所有积分
-            start_date = datetime(2000, 1, 1)  # 一个足够早的日期
-            end_date = datetime.now()
-            
-            return SEarningMgr_().GetEarnings(
-                deviceId=self.id,
-                appName='',  # 空字符串表示所有应用
-                earnType='score',
-                start_date=start_date,
-                end_date=end_date
-            )
-        except Exception as e:
-            _Log._Log_.ex(e, '获取设备总分失败')
-            return 0.0
-    
     def _ensure_screenshot_dir(self):
         """确保设备的截图目录存在"""
         self.screenshot_dir = Path(self.SCREENSHOTS_DIR) / (str(self.id))
@@ -181,11 +158,11 @@ class SDevice_(SModelBase_):
         """设备登出"""
         self.state = _G.ConnectState.LOGOUT
     
-    def sendClientCmd(self, command, data=None):
+    def sendClientCmd(self, command, params=None):
         """执行设备命令并等待结果
         Args:
             command: 命令名称
-            data: 命令参数
+            params: 命令参数
             timeout: 超时时间(秒)
 
         Returns:
@@ -202,11 +179,10 @@ class SDevice_(SModelBase_):
                 log.w(f'设备 {self.name} 会话无效')
                 return None
             # 发送命令
-            # log.i(f'发送客户端命令: {self.name}, {command}, {data}， sid={sid}')
+            log.i(f'发送客户端命令:id={self.id}, cmd={command}, params={params}, sid={sid}')
             return g.emitRet('S2C_DoCmd', {
-                'command': command,
-                'sender': '@',
-                'data': data,
+                'cmd': command,
+                'params': params,
             }, sid=sid)
         except Exception as e:
             log.ex(e, '执行设备命令出错')
@@ -464,8 +440,55 @@ class SDevice_(SModelBase_):
         except Exception as e:
             log.ex(e, '初始化任务列表失败')
 
-
- 
+    # 向客户端发送命令获取收益
+    def cGetScores(self, appName, date:str = None)->bool:
+        """
+        功能：获取设备某应用某天的所有任务收益
+        指令名: getScores
+        参数: 
+            target - 设备ID
+            appName - 应用名称
+            date - 日期(YYYY-MM-DD)
+        返回: 处理结果和收益统计
+        """
+        g = _G._G_
+        log = g.Log()
+        try:
+            if not date:
+                date = datetime.now().strftime("%Y-%m-%d")                
+            # 调用客户端命令获取收益数据
+            result = self.sendClientCmd("getScores", {"appName": appName, "date": date})
+            if not isinstance(result, list):
+                return f"e~获取收益失败: {result}"                
+            if not result:
+                log.w(f"未获取到收益数据: {appName} {date}")
+                return "未获取到收益数据"
+            
+            # 处理收益数据并更新任务
+            changedTasks = []
+            for item in result:
+                taskName = item.get("name", "未知任务")
+                taskScore = item.get("amount", 0)  # 客户端返回的是amount字段
+                date = datetime.strptime(item.get("date", date), "%Y-%m-%d")
+                if not taskName or taskScore <= 0:
+                    continue
+                from STask import STask_
+                # 获取或创建任务
+                task = STask_.get(deviceId=self.id, name=taskName, date=date, create=True)
+                if not task:
+                    log.e(f"创建任务失败: {taskName}")
+                    continue
+                task.score = taskScore
+                if task.commit():
+                    changedTasks.append(task)
+                    # log.d_(f"更新任务: {taskName}, 分数: {taskScore}")
+            # 刷新任务列表
+            data = [task.toSheetData() for task in changedTasks]
+            # log.d_(f"更新任务: {data}")
+            g.emit('S2B_sheetUpdate', {'type': 'tasks', 'data': data})
+            return 'OK'
+        except Exception as e:
+            log.ex(e, "获取收益失败")
 
     
 

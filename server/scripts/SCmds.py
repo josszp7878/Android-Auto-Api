@@ -1,15 +1,11 @@
 from datetime import datetime
 import _Log
-from flask_socketio import emit
 from SDeviceMgr import deviceMgr, SDeviceMgr_
-from STask import STask_, TaskState
+from STask import STask_
 import json
-from SEarningMgr import SEarningMgr_
-from time import sleep
 import _G
 import os
 from  _App import _App_
-from _G import _G_
 
 class SCmds_:
 
@@ -55,21 +51,6 @@ class SCmds_:
                 _Log._Log_.ex(e, '清除日志缓存出错')
                 return '清除日志缓存失败'
 
-        @regCmd('#设备列表')
-        def deviceList():
-            """
-            功能：获取已连接设备列表
-            指令名: deviceList-dL
-            中文名: 设备列表
-            参数: 无
-            示例: 设备列表
-            """
-            device_manager = SDeviceMgr_()
-            devices = device_manager.devices
-            return '\n'.join([
-                f"{id}: {dev.state}"
-                for id, dev in devices.items()
-            ])
 
         @regCmd(r'#进度 (?P<deviceName>[^ ]+)?')
         def progress(deviceName):
@@ -125,9 +106,31 @@ class SCmds_:
                 return result
             except Exception as e:
                 _Log._Log_.ex(e, "获取任务列表失败")
-                return f"e~获取任务列表失败: {str(e)}"
-
+                return f"e~获取任务列表失败: {str(e)}"        
         
+        @regCmd(r"#获取收益(?P<appName>\S+)(?P<date>\S+)")
+        def cGetScores(target, appName, date:str = None)->bool:
+            """
+            功能：获取设备某应用某天的所有任务收益
+            指令名: getScores
+            参数: 
+                target - 设备ID
+                appName - 应用名称
+                date - 日期(YYYY-MM-DD)
+            返回: 处理结果和收益统计
+            """
+            g = _G._G_
+            log = g.Log()
+            try:
+                if not date:
+                    date = datetime.now().strftime("%Y-%m-%d")                
+                device = deviceMgr.get(target)
+                if not device:
+                    return f"e~设备不存在: {target}"
+                return device.cGetScores(appName, date)
+            except Exception as e:
+                log.ex(e, "获取收益失败")
+
         @regCmd('#保存结果|bcjg')
         def saveResult():
             """功能：保存最近一次命令执行结果到JSON文件
@@ -440,3 +443,33 @@ class SCmds_:
             except Exception as e:
                 _Log._Log_.ex(e, "从任务中移除设备失败")
                 return f"e~从任务中移除设备失败: {str(e)}"
+
+        @regCmd(r"#设备列表|sblb(?P<state>\S+)?")
+        def showDevices(state=None):
+            """
+            功能：列举设备信息
+            指令名: showDevices
+            中文名: 设备列表
+            参数: state - 设备状态(可选)，不指定则显示所有设备
+            示例: 设备列表 [online]
+            """
+            g = _G._G_
+            log = g.Log()
+            try:
+                # 获取设备列表
+                devices = deviceMgr.devices
+                if state:
+                    state = state.upper()
+                    devices = [d for d in devices if d.state == state]
+                
+                if not devices:
+                    return "没有找到符合条件的设备"
+                
+                # 格式化输出，输出成表格形式，表格的列名：设备ID，名称，状态，需要对tab齐
+                result = '\n\t\t\t'.join(["设备ID", "名称", "状态"]) + '\n'
+                for device in devices:
+                    result += '\t\t\t'.join([str(device.id), device.name, device.state]) + '\n'
+                return result
+            except Exception as e:
+                log.ex(e, "列举设备失败")
+                return f"e~列举设备失败: {str(e)}"
