@@ -10,6 +10,11 @@ class SheetPage {
             LOGS: 'logs'
         };
 
+        // 命令类型枚举定义
+        this.CMD = {
+            getLogs: 'getLogs'
+        };
+
         // 标签页映射表（中文标签 -> 数据类型）
         this.tabTypeMap = {
             '任务': this.DataType.TASKS,
@@ -80,6 +85,22 @@ class SheetPage {
                     action: (e, row) => {
                         this.updateTarget();
                     }
+                },
+                {
+                    label: "获取客户端日志",
+                    action: (e, row) => {
+                        const data = row.getData();
+                        const deviceName = data.name || data.id;
+                        // 检查设备是否在线
+                        if (data.state === 'offline') {
+                            this.showNotification(`设备 ${deviceName} 离线，无法获取日志`);
+                            return;
+                        }
+                        // 发送 getLogs 指令
+                        const cmd = this.CMD.getLogs;
+                        this.sendCmd(cmd, [data.id]);
+                    },
+                    visible: (rowData) => rowData.state !== 'offline'
                 }
             ],
             '日志': [
@@ -547,12 +568,15 @@ class SheetPage {
                 console.warn("无效的sheetData:", sheetData);
                 return;
             }
+            console.log('update table data length:', sheetData.length);
             // 支持增量更新
             sheetData.forEach(newItem => {
                 const existingItemIndex = targetData.findIndex(item => item.id === newItem.id);
                 if (existingItemIndex !== -1) {
+                    // console.log('update item:', newItem);
                     Object.assign(targetData[existingItemIndex], newItem);
                 } else {
+                    // console.log('add item:', newItem);
                     targetData.push(newItem);
                 }
             });
@@ -945,6 +969,36 @@ class SheetPage {
                     Object.entries(this.deviceStatusMap).map(([k, v]) => [k, v.formatter])
                 )
             },
+            {
+                title: "DEBUG", 
+                field: "debug", 
+                width: 100,
+                hozAlign: "center",
+                formatter: (cell) => {
+                    const value = cell.getValue();
+                    const checked = value ? 'checked' : '';
+                    return `<input type='checkbox' ${checked} style='width:18px;height:18px;'>`;
+                },
+                cellClick: (e, cell) => {
+                    e.stopPropagation();
+                    const currentValue = cell.getValue();
+                    const newValue = !currentValue;
+                    
+                    // 更新本地数据
+                    cell.setValue(newValue);
+                    
+                    // 发送到服务端更新，使用B2S_setProp事件
+                    const row = cell.getRow();
+                    const data = {
+                        'target': row.getData().id,
+                        'type': 'devices',
+                        'params': { 'debug': newValue }
+                    };                    
+                    this.socketer.emit('B2S_setProp', data);
+                },
+                headerSort: false,
+                editor: false
+            },
             {title: "当前任务", field: "currentTask", width: 200, headerFilter: "input"},
             {title: "累计得分", field: "score", width: 120, headerFilter: "number"}
         ];
@@ -967,25 +1021,28 @@ class SheetPage {
 
         return [
             {title: "ID", field: "id", visible: false},
-            {title: "日期", field: "date", width: 130, 
+            {
+                title: "日期", 
+                field: "date", 
+                width: 130,
                 headerFilter: "input",
-                headerFilterPlaceholder: "筛选日期...",
-                headerFilterParams: {
-                    initial: this.today,
-                    defaultValue: this.today,
-                    values: [this.today] // 强制设置可选值
-                },
+                headerFilterPlaceholder: "YYYY-MM-DD",
+                headerFilterFunc: "like",
                 editor: false,
                 headerFilterLiveFilter: false,
-                formatter: function(cell, formatterParams) {
+                formatter: function(cell) {
                     return cell.getValue() || "";
                 }
             },
-            {title: "时间", field: "time", width: 130, 
+            {
+                title: "时间", 
+                field: "time", 
+                width: 100,
                 headerFilter: "input",
+                headerFilterPlaceholder: "HH:MM:SS",
                 editor: false,
-                formatter: function(cell, formatterParams) {
-                    // 简单直接显示时间字符串，避免格式化问题
+                headerFilterLiveFilter: false,
+                formatter: function(cell) {
                     return cell.getValue() || "";
                 }
             },
@@ -1210,7 +1267,9 @@ class SheetPage {
         let hasVisibleItems = false;
         menuConfig.forEach(item => {
             try {
-                if (item.visible(rowData)) {
+                // 检查菜单项是否可见，如果没有visible函数则默认可见
+                const isVisible = item.visible ? item.visible(rowData) : true;
+                if (isVisible) {
                     hasVisibleItems = true;
                     const menuItem = document.createElement('a');
                     menuItem.href = '#';
@@ -1295,29 +1354,59 @@ class SheetPage {
             } else {
                 cmd = `startTask ${task.id}`;
             }
-            await this.sendCmd(cmd, [task.deviceId]);
+            this.sendCmd(cmd, [task.deviceId]);
         }
     }
 
-    async sendCmd(cmd, targets, params) {
-        if (targets.length === 0) {
-            // 没有指定目标，使用服务器
-            targets = ['@'];
-        }
+    sendCmd(cmd, targets, params, callback=null) {
         const socket = this.socketer;
-        const ret = await socket.emitRet('2S_Cmd', { 
-            command: cmd, 
-            targets: targets,
-            params: params
-        });
-        // 当ret是普通对象时
-        const size = Object.keys(ret).length;
-        if (size === 1) {
-            return Object.values(ret)[0];
+        try {
+            socket.emitRet('2S_Cmd', { 
+                command: cmd, 
+                targets: targets,
+                params: params
+            }).then(result => {
+                if(callback) {
+                    callback(result);
+                } else {
+                    this.onCmdResult(cmd, result, targets);
+                }
+            });
+            
+        } catch (error) {
+            console.error('发送命令失败:', error);
+            this.showNotification(`命令执行失败: ${error.message}`);
+            throw error;
         }
-        return ret;
     }
 
+  
+    /**
+     * 统一的命令执行结果处理函数
+     * @param {string} cmd - 执行的命令
+     * @param {*} result - 命令执行结果
+     * @param {Array} targets - 目标设备列表
+     */
+    onCmdResult(cmd, result, targets = []) {
+        console.log('命令执行结果:', cmd, result);
+        
+        // 解析命令类型
+        const cmdParts = cmd.trim().split(/\s+/);
+        const cmdName = cmdParts[0];
+        switch (cmdName) {
+            case this.CMD.getLogs:
+                this.onGetLogs(result, targets);
+                break;
+            default:
+                // 默认处理：显示结果或错误信息
+                if (typeof result === 'string' && result.startsWith('e~')) {
+                    this.showNotification(`命令执行失败: ${result.substring(2)}`);
+                } else if (result) {
+                    console.log('命令执行成功:', result);
+                }
+                break;
+        }
+    }
 
     
     /**
@@ -1343,7 +1432,8 @@ class SheetPage {
         }
         this.sendCmd(cmd, [deviceId]);
     }
-    
+   
+ 
     /**
      * 处理日志操作
      */
@@ -1445,6 +1535,38 @@ class SheetPage {
     }
     
     
+    
+    /**
+     * 处理获取日志命令的结果
+     * @param {*} result - 命令执行结果
+     * @param {Array} targets - 目标设备列表
+     */
+    onGetLogs(result, targets = []) {
+        let target = '@';
+        if (targets.length > 0) {
+            target = targets[0];
+        }
+        result = result[target];
+        if (typeof result === 'string' && result.startsWith('e~')) {
+            const deviceName = targets.length > 0 ? targets[0] : '设备';
+            this.showNotification(`获取${deviceName}日志失败: ${result.substring(2)}`);
+        } else if (Array.isArray(result)) {
+            // 刷新日志表格数据, 只获取第一个元素
+            this._updateTable(result, this.DataType.LOGS, this.logs);
+            // 设置日期过滤器
+            const currentDate = new Date().toISOString().split('T')[0].replace(/-/g, '');
+            const formattedDate = currentDate.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3');
+            if (this._logTable) {
+                this._logTable.setHeaderFilterValue("date", formattedDate);
+            }
+            const deviceName = targets.length > 0 ? targets[0] : '服务端';
+            this.showNotification(`成功获取${deviceName}的 ${result.length} 条日志`);
+        } else {
+            const deviceName = targets.length > 0 ? targets[0] : '设备';
+            this.showNotification(`${deviceName}没有日志数据`);
+        }
+    }
+
     /**
      * 发送命令
      */

@@ -139,13 +139,15 @@ class _G_:
             return False
 
     @classmethod
-    def emitRet(cls, event, data=None, sid=None, timeout=8):
+    def emitRet(cls, event, data=None, sid=None, timeout=10):
         """发送事件并等待结果"""
         try:
             log = cls.log
             # log.i_(f'发送ddd: event={event}, data={data}')
             result = None
             wait = True
+            start_time = time.time()
+            
             def onResult(*args):
                 nonlocal result
                 nonlocal wait
@@ -154,9 +156,17 @@ class _G_:
                 log.i_(f'收到事件结果: event={event}, result={result}')
                 wait = False
                 return result
+                
             if not cls.emit(event, data, sid, timeout, onResult):
                 result = None
+                
+            # 添加超时控制的等待循环
             while wait:
+                if time.time() - start_time > timeout:
+                    log.w_(f'事件超时: event={event}, timeout={timeout}s')
+                    wait = False
+                    result = None
+                    break
                 time.sleep(0.1)
             return result
         except Exception as e:
@@ -247,6 +257,8 @@ class _G_:
         # _App_.loadConfig()
 
         # 不在这里初始化android对象，由客户端调用setAndroid方法设置
+        
+        # 日志系统采用LAZY加载，在第一次访问_cache时自动加载当天日志
     
     @classmethod
     def rootDir(cls):
@@ -266,20 +278,25 @@ class _G_:
                 os.path.dirname(os.path.abspath(__file__)))
         cls._dir = dir
         return cls._dir
+    
+    @classmethod
+    def getDir(cls, subDir: str):
+        dir = os.path.join(cls.rootDir(), subDir)
+        if not os.path.exists(dir):
+            os.makedirs(dir)
+        return dir
+    
+    @classmethod
+    def logDir(cls):
+        return cls.getDir('logs')
 
     @classmethod
     def scriptDir(cls):
-        dir = os.path.join(cls.rootDir(), 'scripts')
-        if not os.path.exists(dir):
-            os.makedirs(dir)
-        return dir
+        return cls.getDir('scripts')
 
     @classmethod
     def configDir(cls):
-        dir = os.path.join(cls.rootDir(), 'config')
-        if not os.path.exists(dir):
-            os.makedirs(dir)
-        return dir
+        return cls.getDir('config')
 
     @classmethod
     def save(cls, key, value):

@@ -14,6 +14,7 @@ class CDevice_:
     _state = _G.ConnectState.OFFLINE  # 新增，维护设备状态
     _clsTasks = {}  # 任务字典，key为任务ID
     _curTask = None
+    _data = {}  # 设备数据，包含debug等状态
 
     def __init__(self):
         self._tasks = {}  # 任务字典，key为任务ID
@@ -28,22 +29,28 @@ class CDevice_:
         return cls._server
 
     @classmethod
+    def get(cls, key):
+        """获取设备数据"""
+        return cls._data.get(key)
+
+    @classmethod
     def init(cls, deviceID=None, server=None):
         if not hasattr(cls, 'initialized'):
             cls._deviceID = deviceID
             cls._server = server
-            # 配置 socketio 客户端（关闭自动重连）
+            # 配置 socketio 客户端
             sio = socketio.Client(
                 reconnection=True,  # 开启自动重连
-                reconnection_attempts=5,  # 重连尝试次数
-                reconnection_delay=1,  # 重连延迟时间（秒）
+                reconnection_attempts=10,  # 增加重连尝试次数
+                reconnection_delay=2,  # 重连延迟时间（秒）
+                reconnection_delay_max=30,  # 最大重连延迟时间
                 logger=False,  # 关闭详细日志
-                engineio_logger=False,  # 关闭 Engine.IO 日志
-                # ping_timeout=10  # 心跳超时时间（秒）
+                engineio_logger=False  # 关闭 Engine.IO 日志
             )
             sio.on('S2C_DoCmd')(cls.onS2C_DoCmd)
             sio.on('S2C_CmdResult')(cls.onS2C_CmdResult)
             sio.on('S2C_updateTask')(cls.onS2C_updateTask)
+            sio.on('S2C_updateDevice')(cls.onS2C_updateDevice)
             sio.on('disconnect')(cls.on_disconnect)
             _G._G_.setIO(sio)
             cls.initialized = True
@@ -81,10 +88,9 @@ class CDevice_:
         except Exception as e:
             log.ex(e, f"设备{cls._deviceID}断开连接异常")
             return False
-
     @classmethod
-    def connected(cls) -> bool:
-        return cls._state == _G.ConnectState.ONLINE
+    def isConnected(cls) -> bool:
+        return cls._state != _G.ConnectState.OFFLINE
 
     @classmethod
     def connect(cls) -> bool:
@@ -100,7 +106,7 @@ class CDevice_:
                 transports=['websocket', 'polling'],
                 auth={'device_id': cls._deviceID},
                 wait=True,
-                wait_timeout=10
+                wait_timeout=30  # 增加连接超时时间
             )
             if sio.connected:
                 cls._state = _G.ConnectState.ONLINE
@@ -126,9 +132,10 @@ class CDevice_:
         g = _G._G_
         log = g.Log()
         try:
-            data = g.emitRet('C2S_Login')
+            log.i(f"设备 {cls._deviceID} 开始登录...")
+            data = g.emitRet('C2S_Login', timeout=15)  # 增加登录超时时间
             if data is None:
-                log.e_("登录失败")
+                log.e_("登录失败，服务端无响应")
                 return False
             # 登录成功，初始化任务表
             cls.onLogin(data)
@@ -256,6 +263,18 @@ class CDevice_:
             return True
         except Exception as e:
             log.ex(e, '处理任务更新请求失败')
+            return False
+
+    @classmethod
+    def onS2C_updateDevice(cls, data):
+        """处理设备更新请求"""
+        g = _G._G_
+        log = g.Log()
+        try:
+            cls._data.update(data)
+            return True
+        except Exception as e:
+            log.ex(e, '处理设备更新请求失败')
             return False
 
     @classmethod

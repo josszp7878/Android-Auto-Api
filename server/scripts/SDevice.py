@@ -25,6 +25,7 @@ class SDevice_(SModelBase_):
         self.apps = []
         self._tasks: dict[int, 'STask_'] = None  # 缓存当天任务列表
         self.tasksDate = None  # 当前缓存的日期
+        self.debug = False  # debug开关，临时属性，不保存到数据库
     
     @property
     def state(self)->_G.ConnectState:
@@ -77,10 +78,20 @@ class SDevice_(SModelBase_):
             self.commit()
             self.refresh()
    
+    def setDebug(self, debug: bool):
+        """设置设备debug状态（临时属性，不保存到数据库）"""
+        if self.debug != debug:
+            self.debug = debug
+            # 刷新前端显示
+            self.refresh()
+            # 通知客户端更新debug状态
+            self.sendClient('S2C_updateDevice', self.id, {'debug': debug})
+   
     def toSheetData(self)->dict:
         """转换为表格数据"""
         data = {
             'state': self._state,
+            'debug': self.debug,  # 添加debug临时属性
             **self.data
         }
         # log = _G._G_.Log()

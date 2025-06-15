@@ -131,6 +131,49 @@ class SCmds_:
             except Exception as e:
                 log.ex(e, "获取收益失败")
 
+        @regCmd(r"#获取日志|getLogs(?P<date>\S+)?")
+        def getLogs(date=None):
+            """
+            功能：获取服务端日志
+            指令名: getLogs
+            中文名: 获取日志
+            参数: 
+                date - 日期(YYYYMMDD)，可选，默认为今天
+            返回: 日志数据列表
+            """
+            g = _G._G_
+            log = g.Log()
+            try:
+                if not date:
+                    date = datetime.now().strftime('%Y%m%d')
+                
+                from _Log import _Log_
+                logs = _Log_.gets(date)
+                logData = [logItem.toSheetData() for logItem in logs]
+                # log.i(f'获取服务端日志: {date}, {len(logData)} 条')
+                return logData
+                        
+            except Exception as e:
+                log.ex(e, f'获取服务端日志失败: {date}')
+                return f"e~获取日志失败: {str(e)}"            
+       
+        @regCmd('#保存日志|bcrz')
+        def saveLog():
+            """功能：强制保存当前服务端日志缓存到文件
+            指令名：saveLog
+            中文名：保存日志
+            参数：无
+            示例：保存日志
+            """
+            try:
+                log = _G._G_.Log()
+                # 强制保存日志缓存
+                log._save(True)
+                return '服务端日志已保存到文件'
+            except Exception as e:
+                _Log._Log_.ex(e, '保存日志失败')
+                return f'e~保存日志失败: {str(e)}'
+
         @regCmd('#保存结果|bcjg')
         def saveResult():
             """功能：保存最近一次命令执行结果到JSON文件

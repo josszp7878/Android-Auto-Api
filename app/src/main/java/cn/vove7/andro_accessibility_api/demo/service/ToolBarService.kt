@@ -69,17 +69,31 @@ class ToolBarService : LifecycleService() {
         private var instance: WeakReference<ToolBarService>? = null
         
         // 添加日志视图的缓存
-        private var cachedLogTextView: WeakReference<TextView>? = null
+    
+        
+        // 静态 scriptEngine，使用 lazy 初始化
+        private val _scriptEngine: ScriptEngine by lazy {
+            val service = getInstance()?.get()
+            if (service != null) {
+                ScriptEngine.getInstance(service)
+            } else {
+                throw IllegalStateException("ToolBarService实例未初始化")
+            }
+        }
+        
+        @JvmStatic
+        fun getScriptEngine(): ScriptEngine {
+            return _scriptEngine
+        }
         
         @JvmStatic
         fun getInstance(): WeakReference<ToolBarService>? {
             return instance
         }
-        @JvmStatic
-        fun logEx(e: Exception, content: String = "", tag: String = "") {
-            val msg = "${content}\n${e.message}\n${e.stackTrace.joinToString("\n")}"
-            log(msg, tag, "e")
-        }
+
+
+
+
         /**
          * 添加日志，与脚本层的_clientLog函数参数保持一致
          * 作为类方法，可以在没有实例的情况下调用
@@ -93,64 +107,54 @@ class ToolBarService : LifecycleService() {
             try {
                 if(content.isEmpty())
                     return
-                // 如果有有效的logTextView，输出到日志窗口
-                val logTextView = cachedLogTextView?.get()            
-                if (logTextView != null) {
-                    val timestamp = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
-                    var tagStr = ""
-                    if (tag.isNotEmpty()) {
-                        tagStr = "[$tag]"
+                // 统一调用Python脚本层的log函数
+                try {
+                    getScriptEngine().callPythonFunction("_G._G_.Log().log", content, tag, level)
+                } catch (e: Exception) {
+                    // 如果调用Python失败，记录到系统日志
+                    val logTag = "ToolBarService"
+                    val logMessage = "[$tag][$level] $content (Python调用失败: ${e.message})"
+                    when (level.lowercase()) {
+                        "e", "error" -> Log.e(logTag, logMessage)
+                        "w", "warn" -> Log.w(logTag, logMessage)
+                        "d", "debug" -> Log.d(logTag, logMessage)
+                        "c", "cmd" -> Log.i(logTag, logMessage)
+                        else -> Log.i(logTag, logMessage)
                     }
-                    val logEntry = "$timestamp $tagStr $content\n"
-                    val spannable = SpannableString(logEntry)
-                    val color = when (level.lowercase()) {
-                        "e", "error" -> Color.RED
-                        "w", "warn" -> Color.YELLOW
-                        "d", "debug" -> Color.GRAY
-                        "result" -> Color.CYAN
-                        "c" -> Color.GREEN
-                        else -> Color.WHITE
-                    }
-                    spannable.setSpan(ForegroundColorSpan(color), 0, logEntry.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-                    
-                    // 在UI线程更新日志
-                    Handler(Looper.getMainLooper()).post {
-                        logTextView.append(spannable)
-                        
-                        // 滚动到底部
-                        val parent = logTextView.parent
-                        if (parent is ScrollView) {
-                            parent.post {
-                                parent.fullScroll(View.FOCUS_DOWN)
-                            }
-                        }
-                        
-                        // 如果有非空TAG，更新TAG列表
-                        if (tag.isNotEmpty() && tag != "System" && tag != "cmd") {
-                            // 获取ToolBarService实例
-                            val service = instance?.get()
-                            if (service != null) {
-                                // 更新TAG列表
-                                service.updateTagList(tag)
-                            }
-                        }
-                    }
-                }
-                //打印系统日志
-                val logTag = "ToolBarService"
-                val logMessage = "[$tag][$level] $content"
-                when (level.lowercase()) {
-                    "e", "error" -> Log.e(logTag, logMessage)
-                    "w", "warn" -> Log.w(logTag, logMessage)
-                    "d", "debug" -> Log.d(logTag, logMessage)
-                    "c", "cmd" -> Log.i(logTag, logMessage)
-                    else -> Log.i(logTag, logMessage)
                 }
             } catch (e: Exception) {
                 Timber.e(e, "记录日志失败")
             }
         }
+
+        @JvmStatic
+        fun logE(content: String, tag: String = "") {
+            log(content, tag, "e")
+        }
+        @JvmStatic
+        fun logW(content: String, tag: String = "") {
+            log(content, tag, "w")
+        }
+        @JvmStatic
+        fun logD(content: String, tag: String = "") {
+            log(content, tag, "d")
+        }
+        @JvmStatic
+        fun logI(content: String, tag: String = "") {
+            log(content, tag, "i")
+        }
+
+        @JvmStatic
+        fun logC(content: String, tag: String = "") {
+            log(content, tag, "c")
+        }
+        @JvmStatic
+        fun logEx(e: Exception, content: String = "", tag: String = "") {
+            val msg = "${content}\n${e.message}\n${e.stackTrace.joinToString("\n")}"
+            log(msg, tag, "e")
+        }
     }
+    
 
     private lateinit var windowManager: WindowManager
     private var toolbarView: View? = null // 悬浮窗View
@@ -209,7 +213,7 @@ class ToolBarService : LifecycleService() {
     private var lastTapTime = 0L
     private val DOUBLE_TAP_TIMEOUT = 300L // 双击超时时间（毫秒）
     private var mainWindowVisible = false
-    private var logsExpanded = true
+
     private val commandHistory = ArrayList<String>()
     private var historyIndex = -1
     private var isExpanded = false
@@ -232,6 +236,7 @@ class ToolBarService : LifecycleService() {
 
     // 在类的成员变量部分添加这些变量
     private var currentInput = ""  // 保存当前输入，用于从历史返回
+    
 
     override fun onCreate() {
         super.onCreate()
@@ -267,8 +272,6 @@ class ToolBarService : LifecycleService() {
 
         // 显示ToolBar
         showWindow()
-        // 设置控制台视图
-        setupConsoleView()
         
         if (serverIP.isEmpty() || deviceName.isEmpty()) {
             // 如果serverIP或deviceName为空，显示设置界面
@@ -297,7 +300,7 @@ class ToolBarService : LifecycleService() {
         // 创建悬浮按钮 - 只在这里创建一次
         createFloatingButton()
         showToolbar(true)
-        showLog(false)
+
         showClick(false)
         showCursor(true)
     }
@@ -329,7 +332,7 @@ class ToolBarService : LifecycleService() {
         // 创建布局参数
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
-            if (logsExpanded) WindowManager.LayoutParams.MATCH_PARENT else WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             } else {
@@ -342,45 +345,7 @@ class ToolBarService : LifecycleService() {
         // 设置显示位置 - 始终底部对齐
         params.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
         
-        // 设置过滤按钮点击事件
-        val filterButton = toolbarView.findViewById<ImageButton>(R.id.filterButton)
-        filterButton?.setOnClickListener {
-            val filterInput = toolbarView.findViewById<EditText>(R.id.filterInput)
-            filterInput?.let {
-                if (it.visibility == View.VISIBLE) {
-                    it.visibility = View.GONE
-                } else {
-                    it.visibility = View.VISIBLE
-                    it.requestFocus()
-                    val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                    imm.showSoftInput(it, InputMethodManager.SHOW_IMPLICIT)
-                }
-            }
-        }
-        
-        // 设置清除过滤按钮点击事件
-        val clearFilterButton = toolbarView.findViewById<ImageButton>(R.id.clearFilterButton)
-        clearFilterButton?.setOnClickListener {
-            val filterInput = toolbarView.findViewById<EditText>(R.id.filterInput)
-            filterInput?.setText("")
-            val logTextView = toolbarView.findViewById<TextView>(R.id.logTextView)
-            filterLogs("", logTextView)
-        }
-        
-        // 设置过滤输入框动作监听
-        val filterInput = toolbarView.findViewById<EditText>(R.id.filterInput)
-        filterInput?.setOnEditorActionListener { textView, actionId, event ->
-            if (actionId == EditorInfo.IME_ACTION_DONE) {
-                val logTextView = toolbarView.findViewById<TextView>(R.id.logTextView)
-                filterLogs(textView.text.toString(), logTextView)
-                
-                // 隐藏键盘
-                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                imm.hideSoftInputFromWindow(textView.windowToken, 0)
-                return@setOnEditorActionListener true
-            }
-            false
-        }
+
         
         // 设置工具栏按钮点击事件
         val startStopButton = toolbarView.findViewById<ImageButton>(R.id.startStopButton)
@@ -402,7 +367,6 @@ class ToolBarService : LifecycleService() {
         val commandInput = toolbarView.findViewById<EditText>(R.id.commandInput)
         val sendButton = toolbarView.findViewById<ImageButton>(R.id.sendButton)
         val historyButton = toolbarView.findViewById<ImageButton>(R.id.historyButton)
-        val toggleLogsButton = toolbarView.findViewById<ImageButton>(R.id.toggleLogsButton)
         
         // 设置命令输入框点击事件
         commandInput.setOnClickListener {
@@ -410,10 +374,21 @@ class ToolBarService : LifecycleService() {
             makeInputFocusable()
         }
         
+        // 设置命令输入框回车发送命令
+        commandInput.setOnEditorActionListener { _, actionId, event ->
+            if (actionId == EditorInfo.IME_ACTION_SEND || 
+                actionId == EditorInfo.IME_ACTION_DONE ||
+                (event != null && event.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN)) {
+                sendCommand(commandInput)
+                true
+            } else {
+                false
+            }
+        }
+        
         // 设置发送按钮点击事件
         sendButton.setOnClickListener {
-            val logTextView = toolbarView.findViewById<TextView>(R.id.logTextView)
-            sendCommand(commandInput, logTextView)
+            sendCommand(commandInput)
             // 发送后恢复不可获取焦点状态
             makeInputUnfocusable()
         }
@@ -428,97 +403,14 @@ class ToolBarService : LifecycleService() {
             true
         }
         
-        // 设置日志切换按钮事件
-        toggleLogsButton?.setOnClickListener { 
-            toggleLog()
-        }
-        
-        // 初始化日志切换按钮图标
-        updateLogsToggleButton(toggleLogsButton)
-        
         // 添加到窗口
         windowManager.addView(toolbarView, params)
         
         // 保存引用
         this.toolbarView = toolbarView
-        // 缓存日志视图
-        val logTextView = toolbarView.findViewById<TextView>(R.id.logTextView)
-        cachedLogTextView = WeakReference(logTextView)
-        
-        // 初始化日志系统
-        initLogSystem(logTextView)
-        
-        // 初始化过滤系统
-        initFilterSystem(toolbarView)
         
         // 根据当前日志展开状态更新窗口位置
         updateWindowPosition()
-    }
-
-    /**
-     * 初始化过滤系统
-     */
-    private fun initFilterSystem(rootView: View) {
-        val filterInput = rootView.findViewById<EditText>(R.id.filterInput)
-        val clearFilterButton = rootView.findViewById<ImageButton>(R.id.clearFilterButton)
-        val filterButton = rootView.findViewById<ImageButton>(R.id.filterButton)
-        val tagFilterSpinner = rootView.findViewById<Spinner>(R.id.tagFilterSpinner)
-        
-        // 设置过滤输入框监听
-        filterInput?.addTextChangedListener(object : android.text.TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: Editable?) {
-                filterLogs(s.toString(), rootView.findViewById(R.id.logTextView))
-            }
-        })
-        
-        // 设置清除过滤按钮
-        clearFilterButton?.setOnClickListener {
-            filterInput?.setText("")
-        }
-        
-        // 设置过滤按钮
-        filterButton?.setOnClickListener {
-            // 切换过滤输入框的可见性
-            if (filterInput?.visibility == View.VISIBLE) {
-                filterInput.visibility = View.GONE
-                clearFilterButton?.visibility = View.GONE
-            } else {
-                filterInput?.visibility = View.VISIBLE
-                clearFilterButton?.visibility = View.VISIBLE
-            }
-        }
-        
-        // 初始化TAG过滤下拉框
-        if (tagFilterSpinner != null) {
-            // 创建适配器
-            val adapter = ArrayAdapter<String>(
-                this,
-                android.R.layout.simple_spinner_item,
-                mutableListOf("全部", "System", "cmd")
-            )
-            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-            tagFilterSpinner.adapter = adapter
-            
-            // 设置选择监听器
-            tagFilterSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-                override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                    val selectedTag = parent?.getItemAtPosition(position) as String
-                    if (selectedTag == "全部") {
-                        // 显示所有日志
-                        filterLogs("", rootView.findViewById(R.id.logTextView))
-                    } else {
-                        // 按TAG过滤
-                        filterLogs("[$selectedTag]", rootView.findViewById(R.id.logTextView))
-                    }
-                }
-                
-                override fun onNothingSelected(parent: AdapterView<*>?) {
-                    // 不做任何处理
-                }
-            }
-        }
     }
 
     private var _isRunning = false
@@ -530,9 +422,9 @@ class ToolBarService : LifecycleService() {
                 if (_isRunning != value) {
                     _isRunning = value
                     if(value){
-                        scriptEngine.start(deviceName, serverIP)
+                        getScriptEngine().start(deviceName, serverIP)
                     }else{
-                        scriptEngine.end()
+                        getScriptEngine().end()
                     }
                     // 更新按钮图标
                     val startStopButton = toolbarView?.findViewById<ImageButton>(R.id.startStopButton)
@@ -549,17 +441,7 @@ class ToolBarService : LifecycleService() {
             }
         }
 
-    private var _scriptEngine: ScriptEngine? = null
-    var scriptEngine: ScriptEngine
-        get() {
-            if (_scriptEngine == null) {
-                _scriptEngine = ScriptEngine.getInstance(this)
-            }
-            return _scriptEngine!!
-        }
-        set(value) {
-            _scriptEngine = value
-        }
+
 
     private fun onStartStopButtonClick() {
         isRunning = !isRunning
@@ -615,7 +497,7 @@ class ToolBarService : LifecycleService() {
             deviceName = binding.deviceNameInput.text.toString()
             windowManager.removeView(dialogView)
             // 保存后立即同步
-            scriptEngine.syncFiles(serverIP)
+            getScriptEngine().syncFiles(serverIP)
         }
 
         // 添加取消按钮逻辑
@@ -679,7 +561,6 @@ class ToolBarService : LifecycleService() {
 
         // 清除其他资源
         instance = null
-        cachedLogTextView = null
     }
 
 
@@ -882,83 +763,9 @@ class ToolBarService : LifecycleService() {
 
 
 
-    // 修改toggleLogsVisibility方法
-    private fun toggleLog() {
-        showLog(!logsExpanded)
-    }
 
-    // 修改showLog方法
-    public fun showLog(show: Boolean) {
-        logsExpanded = show
-        val logArea = toolbarView?.findViewById<LinearLayout>(R.id.logArea)
-        logArea?.visibility = if (logsExpanded) View.VISIBLE else View.GONE
-        // 更新窗口位置和大小
-        updateWindowPosition()
-        // 更新切换按钮图标
-        val toggleLogsButton = toolbarView?.findViewById<ImageButton>(R.id.toggleLogsButton)
-        updateLogsToggleButton(toggleLogsButton)
-    }
 
-    /**
-     * 更新日志切换按钮图标
-     */
-    private fun updateLogsToggleButton(button: ImageButton?) {
-        button?.setImageResource(
-            if (logsExpanded) android.R.drawable.arrow_down_float
-            else android.R.drawable.arrow_up_float
-        )
-    }
 
-    private fun filterLogs(filterText: String, logTextView: TextView?) {
-        if (logTextView == null) return
-        
-        // 获取原始日志文本
-        val originalText = logTextView.text.toString()
-        
-        // 如果过滤文本为空，显示所有日志
-        if (filterText.isEmpty()) {
-            // 重新初始化日志系统，显示所有日志
-            initLogSystem(logTextView)
-            return
-        }
-        
-        // 清空当前日志
-        logTextView.text = ""
-        
-        // 按行分割日志
-        val lines = originalText.split("\n")
-        
-        // 遍历每一行，查找包含过滤文本的日志
-        for (line in lines) {
-            if (line.lowercase().contains(filterText.lowercase())) {
-                // 创建带颜色的文本
-                val spannable = SpannableString("$line\n")
-                
-                // 根据日志级别设置颜色
-                val color = when {
-                    line.contains("[e]") || line.contains("[error]") -> Color.RED
-                    line.contains("[w]") || line.contains("[warn]") -> Color.YELLOW
-                    line.contains("[d]") || line.contains("[debug]") -> Color.GREEN
-                    line.contains("[result]") -> Color.CYAN
-                    line.contains("[c]") -> Color.GREEN
-                    else -> Color.WHITE
-                }
-                
-                spannable.setSpan(ForegroundColorSpan(color), 0, spannable.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-                
-                // 添加到日志视图
-                logTextView.append(spannable)
-            }
-        }
-        
-        // 滚动到底部
-        val parent = logTextView.parent
-        if (parent is ScrollView) {
-            parent.post {
-                parent.fullScroll(View.FOCUS_DOWN)
-            }
-        }
-    }
 
     private fun browseHistoryUp(commandInput: EditText) {
         if (commandHistory.isEmpty()) return
@@ -1034,7 +841,7 @@ class ToolBarService : LifecycleService() {
         }
     }
 
-    private fun sendCommand(commandInput: EditText?, logTextView: TextView?) {
+    private fun sendCommand(commandInput: EditText?) {
         val command = commandInput?.text?.toString()?.trim() ?: ""
         if (command.isNotEmpty()) {
             // 添加到历史记录
@@ -1044,7 +851,7 @@ class ToolBarService : LifecycleService() {
             // 重置历史浏览索引
             historyIndex = -1
             // 执行命令
-            executeCommand(command, logTextView)
+            executeCommand(command)
             // 隐藏键盘
             val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
             imm.hideSoftInputFromWindow(commandInput?.windowToken, 0)
@@ -1054,91 +861,11 @@ class ToolBarService : LifecycleService() {
         }
     }
 
-    private fun initLogSystem(logTextView: TextView?) {
-        if (logTextView == null) return
-        // 清空日志
-        logTextView.text = ""
-    }
 
-    // 实现TAG过滤方法
-    private fun filterLogsByTag(tag: String, logTextView: TextView?) {
-        if (logTextView == null) return
-        
-        // 获取原始日志文本
-        val originalText = logTextView.text.toString()
-        
-        // 如果选择"全部"，则显示所有日志
-        if (tag.isEmpty()) {
-            // 重新初始化日志系统，显示所有日志
-            initLogSystem(logTextView)
-            return
-        }
-        
-        // 清空当前日志
-        logTextView.text = ""
-        
-        // 按行分割日志
-        val lines = originalText.split("\n")
-        
-        // 遍历每一行，查找包含指定TAG的日志
-        for (line in lines) {
-            if (line.contains("[$tag]")) {
-                // 创建带颜色的文本
-                val spannable = SpannableString("$line\n")
-                
-                // 根据日志级别设置颜色
-                val color = when {
-                    line.contains("[e]") || line.contains("[error]") -> Color.RED
-                    line.contains("[w]") || line.contains("[warn]") -> Color.YELLOW
-                    line.contains("[d]") || line.contains("[debug]") -> Color.GREEN
-                    line.contains("[result]") -> Color.CYAN
-                    line.contains("[c]") -> Color.GREEN
-                    else -> Color.WHITE
-                }
-                
-                spannable.setSpan(ForegroundColorSpan(color), 0, spannable.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-                
-                // 添加到日志视图
-                logTextView.append(spannable)
-            }
-        }
-        
-        // 滚动到底部
-        val parent = logTextView.parent
-        if (parent is ScrollView) {
-            parent.post {
-                parent.fullScroll(View.FOCUS_DOWN)
-            }
-        }
-    }
 
-    // 添加收集TAG的方法
-    private fun collectTags(logTextView: TextView?, tagList: ArrayList<String>) {
-        if (logTextView == null) return
-        
-        // 获取原始日志文本
-        val originalText = logTextView.text.toString()
-        
-        // 使用正则表达式匹配所有TAG
-        val tagPattern = Regex("\\[(\\w+)\\]")
-        val matches = tagPattern.findAll(originalText)
-        
-        // 收集所有唯一的TAG
-        val uniqueTags = HashSet<String>()
-        for (match in matches) {
-            val tag = match.groupValues[1]
-            // 排除日志级别标签
-            if (tag != "e" && tag != "w" && tag != "i" && tag != "d" && tag != "c" && 
-                tag != "error" && tag != "warn" && tag != "info" && tag != "debug" && tag != "cmd") {
-                uniqueTags.add(tag)
-            }
-        }
-        
-        // 清空并重新添加TAG列表
-        tagList.clear()
-        tagList.add("全部") // 默认选项
-        tagList.addAll(uniqueTags)
-    }
+
+
+
 
     // 统一工具栏可见性控制方法，移除_toggleVisibility方法
     private fun toggleToolbar() {
@@ -1388,92 +1115,12 @@ class ToolBarService : LifecycleService() {
         }
     }
 
-    private fun setupConsoleView() {
-        try {
-            // 初始化日志视图
-            val logTextView = toolbarView?.findViewById<TextView>(R.id.logTextView)
-            if (logTextView != null) {
-                // 设置日志文本视图的属性
-                logTextView.movementMethod = ScrollingMovementMethod.getInstance()
-                
-                // 缓存日志视图引用
-                cachedLogTextView = WeakReference(logTextView)
-                
-                // 初始化TAG过滤下拉框
-                val tagFilterSpinner = toolbarView?.findViewById<Spinner>(R.id.tagFilterSpinner)
-                if (tagFilterSpinner != null) {
-                    // 创建适配器
-                    val adapter = ArrayAdapter<String>(
-                        this,
-                        android.R.layout.simple_spinner_item,
-                        mutableListOf("全部", "System", "cmd")
-                    )
-                    adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-                    tagFilterSpinner.adapter = adapter
-                    
-                    // 设置选择监听器
-                    tagFilterSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-                        override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                            val selectedTag = parent?.getItemAtPosition(position) as String
-                            if (selectedTag == "全部") {
-                                // 显示所有日志
-                                filterLogs("", logTextView)
-                            } else {
-                                // 按TAG过滤
-                                filterLogs("[$selectedTag]", logTextView)
-                            }
-                        }
-                        
-                        override fun onNothingSelected(parent: AdapterView<*>?) {
-                            // 不做任何处理
-                        }
-                    }
-                }
-            }
-            
-            // 初始化命令输入框
-            val commandInput = toolbarView?.findViewById<EditText>(R.id.commandInput)
-            if (commandInput != null) {
-                // 设置命令输入框的属性
-                commandInput.setOnEditorActionListener { v, actionId, event ->
-                    if (actionId == EditorInfo.IME_ACTION_SEND || 
-                        (event != null && event.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN)) {
-                        sendCommand(commandInput, logTextView)
-                        true
-                    } else {
-                        false
-                    }
-                }
-            }
-            
-            log("控制台视图初始化完成", "System", "i")
-        } catch (e: Exception) {
-            Timber.e(e, "初始化控制台视图失败")
-        }
-    }
 
-    // 添加更新TAG列表的方法
-    fun updateTagList(newTag: String) {
-        // 获取TAG过滤下拉框
-        val tagFilterSpinner = toolbarView?.findViewById<Spinner>(R.id.tagFilterSpinner) ?: return
-        
-        // 获取当前适配器
-        val adapter = tagFilterSpinner.adapter as? ArrayAdapter<String> ?: return
-        
-        // 检查TAG是否已存在
-        for (i in 0 until adapter.count) {
-            if (adapter.getItem(i) == newTag) {
-                return // TAG已存在，不需要添加
-            }
-        }
-        
-        // 添加新TAG
-        adapter.add(newTag)
-        adapter.notifyDataSetChanged()
-    }
 
-    // 修改executeCommand方法，添加空值检查
-    private fun executeCommand(command: String, logTextView: TextView?) {
+
+
+    // 修改executeCommand方法，移除logTextView参数
+    private fun executeCommand(command: String) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 // 检查脚本引擎是否已初始化
@@ -1520,7 +1167,7 @@ class ToolBarService : LifecycleService() {
         // 在后台线程中执行文件同步
         Thread {
             try {
-                scriptEngine.syncFiles(serverIP)
+                getScriptEngine().syncFiles(serverIP)
                 Handler(Looper.getMainLooper()).post {
                     Toast.makeText(this, "文件同步完成", Toast.LENGTH_SHORT).show()
                 }
@@ -1543,17 +1190,11 @@ class ToolBarService : LifecycleService() {
             // 获取当前布局参数
             val params = (toolbarView?.layoutParams as? WindowManager.LayoutParams) ?: return
             
-            // 无论日志是否展开，都保持底部对齐
+            // 保持底部对齐
             params.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
             
-            // 根据日志展开状态调整高度
-            if (logsExpanded) {
-                // 日志展开时，使用MATCH_PARENT高度
-                params.height = WindowManager.LayoutParams.MATCH_PARENT
-            } else {
-                // 日志收起时，使用WRAP_CONTENT高度
-                params.height = WindowManager.LayoutParams.WRAP_CONTENT
-            }
+            // 使用WRAP_CONTENT高度
+            params.height = WindowManager.LayoutParams.WRAP_CONTENT
             
             // 更新布局
             windowManager.updateViewLayout(toolbarView, params)

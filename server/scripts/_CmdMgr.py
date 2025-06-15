@@ -345,10 +345,7 @@ class _CmdMgr_:
                             bestMatchLength = matchLength
             find = bestMatch
             if find is None:
-                # log.w(f"{cmdStr} 不是命令: 当成脚本执行")
-                tools = g.Tools()
-                tools.do(cmdStr)
-                return cmd
+                return None
             # 设置匹配到的参数
             kwargs = {}
             for key, value in m.groupdict().items():
@@ -379,7 +376,6 @@ class _CmdMgr_:
                 log.e(error_msg)
                 cmd['result'] = error_msg
                 return cmd
-            
             log.c_(f'<{cmdName}>:{cmdStr}', '')
             result = find.func(**kwargs)
             try:
@@ -387,15 +383,8 @@ class _CmdMgr_:
                 json.dumps(result)
             except TypeError:
                 raise Exception(f"命令返回值不支持JSON序列化: {type(result)}，请检查实现")
-            if result:
-                cmd['result'] = result
-                if isinstance(result, str):
-                    level, result = log._parseLevel(result)
-                    # 如果result是字符串，则直接当结果打印
-                    log.log_(f'  => {result}', '', level)
-                else:
-                    # 如果result不是字符串，则转换为字符串并当结果打印
-                    log.log_(f'  => {str(result)}')
+            cmd['result'] = result
+            log.result(result)
         except Exception as e:
             log.ex(e, f'执行命令出错: {cmdStr}')
         return cmd
@@ -530,7 +519,7 @@ class _CmdMgr_:
     def regAllCmds(cls):
         g = _G._G_
         log = g.Log()
-        log.i("注册所有命令...")
+        log.i_("注册所有命令...")
         try:
             cls.cmdMap = {}
             modules = g.getScriptNames()
@@ -617,7 +606,7 @@ class _CmdMgr_:
             # log.i(f"重新加载模块: {moduleName}")
             moduleName = g.getScriptName(moduleName)
             if not moduleName:
-                return "e~找不到模块"
+                return None
             # 检查是否需要下载最新版本
             moduleFile = f"scripts/{moduleName}.py"
             if not g.isServer():
@@ -713,8 +702,7 @@ class _CmdMgr_:
                     "state": device.state(),
                     "timestamp": str(datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
                 }
-    
-
+       
     @classmethod
     def onLoad(cls, old):
         log = _G._G_.Log()

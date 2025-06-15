@@ -1,11 +1,40 @@
 import threading
 import time
+import signal
+import atexit
 import _G
 
 class CClient_:
     """客户端管理类（静态方法）"""
     fromAndroid = False
+    _cleanup_registered = False
+    running = False  # 运行标志，支持退出命令
 
+    @classmethod
+    def _registerCleanup(cls):
+        """注册清理函数，确保退出时调用"""
+        if cls._cleanup_registered:
+            return
+        cls._cleanup_registered = True
+        
+        def cleanup():
+            """清理函数"""
+            print("atexit清理程序执行...")
+            cls.End()
+        
+        # 注册atexit处理器
+        atexit.register(cleanup)
+        
+        # 注册信号处理器
+        def signal_handler(signum, frame):
+            print(f"收到信号 {signum}，设置退出标志...")
+            cls.running = False  # 设置退出标志，让主循环退出
+        
+        # 注册常见的终止信号
+        signal.signal(signal.SIGINT, signal_handler)  # Ctrl+C
+        signal.signal(signal.SIGTERM, signal_handler)  # 终止信号
+        if hasattr(signal, 'SIGBREAK'):  # Windows
+            signal.signal(signal.SIGBREAK, signal_handler)
 
     @classmethod
     def updateFiles(cls):
@@ -28,6 +57,11 @@ class CClient_:
         if fromAndroid is not None:
             cls.fromAndroid = fromAndroid
         log.d(f"初始化客户端: deviceID={deviceID}, server={server}, fromAndroid={fromAndroid}")
+        
+        # 注册清理函数（仅PC端）
+        if not cls.fromAndroid:
+            cls._registerCleanup()
+        
         try:
             CDevice = g.CDevice()
             CDevice.init(deviceID or 'TEST1', server)
@@ -37,7 +71,9 @@ class CClient_:
             #起一个线程去更新app
             g.App().update()
             print("按Ctrl+C退出")
-            while True:
+            
+            cls.running = True  # 设置运行标志
+            while cls.running:
                 try:
                     cmd_input = input(f"{CDevice.deviceID()}> ").strip()
                     g.CmdMgr().do({'cmd': cmd_input})
@@ -46,13 +82,14 @@ class CClient_:
                     break
                 except KeyboardInterrupt:
                     log.i('\n正在退出...')
-                    cls.End()
                     break
                 except Exception as e:
-                    log.ex(e, '执行命令出错')
+                    log.ex(e, '执行命令出错')                    
         except Exception as e:
             log.ex(e, '初始化失败')
-
+        finally:
+            # 最后的安全网
+            log.uninit()
 
     @classmethod
     def End(cls):
@@ -63,6 +100,9 @@ class CClient_:
             CDevice = g.CDevice()
             if CDevice:
                 CDevice.uninit()
+            # 清理日志系统，保存日志到文件
+            if not cls.fromAndroid:
+                log.uninit()
         except Exception as e:
             log.ex(e, "客户端结束失败")
 

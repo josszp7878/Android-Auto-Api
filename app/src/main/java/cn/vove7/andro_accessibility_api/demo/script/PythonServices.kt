@@ -20,7 +20,6 @@ import cn.vove7.auto.api.home
 import cn.vove7.auto.viewfinder.ScreenTextFinder
 import cn.vove7.auto.viewnode.ViewNode
 import kotlinx.coroutines.runBlocking
-import timber.log.Timber
 import java.io.File
 import com.chaquo.python.PyObject
 import androidx.core.content.ContextCompat
@@ -34,6 +33,7 @@ import android.app.usage.UsageStatsManager
 import androidx.annotation.RequiresApi
 import java.lang.ref.WeakReference
 import android.os.Process
+import timber.log.Timber
 
 /**
  * Python服务接口的Kotlin实现
@@ -79,7 +79,7 @@ class PythonServices {
             this.context = context
             loadInstalledApps()
             contextRef = WeakReference(context.applicationContext)
-            logI("PythonServices 初始化完成")
+            ToolBarService.logI("PythonServices 初始化完成")
         }
 
         @JvmStatic
@@ -147,12 +147,12 @@ class PythonServices {
                 showUI(false)
                 runBlocking {
                     clickAt(x, y)
-                    logI("点击位置: $x, $y")
+                    ToolBarService.logI("点击位置: $x, $y")
                 }
                 showUI(true)
                 true
             } catch (e: Exception) {
-                logEx(e,"点击位置失败: $x, $y")
+                ToolBarService.logEx(e,"点击位置失败: $x, $y")
                 false
             }
         }
@@ -165,12 +165,12 @@ class PythonServices {
                 showUI(false)
                 runBlocking {
                     gestureSwipe(x, y, toX, toY, duration)
-                    logI("滑动位置: $x, $y, $toX, $toY, $duration")
+                    ToolBarService.logI("滑动位置: $x, $y, $toX, $toY, $duration")
                 }
                 showUI(true)
                 true
             } catch (e: Exception) {
-                logEx(e, "滑动失败: $x, $y, $toX, $toY, $duration")
+                ToolBarService.logEx(e, "滑动失败: $x, $y, $toX, $toY, $duration")
                 false
             }
         }
@@ -180,7 +180,7 @@ class PythonServices {
                 ToolBarService.getInstance()?.get()?.moveCursor(x, y)
                 true
             } catch (e: Exception) {
-                logEx(e, "移动失败: $x, $y", "move")
+                ToolBarService.logEx(e, "移动失败: $x, $y", "move")
                 false
             }
         }
@@ -189,7 +189,7 @@ class PythonServices {
          */
         @JvmStatic
         fun goBack(): Boolean {
-            logI("返回上一个界面")
+            ToolBarService.logI("返回上一个界面")
             return back();
         }
 
@@ -198,7 +198,7 @@ class PythonServices {
          */
         @JvmStatic
         fun goHome(): Boolean {
-            logI("返回主屏幕")
+            ToolBarService.logI("返回主屏幕")
             return home()
         }
 
@@ -515,7 +515,7 @@ class PythonServices {
                         toast.show()
                     }
                 } catch (e: Exception) {
-                    logEx(e, "显示Toast失败")
+                    ToolBarService.logEx(e, "显示Toast失败")
                 }
             }
         }
@@ -541,7 +541,7 @@ class PythonServices {
             val swipeDirection = try {
                 SwipeDirection.valueOf(direction.toUpperCase())
             } catch (e: IllegalArgumentException) {
-                logEx(e, "Invalid direction: $direction")
+                ToolBarService.logEx(e, "Invalid direction: $direction")
                 return false
             }
 
@@ -564,10 +564,10 @@ class PythonServices {
                 runBlocking {
                     gestureSwipe(startX, startY, endX, endY, duration)
                 }
-                logI("Sweep $swipeDirection successful")
+                ToolBarService.log("Sweep $swipeDirection successful")
                 true
             } catch (e: Exception) {
-                logEx(e, "Sweep $swipeDirection failed")
+                ToolBarService.logEx(e, "Sweep $swipeDirection failed")
                 false
             }
         }
@@ -613,27 +613,13 @@ class PythonServices {
                 // 在主线程上执行UI操作
                 Handler(Looper.getMainLooper()).post {
                     service.showClick(visible)
-                    logI("调用showClick完成: $visible")
+                    ToolBarService.log  ("调用showClick完成: $visible")
                 }
             } else {
-                logE("ToolBarService实例不可用")
+                ToolBarService.log("ToolBarService实例不可用", "e")
             }
         }
 
-
-        @JvmStatic
-        fun showLog(visible: Boolean) {
-            val service = ToolBarService.getInstance()?.get()
-            if (service != null) {
-                // 在主线程上执行UI操作
-                Handler(Looper.getMainLooper()).post {
-                    service.showLog(visible)
-                    logI("调用showLog完成: $visible")
-                }
-            } else {
-                logE("ToolBarService实例不可用")
-            }
-        }
 
         @JvmStatic
         fun showToolbar(visible: Boolean) {
@@ -641,10 +627,10 @@ class PythonServices {
             if (service != null) {  
                 Handler(Looper.getMainLooper()).post {
                     service.showToolbar(visible)
-                    logI("调用showToolbar完成: $visible")
+                    ToolBarService.logI("调用showToolbar完成: $visible")
                 }
             } else {
-                logE("ToolBarService实例不可用")
+                ToolBarService.logE("ToolBarService实例不可用")
             }
         }
         
@@ -659,7 +645,7 @@ class PythonServices {
                 val rootNode = AutoApi.AutoImpl?.rootInActiveWindow()
                 if (rootNode != null) {
                     val packageName = rootNode.packageName?.toString()
-                    logI("Current package from accessibility: $packageName")
+                    ToolBarService.logI("Current package from accessibility: $packageName")
                     rootNode.recycle()
                     return packageName ?: ""
                 }
@@ -668,19 +654,19 @@ class PythonServices {
                 val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                     val foregroundApp = am.appTasks.firstOrNull()?.taskInfo?.topActivity?.packageName
-                    logI("Current package from ActivityManager: $foregroundApp")
+                    ToolBarService.logI("Current package from ActivityManager: $foregroundApp")
                     foregroundApp ?: ""
                 } else {
                     // 旧版本Android上的备用方法
                     val tasks = am.getRunningTasks(1)
                     if (!tasks.isNullOrEmpty()) {
                         val packageName = tasks[0].topActivity?.packageName
-                        logI("Current package from getRunningTasks: $packageName")
+                        ToolBarService.logI("Current package from getRunningTasks: $packageName")
                         packageName ?: ""
                     } else ""
                 }
             } catch (e: Exception) {
-                logEx(e, "Failed to get current package")
+                ToolBarService.logEx(e, "Failed to get current package")
                 ""
             }
         }
@@ -694,7 +680,7 @@ class PythonServices {
             return try {
                 AutoApi.AutoImpl?.rootInActiveWindow()
             } catch (e: Exception) {
-                logEx(e, "Failed to get root node")
+                ToolBarService.logEx(e, "Failed to get root node")
                 null
             }
         }
@@ -717,7 +703,7 @@ class PythonServices {
                 // 获取UsageStatsManager
                 val usageStatsManager = appContext.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
                 if (usageStatsManager == null) {
-                    logE("获取UsageStatsManager失败，请重新启动应用获取查看应用使用权限")
+                    ToolBarService.logE("获取UsageStatsManager失败，请重新启动应用获取查看应用使用权限")
                     return null
                 }
                 
@@ -730,7 +716,7 @@ class PythonServices {
                     UsageStatsManager.INTERVAL_DAILY, startTime, endTime)
                 
                 if (usageStatsList.isNullOrEmpty()) {
-                    logW("${period}秒内无最近应用使用记录")
+                    ToolBarService.logW("${period}秒内无最近应用使用记录")
                 }
                 
                 // 找出最近使用的应用
@@ -745,7 +731,7 @@ class PythonServices {
                 }
                 
                 if (recentStats == null) {
-                    logW("未找到最近使用的应用")
+                    ToolBarService.logW("未找到最近使用的应用")
                     return null
                 }
                 
@@ -761,7 +747,7 @@ class PythonServices {
                     }
                     
                     val appName = pm.getApplicationLabel(appInfo).toString()
-                    logI("当前应用: $appName ($packageName)")
+                    // ToolBarService.logI("当前应用: $appName ($packageName)")
                     
                     return mapOf(
                         "packageName" to packageName,
@@ -769,11 +755,11 @@ class PythonServices {
                         "lastUsed" to recentStats.lastTimeUsed
                     )
                 } catch (e: Exception) {
-                    logEx(e, "获取应用信息失败")
+                    ToolBarService.logEx(e, "获取应用信息失败")
                     return null
                 }
             } catch (e: Exception) {
-                logEx(e, "获取当前应用失败")
+                ToolBarService.logEx(e, "获取当前应用失败")
                 return null
             }
         }
@@ -802,11 +788,11 @@ class PythonServices {
                         null
                     }
                 } else {
-                    logE("输入回调未注册")
+                    ToolBarService.logE("输入回调未注册")
                     null
                 }
             } catch (e: Exception) {
-                logEx(e, "执行命令失败")
+                ToolBarService.logEx(e, "执行命令失败")
                 null
             }
         }
@@ -822,7 +808,7 @@ class PythonServices {
                     return topActivity?.packageName == context.packageName
                 }
             } catch (e: Exception) {
-                logEx(e, "检查应用前台状态失败")
+                ToolBarService.logEx(e, "检查应用前台状态失败")
             }
             return false
         }
@@ -855,50 +841,12 @@ class PythonServices {
                            packageName.contains("home", ignoreCase = true)
                 }
             } catch (e: Exception) {
-                logEx(e, "检查是否在桌面失败")
+                ToolBarService.logEx(e, "检查是否在桌面失败")
             }
             return false
         }
 
-        /**
-         * 供脚本直接调用的日志方法
-         * @param tag 日志标签
-         * @param level 日志级别 (i, d, e, w)
-         * @param content 日志内容
-         * @param result 可选的结果信息
-         */
-        @JvmStatic
-        fun log(content: String, tag: String = "", level: String = "i") {
-            // 调用ToolBarService的addLog方法
-            ToolBarService.log(content, tag, level)
-        }
-        @JvmStatic
-        fun logE(content: String, tag: String = "") {
-            ToolBarService.log(content, tag, "e")
-        }
-        @JvmStatic
-        fun logW(content: String, tag: String = "") {
-            ToolBarService.log(content, tag, "w")
-        }
-        @JvmStatic
-        fun logD(content: String, tag: String = "") {
-            ToolBarService.log(content, tag, "d")
-        }
-        @JvmStatic
-        fun logI(content: String, tag: String = "") {
-            ToolBarService.log(content, tag, "i")
-        }
 
-        @JvmStatic
-        fun logC(content: String, tag: String = "") {
-            ToolBarService.log(content, tag, "c")
-        }
-
-        @JvmStatic
-        fun logEx(e: Exception, content: String = "", tag: String = "") {
-            val msg = "${content}\n${e.message}\n${e.stackTrace.joinToString("\n")}"
-            ToolBarService.log(msg, tag, "e")
-        }
         
         /**
          * 退出应用
@@ -934,7 +882,7 @@ class PythonServices {
                     }, 200)
                 }
             } catch (e: Exception) {
-                logEx(e, "退出应用失败")
+                ToolBarService.logEx(e, "退出应用失败")
             }
         }
 

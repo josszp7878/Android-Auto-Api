@@ -2,6 +2,7 @@ from flask import Blueprint, send_file, render_template, jsonify, request
 from SDeviceMgr import deviceMgr
 import os
 import json
+import _G
 
 # 创建蓝图
 bp = Blueprint('main', __name__)
@@ -39,15 +40,15 @@ def get_timestamps():
     # log.i('Server', "处理时间戳请求")
     timestamps = {}
     dir = g.rootDir()
-    log.i(f'获取目录文件版本:{dir}')
+    # log.i(f'获取目录文件版本:{dir}')
     def getVersion(rootDir, relativeDir, timestamps):
         """获取目录下所有文件的时间戳"""
         dir = os.path.join(rootDir, relativeDir)
         if os.path.exists(dir):
             for file in os.listdir(dir):
                 # 忽略大写S开头的服务器本地文件
-                if file.startswith('S'):
-                    continue
+                # if file.startswith('S'):
+                #     continue
                 file_path = os.path.join(dir, file)  
                 if os.path.isfile(file_path):
                     timestamps[f"{relativeDir}/{file}"] = str(int(os.path.getmtime(file_path)))

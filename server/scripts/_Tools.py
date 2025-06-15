@@ -813,6 +813,7 @@ class _Tools_:
         opened = False
         appName = appName.strip().lower()
         try:
+            log.i_(f"打开应用: {appName}, android: {g.android}")
             if appName == _G.TOP:
                 return cls.goHome()
             if g.android is None:
@@ -1011,7 +1012,8 @@ class _Tools_:
     def _initScreenSize(cls)->tuple[int, int]:
         """获取屏幕尺寸"""
         screenSize = (1080, 1920)
-        log = _G._G_.Log()
+        g = _G._G_
+        log = g.Log()
         try:
             if g.android:
                 # 尝试通过Android Context获取屏幕尺寸
@@ -1321,13 +1323,18 @@ class _Tools_:
     @classmethod
     def matchText(cls, text: str, this, refresh=False) -> List[Tuple[dict, re.Match]]:
         """匹配文本，返回所有匹配的(item, match)元组列表（改造后版本）"""
-        def evalCondition(condition, region):
+        def evalCondition(condition, region:RegionCheck=None):
             items = cls.getScreenInfo(refresh)
             if not items:
                 return None
             matches = cls.matchItems(condition, items)
             if region:
-                matches = [(i, m) for i, m in matches if i.get('b') and region.isRectIn(*i['b'])]
+                for i, m in matches:
+                    box = i.get('b')
+                    _G._G_.Log().i_(f"匹配文本: {text}, 区域: {region}, 匹配: {i}")
+                    if box and isinstance(box, list) and len(box) >= 4:
+                        if region.isRectIn(box):
+                            matches.append((i, m))
                 
             # 对匹配到的每个项目更新findCount
             for match in matches:
@@ -1395,6 +1402,7 @@ class _Tools_:
         try:
             # 获取文本位置
             pos = cls.findTextPos(text, direction)
+            log.i_(f"点击文本: {text}, pos: {pos}")
             if not pos:
                 log.w(f"未找到文本: {text}")
                 return g.android is None
@@ -1436,6 +1444,166 @@ class _Tools_:
             return False
 
     @classmethod
+    def swipe(cls, param: str) -> bool:
+        """统一处理滑动操作
+        支持两种格式:
+        1. 坐标格式: "x1,y1 > x2,y2 [duration]"
+        2. 方向枚举: "方向 [duration]"
+
+        支持的方向:
+        CR - 从中心向右滑动
+        CL - 从中心向左滑动 
+        CU - 从中心向上滑动
+        CD - 从中心向下滑动
+        ER - 从左边缘向右滑动
+        EL - 从右边缘向左滑动
+        EU - 从底部向上滑动
+        ED - 从顶部向下滑动
+        """
+        log = _G._G_.Log()
+        try:
+            g = _G._G_
+            android = g.android
+            # 默认持续时间为0.5秒
+            default_duration = 500
+
+            # 使用正则表达式解析参数
+            match = re.match(
+                r"(?P<start>\d+,\d+)\s*>\s*(?P<end>\d+,\d+)(?:\s+(?P<duration>\d+))?", param)
+            if match:
+                # 解析为坐标
+                start = match.group("start")
+                end = match.group("end")
+                duration_str = match.group("duration")
+
+                # 检查 duration 是否为数字
+                duration = int(
+                    duration_str) if duration_str and duration_str.isdigit() else default_duration
+                startX, startY = map(int, start.split(','))
+                endX, endY = map(int, end.split(','))
+                if android:
+                    return android.swipe(startX, startY, endX, endY, duration)
+                else:
+                    return False
+            else:
+                # 解析为枚举
+                parts = param.split()
+                direction = parts[0]
+                duration = int(parts[1]) if len(
+                    parts) > 1 and parts[1].isdigit() else default_duration
+                if android:
+                    return android.sweep(direction, duration)
+                else:
+                    return False
+
+        except Exception as e:
+            log.ex(e, "滑动失败")
+            return False
+
+    @classmethod  
+    def swipeTo(cls, direction, matchFunc, maxTry=3):
+        """智能滑动查找
+        
+        Args:
+            direction: 滑动方向，支持单向(L/R/U/D)和双向(LR/UD)
+            matchFunc: 匹配函数，接收无参数并返回匹配结果，找到返回True
+            maxTry: 最大尝试次数，默认3次
+            
+        Returns:
+            bool: 是否找到匹配内容
+        """
+        direction = direction.upper()
+        log = _G._G_.Log()        
+        # 检查初始屏幕是否匹配
+        if matchFunc():
+            return True
+        
+        # 解析方向
+        primary_dir = direction[0]  # 主方向
+        has_secondary = len(direction) > 1  # 是否有次方向
+        secondary_dir = direction[1] if has_secondary else None
+        
+        # 方向映射到滑动命令
+        dir_to_cmd = {
+            'L': 'CL',
+            'R': 'CR',
+            'U': 'CU',
+            'D': 'CD'
+        }
+        
+        # 开始主方向滑动
+        current_dir = primary_dir
+        tries = 0
+        lastScreen = None
+        
+        while tries < maxTry:
+            # 获取当前屏幕内容用于相似度比较
+            currentScreen = cls.refreshScreenInfos()
+            if currentScreen is None:
+                tries += 1
+                continue
+            
+            # 检查是否已经到达边界(屏幕内容相似度高)
+            if lastScreen and cls.isScreenSimilar(currentScreen, lastScreen):
+                log.i(f"方向{current_dir}已到达边界")
+                
+                # 如果支持双向且当前是主方向，切换到次方向
+                if has_secondary and current_dir == primary_dir:
+                    current_dir = secondary_dir
+                    log.i(f"切换到次方向: {current_dir}")
+                    lastScreen = None  # 重置屏幕比较
+                    tries = 0  # 重置尝试次数
+                    continue
+                else:
+                    # 单向或已尝试次方向，结束查找
+                    log.i("所有方向都已尝试，未找到匹配")
+                    return False
+            
+            lastScreen = currentScreen            
+            # 执行滑动
+            cmd = dir_to_cmd.get(current_dir)
+            if not cmd:
+                log.e(f"无效的滑动方向: {current_dir}")
+                return False
+            
+            cls.swipe(f"{cmd} 500")
+            time.sleep(2)  # 等待滑动完成
+            # 检查滑动后是否匹配
+            if matchFunc():
+                log.i(f"在方向{current_dir}的第{tries+1}次滑动后找到匹配")
+                return True
+            tries += 1
+        
+        log.i(f"达到最大尝试次数({maxTry})，未找到匹配")
+        return False
+
+    @classmethod
+    def isScreenSimilar(cls, screen1, screen2):
+        """
+        比较两个屏幕文本是否相似，考虑文本内容和位置
+        """
+        if not screen1 or not screen2:
+            return False
+        
+        # 创建可哈希的元组表示每个文本项
+        def to_hashable(items):
+            return [tuple([item.get('t', ''), item.get('b', '')]) for item in items]
+        
+        hashable1 = to_hashable(screen1)
+        hashable2 = to_hashable(screen2)
+        
+        # 使用可哈希的元组进行集合操作
+        common = set(hashable1).intersection(set(hashable2))
+        
+        # 计算相似度
+        total = len(set(hashable1).union(set(hashable2)))
+        if total == 0:
+            return False
+        
+        similarity = len(common) / total
+        return similarity > 0.7  # 相似度阈值
+
+    @classmethod
     def findTextPos(cls, text: str, searchDir: str = None) -> Optional[Tuple[int, int]]:
         """查找文本位置
         
@@ -1446,10 +1614,12 @@ class _Tools_:
         Returns:
             tuple: 文本位置坐标(x,y)，未找到则返回None
         """
+        log = _G._G_.Log()
         if searchDir:
             # 定义匹配函数
             def matchFunc():
                 pos = cls._findTextPos(text)
+                log.i_(f"查找文本: {text}, pos: {pos}")
                 return pos is not None
             # 滑动查找
             found = cls.swipeTo(searchDir, matchFunc)

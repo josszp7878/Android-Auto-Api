@@ -119,8 +119,56 @@ public class ScriptEngine {
         }
     }
 
+    /**
+     * 调用Python函数
+     * @param functionPath Python函数路径，如 "_G._G_.Log().log"
+     * @param args 函数参数
+     * @return 函数返回值
+     */
+    public Object callPythonFunction(String functionPath, Object... args) {
+        try {
+            if (py == null) {
+                Timber.w("Python环境未初始化，无法调用函数: %s", functionPath);
+                return null;
+            }
+            
+            // 获取_G模块
+            PyObject gModule = py.getModule("_G");
+            if (gModule == null) {
+                Timber.e("无法获取_G模块");
+                return null;
+            }
+            
+            // 获取_G_类
+            PyObject gClass = gModule.get("_G_");
+            if (gClass == null) {
+                Timber.e("无法获取_G_类");
+                return null;
+            }
+            
+            // 根据函数路径调用对应的方法
+            if (functionPath.equals("_G._G_.Log().log")) {
+                // 调用Log().log方法
+                PyObject logInstance = gClass.callAttr("Log");
+                if (logInstance != null) {
+                    PyObject result = logInstance.callAttr("log", args);
+                    return result != null ? result.toJava(Object.class) : null;
+                }
+            }
+            // 可以在这里添加更多函数路径的支持
+            
+            Timber.w("不支持的函数路径: %s", functionPath);
+            return null;
+            
+        } catch (Exception e) {
+            Timber.e(e, "调用Python函数失败: %s", functionPath);
+            return null;
+        }
+    }
 
 
+
+    // 同步所有脚本文件到本地（清空后重新同步所有文件）
     public void syncFiles(String serverIP) {
         if (!checkNetwork()) {
             Timber.e("网络不可用，无法同步文件");
@@ -130,29 +178,16 @@ public class ScriptEngine {
             try {
                 String baseUrl = "http://" + serverIP + ":5000";
                 
-                // 获取远程版本信息，这里可能会抛出连接异常
+                // 获取远程所有文件列表
                 Map<String, Long> remoteVersions = getRemoteVersions(baseUrl);
                 
-                Map<String, Long> localVersions = loadLocalVersions();
+                // 清空本地脚本目录
+                clearLocalScripts();
+                Timber.i("已清空本地脚本目录，准备重新同步 %d 个文件", remoteVersions.size());
 
-                // 创建需要同步的文件列表
-                List<String> toUpdate = new ArrayList<>();
-                for (Map.Entry<String, Long> entry : remoteVersions.entrySet()) {
-                    String filename = entry.getKey();
-                    @SuppressLint({"NewApi", "LocalSuppress"}) Long localTime = localVersions.getOrDefault(filename, 0L);
-                    if (entry.getValue() > localTime) {
-                        toUpdate.add(filename);
-                    }
-                }
-
-                if (toUpdate.isEmpty()) {
-                    Timber.d("所有文件均为最新版本");
-                    return;
-                }
-
-                // 并行下载文件
+                // 并行下载所有文件
                 List<Future<?>> futures = new ArrayList<>();
-                for (String filename : toUpdate) {
+                for (String filename : remoteVersions.keySet()) {
                     futures.add(executor.submit(() -> {
                         try {
                             downloadFile(baseUrl, filename);
@@ -163,26 +198,38 @@ public class ScriptEngine {
                 }
 
                 // 等待所有下载完成
+                int successCount = 0;
+                int failCount = 0;
                 for (Future<?> future : futures) {
                     try {
                         future.get();
+                        successCount++;
                     } catch (ExecutionException e) {
+                        failCount++;
                         Timber.e(e.getCause(), "文件下载失败");
                     }
                 }
 
-                // 保存新版本信息
-                saveLocalVersions(remoteVersions);
+                // 注意：全量同步模式下不需要保存版本信息
+                
+                // 显示同步结果
+                final int finalSuccessCount = successCount;
+                final int finalFailCount = failCount;
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    String message = String.format("同步完成: 成功 %d 个，失败 %d 个", finalSuccessCount, finalFailCount);
+                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
+                });
+                
+                Timber.i("脚本文件同步完成: 成功 %d 个，失败 %d 个", successCount, failCount);
+                
             } catch (java.net.ConnectException e) {
                 // 处理连接异常
                 Timber.e(e, "连接服务器失败: %s", serverIP);
-                // 在主线程中显示Toast
                 new Handler(Looper.getMainLooper()).post(() -> {
                     Toast.makeText(context, "连接服务器失败: " + serverIP, Toast.LENGTH_LONG).show();
                 });
             } catch (Exception e) {
                 Timber.e(e, "同步文件失败");
-                // 在主线程中显示Toast
                 new Handler(Looper.getMainLooper()).post(() -> {
                     Toast.makeText(context, "同步文件失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 });
@@ -253,33 +300,58 @@ public class ScriptEngine {
         }
     }
 
-    private Map<String, Long> loadLocalVersions() {
-        Timber.d("加载本地版本信息");
-        File versionFile = new File(context.getFilesDir(), "version.txt");
-        if (!versionFile.exists()) return new HashMap<>();
 
-        try (FileReader reader = new FileReader(versionFile)) {
-            Type type = new TypeToken<Map<String, Long>>(){}.getType();
-            Map<String, Long> versions = new Gson().fromJson(reader, type);
-            Timber.d("已加载 %d 个本地文件版本", versions.size());
-            return versions;
-        } catch (IOException e) {
-            return new HashMap<>();
-        }
-    }
-
-    private void saveLocalVersions(Map<String, Long> versions) throws IOException {
-        Timber.i("保存 %d 个文件的版本信息", versions.size());
-        File versionFile = new File(context.getFilesDir(), "version.txt");
-        try (FileWriter writer = new FileWriter(versionFile)) {
-            new Gson().toJson(versions, writer);
-        }
-    }
 
     private boolean checkNetwork() {
         ConnectivityManager cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
         return activeNetwork != null && activeNetwork.isConnected();
+    }
+
+    private void clearLocalScripts() {
+        Timber.i("开始清空本地脚本目录");
+        File scriptsDir = new File(context.getFilesDir(), SCRIPTS_DIR);
+        
+        if (scriptsDir.exists()) {
+            deleteRecursively(scriptsDir);
+            Timber.d("已删除脚本目录: %s", scriptsDir.getAbsolutePath());
+        }
+        
+        // 重新创建scripts目录
+        if (!scriptsDir.exists()) {
+            scriptsDir.mkdirs();
+            Timber.d("已重新创建脚本目录: %s", scriptsDir.getAbsolutePath());
+        }
+        
+        // 同时清理根目录下的.py文件和版本文件
+        File filesDir = context.getFilesDir();
+        File[] rootFiles = filesDir.listFiles();
+        if (rootFiles != null) {
+            for (File file : rootFiles) {
+                if (file.isFile()) {
+                    String fileName = file.getName();
+                    if (fileName.endsWith(".py") || fileName.equals("version.txt")) {
+                        if (file.delete()) {
+                            Timber.d("已删除文件: %s", fileName);
+                        }
+                    }
+                }
+            }
+        }
+        
+        Timber.i("本地脚本目录清空完成");
+    }
+
+    private void deleteRecursively(File file) {
+        if (file.isDirectory()) {
+            File[] children = file.listFiles();
+            if (children != null) {
+                for (File child : children) {
+                    deleteRecursively(child);
+                }
+            }
+        }
+        file.delete();
     }
     
 } 

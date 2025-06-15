@@ -1,8 +1,8 @@
 from datetime import datetime
 from typing import Any
-from SModels import DeviceModel_, TaskModel_, LogModel_
 
 import _G
+
 class SModelBase_:
     """模型基类"""
     def __init__(self, name: str, modelClass: type):
@@ -18,6 +18,14 @@ class SModelBase_:
             self.data = {'name': name}
             self._isDirty = True
         self.modelClass = modelClass
+
+    @property
+    def Dirty(self):
+        return self._isDirty
+    
+    @Dirty.setter
+    def Dirty(self, value: bool):
+        self._isDirty = value
 
     @property
     def id(self) -> int:
@@ -63,12 +71,14 @@ class SModelBase_:
         """提交数据更新"""
         log = _G._G_.Log()
         try:
+            # print(f'commit: {self._isDirty}')
             if not self._isDirty:
                 return True
             if self.modelClass is None:
-                log.ex(e, '提交数据更新失败,modelClass为空')
+                log.ex_(e, '提交数据更新失败,modelClass为空')
                 return False
-            log.d(f'提交数据更新111: {self.data}')
+            
+            # 直接调用，因为SModels中的方法已经封装了上下文处理
             self.modelClass.commit(self.data)
             self._isDirty = False
             return True
@@ -114,15 +124,14 @@ class SModelBase_:
         log = g.Log()
         try:
             dataType = None
-            # log.d(f'刷新{self.modelClass.__name__}')
-            if self.modelClass is DeviceModel_:
-                # log.i(f'刷新设备状态ddddfff: {self.name}, {self.data}')
-                dataType = 'devices'
-            elif self.modelClass is TaskModel_:
-                log.d(f'刷新任务状态: {self.name}, {self.data}')
-                dataType = 'tasks'
-            elif self.modelClass is LogModel_:
-                dataType = 'logs'
+            # 使用类名字符串比较，避免直接导入
+            className = self.__class__.__name__
+            if className:
+                if className == 'DeviceModel_':
+                    dataType = 'devices'
+                elif className == 'TaskModel_':
+                    log.d(f'刷新任务状态: {self.name}, {self.data}')
+                    dataType = 'tasks'
             data = self.toSheetData()
             g.emit('S2B_sheetUpdate', {'type': dataType, 'data': [data]})
         except Exception as e:

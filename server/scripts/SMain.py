@@ -34,7 +34,14 @@ werkzeug_logger = logging.getLogger('werkzeug')
 werkzeug_logger.setLevel(logging.INFO)
 
 # 创建socketio实例
-socketio = SocketIO(logger=False, engineio_logger=False, async_mode='eventlet')
+socketio = SocketIO(
+    logger=False, 
+    engineio_logger=False, 
+    async_mode='eventlet',
+    ping_timeout=120,  # 心跳超时时间（秒），要比客户端的大
+    ping_interval=30,  # 心跳间隔时间（秒）
+    cors_allowed_origins="*"
+)
 
 def createApp(configName='development', debug=False):
     """创建Flask应用"""
@@ -68,9 +75,7 @@ def createApp(configName='development', debug=False):
 
 def signalHandler(sig, frame):
     """处理Ctrl+C信号"""
-    log = _G._G_.Log()
-    log.i('正在关闭服务器...')
-    log.uninit()
+    print('正在关闭服务器...')
     exit(0)
 
 def protInUse(port, log):
@@ -164,7 +169,6 @@ if __name__ == '__main__':
         
         # 注册所有命令
         g.CmdMgr().regAllCmds()
-        
         socketio.run(
             app, 
             host=cfg.SERVER_HOST,
@@ -175,6 +179,6 @@ if __name__ == '__main__':
         )
     except Exception as e:
         log.ex(e, '服务器启动失败')
-        log.uninit()
     finally:
-        log.i('服务器关闭') 
+        log.i_('服务器关闭') 
+        log.uninit()

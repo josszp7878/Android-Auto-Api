@@ -17,6 +17,28 @@ class CCmds_:
         # 导入 regCmd
         from _CmdMgr import regCmd
 
+        @regCmd(r"#>>|log (?P<content>.+)?")
+        def log(content):
+            _G._G_.Log().log(content)
+
+        @regCmd('#保存日志|bcrz')
+        def saveLog():
+            """功能：强制保存当前客户端日志缓存到文件
+            指令名：saveLog
+            中文名：保存日志
+            参数：无
+            示例：保存日志
+            """
+            try:
+                import _Log
+                log = _G._G_.Log()
+                # 强制保存日志缓存
+                log._save(True)
+                return '客户端日志已保存到文件'
+            except Exception as e:
+                _Log._Log_.ex(e, '保存日志失败')
+                return f'e~保存日志失败: {str(e)}'
+
         @regCmd(r"#位置|wz(?P<text>.+)?")
         def pos(text):
             """
@@ -102,7 +124,7 @@ class CCmds_:
             ret = App.open(appName)
             if not ret:
                 return f"打开应用 {appName} 失败"
-            return f"成功打开应用 {appName}"
+            return f"成功打开应用 {appName}, ret:{ret}"
 
         @regCmd(r"#关闭|gb (?P<appName>\S+)?")
         def closeApp(appName=None):
@@ -468,7 +490,7 @@ class CCmds_:
             log = g.Log()
             try:
                 # 首先停止所有打开的应用
-                g.App().stopAllApps()
+                # g.App().stopAllApps()
                 
                 # 获取Android对象
                 android = _G._G_.android
@@ -477,6 +499,7 @@ class CCmds_:
                     android.exitApp()
                     return "应用正在退出..."
                 else:
+                    g.CClient().running = False
                     return "无法获取Android对象，退出失败"
             except Exception as e:
                 log.ex(e, "退出应用失败")
@@ -816,4 +839,37 @@ class CCmds_:
             g = _G._G_
             # 显示客户端的连接状态
             return g.CDevice().state()
+
+        @regCmd(r"#获取日志|getLogs(?P<date>\S+)?")
+        def getLogs(date=None):
+            """获取客户端本地日志
+            
+            Args:
+                date: 日期(YYYYMMDD)，可选，默认为今天
+                
+            Returns:
+                dict: 包含日志数据的响应
+            """
+            try:
+                if not date:
+                    date = datetime.now().strftime('%Y%m%d')
+                
+                # 获取客户端本地日志
+                from _Log import _Log_
+                logs = _Log_.gets(date)
+                logData = [logItem.toSheetData() for logItem in logs]
+                
+                return {
+                    'success': True,
+                    'data': logData,
+                    'date': date,
+                    'count': len(logData)
+                }
+                
+            except Exception as e:
+                _G._G_.Log().ex(e, f'获取客户端日志失败: {date}')
+                return {
+                    'success': False,
+                    'message': str(e)
+                }
         

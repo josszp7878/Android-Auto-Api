@@ -1,12 +1,18 @@
-from datetime import datetime
-from enum import Enum
+"""
+日志管理模块
+"""
+import threading
 import os
+import json
+import glob
+import time
 import re
-import _G
+from datetime import datetime, timedelta
 from typing import List
-# 导入数据库模块
-from SModels import LogModel_   
-from SModelBase import SModelBase_
+from enum import Enum
+
+import _G
+
 
 class TAG(Enum):
     """标签"""
@@ -14,14 +20,22 @@ class TAG(Enum):
     SCMD = "SCMD"
     Server = "@"
 
-class _Log_(SModelBase_):
+
+class _Log_:
     """统一的日志管理类"""
     _cache: List['_Log_'] = []
     _lastDate = None  # 最近一次缓存的日期
+    _logCacheLock = threading.Lock()
+    _maxCacheSize = 100  # 最大缓存条数
+    _threadLocal = threading.local()  # 线程本地存储，避免递归调用
 
-    def __init__(self, name: str):
-        """初始化任务"""
-        super().__init__(name, LogModel_)
+    def __init__(self, data):
+        """初始化日志对象"""
+        if isinstance(data, dict):
+            self.data = data
+        else:
+            self.data = {'message': str(data)}
+        self._isDirty = False
 
     # ANSI颜色代码
     COLORS = {
@@ -38,65 +52,267 @@ class _Log_(SModelBase_):
         'underline': '\033[4m'
     }
 
+    def toSheetData(self):
+        """转换为表格数据格式"""
+        return self.data
+
+    @property
+    def date(self):
+        """获取日志日期"""
+        time_str = self.data.get('time', '')
+        if time_str:
+            try:
+                # 从 '2025-01-14 10:30:45' 格式中提取日期部分，转换为 '20250114'
+                date_part = time_str.split(' ')[0]  # 获取日期部分
+                return date_part.replace('-', '')  # 转换为 YYYYMMDD 格式
+            except:
+                pass
+        return datetime.now().strftime('%Y%m%d')  # 默认返回今天
 
     @classmethod
     def clear(cls):
         """清空日志缓存"""
         cls.i('清空日志缓存')
         cls._cache.clear()
-
+        cls._lastDate = None
 
     @classmethod
-    def clientScriptDir(cls):
-        dir = None
-        import _G
-        # 直接使用_G_.android而不是通过Tools获取
-        android = _G._G_.android
-        if android:
-            # Android环境下使用应用私有目录
-            dir = android.getFilesDir('scripts', True)
-        else:
-            # 开发环境使用当前目录
-            dir = os.path.dirname(os.path.abspath(__file__))
-            cls.log_(f"脚本目录: {dir}")
-        return dir
+    def _save(cls, force=False):
+        """将日志缓存保存到文件"""
+        try:
+            if not cls._cache:
+                return
+            # print(f'save%%%: {len(cls._cache)}')
+            if not force and len(cls._cache) < cls._maxCacheSize:
+                return
+            
+            g = _G._G_
+            # 统一使用文件保存方式
+            dirtyLogs = [log for log in cls._cache 
+                        if hasattr(log, 'dirty') and log.dirty]
+            if not dirtyLogs:
+                return
+                
+            today = datetime.now().strftime('%Y%m%d')
+            baseLogDir = g.logDir()
+            
+            # 根据环境确定子目录名
+            if g.isServer():
+                subDir = 'server'
+            else:
+                device = g.CDevice()
+                subDir = device.deviceID() if device else 'unknown'
+            
+            # 创建带设备/服务器名的日志目录
+            logDir = os.path.join(baseLogDir, subDir)
+            os.makedirs(logDir, exist_ok=True)
+            
+            logFile = os.path.join(logDir, f'{today}.log')
+            
+            # 将dirty为True的日志追加到文件末尾，并设置dirty为False
+            with open(logFile, 'a', encoding='utf-8') as f:
+                for log in dirtyLogs:
+                    f.write(json.dumps(log.toSheetData(), 
+                                     ensure_ascii=False) + '\n')
+            # 将dirty为True的日志设置为False
+            for log in dirtyLogs:
+                log.dirty = False
+            cls._cache.clear()
+            cls.log_(f'日志已保存到文件: {logFile}')
+            
+        except Exception as e:
+            cls.ex_(e, '保存日志失败')
 
+    @classmethod
+    def _clean(cls):
+        """清理指定天数前的日志文件"""
+        try:
+            g = _G._G_
+            # 统一清理策略：服务器90天，客户端30天
+            days = 90 if g.isServer() else 30
+            cls.log_(f'清理日志文件: {days} 天前的日志')
+            
+            baseLogDir = g.logDir()
+            
+            # 根据环境确定子目录名
+            if g.isServer():
+                subDir = 'server'
+            else:
+                device = g.CDevice()
+                subDir = device.deviceID() if device else 'unknown'
+            
+            logDir = os.path.join(baseLogDir, subDir)
+            if not os.path.exists(logDir):
+                return
+                
+            # 计算指定天数前的日期
+            cutoffDate = (datetime.now() - timedelta(days=days)).strftime('%Y%m%d')
+            
+            # 获取所有日志文件
+            logFiles = glob.glob(os.path.join(logDir, '*.log'))
+            
+            for logFile in logFiles:
+                fileName = os.path.basename(logFile)
+                fileDate = fileName.split('.')[0]
+                
+                if fileDate < cutoffDate:
+                    os.remove(logFile)
+                    cls.log_(f'删除过期日志文件: {fileName}')
+                    
+        except Exception as e:
+            cls.ex_(e, '清理过期日志文件失败')
+
+    @classmethod
+    def _add(cls, log):
+        """添加日志到缓存"""
+        try:
+            with cls._logCacheLock:
+                cls._cache.append(log)
+                # print(f'add logdddddfff: {log.dirty}')
+                cls._save()                    
+        except Exception as e:
+            cls.ex_(e, '添加日志到缓存失败')
+
+    @classmethod
+    def _loadLogs(cls, date):
+        """内部日志加载方法，统一从文件加载"""
+        logs = []
+        try:
+            g = _G._G_
+            baseLogDir = g.logDir()
+            
+            # 根据环境确定子目录名
+            if g.isServer():
+                subDir = 'server'
+            else:
+                device = g.CDevice()
+                subDir = device.deviceID() if device else 'unknown'
+            
+            logDir = os.path.join(baseLogDir, subDir)
+            logFile = os.path.join(logDir, f'{date}.log')
+            
+            if os.path.exists(logFile):
+                with open(logFile, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line:
+                            try:
+                                logData = json.loads(line)
+                                logs.append(cls(logData))
+                            except json.JSONDecodeError:
+                                continue
+        except Exception as e:
+            cls.ex_(e, f'从文件加载日志失败: {date}')
+        return logs
+
+    @classmethod
+    def getLogs(cls, date=None):
+        """获取指定日期的日志"""
+        g = _G._G_
+        try:
+            if not date:
+                date = datetime.now().strftime('%Y%m%d')                
+            today = datetime.now().strftime('%Y%m%d')            
+            if date == today:
+                # 如果是今天的日志，检查缓存
+                if cls._cache and len(cls._cache) > 0:
+                    first = cls._cache[0]
+                    if first.date == date:
+                        return cls._cache
+                # 缓存为空，加载今天的日志并缓存
+                logs = cls._loadLogs(date)
+                cls._cache = logs
+                cls._lastDate = date
+                cls.log_(f'加载了@@@@ {len(logs)} 条日志')
+                
+                # 如果是服务端，更新前台日志数据
+                if g.isServer():
+                    try:
+                        logData = [log.toSheetData() for log in logs]
+                        g.emit('S2B_sheetUpdate', 
+                               {'type': 'logs', 'data': logData})
+                        cls.log_(f'已更新前台日志数据，共 {len(logData)} 条')
+                    except Exception as e:
+                        cls.ex_(e, '更新前台日志数据失败')
+                
+                return cls._cache
+            else:
+                # 如果不是今天的日志，不缓存，直接返回
+                return cls._loadLogs(date)
+        except Exception as e:
+            cls.ex_(e, '获取日志失败')
+            return []
 
     @classmethod
     def uninit(cls):
-        """反初始化日志系统，保存到数据库"""
+        """反初始化日志系统，保存日志到文件"""
+        cls._save(True)
+        cls._clean()
         cls.clear()
 
-    
     @classmethod
     def gets(cls, date=None) -> List['_Log_']:
         """
-        获取特定日期的所有日志
+        获取特定日期的所有日志（兼容方法，调用getLogs）
         :param date: 日期，默认为今天
         :return: 日志列表
         """
-        if cls._lastDate == date:
-            return cls._cache
-        # 清除当前缓存
-        try:
-            logs = LogModel_.all(date)
-            cls._cache = [cls(t) for t in logs]
-            cls._lastDate = date
-            return cls._cache
-        except Exception as e:
-            cls.ex(e, f'获取日期日志列表失败: {date}')
-            return []    
+        return cls.getLogs(date) 
+       
+    @classmethod
+    def genID(cls):
+        """生成日志ID"""
+        return int(time.time() * 1000000)
+
+    @property
+    def dirty(self):
+        """日志是否脏了"""
+        return self._isDirty
+    
+    @dirty.setter
+    def dirty(self, value: bool):
+        self._isDirty = value
     
     @classmethod
-    def add(cls, message, tag=None, level='i'):
+    def add(cls, message, tag=None, level='i') -> dict:
+        """添加日志到缓存"""
+        # 防止递归调用
+        if hasattr(cls._threadLocal, 'adding') and cls._threadLocal.adding:
+            # 如果正在添加日志，直接返回避免无限递归
+            print(f"[WARNING] 递归日志调用被阻止: {message}")
+            return None
+            
         try:
-            data = LogModel_.get(message, tag, level, True)
-            if data:
-                log = cls(data)
-                cls._cache.append(log)
-                log.refresh()
+            cls._threadLocal.adding = True  # 设置递归标志
+            
+            logData = {
+                'message': message, 
+                'tag': tag, 
+                'level': level, 
+                'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            }
+            # set id to the max id + 1
+            logData['id'] = cls.genID()
+            # 创建_Log_对象并添加到缓存
+            log = cls(logData)
+            log.dirty = True
+            cls._add(log)
+            # 服务器环境下刷新前台数据
+            if _G._G_.isServer():
+                try:
+                    _G._G_.emit('S2B_sheetUpdate', 
+                               {'type': 'logs', 'data': [logData]})
+                except Exception as e:
+                    # 避免递归，直接打印错误而不是调用日志方法
+                    print(f"[ERROR] 刷新前台日志数据失败: {e}")
+                    
+            return logData
         except Exception as e:
-            cls.ex_(e, '发送日志到控制台失败')
+            # 避免递归，直接打印错误而不是调用日志方法
+            print(f"[ERROR] 添加日志失败: {e}")
+            return None
+        finally:
+            cls._threadLocal.adding = False  # 重置递归标志
 
     @classmethod
     def _parseLevel(cls, content, level='i'):
@@ -125,24 +341,6 @@ class _Log_(SModelBase_):
             return (level, content)
         # 默认使用传入的级别
         return (level, content)
-
-    @classmethod
-    def createLogData(cls, tag, content, level='i'):
-        """创建日志数据"""
-        time = datetime.now().strftime('%H:%M:%S')
-        level, content = cls._parseLevel(content, level)
-        if content is None:
-            return None
-            
-        log_model = LogModel_(
-            tag=tag,
-            level=level,
-            message=content,
-            time=time
-        )
-        return log_model
-
-
 
     @classmethod
     def ex_(cls, e, message=None, tag=None):
@@ -175,7 +373,6 @@ class _Log_(SModelBase_):
         """打印日志到终端"""
         cls.log_(content, tag, 'e')
 
-
     @classmethod
     def _PCLog_(cls, content, tag=None, level='i'):
         """打印带颜色的日志到终端"""
@@ -199,59 +396,70 @@ class _Log_(SModelBase_):
         else:
             print(f"{color}{content}{cls.COLORS['reset']}")
 
-
-    # 正常打印日志，会向本地和远程前台发送日志
     @classmethod
-    def log(cls, content, tag=None, level='i'):
+    def log(cls, content, tag=None, level='i', toServer=False) -> bool:
         """记录日志"""
         try:
             # 强制转换非字符串内容
             content = str(content)
             g = _G._G_
             isServer = g.isServer()
-            logData = None
+            
             if isServer:
+                # 服务器环境：添加到本地缓存并打印
                 cls.add(content, tag, level)
                 cls.log_(content, tag, level)
-                logData = content
             else:
-                # 客户端环境，获取设备对象并发送日志到服务端
+                # 客户端环境：添加到本地缓存
                 device = g.CDevice()
                 if device:
                     deviceId = device.deviceID()
                     tag = f'{deviceId}{tag}' if tag else deviceId
-                    # 创建字典格式的日志数据
-                    logDict = {
-                        'message': content,
-                        'level': level,
-                        'tag': tag,
-                        'time': datetime.now().strftime('%H:%M:%S')
-                    }
-                    # 通过设备对象发送日志到服务端
-                    if device.connected():
-                        g.emit('C2S_Log', logDict)
+                    # 添加到客户端本地缓存
+                    log = cls.add(content, tag, level)
+                    # 只在debug开启且连接时发送到服务端
+                    if log and (toServer or device.get('debug')):
+                        g.emit('C2S_Log', log)
                 # 同时打印到终端
                 cls.log_(content, tag, level)
-                logData = logDict
-            return logData
+            return True
         except Exception as e:
             cls.ex_(e, '记录日志失败')
-            return None
+            return False
 
+    @classmethod
+    def log2S(cls, content, tag=None, level='i'):
+        return cls.log(content, tag, level, True)
 
     @classmethod
     def log_(cls, content, tag=None, level='i'):
         """打印日志到终端"""
-        g = _G._G_
-        server = g.isServer()
-        # 直接从_G_获取android对象
-        android = g.android if not server else None
         tag = tag if tag else ''
         level, content = cls._parseLevel(content, level)
-        if android:
-            android.log(content, tag, level)
+        cls._PCLog_(content, tag, level)
+
+    @classmethod
+    def result(cls, result):
+        """记录命令执行结果到日志"""
+        if not result:
+            return
+        content = ''
+        level = 'i'
+        if isinstance(result, str):
+            # 只有当result是字符串时才解析日志级别
+            level, content = cls._parseLevel(result, 'i')
         else:
-            cls._PCLog_(content, tag, level)
+            # 如果result不是字符串（比如列表、字典等），直接记录
+            if isinstance(result, (list, dict)):
+                content = f"  结果： 返回 {type(result).__name__} 数据，长度: {len(result)}"
+            else:
+                content = f"  结果： {str(result)}"
+        length = len(content)
+        if length > 100:
+            content = content[:100] + '...'
+        elif length == 0:
+            return
+        cls.add(content, '', level)
 
     @classmethod
     def c(cls, message, tag=None):
@@ -283,7 +491,6 @@ class _Log_(SModelBase_):
         """输出错误级别日志"""
         cls.log(message, tag, 'e')
 
-
     @classmethod
     def formatEx(cls, message, e=None, tag=None):
         import traceback
@@ -291,7 +498,8 @@ class _Log_(SModelBase_):
         # 将stack中的文件名手机本地路径形式。路径改成相对路径，方便编辑器里面点击跳转
         # 比如：data/user/0/cn.vove7.andro_accessibility_api.demo/files/scripts/_CmdMgr.py
         # 改成：scripts/_CmdMgr.py
-        stack = stack.replace('data/user/0/cn.vove7.andro_accessibility_api.demo/files/', '')
+        stack = stack.replace(
+            'data/user/0/cn.vove7.andro_accessibility_api.demo/files/', '')
         return f'{message} Exception: {e}, {stack}'
 
     @classmethod
@@ -322,9 +530,28 @@ class _Log_(SModelBase_):
 
     @classmethod
     def onLoad(cls, oldCls):
-        """初始化日志系统，从数据库加载日志"""
+        """初始化日志系统"""
         if oldCls:
-            cls._cache = oldCls._cache
+            cls._cache = oldCls._cache        
+        print('日志系统初始化完成')
+        # 延迟预加载日志，避免在系统初始化时调用emit
+        try:
+            if _G._G_.isServer():
+                # 延迟加载，让系统完全初始化后再加载
+                import threading
+                def delayed_load():
+                    import time
+                    time.sleep(3)  # 等待2秒让系统完全初始化
+                    try:
+                        today = datetime.now().strftime('%Y%m%d')
+                        cls.getLogs(today)  # 这会加载今天的日志并发送到前台
+                    except Exception as e:
+                        print(f'延迟预加载日志失败: {e}')
+                
+                thread = threading.Thread(target=delayed_load, daemon=True)
+                thread.start()
+        except Exception as e:
+            print(f'启动日志预加载线程失败: {e}')
 
 
 # 初始化日志系统

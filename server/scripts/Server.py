@@ -26,6 +26,7 @@ def initSocketIO(sio):
     sio.on('B2S_setProp')(onB2S_setProp)
 
 
+
 def onB2S_setProp(data):
     """处理设备更新请求"""
     log = _Log._Log_
@@ -38,9 +39,8 @@ def onB2S_setProp(data):
             return
         target = None
         if type == 'devices':
-            target = deviceMgr.getByID(targetID)
+            target = deviceMgr.get(targetID)
         elif type == 'tasks':
-            from SDeviceMgr import deviceMgr
             target = deviceMgr.getTask(targetID)
         # log.i(f'更新设备属性11: {type}, {targetID}, {params}, {target}')    
         if target is None:
@@ -126,6 +126,7 @@ def onC2S_Log(data):
     """处理客户端日志"""
     Log = _Log._Log_
     try:
+        print("log@@@")
         message = data.get('message')
         tag = data.get('tag')
         level = data.get('level', 'i')
@@ -211,6 +212,8 @@ def on2S_Cmd(data):
             return
         params = data.get('params')
         ret = {}
+        if len(deviceIds) == 0:
+            deviceIds = ['@']
         for target in deviceIds:
             ret[target] = deviceMgr.onCmd(target, command, params)
         return ret
@@ -234,7 +237,7 @@ def onB2S_loadDatas(data):
         data: 包含filters字段的字典，用于过滤设备   
     """
     try:
-        log = _Log._Log_
+        Log = _Log._Log_
         type = data.get('type')
         filters = data.get('filters', {})
         date = filters.get('date')
@@ -251,16 +254,19 @@ def onB2S_loadDatas(data):
                 tasks = device.getTasks(date)
                 for task in tasks:
                     datas.append(task.toSheetData())
-            # log.i(f'获取任务数据: {date}, {datas}')
+            # Log.i(f'获取任务数据: {date}, {datas}')
         elif type == 'logs':
             from _Log import _Log_  
-            datas = [log.toSheetData() for log in _Log_.gets(date)]
+            datas = [logItem.toSheetData() for logItem in _Log_.gets(date)]
         else:
             return []
         return datas
     except Exception as e:
         _Log._Log_.ex(e, '处理加载设备数据请求失败')
         return []
+
+
+
 
 
 
