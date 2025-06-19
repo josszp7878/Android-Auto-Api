@@ -138,19 +138,20 @@ class SCmds_:
             指令名: getLogs
             中文名: 获取日志
             参数: 
-                date - 日期(YYYYMMDD)，可选，默认为今天
+                date - 日期，支持格式: YYYYMMDD, YYYY-MM-DD 等，可选，默认为今天
             返回: 日志数据列表
             """
             g = _G._G_
             log = g.Log()
             try:
-                if not date:
-                    date = datetime.now().strftime('%Y%m%d')
+                from _Log import _Log_, DateHelper
                 
-                from _Log import _Log_
-                logs = _Log_.gets(date)
+                # 统一日期格式处理
+                normalized_date = DateHelper.normalize(date) 
+                
+                logs = _Log_.gets(normalized_date)
                 logData = [logItem.toSheetData() for logItem in logs]
-                # log.i(f'获取服务端日志: {date}, {len(logData)} 条')
+                log.i(f'获取服务端日志: {DateHelper.format_display(normalized_date)}, {len(logData)} 条')
                 return logData
                         
             except Exception as e:

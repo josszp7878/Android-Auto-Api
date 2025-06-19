@@ -345,6 +345,7 @@ class _CmdMgr_:
                             bestMatchLength = matchLength
             find = bestMatch
             if find is None:
+                log.e(f'命令: {cmdStr} 未找到')
                 return None
             # 设置匹配到的参数
             kwargs = {}

@@ -269,6 +269,9 @@ class SheetPage {
         
         // 初始化命令输入区域
         this.initCommandArea();
+        
+        // 注册前端命令
+        BCmds.onLoad();
 
         // 先初始化Socket连接
         this.socketer = Socketer.init({
@@ -806,14 +809,17 @@ class SheetPage {
                 },
                 headerSort: false
             },
-            {title: "设备", field: "deviceId", width: 120, headerFilter: "input",
+            {title: "设备", field: "deviceId", width: 160, headerFilter: "input",
                 formatter: (cell) => {
                     const deviceId = cell.getValue();
                     const device = this.get(deviceId);
                     if (!device) return deviceId;
+                    
+                    const deviceName = device.name || `设备${deviceId}`;
                     const state = device.state;
                     const status = this.deviceStatusMap[state] || this.deviceStatusMap['offline'];
-                    return `<span style='color: ${status.color}; font-weight: bold;'>${deviceId}</span>`;
+                    
+                    return `<span style='color: ${status.color}; font-weight: bold;'>${deviceName}(${deviceId})</span>`;
                 }
             },
             {
@@ -1206,31 +1212,87 @@ class SheetPage {
      * @param {string} message - 消息内容
      */
     showNotification(message) {
+        // 获取现有通知的数量，用于计算位置
+        const existingNotifications = document.querySelectorAll('.notification');
+        const notificationHeight = 50; // 预估的单个通知高度
+        const spacing = 10; // 通知之间的间距
+        
         // 创建通知元素
         const notification = document.createElement('div');
         notification.className = 'notification';
         notification.textContent = message;
         notification.style.position = 'fixed';
-        notification.style.bottom = '20px';
         notification.style.right = '20px';
-        notification.style.padding = '10px 15px';
+        notification.style.padding = '12px 18px';
         notification.style.backgroundColor = '#23d160';
         notification.style.color = 'white';
-        notification.style.borderRadius = '4px';
-        notification.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+        notification.style.borderRadius = '6px';
+        notification.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
         notification.style.zIndex = 1000;
-        notification.style.transition = 'opacity 0.5s';
+        notification.style.transition = 'all 0.3s ease-in-out';
+        notification.style.maxWidth = '400px';
+        notification.style.wordBreak = 'break-word';
+        notification.style.fontSize = '14px';
+        notification.style.lineHeight = '1.4';
+        
+        // 计算底部位置，避免遮挡输入框，向上扩展
+        const commandArea = document.querySelector('.command-area');
+        const commandAreaHeight = commandArea ? commandArea.offsetHeight : 60;
+        const baseBottom = commandAreaHeight + 30; // 输入框高度 + 额外间距
+        
+        // 每个新通知都在上一个通知的上方
+        const bottomPosition = baseBottom + (existingNotifications.length * (notificationHeight + spacing));
+        notification.style.bottom = `${bottomPosition}px`;
+        
+        // 初始状态：透明且稍微偏右
+        notification.style.opacity = '0';
+        notification.style.transform = 'translateX(100%)';
         
         // 添加到文档
         document.body.appendChild(notification);
         
-        // 3秒后自动消失
-        setTimeout(() => {
+        // 动画显示
+        requestAnimationFrame(() => {
+            notification.style.opacity = '1';
+            notification.style.transform = 'translateX(0)';
+        });
+        
+        // 8秒后自动消失
+        const hideNotification = () => {
             notification.style.opacity = '0';
+            notification.style.transform = 'translateX(100%)';
             setTimeout(() => {
-                document.body.removeChild(notification);
-            }, 500);
-        }, 3000);
+                if (notification.parentNode) {
+                    document.body.removeChild(notification);
+                }
+                // 重新调整其他通知的位置
+                this.adjustNotificationPositions();
+            }, 300);
+        };
+        
+        setTimeout(hideNotification, 8000);
+        
+        // 点击关闭功能
+        notification.style.cursor = 'pointer';
+        notification.addEventListener('click', hideNotification);
+    }
+
+    /**
+     * 重新调整通知位置，用于当某个通知消失后重排其他通知
+     */
+    adjustNotificationPositions() {
+        const notifications = document.querySelectorAll('.notification');
+        const notificationHeight = 50;
+        const spacing = 10;
+        
+        const commandArea = document.querySelector('.command-area');
+        const commandAreaHeight = commandArea ? commandArea.offsetHeight : 60;
+        const baseBottom = commandAreaHeight + 30;
+        
+        notifications.forEach((notification, index) => {
+            const bottomPosition = baseBottom + (index * (notificationHeight + spacing));
+            notification.style.bottom = `${bottomPosition}px`;
+        });
     }
     
     /**
@@ -1569,23 +1631,121 @@ class SheetPage {
 
     /**
      * 发送命令
+     * 命令格式: 目标数组 分类符 命令内容
+     * 分类符: # - 客户端指令, @ - 服务端指令, 无 - 前端本地指令
      */
-    sendCommand() {
+    async sendCommand() {
         const commandInput = document.getElementById('commandInput');
         if (!commandInput || !commandInput.value.trim()) return;
         
-        const command = commandInput.value.trim();
-        console.log('发送命令:', command);
+        let rawCommand = commandInput.value.trim();
+        console.log('发送命令:', rawCommand);
         
         // 添加到历史记录
-        this.addCommandToHistory(command);
-        //默认deviceIds为当前选中设备
-        let deviceIds = this.targets[this.DataType.DEVICES];        
-        this.sendCmd(command, deviceIds);
+        this.addCommandToHistory(rawCommand);
+        
+        // 字符标准化处理
+        rawCommand = this.normalizeCharacters(rawCommand);
+        
+        // 解析命令格式
+        const parsedCmd = this.parseCommand(rawCommand);
+        console.log('解析结果:', parsedCmd);
+        
+        if (!parsedCmd.command) {
+            this.showNotification('命令内容不能为空');
+            return;
+        }
+        
+        try {
+            switch (parsedCmd.type) {
+                case 'local':
+                    // 前端本地指令
+                    await this.executeLocalCommand(parsedCmd.command);
+                    break;
+                    
+                case 'client':
+                    // 客户端指令 - 发送到设备
+                    this.executeClientCommand(parsedCmd.command, parsedCmd.targets);
+                    break;
+                    
+                case 'server':
+                    // 服务端指令 - 发送到服务器
+                    this.executeServerCommand(parsedCmd.command, parsedCmd.targets);
+                    break;
+                    
+                default:
+                    this.showNotification(`未知的命令类型: ${parsedCmd.type}`);
+                    return;
+            }
+        } catch (error) {
+            console.error('命令执行出错:', error);
+            this.showNotification(`命令执行出错: ${error.message}`);
+        }
+        
         // 清空输入框
         commandInput.value = '';
         this.historyIndex = -1;
         this._tempCommand = undefined;
+    }
+
+    /**
+     * 执行前端本地指令
+     * @param {string} command - 命令内容
+     */
+    async executeLocalCommand(command) {
+        const cmd = {
+            cmd: command,
+            params: {
+                sheetPage: this
+            }
+        };
+        
+        const result = await CmdMgr.do(cmd);
+        if (result && result.result) {
+            if (typeof result.result === 'string') {
+                this.showNotification(result.result);
+            } else {
+                // 处理对象类型的结果
+                console.log('本地命令执行结果:', result.result);
+                this.showNotification('命令执行完成，请查看控制台');
+            }
+        } else {
+            this.showNotification('本地命令未找到或执行失败');
+        }
+    }
+
+    /**
+     * 执行客户端指令
+     * @param {string} command - 命令内容
+     * @param {Array} targets - 目标设备ID数组
+     */
+    executeClientCommand(command, targets) {
+        if (targets.length === 0) {
+            this.showNotification('没有指定目标设备');
+            return;
+        }
+        
+        console.log(`发送客户端指令到设备 [${targets.join(', ')}]: ${command}`);
+        this.sendCmd(command, targets);
+        this.showNotification(`客户端指令已发送到 ${targets.length} 个设备`);
+    }
+
+    /**
+     * 执行服务端指令
+     * @param {string} command - 命令内容
+     * @param {Array} targets - 目标设备ID数组（服务端指令可能不需要目标）
+     */
+    executeServerCommand(command, targets) {
+        console.log(`发送服务端指令: ${command}`, targets.length > 0 ? `目标: [${targets.join(', ')}]` : '');
+        
+        // 服务端指令可能不需要目标设备，直接发送到服务器
+        this.sendCmd(command, targets);
+        
+        if (targets.length > 0) {
+            this.showNotification(`服务端指令已发送，目标: ${targets.length} 个设备`);
+        } else {
+            this.showNotification('服务端指令已发送');
+        }
     }
     
     /**
@@ -1638,6 +1798,110 @@ class SheetPage {
         return validKeys.includes(value) ? value : defaultValue;
     }
 
+    /**
+     * 字符标准化处理函数
+     * @param {string} text - 待处理的文本
+     * @param {Object} charMap - 字符映射表，默认为中文标点符号到英文标点符号的映射
+     * @returns {string} 处理后的文本
+     */
+    normalizeCharacters(text, charMap = null) {
+        if (!text || typeof text !== 'string') return text;
+        
+        // 默认字符映射表：中文标点符号 -> 英文标点符号
+        const defaultCharMap = {
+            '》': '>',
+            '：': ':',
+            '；': ';',
+            '，': ',',
+            '。': '.',
+            '？': '?',
+            '！': '!',
+            '（': '(',
+            '）': ')',
+            '【': '[',
+            '】': ']',
+            '《': '<',
+            '“': '"',
+            '”': '"',
+            '‘': "'"
+        };
+        
+        // 使用传入的映射表或默认映射表
+        const actualCharMap = charMap || defaultCharMap;
+        
+        let result = text;
+        
+        // 遍历映射表进行替换
+        for (const [from, to] of Object.entries(actualCharMap)) {
+            result = result.replace(new RegExp(from, 'g'), to);
+        }
+        
+        return result;
+    }
+
+    /**
+     * 解析命令格式: 目标数组 分类符 命令内容
+     * @param {string} rawCommand - 原始命令字符串
+     * @returns {Object} 解析结果 { targets: Array, type: String, command: String }
+     */
+    parseCommand(rawCommand) {
+        if (!rawCommand || typeof rawCommand !== 'string') {
+            return { targets: [], type: 'local', command: '' };
+        }
+
+        const command = rawCommand.trim();
+        
+        // 查找分类符的位置
+        let separatorIndex = -1;
+        let commandType = 'local'; // 默认为本地指令
+        
+        // 查找 # 或 @ 分类符
+        for (let i = 0; i < command.length; i++) {
+            const char = command[i];
+            if (char === '#') {
+                separatorIndex = i;
+                commandType = 'client';
+                break;
+            } else if (char === '@') {
+                separatorIndex = i;
+                commandType = 'server';
+                break;
+            }
+        }
+        
+        let targets = [];
+        let actualCommand = '';
+        
+        if (separatorIndex === -1) {
+            // 没有找到分类符，整个字符串都是命令内容
+            actualCommand = command;
+        } else {
+            // 找到了分类符，分离目标数组和命令内容
+            const targetsPart = command.substring(0, separatorIndex).trim();
+            actualCommand = command.substring(separatorIndex + 1).trim();
+            
+            // 解析目标数组
+            if (targetsPart) {
+                // 用逗号、空格或分号分隔目标ID
+                targets = targetsPart
+                    .split(/[,\s;]+/)
+                    .map(t => t.trim())
+                    .filter(t => t.length > 0);
+            }
+        }
+        
+        // 如果没有指定目标，使用当前选中的设备
+        if (targets.length === 0 && commandType !== 'local') {
+            targets = [...this.targets[this.DataType.DEVICES]];
+        }
+        
+        return {
+            targets: targets,
+            type: commandType,
+            command: actualCommand
+        };
+    }
+
     // 在类中添加目标列通用处理方法
     handleTargetClick(cell, dataType) {
         const data = cell.getData();
@@ -1665,5 +1929,7 @@ class SheetPage {
     get(id) {
         return this.devices.find(d => d.id === id) || null;
     }
+    
+
 
 } 

@@ -172,7 +172,7 @@ def onC2S_UpdateTask(data):
             return
         taskID = data.get('id')
         task = device.getTask(taskID)
-        log.i(f'任务进度更新: {device.name}/{taskID}')
+        # log.i(f'任务进度更新: {device.name}/{taskID}')
         if task is None:
             log.w(f'任务不存在: {device.name}/{taskID}')
             return

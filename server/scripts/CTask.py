@@ -346,7 +346,7 @@ class CTask_(TaskBase):
             # 如果有变化则发送事件
             if changed:
                 log = g.Log()
-                log.i(f'任务{self._name}更新: {changed}')
+                # log.i(f'任务{self._name}更新: {changed}')
                 self._emitUpdate(self._id, changed)
                 self._dirty = False  # 重置标记
     

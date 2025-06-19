@@ -117,7 +117,7 @@ class SModelBase_:
         except Exception as e:
             log.ex(e, '更新数据失败')
             return False
-        
+
     def refresh(self):
         # 子类可重写
         g = _G._G_
@@ -126,12 +126,13 @@ class SModelBase_:
             dataType = None
             # 使用类名字符串比较，避免直接导入
             className = self.__class__.__name__
-            if className:
-                if className == 'DeviceModel_':
-                    dataType = 'devices'
-                elif className == 'TaskModel_':
-                    log.d(f'刷新任务状态: {self.name}, {self.data}')
-                    dataType = 'tasks'
+            if className == 'SDevice_':
+                dataType = 'devices'
+            elif className == 'STask_':
+                # log.d(f'刷新任务状态: {self.name}, {self.data}')
+                dataType = 'tasks'  
+            else:
+                return
             data = self.toSheetData()
             g.emit('S2B_sheetUpdate', {'type': dataType, 'data': [data]})
         except Exception as e:

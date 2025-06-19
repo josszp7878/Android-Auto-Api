@@ -8,6 +8,38 @@ import os
 # 检查是否在调试模式
 DEBUG_MODE = os.getenv('DEBUG_MODE') == '1'
 
+# 修复SSL递归错误 - 在导入任何网络相关模块前执行
+def fix_ssl_recursion():
+    """修复Python 3.8中的SSL递归错误"""
+    try:
+        # 方法1: 禁用SSL验证
+        ssl._create_default_https_context = ssl._create_unverified_context
+        
+        # 方法2: 修复TLS版本设置
+        if hasattr(ssl, 'TLSVersion'):
+            original_minimum_version = ssl.SSLContext.minimum_version
+            def patched_minimum_version_setter(self, value):
+                if hasattr(self, '_minimum_version'):
+                    object.__setattr__(self, '_minimum_version', value)
+                else:
+                    self._minimum_version = value
+            def patched_minimum_version_getter(self):
+                return getattr(self, '_minimum_version', ssl.TLSVersion.TLSv1_2)
+            
+            ssl.SSLContext.minimum_version = property(patched_minimum_version_getter, patched_minimum_version_setter)
+        
+        # 方法3: 设置环境变量
+        os.environ['PYTHONHTTPSVERIFY'] = '0'
+        os.environ['CURL_CA_BUNDLE'] = ''
+        
+        return True
+    except Exception as e:
+        print(f"SSL修复警告: {e}")
+        return False
+
+# 执行SSL修复
+fix_ssl_recursion()
+
 if not DEBUG_MODE:
     import eventlet
     import urllib3.util.ssl_
@@ -21,13 +53,13 @@ from SDatabase import Database
 from SDatabase import db
 import _G
 
-# 修复SSL递归错误
+# 额外的urllib3修复
 try:
-    ssl._create_default_https_context = ssl._create_unverified_context
-    if hasattr(ssl, '_create_default_https_context') and hasattr(ssl, 'TLSVersion'):
-        if not DEBUG_MODE:
-            urllib3.util.ssl_.create_urllib3_context = lambda *args, **kwargs: ssl.create_default_context(*args, **kwargs)
-except (AttributeError, ImportError):
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    if hasattr(urllib3.util.ssl_, 'create_urllib3_context'):
+        urllib3.util.ssl_.create_urllib3_context = lambda *args, **kwargs: ssl.create_default_context()
+except ImportError:
     pass
 
 # 配置日志

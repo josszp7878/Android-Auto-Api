@@ -845,24 +845,26 @@ class CCmds_:
             """获取客户端本地日志
             
             Args:
-                date: 日期(YYYYMMDD)，可选，默认为今天
+                date: 日期，支持格式: YYYYMMDD, YYYY-MM-DD 等，可选，默认为今天
                 
             Returns:
                 dict: 包含日志数据的响应
             """
             try:
-                if not date:
-                    date = datetime.now().strftime('%Y%m%d')
+                from _Log import _Log_, DateHelper
+                
+                # 统一日期格式处理
+                normalized_date = DateHelper.normalize(date)
                 
                 # 获取客户端本地日志
-                from _Log import _Log_
-                logs = _Log_.gets(date)
+                logs = _Log_.gets(normalized_date)
                 logData = [logItem.toSheetData() for logItem in logs]
                 
                 return {
                     'success': True,
                     'data': logData,
-                    'date': date,
+                    'date': DateHelper.format_display(normalized_date),
+                    'normalized_date': normalized_date,
                     'count': len(logData)
                 }
                 
@@ -872,4 +874,108 @@ class CCmds_:
                     'success': False,
                     'message': str(e)
                 }
+
+        @regCmd(r"#命名|mm (?P<newName>.+)")
+        def name(newName):
+            """
+            功能：命名设备
+            指令名：name
+            中文名：命名
+            参数：
+                newName - 新的设备名称
+            示例：命名 测试设备
+            示例：name 我的手机
+            """
+            g = _G._G_
+            log = g.Log()
+            
+            if not newName:
+                log.e_("新名称不能为空")
+                return "e~新名称不能为空"
+            
+            newName = newName.strip()
+            if not newName:
+                log.e_("新名称不能为空")
+                return "e~新名称不能为空"
+            
+            try:
+                # 获取当前设备信息
+                device = g.CDevice()
+                if not device:
+                    log.e_("设备连接未建立")
+                    return "e~设备连接未建立"
+                
+                # 修改设备名称
+                device.name = newName
+                log.i_(f"设备名称已修改为: {newName}")
+                
+                # 返回成功结果
+                return f"设备名称已修改为: {newName}"
+                
+            except Exception as e:
+                log.ex(e, f"修改设备名称失败: {newName}")
+                return f"e~修改设备名称失败: {str(e)}"
+
+        @regCmd(r"#_syncDeviceName")
+        def _syncDeviceName(deviceName=None):
+            """
+            内部命令：同步设备名称到Android SharedPreferences
+            这是一个内部命令，用于将设备名称同步到Android底层
+            """
+            g = _G._G_
+            log = g.Log()
+            
+            try:
+                # 从命令参数中获取设备名称
+                if not deviceName:
+                    return "e~设备名称不能为空"
+                
+                # 尝试通过Android API同步到SharedPreferences
+                android = cls.android()
+                if android:
+                    # 方案1: 直接调用Android方法（如果存在）
+                    if hasattr(android, 'setDeviceName'):
+                        result = android.setDeviceName(deviceName)
+                        if result:
+                            log.i(f"通过Android API同步设备名称成功: {deviceName}")
+                            return f"设备名称已同步到Android: {deviceName}"
+                    
+                    # 方案2: 通过Context获取SharedPreferences
+                    try:
+                        context = android.getContext()
+                        if context:
+                            prefs = context.getSharedPreferences("device_config", 0)  # MODE_PRIVATE
+                            editor = prefs.edit()
+                            editor.putString("DEVICE_NAME_KEY", deviceName)
+                            success = editor.commit()  # 使用commit()确保立即写入
+                            if success:
+                                log.i(f"通过SharedPreferences同步设备名称成功: {deviceName}")
+                                return f"设备名称已同步到Android: {deviceName}"
+                            else:
+                                log.w(f"SharedPreferences写入失败")
+                    except Exception as e:
+                        log.w(f"SharedPreferences方案失败: {e}")
+                    
+                    # 方案3: 通过反射调用
+                    try:
+                        # 获取PreferenceManager类
+                        PreferenceManager = android.getClass('android.preference.PreferenceManager')
+                        if PreferenceManager:
+                            defaultPrefs = PreferenceManager.getDefaultSharedPreferences(context)
+                            editor = defaultPrefs.edit()
+                            editor.putString("DEVICE_NAME_KEY", deviceName)
+                            success = editor.commit()
+                            if success:
+                                log.i(f"通过PreferenceManager同步设备名称成功: {deviceName}")
+                                return f"设备名称已同步到Android: {deviceName}"
+                    except Exception as e:
+                        log.w(f"PreferenceManager方案失败: {e}")
+                
+                # 如果所有方案都失败
+                log.w(f"无法同步设备名称到Android: {deviceName}")
+                return f"警告: 设备名称无法同步到Android底层，但已在脚本层设置"
+                
+            except Exception as e:
+                log.ex(e, f"同步设备名称到Android失败: {deviceName}")
+                return f"e~同步设备名称到Android失败: {str(e)}"
         

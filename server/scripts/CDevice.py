@@ -229,11 +229,69 @@ class CDevice_:
             cls.init()
             cls.connect()
 
-   
     @property
-    def deviceId(self):
-        """获取设备ID"""
-        return self._deviceId    
+    def name(self):
+        """获取设备名称"""
+        return self._name
+
+    @name.setter
+    def name(self, value):
+        """设置设备名称"""
+        self._name = value
+        # 同步到Android SharedPreferences
+        CDevice_._syncNameToAndroid(value)
+    
+    @classmethod
+    def _syncNameToAndroid(cls, deviceName):
+        """同步设备名称到Android SharedPreferences"""
+        g = _G._G_
+        log = g.Log()
+        try:
+            # 方案1: 通过反射调用Android API
+            if hasattr(g, 'android') and g.android:
+                # 获取Context
+                context = g.android.getContext()
+                if context:
+                    # 获取SharedPreferences
+                    prefs = context.getSharedPreferences("device_config", 0)  # 0 = MODE_PRIVATE
+                    editor = prefs.edit()
+                    editor.putString("DEVICE_NAME_KEY", deviceName)
+                    editor.apply()
+                    log.i(f"设备名称已同步到Android: {deviceName}")
+                    return True
+            
+            # 方案2: 如果上面失败，尝试通过脚本引擎执行
+            try:
+                # 构造JavaScript代码调用Android API
+                jsCode = f'''
+                try {{
+                    var prefs = getPrefs();
+                    prefs.edit().putString("DEVICE_NAME_KEY", "{deviceName}").apply();
+                    true;
+                }} catch(e) {{
+                    console.log("同步设备名称失败: " + e.message);
+                    false;
+                }}
+                '''
+                
+                # 如果有脚本引擎，执行JavaScript代码
+                if hasattr(g, 'scriptEngine') and g.scriptEngine:
+                    result = g.scriptEngine.eval(jsCode)
+                    if result:
+                        log.i(f"通过脚本引擎同步设备名称成功: {deviceName}")
+                        return True
+                
+            except Exception as e:
+                log.w(f"脚本引擎同步失败: {e}")            
+           
+            
+            log.w(f"无法同步设备名称到Android，所有方案都失败了")
+            return False
+            
+        except Exception as e:
+            log.ex(e, f"同步设备名称到Android失败: {deviceName}")
+            return False
+
 
     @classmethod
     def onS2C_updateTask(cls, data):

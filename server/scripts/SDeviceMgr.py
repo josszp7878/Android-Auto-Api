@@ -167,6 +167,9 @@ class SDeviceMgr_:
             log.add(command, '', 'c')
             if target == _G.ServerTag:
                 cmd = self._onServerCmd(target, command, data)
+                if cmd is None:
+                    log.e(f'服务器命令执行失败: {target}, {command}, {data}')
+                    return None
                 result = cmd.get('result')
                 # log.i(f'服务器命令结果: {result}')
             else:

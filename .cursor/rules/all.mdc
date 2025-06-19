@@ -1,0 +1,10 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+#我说的添加指令，除非我特别说明添加的目标文件，否则默认都是添加在以下文件里面：
+1、客户端指令： 添加在CCmds.py
+2、服务端指令： 添加在SCmds.py
+
+3、前端指令： 添加在BCmds.py
