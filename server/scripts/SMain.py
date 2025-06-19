@@ -3,8 +3,16 @@ import ssl
 import subprocess
 import time
 import logging
-import eventlet
-import urllib3.util.ssl_
+import os
+
+# 检查是否在调试模式
+DEBUG_MODE = os.getenv('DEBUG_MODE') == '1'
+
+if not DEBUG_MODE:
+    import eventlet
+    import urllib3.util.ssl_
+    # 确保在导入其他模块前先执行monkey_patch
+    eventlet.monkey_patch()
 
 from flask import Flask
 from flask_socketio import SocketIO
@@ -13,14 +21,12 @@ from SDatabase import Database
 from SDatabase import db
 import _G
 
-# 确保在导入其他模块前先执行monkey_patch
-eventlet.monkey_patch()
-
 # 修复SSL递归错误
 try:
     ssl._create_default_https_context = ssl._create_unverified_context
     if hasattr(ssl, '_create_default_https_context') and hasattr(ssl, 'TLSVersion'):
-        urllib3.util.ssl_.create_urllib3_context = lambda *args, **kwargs: ssl.create_default_context(*args, **kwargs)
+        if not DEBUG_MODE:
+            urllib3.util.ssl_.create_urllib3_context = lambda *args, **kwargs: ssl.create_default_context(*args, **kwargs)
 except (AttributeError, ImportError):
     pass
 
@@ -33,11 +39,14 @@ socketio_logger.setLevel(logging.WARNING)
 werkzeug_logger = logging.getLogger('werkzeug')
 werkzeug_logger.setLevel(logging.INFO)
 
+# 根据调试模式选择异步模式
+async_mode = 'threading' if DEBUG_MODE else 'eventlet'
+
 # 创建socketio实例
 socketio = SocketIO(
     logger=False, 
     engineio_logger=False, 
-    async_mode='eventlet',
+    async_mode=async_mode,
     ping_timeout=120,  # 心跳超时时间（秒），要比客户端的大
     ping_interval=30,  # 心跳间隔时间（秒）
     cors_allowed_origins="*"
@@ -153,7 +162,14 @@ if __name__ == '__main__':
     # 初始化日志系统
     g = _G._G_
     log = g.Log()
-    g.load(True)    
+    g.load(True)
+    
+    # 输出当前模式信息
+    if DEBUG_MODE:
+        log.i('运行在调试模式 - 使用threading异步模式')
+    else:
+        log.i('运行在生产模式 - 使用eventlet异步模式')
+        
     import Server
     # 初始化Server模块的socketio事件
     Server.initSocketIO(socketio)

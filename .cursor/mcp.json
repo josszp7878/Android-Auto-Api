@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "memories": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@anthropic-ai/memories"
+      ],
+      "env": {
+        "MEMORY_FILE_PATH": "E:/Project/AndoirdClicker/.cursor/memories.jsonl"
+      }
+    }
+  }
+} 

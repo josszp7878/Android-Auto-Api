@@ -4,6 +4,25 @@
 
 ### 2025-01-14
 
+#### 配置Cursor MEMORIES功能，支持跨会话记忆
+- #配置项目级别的MCP服务器以启用MEMORIES功能
+  - 创建.cursor/mcp.json配置文件，启用@anthropic-ai/memories服务
+  - 配置内存文件存储路径：E:/Project/AndoirdClicker/.cursor/memories.jsonl
+  - 使用npx方式动态安装和运行memories包，无需本地安装
+  - 支持跨Cursor会话保持项目相关的上下文记忆
+- #建立MEMORIES使用规则和项目特定配置
+  - 创建rules/memories.mdc规则文件，定义内存管理策略
+  - 自动在任务开始前读取已存储的记忆信息
+  - 任务完成后自动更新实体、关系和观察记录
+  - 集成项目特定信息：Socket.IO通信、事件命名规范、服务器重启命令等
+- #技术优势
+  - Cursor现在能够记住项目架构、代码风格和之前的讨论内容
+  - 减少重复解释项目结构和技术选择的时间
+  - 提高开发效率和代码一致性维护
+  - 跨会话的上下文连续性，避免丢失重要项目知识
+
+### 2025-01-14
+
 #### 优化前端命令执行架构，统一异步处理逻辑
 - #重构sendCmd方法，内部统一处理命令结果
   - 修改sendCmd方法在内部调用onCmdResult统一处理命令执行结果

@@ -29,12 +29,28 @@
             "name": "Python: Server",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/server/MyServer.py",
+            "program": "${workspaceFolder}/server/scripts/SMain.py",
             "console": "integratedTerminal",
-            "justMyCode": true,
+            "justMyCode": false,
             "python": "D:/Program Files/Python38/python.exe",
             "env": {
-                "PYTHONPATH": "${workspaceFolder}/server/scripts;${workspaceFolder}/server"
+                "PYTHONPATH": "${workspaceFolder}/server/scripts;${workspaceFolder}/server",
+                "FLASK_ENV": "development",
+                "FLASK_DEBUG": "1",
+                "DEBUG_MODE": "1"
+            }
+        },
+        {
+            "name": "Python: Server (Production Mode)",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/server/scripts/SMain.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "python": "D:/Program Files/Python38/python.exe",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/server/scripts;${workspaceFolder}/server",
+                "FLASK_ENV": "production"
             }
         },
         {
