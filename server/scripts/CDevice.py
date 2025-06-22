@@ -1,163 +1,211 @@
+from datetime import datetime
 import socketio
 import _G
 from concurrent.futures import ThreadPoolExecutor
 from typing import cast, List, TYPE_CHECKING
 import socketio.exceptions  # 新增导入
+from Base import Base_
+from RPC import RPC
 if TYPE_CHECKING:
     from CTask import CTask_
 
-class CDevice_:
+class CDevice_(Base_):
     _instance = None  # 单例实例
-    _server = None
-    _deviceID = None
-    _executor = ThreadPoolExecutor(max_workers=4)
-    _state = _G.ConnectState.OFFLINE  # 新增，维护设备状态
-    _clsTasks = {}  # 任务字典，key为任务ID
-    _curTask = None
-    _data = {}  # 设备数据，包含debug等状态
-
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+    
     def __init__(self):
+        if hasattr(self, 'initialized'):
+            return
+        super().__init__()
+        self._server = None
+        self._deviceID = None
+        self._executor = ThreadPoolExecutor(max_workers=4)
+        self._state = _G.ConnectState.OFFLINE  # 新增，维护设备状态
         self._tasks = {}  # 任务字典，key为任务ID
         self._curTask = None
+        # 统一使用data字典
+        self.data = {}
+        self.initialized = False
 
     @classmethod
-    def deviceID(cls):
-        return cls._deviceID
+    def instance(cls):
+        """获取单例实例"""
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
 
-    @classmethod
-    def server(cls):
-        return cls._server
+    @property
+    def deviceID(self):
+        return self._deviceID
 
-    @classmethod
-    def get(cls, key):
+    @property
+    def server(self):
+        return self._server
+
+    def get(self, key):
         """获取设备数据"""
-        return cls._data.get(key)
+        return self.data.get(key)
 
-    @classmethod
-    def init(cls, deviceID=None, server=None):
-        if not hasattr(cls, 'initialized'):
-            cls._deviceID = deviceID
-            cls._server = server
-            # 配置 socketio 客户端
-            sio = socketio.Client(
-                reconnection=True,  # 开启自动重连
-                reconnection_attempts=10,  # 增加重连尝试次数
-                reconnection_delay=2,  # 重连延迟时间（秒）
-                reconnection_delay_max=30,  # 最大重连延迟时间
-                logger=False,  # 关闭详细日志
-                engineio_logger=False  # 关闭 Engine.IO 日志
-            )
-            sio.on('S2C_DoCmd')(cls.onS2C_DoCmd)
-            sio.on('S2C_CmdResult')(cls.onS2C_CmdResult)
-            sio.on('S2C_updateTask')(cls.onS2C_updateTask)
-            sio.on('S2C_updateDevice')(cls.onS2C_updateDevice)
-            sio.on('disconnect')(cls.on_disconnect)
-            _G._G_.setIO(sio)
-            cls.initialized = True
+    def init(self, deviceID=None, server=None):
+        if self.initialized:
+            return
+        self._deviceID = deviceID
+        self._server = server
+        # 配置 socketio 客户端
+        sio = socketio.Client(
+            reconnection=True,  # 开启自动重连
+            reconnection_attempts=10,  # 增加重连尝试次数
+            reconnection_delay=2,  # 重连延迟时间（秒）
+            reconnection_delay_max=30,  # 最大重连延迟时间
+            logger=False,  # 关闭详细日志
+            engineio_logger=False  # 关闭 Engine.IO 日志
+        )
+        sio.on('S2C_DoCmd')(self.onS2C_DoCmd)
+        sio.on('S2C_CmdResult')(self.onS2C_CmdResult)
+        sio.on('S2C_updateTask')(self.onS2C_updateTask)
+        sio.on('S2C_updateDevice')(self.onS2C_updateDevice)
+        sio.on('S2C_SetProp')(self.onS2C_SetProp)
+        sio.on('disconnect')(self.on_disconnect)
+        _G._G_.setIO(sio)
+        self.initialized = True
 
-    @classmethod
-    def uninit(cls):
+    def uninit(self):
         """释放资源"""
         print('客户端 设备 uninit')
-        cls.logout()
-        cls.disconnect()
-        cls.initialized = False
+        self.logout()
+        self.disconnect()
+        self.initialized = False
 
-
-    @classmethod
-    def disconnect(cls)->bool:
+    def disconnect(self)->bool:
         """断开连接"""
         g = _G._G_
         log = g.Log()
         try:
             if not g.sio().connected:
-                log.w(f"设备{cls._deviceID}已经断开，无需重复操作")
+                log.w(f"设备{self._deviceID}已经断开，无需重复操作")
                 return True
                 
             g.sio().disconnect()
-            log.i(f'设备 {cls._deviceID} 已断开连接')
-            cls._state = _G.ConnectState.OFFLINE  # 断开后状态设为offline
+            log.i(f'设备 {self._deviceID} 已断开连接')
+            self._state = _G.ConnectState.OFFLINE  # 断开后状态设为offline
             return True
         except socketio.exceptions.ConnectionError as e:
             if "Already disconnected" in str(e):
-                log.w(f"设备{cls._deviceID}已经断开连接")
+                log.w(f"设备{self._deviceID}已经断开连接")
                 return True
             else:
-                log.e(f"设备{cls._deviceID}断开失败: {str(e)}")
+                log.e(f"设备{self._deviceID}断开失败: {str(e)}")
                 return False
         except Exception as e:
-            log.ex(e, f"设备{cls._deviceID}断开连接异常")
+            log.ex(e, f"设备{self._deviceID}断开连接异常")
             return False
-    @classmethod
-    def isConnected(cls) -> bool:
-        return cls._state != _G.ConnectState.OFFLINE
 
-    @classmethod
-    def connect(cls) -> bool:
+    def isConnected(self) -> bool:
+        return self._state != _G.ConnectState.OFFLINE
+    
+    @RPC()
+    def getDeviceInfo(self) -> dict:
+        """获取设备信息 - RPC方法"""
+        try:
+            return {
+                'success': True,
+                'deviceId': self._deviceID,
+                'deviceName': self.name,
+                'state': self._state.value if self._state else 'unknown',
+                'isConnected': self.isConnected(),
+                'taskCount': len(self._tasks),
+                'currentTask': self._curTask.name if self._curTask else None,
+                'server': self._server
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    @RPC()
+    def setDeviceName(self, name: str) -> dict:
+        """设置设备名称 - RPC方法"""
+        try:
+            old_name = self.name
+            self.name = name
+            return {
+                'success': True,
+                'oldName': old_name,
+                'newName': name,
+                'deviceId': self._deviceID
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
+    def connect(self) -> bool:
         g = _G._G_
         log = g.Log()
         try:
-            connect_url = f"{g.Tools().getServerURL(cls._server)}?device_id={cls._deviceID}"
+            connect_url = f"{g.Tools().getServerURL(self._server)}?device_id={self._deviceID}"
             sio = cast(socketio.Client, g.sio())
 
-            log.i(f'正在连接设备 {cls._deviceID} ...')
+            log.i(f'正在连接设备 {self._deviceID} ...')
             sio.connect(
                 connect_url,
                 transports=['websocket', 'polling'],
-                auth={'device_id': cls._deviceID},
+                auth={'device_id': self._deviceID},
                 wait=True,
                 wait_timeout=30  # 增加连接超时时间
             )
             if sio.connected:
-                cls._state = _G.ConnectState.ONLINE
-                return cls.login()
+                self._state = _G.ConnectState.ONLINE
+                return self.login()
             else:
                 g.Tools().toast("无法连接到服务器")
-                cls._state = _G.ConnectState.OFFLINE
+                self._state = _G.ConnectState.OFFLINE
                 return False
         except socketio.exceptions.ConnectionError as e:
             if "Already connected" in str(e):
-                log.w(f"设备{cls._deviceID}已经连接，无需重复操作")
+                log.w(f"设备{self._deviceID}已经连接，无需重复操作")
                 return True  # 保持返回成功状态
             else:
-                log.e(f"设备{cls._deviceID}连接失败: {str(e)}")
+                log.e(f"设备{self._deviceID}连接失败: {str(e)}")
                 return False
         except Exception as e:
-            log.ex(e, f"设备{cls._deviceID}连接异常")
+            log.ex(e, f"设备{self._deviceID}连接异常")
             return False
 
-    @classmethod
-    def login(cls):
+    def login(self):
         """异步登录示例"""
         g = _G._G_
         log = g.Log()
         try:
-            log.i(f"设备 {cls._deviceID} 开始登录...")
+            log.i(f"设备 {self._deviceID} 开始登录...")
             data = g.emitRet('C2S_Login', timeout=15)  # 增加登录超时时间
             if data is None:
                 log.e_("登录失败，服务端无响应")
                 return False
             # 登录成功，初始化任务表
-            cls.onLogin(data)
+            self.onLogin(data)
             log.i_("登录成功，已初始化任务表")
-            cls._state = _G.ConnectState.LOGIN  # 登录成功，状态设为login
+            self._state = _G.ConnectState.LOGIN  # 登录成功，状态设为login
             return True
         except Exception as e:
             log.ex_(e, "登录异常")
             return False
     
-    @classmethod
-    def logout(cls):
+    def logout(self):
         """注销设备"""
         g = _G._G_
         log = g.Log()
         g.emit('C2S_Logout', {})
-        log.i(f'设备 {cls._deviceID} 登出')
-        cls._state = _G.ConnectState.LOGOUT  # 登出后状态设为logout
+        log.i(f'设备 {self._deviceID} 登出')
+        self._state = _G.ConnectState.LOGOUT  # 登出后状态设为logout
 
-
-    @classmethod
-    def onS2C_DoCmd(cls, data):
+    def onS2C_DoCmd(self, data):
         """处理客户端收到的命令"""
         g = _G._G_
         log = g.Log()
@@ -176,31 +224,24 @@ class CDevice_:
             log.ex(e, f'执行命令出错: {cmdName}')
             return None
 
-
-
-    @classmethod
-    def on_disconnect(cls):
+    def on_disconnect(self):
         """断开连接回调"""
         g = _G._G_
         log = g.Log()
-        log.w(f'设备 {cls._deviceID} 断开连接')
-        cls._state = _G.ConnectState.OFFLINE  # 断开连接，状态设为offline
+        log.w(f'设备 {self._deviceID} 断开连接')
+        self._state = _G.ConnectState.OFFLINE  # 断开连接，状态设为offline
 
-    @classmethod
-    def send_command(cls, cmd):
+    def send_command(self, cmd):
         """发送命令到服务器"""
         g = _G._G_
         log = g.Log()
         log.i(f'TODO:发送命令到服务器: {cmd}')
         return True
 
-    @classmethod
-    def onS2C_CmdResult(cls, data):
+    def onS2C_CmdResult(self, data):
         print(f'结果: {data["result"]}')
 
-  
-    @classmethod
-    def TakeScreenshot(cls):
+    def TakeScreenshot(self):
         """截取当前屏幕并发送到服务器"""
         g = _G._G_
         log = g.Log()
@@ -212,96 +253,85 @@ class CDevice_:
             image = android.takeScreenshot()
             log.i(f'截图成功: {image}')
             if image:
-                g.emit("C2S_Screenshot", {"device_id": cls._deviceID, "image": image})
+                g.emit("C2S_Screenshot", {"device_id": self._deviceID, "image": image})
         except Exception as e:
             log.ex(e, "截图失败")
 
+    def onUnload(self):
+        self.uninit()
 
-    @classmethod
-    def onUnload(cls):
-        cls.uninit()
-
-    @classmethod
-    def onLoad(cls, oldCls):
+    def onLoad(self, oldCls):
         if oldCls:
-            cls._server = oldCls._server
-            cls._deviceID = oldCls._deviceID
-            cls.init()
-            cls.connect()
+            self._server = oldCls._server
+            self._deviceID = oldCls._deviceID
+            self.init()
+            self.connect()
+        g = _G._G_
+        g.registerRPC(CDevice_)
 
     @property
     def name(self):
         """获取设备名称"""
-        return self._name
+        return self.data.get('name', '')
 
     @name.setter
     def name(self, value):
         """设置设备名称"""
-        self._name = value
+        self.data['name'] = value
         # 同步到Android SharedPreferences
-        CDevice_._syncNameToAndroid(value)
+        self._setName(value)
     
-    @classmethod
-    def _syncNameToAndroid(cls, deviceName):
+    def _setName(self, deviceName):
         """同步设备名称到Android SharedPreferences"""
         g = _G._G_
         log = g.Log()
+        # 方案1: 通过反射调用Android API
+        if g.android:
+            # 获取Context
+            context = g.android.getContext()
+            if context:
+                # 获取SharedPreferences
+                prefs = context.getSharedPreferences("device_config", 0)  # 0 = MODE_PRIVATE
+                editor = prefs.edit()
+                editor.putString("DEVICE_NAME_KEY", deviceName)
+                editor.apply()
+                log.i(f"设备名称已同步到Android: {deviceName}")
+                return True
+        
+        # 方案2: 如果上面失败，尝试通过脚本引擎执行
         try:
-            # 方案1: 通过反射调用Android API
-            if hasattr(g, 'android') and g.android:
-                # 获取Context
-                context = g.android.getContext()
-                if context:
-                    # 获取SharedPreferences
-                    prefs = context.getSharedPreferences("device_config", 0)  # 0 = MODE_PRIVATE
-                    editor = prefs.edit()
-                    editor.putString("DEVICE_NAME_KEY", deviceName)
-                    editor.apply()
-                    log.i(f"设备名称已同步到Android: {deviceName}")
+            # 构造JavaScript代码调用Android API
+            jsCode = f'''
+            try {{
+                var prefs = getPrefs();
+                prefs.edit().putString("DEVICE_NAME_KEY", "{deviceName}").apply();
+                true;
+            }} catch(e) {{
+                console.log("同步设备名称失败: " + e.message);
+                false;
+            }}
+            '''
+            
+            # 如果有脚本引擎，执行JavaScript代码
+            if hasattr(g, 'scriptEngine') and g.scriptEngine:
+                result = g.scriptEngine.eval(jsCode)
+                if result:
+                    log.i(f"通过脚本引擎同步设备名称成功: {deviceName}")
                     return True
             
-            # 方案2: 如果上面失败，尝试通过脚本引擎执行
-            try:
-                # 构造JavaScript代码调用Android API
-                jsCode = f'''
-                try {{
-                    var prefs = getPrefs();
-                    prefs.edit().putString("DEVICE_NAME_KEY", "{deviceName}").apply();
-                    true;
-                }} catch(e) {{
-                    console.log("同步设备名称失败: " + e.message);
-                    false;
-                }}
-                '''
-                
-                # 如果有脚本引擎，执行JavaScript代码
-                if hasattr(g, 'scriptEngine') and g.scriptEngine:
-                    result = g.scriptEngine.eval(jsCode)
-                    if result:
-                        log.i(f"通过脚本引擎同步设备名称成功: {deviceName}")
-                        return True
-                
-            except Exception as e:
-                log.w(f"脚本引擎同步失败: {e}")            
-           
-            
-            log.w(f"无法同步设备名称到Android，所有方案都失败了")
-            return False
-            
         except Exception as e:
-            log.ex(e, f"同步设备名称到Android失败: {deviceName}")
+            log.w(f"脚本引擎同步失败: {e}")            
             return False
 
 
-    @classmethod
-    def onS2C_updateTask(cls, data):
+    def onS2C_updateTask(self, data):
         g = _G._G_
         log = g.Log()
         try:
             if not data:
                 return
             id = data.get('id')
-            task = cls.getTask(id)
+            task = self.getTask(id)
             if task is None:
                 return
             for k, v in data.items():
@@ -323,40 +353,36 @@ class CDevice_:
             log.ex(e, '处理任务更新请求失败')
             return False
 
-    @classmethod
-    def onS2C_updateDevice(cls, data):
+    def onS2C_updateDevice(self, data):
         """处理设备更新请求"""
         g = _G._G_
         log = g.Log()
         try:
-            cls._data.update(data)
+            self.data.update(data)
             return True
         except Exception as e:
             log.ex(e, '处理设备更新请求失败')
             return False
 
-    @classmethod
-    def state(cls):
-        return cls._state
+    def state(self):
+        return self._state
 
-    @classmethod
-    def onLogin(cls, data):
+    def onLogin(self, data):
         """登录成功后初始化任务表，data为服务端返回的数据"""
         from CTask import CTask_
         g = _G._G_
         log = g.Log()
         # log.i_(f"登录成功，初始化任务表, data: {data}")
-        cls._clsTasks = {}
+        self._tasks = {}
         taskList = data.get('taskList', [])
         for t in taskList:
             task = CTask_.create(t.get('name'), g.App())
             if task:
                 task.fromData(t)
-                cls._clsTasks[task.id] = task
-        log.i_(f"客户端任务表初始化完成，任务数: {len(cls._clsTasks)}")
+                self._tasks[task.id] = task
+        log.i_(f"客户端任务表初始化完成，任务数: {len(self._tasks)}")
 
-    @classmethod
-    def getTask(cls, key)->'CTask_':
+    def getTask(self, key)->'CTask_':
         """根据ID获取任务"""
         g = _G._G_
         log = g.Log()
@@ -364,11 +390,11 @@ class CDevice_:
             # 同时支持ID和任务名
             id = g.toInt(key)
             if id:
-                if id in cls._clsTasks:
-                    return cls._clsTasks[id]
+                if id in self._tasks:
+                    return self._tasks[id]
             else:
                 id = key.lower()
-                for t in cls._clsTasks.values():
+                for t in self._tasks.values():
                     if t.name.lower() == id:
                         return t
             return None
@@ -376,24 +402,86 @@ class CDevice_:
             log.ex(e, f'获取任务失败: {key}')
             return None
 
-    @classmethod
-    def getTasks(cls, name=None)->List['CTask_']:
+    def getTasks(self, name=None)->List['CTask_']:
         """获取所有任务或指定名称的任务列表"""
         name = name.lower()
         if name is None:
-            return list(cls._clsTasks.values())
-        return [t for t in cls._clsTasks.values() if t.name.lower() == name]
+            return list(self._tasks.values())
+        return [t for t in self._tasks.values() if t.name.lower() == name]
     
-    @classmethod
-    def curTask(cls)->'CTask_':
+    def curTask(self)->'CTask_':
         """获取当前任务"""
-        return cls._curTask
+        return self._curTask
     
-    @classmethod
-    def setCurTask(cls, value: 'CTask_'):
+    def setCurTask(self, value: 'CTask_'):
         """设置当前任务"""
-        cls._curTask = value
-        if cls._curTask:
-            cls._curTask._app = cls
+        self._curTask = value
+        if self._curTask:
+            self._curTask._app = self
 
-CDevice_.onLoad(None)
+    def onS2C_SetProp(self, data):
+        """统一的属性更新处理器 - 客户端版本"""
+        g = _G._G_
+        log = g.Log()
+        try:
+            log.i(f'收到属性更新: {data}')
+            
+            entityType = data.get('type')
+            targetID = data.get('target')
+            params = data.get('params')
+            
+            if not params or not entityType or not targetID:
+                log.w('属性更新参数不完整')
+                return False
+            
+            # 获取目标对象并调用setProp
+            target = None
+            if entityType == 'devices':
+                target = self  # 当前设备实例
+            elif entityType == 'tasks':
+                target = self.getTask(targetID)
+            else:
+                log.w(f'不支持的实体类型: {entityType}')
+                return False
+            
+            if target is None:
+                log.e(f'目标不存在: {entityType} {targetID}')
+                return False
+            
+            # 调用setProp统一处理
+            return target.setProp(params)
+            
+        except Exception as e:
+            log.ex(e, '处理属性更新失败')
+            return False
+
+    def _onProp(self, key, value):
+        """CDevice特殊处理"""
+        if key == 'name':
+            # 同步到Android
+            self._setName(value)
+
+    @RPC()
+    def LoadScore(self, appName:str, date:str)->List[dict]:
+        """
+        功能：获取指定应用指定日期的所有任务收益
+        指令名: getScores
+        参数: appName 应用名, date 日期(YYYY-MM-DD)
+        返回: [{"taskName":..., "score":...}, ...]
+        """
+        g = _G._G_
+        log = g.Log()
+        App = g.App()
+        app = App.getApp(appName)
+        if not app:
+            log.e(f"应用不存在: {appName}")
+            return []
+        date = log.toDate(date)
+        result = app.LoadScore(date)
+        if not result:
+            log.e(f"获取收益失败: {appName} {date}")
+            return []
+        return result
+
+
+CDevice_.instance().onLoad(None)

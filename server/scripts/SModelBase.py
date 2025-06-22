@@ -1,9 +1,9 @@
 from datetime import datetime
 from typing import Any
-
+from Base import Base_
 import _G
 
-class SModelBase_:
+class SModelBase_(Base_):
     """模型基类"""
     def __init__(self, name: str, modelClass: type):
         """初始化模型基类
@@ -11,6 +11,7 @@ class SModelBase_:
             name: 名称
             modelClass: 模型类
         """
+        super().__init__()
         if isinstance(name, dict):
             self.data = name
             self._isDirty = False
@@ -48,37 +49,21 @@ class SModelBase_:
             self._isDirty = True
         return self._isDirty
     
-    def setProp(self, data: dict)->bool:
-        """设置属性"""
-        if not data:
-            return False
-        try:
-            log = _G._G_.Log()
-            for key, value in data.items():
-                #调用key对应的属性setter,key首字母大写
-                setterName = f'set{key.capitalize()}'
-                setter = getattr(self, setterName, None)
-                log.i(f'设置属性: {key}, {value}, {setter}')
-                if setter:
-                    setter(value)
-            return True
-        except Exception as e:
-            log.ex(e, f'设置属性失败: {data}')
-            return False
-        return True
+    def _onProp(self, key, value):
+        """服务端特殊处理：自动提交到数据库"""
+        if self._isDirty:
+            self.commit()
    
     def commit(self)->bool:
         """提交数据更新"""
         log = _G._G_.Log()
         try:
-            # print(f'commit: {self._isDirty}')
             if not self._isDirty:
                 return True
             if self.modelClass is None:
-                log.ex_(e, '提交数据更新失败,modelClass为空')
+                log.e('提交数据更新失败,modelClass为空')
                 return False
             
-            # 直接调用，因为SModels中的方法已经封装了上下文处理
             self.modelClass.commit(self.data)
             self._isDirty = False
             return True
@@ -102,16 +87,12 @@ class SModelBase_:
                 if self.data.get(key) != value:
                     self.data[key] = value
                     self._isDirty = True
-            # log.i(f'更新数据: self._isDirty: {self._isDirty}, commit: {commit}, refresh: {refresh}, modelClass: {self.modelClass.__name__}')
             if self._isDirty:
-                # log.i('更新数据111111: ')
                 if commit:
                     if not self.commit():
                         log.e(f'更新数据失败,commit失败: {self.data}')
                         return False
-                # log.i('更新数据222222: ')
                 if refresh:
-                    # log.i(f'刷新{self.modelClass.__name__}状态11')
                     self.refresh()
             return True
         except Exception as e:
@@ -124,12 +105,10 @@ class SModelBase_:
         log = g.Log()
         try:
             dataType = None
-            # 使用类名字符串比较，避免直接导入
             className = self.__class__.__name__
             if className == 'SDevice_':
                 dataType = 'devices'
             elif className == 'STask_':
-                # log.d(f'刷新任务状态: {self.name}, {self.data}')
                 dataType = 'tasks'  
             else:
                 return

@@ -67,14 +67,18 @@ class _G_:
         """设置Socket.IO实例并初始化事件监听（线程安全）"""
         if sio is not None:
             cls._sio = sio
-            sio.on('_Result', cls.on_Result)
+            sio.on('_Result')(cls.on_Result)
 
-    def on_Result(self, response):
+    
+    @classmethod
+    def on_Result(cls, response):
         """统一处理所有RPC响应（类方法）"""
         request_id = response.get('requestId')
-        with self._rpc_lock:
-            if request_id in self._pending_requests:
-                _, callback = self._pending_requests.pop(request_id)
+        log = cls.log
+        log.i(f"收到_Result事件: {response}")
+        with cls._rpc_lock:
+            if request_id in cls._pending_requests:
+                _, callback = cls._pending_requests.pop(request_id)
                 if callback:
                     if isinstance(callback, asyncio.Future):
                         # 异步回调处理
@@ -127,12 +131,12 @@ class _G_:
                         sio.emit(event, data, room=sid, callback=callback)
             else:
                 device = cls.CDevice()
-                if not device:
+                if not device or not device.isConnected():
                     log.ex_(f"设备未连接: {event}, {data}")
                     return False
                 if data is None:
                     data = {}
-                data['device_id'] = device.deviceID()
+                data['device_id'] = device.deviceID
                 sio.emit(event, data, callback=callback)
         except Exception as e:
             log.ex_(e, f"发送事件失败: {event}, {data}")
@@ -365,11 +369,62 @@ class _G_:
     
     @classmethod
     def CDevice(cls) -> 'CDevice_':
-        return cls.getClassLazy('CDevice')
+        """获取设备实例（单例模式）"""
+        from CDevice import CDevice_
+        return CDevice_.instance()
+        
+    @classmethod
+    def RPC(cls, device_id: str, className: str, methodName: str, params: dict = None):
+        """远程过程调用
+        
+        Args:
+            device_id: 设备ID（如果是服务端调用客户端，为None则是客户端调用服务端）
+            className: 类名
+            methodName: 方法名
+            params: 参数字典，支持以下键：
+                - id: 实例ID（可选）
+                - args: 位置参数列表（可选）
+                - kwargs: 关键字参数字典（可选）
+                - timeout: 超时时间（可选，默认8秒）
+        """
+        from RPC import callRPC
+        return callRPC(device_id, className, methodName, params)
+    
+    @classmethod
+    def registerRPC(cls, targetClass, instanceGetter=None):
+        """注册RPC类
+        
+        Args:
+            targetClass: 要注册的类
+            instanceGetter: 实例获取函数，如果为None则使用类方法调用
+        """
+        from RPC import registerRPC
+        registerRPC(targetClass, instanceGetter)
+    
+    @classmethod
+    def handleRPC(cls, data: dict):
+        """处理RPC调用"""
+        from RPC import handleRpcCall
+        return handleRpcCall(data)
+    
+    @classmethod
+    def getInst(cls, targetClass, id=None):
+        """获取类实例的默认方法
+        
+        Args:
+            targetClass: 目标类
+            id: 实例ID（可选）
+            
+        Returns:
+            对应的实例
+        """
+        from RPC import getInst
+        return getInst(targetClass, id)
     
     @classmethod
     def SDeviceMgr(cls) -> 'SDeviceMgr_':
-        return cls.getClassLazy('SDeviceMgr')
+        from SDeviceMgr import deviceMgr
+        return deviceMgr
 
     @classmethod
     def SCommandHistory(cls) -> 'SCommandHistory_':
@@ -648,8 +703,6 @@ class _G_:
         '苦': '告',
         '视': '规',
         '规': '视',
-        '专': '專',
-        '專': '专',
         '属': '屬',
         '屬': '属',
         '打': '扎',
@@ -721,3 +774,4 @@ class _G_:
         return diffCount <= maxDiff
 
 g = _G_
+

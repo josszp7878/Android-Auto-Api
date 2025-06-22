@@ -5,6 +5,7 @@ import _G
 import _Log
 from SDeviceMgr import deviceMgr
 from SDatabase import Database
+from RPCHandler import RPCHandler
 
 # 先定义一个函数，用于延迟注册事件处理器
 def initSocketIO(sio):
@@ -24,31 +25,74 @@ def initSocketIO(sio):
     # 表格数据加载事件
     sio.on('B2S_loadDatas')(onB2S_loadDatas)
     sio.on('B2S_setProp')(onB2S_setProp)
+    # 客户端属性设置事件
+    sio.on('C2S_SetProp')(onC2S_SetProp)
+    
+    # 初始化RPC处理器
+    print(f"[DEBUG] Server.initSocketIO 正在初始化RPC处理器...")
+    from RPC import initializeRPCHandlers
+    initializeRPCHandlers(isServer=True)
+    print(f"[DEBUG] Server.initSocketIO RPC处理器初始化完成")
 
 
 
 def onB2S_setProp(data):
-    """处理设备更新请求"""
+    """处理属性更新请求 - 统一的属性修改处理中心"""
     log = _Log._Log_
     try:
-        type = data.get('type')
-        targetID = data.get('target')
-        params = data.get('params')
-        log.i(f'更新设备属性: {type}, {targetID}, {params}')
-        if not params:
-            return
+        entityType = data.get('type')  # 实体类型: devices, tasks
+        targetID = data.get('target')  # 目标ID
+        params = data.get('params')    # 要更新的属性字典
+        
+        log.i(f'统一属性更新: {entityType}, 目标:{targetID}, 参数:{params}')
+        
+        if not params or not entityType or not targetID:
+            log.w('属性更新参数不完整')
+            return {'success': False, 'message': '参数不完整'}
+        # 获取目标对象
         target = None
-        if type == 'devices':
+        if entityType == 'devices':
             target = deviceMgr.get(targetID)
-        elif type == 'tasks':
+        elif entityType == 'tasks':
             target = deviceMgr.getTask(targetID)
-        # log.i(f'更新设备属性11: {type}, {targetID}, {params}, {target}')    
+        else:
+            log.w(f'不支持的实体类型: {entityType}')
+            return {'success': False, 'message': f'不支持的实体类型: {entityType}'}
+        
         if target is None:
-            log.e(f'更新属性失败, 目标：{type} {targetID} 不存在')
-            return False
-        return target.setProp(params)
+            log.e(f'目标不存在: {entityType} {targetID}')
+            return {'success': False, 'message': f'目标不存在: {entityType} {targetID}'}
+        
+        # 执行属性更新
+        changed = target.setProp(params)        
+        if changed:
+            log.i(f'属性更新成功: {entityType} {targetID} -> {params}')
+            # 通知客户端更新（如果在线）
+            if hasattr(target, 'isConnected') and target.isConnected():
+                try:
+                    # 发送统一的属性更新事件给客户端
+                    _G._G_.emit('S2C_SetProp', {
+                        'type': entityType,
+                        'target': targetID,
+                        'params': params
+                    }, target.sid)
+                    log.i(f'已通知客户端属性更新: {targetID} -> {params}')
+                except Exception as e:
+                    log.w(f'通知客户端失败: {e}')
+            
+            updatedData = target.toSheetData()
+            _G._G_.emit('S2B_sheetUpdate', {
+                'type': entityType,
+                'data': [updatedData]
+            })
+            
+            return {'success': True, 'message': f'属性更新成功'}
+        else:
+            return {'success': False, 'message': '属性更新失败'}
+            
     except Exception as e:
-        _Log._Log_.ex(e, '处理设备更新请求失败')
+        log.ex(e, '处理属性更新请求失败')
+        return {'success': False, 'message': f'处理失败: {str(e)}'}
 
 
 # 定义事件处理函数（不使用装饰器）
@@ -57,11 +101,20 @@ def onConnect(auth=None)->bool:
     g = _G._G_
     log = _Log._Log_
     try:
+        print(f"[DEBUG] 客户端连接 - SID: {request.sid}")
+        print(f"[DEBUG] 连接参数: {request.args}")
+        
         deviceName = request.args.get('device_id')
+        print(f"[DEBUG] 设备名称: {deviceName}")
+        
         device = deviceMgr.getByName(deviceName, True)
         if device:
             device.onConnect(request.sid)
+            print(f"[DEBUG] 设备连接成功: {device}")
+        else:
+            print(f"[DEBUG] 设备连接失败或为浏览器连接")
     except Exception as e:
+        print(f"[DEBUG] 连接处理异常: {e}")
         log.ex(e, '处理连接时出错ddddddd')
         return False
     return True
@@ -251,7 +304,7 @@ def onB2S_loadDatas(data):
             devices = sorted(devices, key=lambda d: not d.isConnected)
             datas = []
             for device in devices:
-                tasks = device.getTasks(date)
+                tasks = device.getTasks(date).values()
                 for task in tasks:
                     datas.append(task.toSheetData())
             # Log.i(f'获取任务数据: {date}, {datas}')
@@ -264,6 +317,23 @@ def onB2S_loadDatas(data):
     except Exception as e:
         _Log._Log_.ex(e, '处理加载设备数据请求失败')
         return []
+
+
+def onC2S_SetProp(data):
+    """处理客户端属性设置请求"""
+    log = _Log._Log_
+    try:
+        log.i(f'客户端属性设置请求: {data}')
+        
+        # 直接调用统一的属性设置处理函数
+        result = onB2S_setProp(data)
+        
+        # 返回处理结果给客户端
+        return result
+        
+    except Exception as e:
+        log.ex(e, '处理客户端属性设置请求失败')
+        return {'success': False, 'message': f'处理失败: {str(e)}'}
 
 
 

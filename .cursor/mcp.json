@@ -1,14 +1,31 @@
 {
   "mcpServers": {
-    "memories": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@anthropic-ai/memories"
-      ],
+    "mem0-mcp": {
+      "command": "mem0-mcp",
+      "args": [],
       "env": {
-        "MEMORY_FILE_PATH": "E:/Project/AndoirdClicker/.cursor/memories.jsonl"
-      }
+        "MEM0_API_KEY": "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",
+        "DEFAULT_USER_ID": "user123",
+        "DEFAULT_AGENT_ID": "agent123",
+        "DEFAULT_APP_ID": "app123"
+      },
+      "disabled": false,
+      "alwaysAllow": [
+        "add_memory",
+        "search_memory",
+        "delete_memory"
+      ]
+    },
+    "serena": {
+      "command": "uv",
+      "args": [
+          "run",
+          "--directory",
+          "E:/Project/Tools/serena",
+          "serena-mcp-server",
+          "--context",
+          "ide-assistant"
+      ]
     }
   }
 } 

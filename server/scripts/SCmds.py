@@ -109,7 +109,7 @@ class SCmds_:
                 return f"e~获取任务列表失败: {str(e)}"        
         
         @regCmd(r"#获取收益(?P<appName>\S+)(?P<date>\S+)")
-        def cGetScores(target, appName, date:str = None)->bool:
+        def getScores(target, appName, date:str = None)->bool:
             """
             功能：获取设备某应用某天的所有任务收益
             指令名: getScores
@@ -126,8 +126,8 @@ class SCmds_:
                     date = datetime.now().strftime("%Y-%m-%d")                
                 device = deviceMgr.get(target)
                 if not device:
-                    return f"e~设备不存在: {target}"
-                return device.cGetScores(appName, date)
+                    return f"e~设备不存在: {target}"                
+                return device.getScores(appName, date)
             except Exception as e:
                 log.ex(e, "获取收益失败")
 

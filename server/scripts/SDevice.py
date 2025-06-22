@@ -2,15 +2,16 @@ from datetime import datetime
 from pathlib import Path
 import json
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict
 from SModels import DeviceModel_, TaskModel_
 import _Log
 import base64
 import _G
 from SModelBase import SModelBase_
+from RPC import RPC
 if TYPE_CHECKING:
     from STask import STask_
-    
+
 
 class SDevice_(SModelBase_):
     """设备管理类"""
@@ -23,9 +24,17 @@ class SDevice_(SModelBase_):
         self._lastScreenshot = None
         self._ensure_screenshot_dir()
         self.apps = []
-        self._tasks: dict[int, 'STask_'] = None  # 缓存当天任务列表
+        self._tasks: Dict[int, 'STask_'] = None  # 缓存当天任务列表
         self.tasksDate = None  # 当前缓存的日期
         self.debug = False  # debug开关，临时属性，不保存到数据库
+
+    @property
+    def tasks(self):
+        """获取任务列表"""
+        if self._tasks is None:
+            self.tasksDate = datetime.now().date()
+            self._loadTasks(self.tasksDate)
+        return self._tasks
     
     @property
     def state(self)->_G.ConnectState:
@@ -49,10 +58,6 @@ class SDevice_(SModelBase_):
         self.commit()
         self.refresh()
 
-    @property
-    def tasks(self):
-        """获取任务列表"""
-        return self._tasks
     
     @classmethod
     def all(cls):
@@ -71,21 +76,6 @@ class SDevice_(SModelBase_):
     def isConsole(self) -> bool:
         """是否是控制台设备"""
         return self.group == '@'
-    
-    def setName(self, name: str):
-        """设置设备名称"""
-        if self.setDBProp('name', name):
-            self.commit()
-            self.refresh()
-   
-    def setDebug(self, debug: bool):
-        """设置设备debug状态（临时属性，不保存到数据库）"""
-        if self.debug != debug:
-            self.debug = debug
-            # 刷新前端显示
-            self.refresh()
-            # 通知客户端更新debug状态
-            self.sendClient('S2C_updateDevice', self.id, {'debug': debug})
    
     def toSheetData(self)->dict:
         """转换为表格数据"""
@@ -125,6 +115,60 @@ class SDevice_(SModelBase_):
 
     def isConnected(self) -> bool:
         return self._state != _G.ConnectState.OFFLINE
+    
+    @RPC()
+    def getDeviceInfo(self) -> dict:
+        """获取设备信息 - RPC方法"""
+        try:
+            return {
+                'success': True,
+                'id': self.id,
+                'name': self.name,
+                'state': self._state.value if self._state else 'unknown',
+                'isConnected': self.isConnected(),
+                'group': self.group,
+                'isConsole': self.isConsole,
+                'taskCount': len(self.tasks),
+                'sid': self.sid,
+                'data': self.data
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def sendCommand(self, command: str, params: dict = None) -> dict:
+        """发送命令到客户端 - RPC方法"""
+        try:
+            result = self.sendClientCmd(command, params)
+            return {
+                'success': True,
+                'deviceId': self.id,
+                'command': command,
+                'result': result
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    @RPC()
+    def captureScreen(self) -> dict:
+        """截屏 - RPC方法"""
+        try:
+            result = self.takeScreenshot()
+            return {
+                'success': result,
+                'deviceId': self.id,
+                'message': '截屏指令已发送' if result else '截屏失败'
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
 
     def onConnect(self, sid:str):
         """设备连接回调"""
@@ -144,6 +188,7 @@ class SDevice_(SModelBase_):
     def onDisconnect(self):
         """设备断开连接回调"""
         try:
+            self.sid = None
             self.state = _G.ConnectState.OFFLINE
             _Log._Log_.i(f'设备 -----{self.name} 已断开连接')
             from SDeviceMgr import deviceMgr
@@ -151,19 +196,18 @@ class SDevice_(SModelBase_):
             return True
         except Exception as e:
             _Log._Log_.ex(e, '设备断开连接处理失败')
-            return False
+            return False    
 
-    def onLogin(self):
+    def onLogin(self)->dict:
         """设备登录"""
         try:
             log = _G._G_.Log()
             log.i(f'设备登录: {self.name}')
-            tasks = self.getTasks()
             self.state = _G.ConnectState.LOGIN
-            return {"taskList": [t.toSheetData() for t in tasks]}
+            return {"taskList": [t.toSheetData() for t in self.tasks.values()]}
         except Exception as e:
             _Log._Log_.ex(e, '设备登录失败')
-            return False
+            return {"taskList": []}  # 返回空的任务列表而不是 False
     
     def onLogout(self):
         """设备登出"""
@@ -394,18 +438,18 @@ class SDevice_(SModelBase_):
             log.ex(e, f"从文件加载屏幕信息失败: {pageName}")
             return None
         
-    def getTask(self, key):
+    def getTask(self, key)->'STask_':
         """根据KEY 获取任务，支持ID和任务名"""
         g = _G._G_
         log = g.Log()
         try:
             id = g.toInt(key)
             if id:
-                if id in self._tasks:
-                    return self._tasks[id]
+                if id in self.tasks:
+                    return self.tasks[id]
             else:
                 key = key.lower()
-                for t in self._tasks.values():
+                for t in self.tasks.values():
                     if t.name.lower() == key:
                         return t
             return None
@@ -415,29 +459,36 @@ class SDevice_(SModelBase_):
 
     def getTasks(self, date=None):
         """获取指定日期的任务列表，默认当天，按天缓存"""
-        from STask import STask_
         today = datetime.now().date()
         if date is None:
             date = today
-        if self._tasks is not None and self.tasksDate == date:
+        if self._tasks and self.tasksDate == date:
             return list(self._tasks.values())
-        # 重新加载
-        self._tasks = {}
-        self.tasksDate = date
-        tasks = [STask_(t) for t in TaskModel_.all(date, f"deviceId = {self.id}")]
-        if len(tasks) == 0 and date == today:
-            self._createTasks(today)
-            tasks = self.getTasks(date)
+        return self._loadTasks(date)
+    
+    def _loadTasks(self, date=None) -> Dict[int, 'STask_']:
+        """获取指定日期的任务列表，默认当天，按天缓存"""
+        from STask import STask_
+        today = datetime.now().date()
+        taskList = [STask_(t) for t in TaskModel_.all(date, f"deviceId = {self.id}")]
+        tasks = {}
+        if len(taskList) > 0:
+            # 如果任务列表不为空，则更新任务列表
+            for t in taskList:
+                tasks[t.id] = t
+        elif date == today:
+            # 如果日期为当天，则创建任务列表
+            tasks = self._createTasks(today)
         # log = _G._G_.Log()
-        for t in tasks:
-            self._tasks[t.id] = t
+        self._tasks = tasks
+        self.tasksDate = date
         return tasks
     
-    def _createTasks(self, date:datetime):
+    def _createTasks(self, date:datetime) -> Dict[int, 'STask_']:
         """创建任务列表"""
         log = _G._G_.Log()
         try:
-            from STask import STask_
+            tasks = {}
             from Task import TaskBase
             for taskName, config in TaskBase.getConfig().items():
                 # 不存在则尝试创建（TaskModel_.get已做唯一性判定）
@@ -446,13 +497,15 @@ class SDevice_(SModelBase_):
                     task = STask_(data)
                     # 根据CONFIG初始化任务
                     task.setDBProp('life', config.get('life', 10))
-                self._tasks[task.id] = task
-            log.i(f'创建{date} 的任务列表: {len(self._tasks)}')
+                    tasks[task.id] = task
+            log.i(f'创建{date} 的任务列表: {len(tasks)}')
+            return tasks
         except Exception as e:
             log.ex(e, '初始化任务列表失败')
+            return {}
 
     # 向客户端发送命令获取收益
-    def cGetScores(self, appName, date:str = None)->bool:
+    def getScores(self, appName:str, date:str)->bool:
         """
         功能：获取设备某应用某天的所有任务收益
         指令名: getScores
@@ -465,16 +518,9 @@ class SDevice_(SModelBase_):
         g = _G._G_
         log = g.Log()
         try:
-            if not date:
-                date = datetime.now().strftime("%Y-%m-%d")                
-            # 调用客户端命令获取收益数据
-            result = self.sendClientCmd("getScores", {"appName": appName, "date": date})
-            if not isinstance(result, list):
-                return f"e~获取收益失败: {result}"                
+            result = g.RPC(self.id, 'CDevice_', 'LoadScore', {'kwargs': {'appName': appName, 'date': date}})
             if not result:
-                log.w(f"未获取到收益数据: {appName} {date}")
-                return "未获取到收益数据"
-            
+                return False
             # 处理收益数据并更新任务
             changedTasks = []
             for item in result:
@@ -500,9 +546,3 @@ class SDevice_(SModelBase_):
             return 'OK'
         except Exception as e:
             log.ex(e, "获取收益失败")
-
-    
-
-
-
-      

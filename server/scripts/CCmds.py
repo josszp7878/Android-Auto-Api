@@ -806,29 +806,7 @@ class CCmds_:
                     return "添加屏幕信息失败"
                 return f"当前屏幕信息：{tools.getScreenInfo()}"
             
-        @regCmd(r"#获取收益|hjsy (?P<appName>\S+)(?P<date>\S+)")
-        def getScores(appName, date:str=None):
-            """
-            功能：获取指定应用指定日期的所有任务收益
-            指令名: getScores
-            参数: appName 应用名, date 日期(YYYY-MM-DD)
-            返回: [{"taskName":..., "score":...}, ...]
-            """
-            g = _G._G_
-            App = g.App()
-            app = App.getApp(appName)
-            if not app:
-                return f"e~应用不存在: {appName}"
-            
-            if not date:
-                date = datetime.now()
-            else:
-                date = datetime.strptime(date, '%Y-%m-%d')
-            result = app.LoadScore(date)
-            if not result:
-                return f"e~获取收益失败: {appName} {date}"
-            return result
-
+        
         @regCmd(r"#状态|zt (?P<taskName>\S+)?")
         def state(taskName=None):
             """
@@ -838,7 +816,10 @@ class CCmds_:
             """
             g = _G._G_
             # 显示客户端的连接状态
-            return g.CDevice().state()
+            device = g.CDevice()
+            state_value = device.state()
+            # 确保返回字符串
+            return str(state_value)
 
         @regCmd(r"#获取日志|getLogs(?P<date>\S+)?")
         def getLogs(date=None):
@@ -878,7 +859,7 @@ class CCmds_:
         @regCmd(r"#命名|mm (?P<newName>.+)")
         def name(newName):
             """
-            功能：命名设备
+            功能：命名设备（通过服务端统一处理）
             指令名：name
             中文名：命名
             参数：
@@ -905,77 +886,32 @@ class CCmds_:
                     log.e_("设备连接未建立")
                     return "e~设备连接未建立"
                 
-                # 修改设备名称
-                device.name = newName
-                log.i_(f"设备名称已修改为: {newName}")
+                deviceId = device.deviceID
+                if not deviceId:
+                    log.e_("设备ID无效")
+                    return "e~设备ID无效"
                 
-                # 返回成功结果
-                return f"设备名称已修改为: {newName}"
+                # 通过服务端统一处理属性更新
+                try:
+                    result = g.emitRet('C2S_SetProp', {
+                        'type': 'devices',
+                        'target': deviceId,
+                        'params': {'name': newName}
+                    })
+                    
+                    if result and result.get('success'):
+                        log.i_(f"设备名称已修改为: {newName}")
+                        return f"c~设备名称已修改为: {newName}"
+                    else:
+                        error_msg = result.get('message', '未知错误') if result else '服务器无响应'
+                        log.e_(f"修改设备名称失败: {error_msg}")
+                        return f"e~修改设备名称失败: {error_msg}"
+                        
+                except Exception as e:
+                    log.ex(e, f"与服务器通信失败: {newName}")
+                    return f"e~与服务器通信失败: {str(e)}"
                 
             except Exception as e:
                 log.ex(e, f"修改设备名称失败: {newName}")
                 return f"e~修改设备名称失败: {str(e)}"
-
-        @regCmd(r"#_syncDeviceName")
-        def _syncDeviceName(deviceName=None):
-            """
-            内部命令：同步设备名称到Android SharedPreferences
-            这是一个内部命令，用于将设备名称同步到Android底层
-            """
-            g = _G._G_
-            log = g.Log()
-            
-            try:
-                # 从命令参数中获取设备名称
-                if not deviceName:
-                    return "e~设备名称不能为空"
-                
-                # 尝试通过Android API同步到SharedPreferences
-                android = cls.android()
-                if android:
-                    # 方案1: 直接调用Android方法（如果存在）
-                    if hasattr(android, 'setDeviceName'):
-                        result = android.setDeviceName(deviceName)
-                        if result:
-                            log.i(f"通过Android API同步设备名称成功: {deviceName}")
-                            return f"设备名称已同步到Android: {deviceName}"
-                    
-                    # 方案2: 通过Context获取SharedPreferences
-                    try:
-                        context = android.getContext()
-                        if context:
-                            prefs = context.getSharedPreferences("device_config", 0)  # MODE_PRIVATE
-                            editor = prefs.edit()
-                            editor.putString("DEVICE_NAME_KEY", deviceName)
-                            success = editor.commit()  # 使用commit()确保立即写入
-                            if success:
-                                log.i(f"通过SharedPreferences同步设备名称成功: {deviceName}")
-                                return f"设备名称已同步到Android: {deviceName}"
-                            else:
-                                log.w(f"SharedPreferences写入失败")
-                    except Exception as e:
-                        log.w(f"SharedPreferences方案失败: {e}")
-                    
-                    # 方案3: 通过反射调用
-                    try:
-                        # 获取PreferenceManager类
-                        PreferenceManager = android.getClass('android.preference.PreferenceManager')
-                        if PreferenceManager:
-                            defaultPrefs = PreferenceManager.getDefaultSharedPreferences(context)
-                            editor = defaultPrefs.edit()
-                            editor.putString("DEVICE_NAME_KEY", deviceName)
-                            success = editor.commit()
-                            if success:
-                                log.i(f"通过PreferenceManager同步设备名称成功: {deviceName}")
-                                return f"设备名称已同步到Android: {deviceName}"
-                    except Exception as e:
-                        log.w(f"PreferenceManager方案失败: {e}")
-                
-                # 如果所有方案都失败
-                log.w(f"无法同步设备名称到Android: {deviceName}")
-                return f"警告: 设备名称无法同步到Android底层，但已在脚本层设置"
-                
-            except Exception as e:
-                log.ex(e, f"同步设备名称到Android失败: {deviceName}")
-                return f"e~同步设备名称到Android失败: {str(e)}"
-        
+   

@@ -77,9 +77,15 @@ class Socketer {
                 payload.deviceId = this.deviceId;
             }
 
+            console.log(`[DEBUG] Socketer.emit 发送事件: ${event}`, payload);
+            console.log(`[DEBUG] Socket连接状态: ${Socketer.#socket.connected}`);
+            console.log(`[DEBUG] Socket ID: ${Socketer.#socket.id}`);
+            
             Socketer.#socket.emit(event, payload);
+            console.log(`[DEBUG] 事件 ${event} 已发送`);
             return true;
         } catch (e) {
+            console.error(`[DEBUG] 发送事件 ${event} 失败:`, e);
             if (retries > 0) {
                 return this.emit(event, data, { sid, retries: retries - 1 });
             }

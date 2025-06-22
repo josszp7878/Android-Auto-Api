@@ -475,8 +475,8 @@ class _CmdMgr_:
                     _Log._Log_.ex(e, "结束客户端失败")
             
             # 获取当前设备ID和服务器地址
-            deviceID = CDevice.deviceID()
-            server = CDevice.server()
+            deviceID = CDevice.deviceID
+            server = CDevice.server
             log.i(f"当前设备ID: {deviceID}, 服务器地址: {server}")
 
             # log.i("正在清除模块缓存...")

@@ -68,6 +68,8 @@ class CClient_:
             CDevice.connect()
             g.CFileServer().init(server)
             g.CmdMgr().regAllCmds()
+            from RPC import initializeRPCHandlers
+            initializeRPCHandlers(isServer=False)
             #起一个线程去更新app
             g.App().update()
             print("按Ctrl+C退出")
@@ -75,7 +77,7 @@ class CClient_:
             cls.running = True  # 设置运行标志
             while cls.running:
                 try:
-                    cmd_input = input(f"{CDevice.deviceID()}> ").strip()
+                    cmd_input = input(f"{CDevice.deviceID}> ").strip()
                     g.CmdMgr().do({'cmd': cmd_input})
                 except EOFError:
                     cls.fromAndroid = True

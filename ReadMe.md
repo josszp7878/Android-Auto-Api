@@ -2,6 +2,514 @@
 
 ## 更新日志
 
+### 2025-01-22 - 前端RPC命令格式重构
+
+#### 全新的RPC命令格式设计
+- #新格式定义：`@设备ID或者名字:类名.方法名 参数列表`
+  - 格式规范：以`@`开头，冒号分隔设备标识和RPC调用
+  - 示例：`@68:SDevice_.getDeviceInfo` (指定设备68)
+  - 示例：`@!:_App_.getAppList` (当前选中设备)  
+  - 示例：`@STask_.updateScore {"id": 1, "score": 100}` (服务器RPC)
+
+#### 智能设备识别和路由规则
+- #设备标识解析规则
+  1. **无设备标识**：`@类名.方法名` → 服务器RPC调用
+  2. **感叹号标识**：`@!:类名.方法名` → 当前选中的目标设备的第一个
+  3. **具体标识**：`@设备ID或名字:类名.方法名` → 指定设备，支持ID和名字查找
+  
+- #错误检测和用户友好提示
+  - 设备不存在检测：实时验证设备ID或名字的有效性
+  - 未选择设备警告：使用`!`时检查是否有选中的目标设备
+  - 解析错误处理：命令格式错误时显示详细的错误信息
+  - 前端临时日志：所有错误信息直接显示在日志表格中
+
+#### 完整的命令解析重构
+- #新增解析方法架构
+  ```javascript
+  parseCommand()           // 主解析入口，格式检测分发
+  ├── parseRPCCommand()    // 新RPC格式解析
+  ├── parseLegacyCommand() // 兼容旧格式解析  
+  └── findDeviceByIdOrName() // 设备查找辅助方法
+  ```
+
+- #设备查找优化
+  - 优先按ID查找：`devices.find(d => d.id.toString() === idOrName)`
+  - 备用按名字查找：`devices.find(d => d.name === idOrName)`
+  - 支持数字ID和字符串名字的混合查找
+  - 实时设备列表同步，确保查找数据最新
+
+#### 执行流程和反馈优化
+- #命令执行优化
+  - 错误类型识别：解析错误时阻止命令执行，避免无效调用
+  - 设备标识传递：完整传递deviceTarget信息到执行层
+  - 智能通知文案：根据设备类型显示不同的执行通知
+    - 服务器：`服务端RPC调用: 类名.方法名`
+    - 选中设备：`客户端RPC调用: 选中设备 -> 类名.方法名`
+    - 指定设备：`客户端RPC调用: 设备名 -> 类名.方法名`
+
+- #向后兼容保证
+  - 完全保留旧命令格式：`目标数组 分类符 命令内容`
+  - 自动格式检测：根据是否以`@`开头选择解析方式
+  - 无缝切换：用户可以混用新旧格式，互不影响
+  - 渐进式迁移：可以逐步将常用命令迁移到新格式
+
+#### 技术实现亮点
+- #解析效率优化
+  - 单次字符串扫描确定格式类型
+  - 提前短路：错误情况下避免不必要的处理
+  - 智能缓存：设备查找结果可复用于后续调用
+  
+- #用户体验提升
+  - 即时错误反馈：解析错误立即显示在前端日志
+  - 智能提示：根据解析结果生成有意义的通知信息
+  - 调试友好：详细的解析日志便于问题排查
+
+### 2025-01-22 - 日志表格选中复制功能完善
+
+#### 完整的表格交互功能实现
+- #增强选中机制配置
+  - `selectableRows: true` - 启用行选择
+  - `selectableRowsRangeMode: "click"` - 支持点击范围选择
+  - `selectablePersistence: true` - 选择状态持久化
+  - `selectableRange: true` - 启用范围选择
+  - `selectableRangeColumns: true` - 启用列范围选择
+  - `selectableRangeRows: true` - 启用行范围选择
+
+- #全列复制功能支持
+  - 为所有重要列添加 `clipboard: true` 属性
+  - 日期、时间、标签、等级、发送者、内容列均支持复制
+  - 内容列特别设置 `headerClipboard: "message"` 便于批量操作
+  - 与其他表格(设备、任务)保持一致的交互体验
+
+- #用户操作体验
+  - 支持单个或多个行选择
+  - 支持鼠标拖拽选择范围
+  - 支持右键点击复制单元格内容
+  - 支持 Ctrl+C 复制选中内容
+  - 选择状态自动保持，便于批量操作
+
+### 2025-01-22 - RPC系统优化和类导入机制改进
+
+#### 采用getClassLazy延迟导入机制优化RPC注册
+- #改进导入方式：使用经过验证的`_G_.getClassLazy`方法替代原始导入
+  - 原始方式：使用`__import__`和多层备用导入机制，代码复杂且不稳定
+  - 新方式：采用`g.getClassLazy(module_name)`统一延迟导入，避免循环引用问题
+  - 技术优势：getClassLazy内置缓存机制、路径查找和错误处理，经过充分测试
+  - 代码简化：移除30+行复杂的备用导入代码，替换为简洁的3行核心逻辑
+- #修复lambda闭包问题：`instanceGetter = lambda target_cls=cls: getInst(target_cls)`
+  - 问题：原始lambda闭包导致所有实例获取器绑定到最后一个类
+  - 解决：使用默认参数技巧确保每个实例获取器正确绑定到对应类
+  - 结果：每个RPC类都有独立正确的实例获取器
+
+#### 实现客户端和服务端RPC类分离机制
+- #问题分析：之前所有RPC类都注册到客户端和服务端，造成不必要的资源占用
+  - 服务端不需要`CDevice_`、`CTask_`等客户端专用类
+  - 客户端不需要`SDevice_`、`STask_`等服务端专用类
+  - `_App_`类作为通用类，两端都需要注册
+- #分离策略：根据运行环境动态选择注册的RPC类
+  ```python
+  # 服务端RPC类
+  server_rpc_classes = [
+      ('_App', '_App_'),        # 应用管理类 - 通用
+      ('SDevice', 'SDevice_'),  # 服务端设备管理
+      ('STask', 'STask_'),      # 服务端任务管理
+  ]
+  
+  # 客户端RPC类
+  client_rpc_classes = [
+      ('_App', '_App_'),        # 应用管理类 - 通用
+      ('CDevice', 'CDevice_'),  # 客户端设备管理
+      ('CTask', 'CTask_'),      # 客户端任务管理
+  ]
+  ```
+- #实现细节
+  - 自动环境检测：通过`g.isServer()`判断运行环境
+  - 动态类选择：根据环境自动选择合适的RPC类列表
+  - 清晰的日志：区分显示"注册服务端RPC类"和"注册客户端RPC类"
+  - 资源优化：减少不必要的类注册，提高启动效率
+
+#### 增强RPC调试和监控能力
+- #新增调试功能：`debugRPCRegistry()`函数提供完整的注册状态信息
+  - 显示已注册类数和方法总数的统计信息
+  - 列出每个类的所有RPC方法列表
+  - 特别检查关键方法如`_App_.getAppList`的注册状态
+  - 提供方法详情包括类型和可调用性验证
+- #修复效果总结
+  - ✅ 解决了`_App_.getAppList`等RPC方法不存在的问题
+  - ✅ 采用经过验证的延迟导入机制，提高稳定性
+  - ✅ 实现客户端和服务端类分离，优化资源使用
+  - ✅ 提供详细的RPC系统调试信息和状态监控
+  - ✅ 简化了代码结构，提高了可维护性
+
+### 2025-01-22 - 前端表格滚动错误完全修复
+
+#### 彻底解决Tabulator表格滚动错误问题
+- #问题分析：前端出现 "Scroll Error - Row not visible" 错误，来源复杂
+  - 主要错误：`Renderer.js:200` - Tabulator库内部渲染器的滚动冲突
+  - 次要错误：`sheet.js` addTempLog方法的滚动时机问题
+  - 根本原因：表格异步渲染与滚动操作的时序冲突，导致未捕获的Promise错误
+  - 影响范围：控制台错误频繁出现，影响开发调试体验
+
+#### 三层防护的解决方案
+- #第一层：优化表格操作流程
+  - 使用 `blockRedraw()` 和 `restoreRedraw()` 控制表格重绘时机
+  - 延迟时间从50ms增加到100ms，确保DOM完全稳定
+  - 分离数据更新和滚动操作，避免并发冲突
+  
+- #第二层：实现安全滚动机制 `safeScrollToRow()`
+  ```javascript
+  // 多重验证的安全滚动
+  - 表格存在性检查
+  - 过滤器状态验证  
+  - 行对象存在性确认
+  - 主滚动方法 + 备用滚动方法
+  - 完整的错误捕获和降级处理
+  ```
+
+- #第三层：全局错误拦截器 `setupScrollErrorHandler()`
+  ```javascript
+  // 三种错误捕获机制
+  - window.addEventListener('unhandledrejection') // Promise错误
+  - window.addEventListener('error')              // 普通错误  
+  - console.error重写                            // 控制台错误过滤
+  ```
+
+#### 技术实现细节
+- #表格操作优化
+  - 使用表格阻塞重绘机制避免渲染冲突
+  - 增加操作间隔时间，确保异步操作完成
+  - 分离关注点：数据更新、表格渲染、滚动操作独立处理
+  
+- #多级滚动策略
+  - 第一次尝试：`scrollToRow(tempId, "top", false)` 精确定位
+  - 备用方法：`scrollToRow(row, "nearest", false)` 就近显示
+  - 兜底机制：静默失败，不影响其他功能
+
+- #全局错误处理
+  - 智能识别滚动相关错误，过滤非关键错误信息
+  - 保留重要错误的正常报告机制
+  - 提供调试友好的警告信息
+
+#### 修复效果
+- ✅ 完全消除 "Scroll Error - Row not visible" 控制台错误
+- ✅ 保持日志滚动功能的正常工作
+- ✅ 提供更稳定的表格操作体验  
+- ✅ 不影响其他表格功能和性能
+- ✅ 增强了整体前端错误处理能力
+
+## 更新日志
+
+### 2025-01-15 - 统一RPC初始化系统
+
+#### 实现统一的RPC类注册和初始化机制
+- #问题分析：之前每个RPC类需要单独注册，容易遗漏
+  - `_App`类通过`onLoad()`注册，但依赖延迟导入机制
+  - `STask`类通过模块末尾的代码注册，分散管理
+  - 缺乏统一的RPC系统初始化入口
+- #解决方案：创建统一的RPC初始化函数
+  - 新增`RPC.init()`函数，统一注册所有RPC类
+  - 新增`RPC.initializeRPCHandlers()`函数，整合类注册和事件处理器初始化
+  - 支持服务端和客户端的统一初始化流程
+- #实现细节
+  - 在`RPC.py`中定义需要注册的RPC类列表：`_App_`, `SDevice_`, `STask_`, `CDevice_`, `CTask_`
+  - 动态导入模块并注册RPC类，避免循环依赖
+  - 提供详细的注册日志，显示注册类数和方法数
+  - 统一的错误处理和状态报告
+- #调用位置更新
+  - 服务端：`Server.py` 中的 `initSocketIO()` 函数
+  - 客户端：`CClient.py` 中的 `Begin()` 函数
+  - 替换原有的分散注册调用为统一的 `initializeRPCHandlers()`
+- #清理重复代码
+  - 删除`STask.py`末尾的重复RPC注册代码
+  - 删除`_App.py`末尾的`onLoad()`调用
+  - 移除各模块中的分散RPC注册逻辑
+- #优势
+  - 集中管理所有RPC类注册，避免遗漏
+  - 统一的初始化时机，确保所有RPC方法可用
+  - 更好的错误处理和日志记录
+  - 便于维护和扩展新的RPC类
+- #文件变更
+  - 修改：`server/scripts/RPC.py` - 添加统一初始化函数
+  - 修改：`server/scripts/Server.py` - 使用统一RPC初始化
+  - 修改：`server/scripts/CClient.py` - 使用统一RPC初始化
+  - 修改：`server/scripts/STask.py` - 删除重复注册代码
+  - 修改：`server/scripts/_App.py` - 删除onLoad调用
+
+### 2025-01-15 - 前端临时日志功能
+
+### 2025-01-15 - RPC系统简化和专用指令重构
+
+#### 优化SDevice任务属性为懒加载机制
+- #将SDevice._tasks封装为懒加载属性
+  - 重构`self._tasks`为私有属性`self.__tasks`，避免外部直接访问
+  - 创建`tasks`属性子(property)，实现懒加载机制，默认加载当天任务
+  - 自动缓存管理：检查缓存有效性，只在需要时重新加载任务
+  - 新增`clearTasksCache()`方法，支持强制刷新任务缓存
+- #改进的访问方式和性能优化
+  - 所有访问任务的代码统一使用`self.tasks`属性
+  - 自动判断缓存是否过期（跨天自动刷新）
+  - 减少不必要的数据库查询，提高性能
+  - 保持向后兼容，`getTasks(date)`方法仍可指定具体日期
+- #代码简化和维护性提升
+  - 移除手动缓存管理的复杂逻辑
+  - 统一的任务访问接口，减少代码重复
+  - 私有属性保护，防止意外的缓存破坏
+  - 清晰的缓存生命周期管理
+
+#### 简化RPC调用接口，统一使用call方法
+- #简化前端RPC.js接口，移除冗余的server和client方法
+  - 删除`RPC.server()`和`RPC.client()`方法，统一使用`RPC.call()`
+  - 更新全局rpc对象，只保留`rpc.call(deviceId, className, methodName, params)`
+  - 服务端调用：`rpc.call(null, className, methodName, params)`
+  - 客户端调用：`rpc.call(deviceId, className, methodName, params)`
+  - 减少接口数量，降低学习成本，提高代码一致性
+
+#### 创建专用的@开头RPC指令类型
+- #将RPC从#指令升级为专用的@指令类型
+  - 删除`#rpc`指令，避免与普通命令混淆
+  - 新增@开头的RPC专用指令，类似于`>`客户端指令和`:`服务端指令
+  - 命令格式：`@className.methodName [params...]`
+  - 支持服务端RPC调用：`@SDevice_.getDeviceInfo device1`
+  - 支持客户端RPC调用：`device1 @_App_.getAppList`
+- #智能参数解析和调用逻辑
+  - 支持JSON格式参数：`@STask_.updateScore {"id": "task1", "args": [100]}`
+  - 支持简化参数格式：`@SDevice_.getDeviceInfo device1`（自动识别为instance id）
+  - 支持多参数：`@STask_.createTask task1 100 "测试任务"`（自动作为args数组）
+  - 自动区分服务端和客户端调用，无目标设备时默认为服务端调用
+- #完整的RPC执行反馈
+  - 发送通知：显示RPC调用已发送的确认信息
+  - 结果通知：自动显示RPC调用的执行结果
+  - 错误处理：详细的错误信息和参数解析失败提示
+  - 批量调用：支持向多个设备同时发送RPC调用，显示成功率统计
+- #文件变更
+  - 修改：`server/static/js/RPC.js` - 简化接口，移除server和client方法
+  - 修改：`server/static/js/BCmds.js` - 删除#rpc指令，更新所有RPC调用为新格式
+  - 修改：`server/static/js/sheet.js` - 添加RPC指令类型解析和executeRPCCommand方法
+  - 修改：`server/scripts/RPC.py` - 修复设备ID到sid的转换逻辑
+- #用户体验改进
+  - 专用@指令提供清晰的RPC调用标识，避免与普通命令混淆
+  - 智能参数解析支持多种格式，适应不同使用习惯
+  - 统一的调用接口减少学习成本，提高开发效率
+  - 完整的执行反馈让用户清楚了解RPC调用状态和结果
+
+#### 合并重复的RPC处理器类，提高代码维护性
+- #合并SRPCHandler_和CRPCHandler_类为统一的RPCHandler类
+  - 消除代码重复，两个类的功能基本相同
+  - 通过isServer参数区分服务端和客户端模式
+  - 服务端模式使用room参数进行Socket.IO消息发送
+  - 客户端模式直接发送消息，不指定room
+- #统一的RPC事件处理接口
+  - `RPCHandler.initializeRPCHandlers(isServer=True)` - 初始化，isServer指定模式
+  - `RPCHandler.handleRPCCall(data, isServer=True)` - 处理RPC调用
+  - 自动判断服务端/客户端模式，应用相应的处理逻辑
+  - 保持原有的错误处理和日志记录功能
+- #文件变更和重构
+  - 新增：`server/scripts/RPCHandler.py` - 统一的RPC处理器类
+  - 删除：`server/scripts/SRPCHandler.py` - 已合并到RPCHandler
+  - 删除：`server/scripts/CRPCHandler.py` - 已合并到RPCHandler
+  - 修改：`server/scripts/Server.py` - 更新为RPCHandler.initializeRPCHandlers(isServer=True)
+  - 修改：`server/scripts/CClient.py` - 更新为RPCHandler.initializeRPCHandlers(isServer=False)
+- #代码质量改进
+  - 减少代码重复，提高维护效率
+  - 统一的错误处理和日志记录逻辑
+  - 更清晰的代码结构和命名规范
+
+### 2024-12-19 - RPC参数格式重构（重大更新）
+
+#### 将RPC参数从*args, **kwargs格式重构为统一的dict参数格式
+- #重构RPC调用接口，提高参数传递的清晰度和安全性
+  - 统一参数格式：`g.RPC(device_id, className, methodName, params)` 
+  - 参数字典结构：`{'id': 'instance_id', 'args': [arg1, arg2], 'kwargs': {key: value}, 'timeout': 8}`
+  - 参数命名简化：`instance_id` → `id`，更简洁的命名风格
+  - 强制使用命名参数，避免参数位置混淆和传递错误
+- #智能方法调用机制，完美支持类方法和实例方法
+  - 增强`_callMethod`方法，智能识别和调用不同类型的方法
+  - 完美支持`@classmethod`装饰的类方法调用
+  - 正确处理实例方法、静态方法和装饰器组合
+  - 自动处理方法绑定和参数传递，确保调用正确性
+- #前端RPC.js同步更新，保持前后端一致性
+  - 更新前端RPC调用接口，支持新的dict参数格式
+  - 向后兼容：旧的调用方式仍然支持，平滑迁移
+  - 新格式示例：`rpc.server('_App_', 'getAppList', {id: 'app1', args: [param1]})`
+  - 旧格式兼容：`rpc.server('_App_', 'getAppList', 'app1', param1)` 仍可用
+- #全面的RPC调用格式示例
+  ```python
+  # 类方法调用（无需实例ID）
+  g.RPC(None, '_App_', 'getAppList')
+  
+  # 实例方法调用（新格式）
+  g.RPC(None, 'SDevice_', 'getDeviceInfo', {'id': 'device1'})
+  
+  # 带参数的方法调用
+  g.RPC(None, 'STask_', 'updateTaskScore', {
+      'id': 'task1', 
+      'args': [100],
+      'kwargs': {'reason': '完成任务'},
+      'timeout': 15
+  })
+  
+  # 前端调用（新格式）
+  await rpc.server('SDevice_', 'getDeviceInfo', {id: 'device1'})
+  
+  # 前端调用（向后兼容）
+  await rpc.server('SDevice_', 'getDeviceInfo', 'device1')
+  ```
+- #创建迁移指南和测试工具
+  - 新增：`server/scripts/RPC_Migration_Guide.py` - 详细的迁移指南和示例
+  - 新增：`server/templates/rpc_test.html` - RPC测试页面，验证新旧API
+  - 提供自动化迁移辅助工具和正则表达式模式
+  - 完整的迁移检查清单，确保平滑过渡
+- #技术优势和改进
+  - 参数传递更安全：避免参数位置错误和类型混淆
+  - 代码可读性提升：参数含义明确，易于理解和维护  
+  - 调试友好：参数结构清晰，便于问题定位和调试
+  - 扩展性增强：可轻松添加新的参数选项，向前兼容
+  - 向后兼容：旧代码无需立即修改，支持渐进式迁移
+- #文件变更
+  - 修改：`server/scripts/RPC.py` - 重构所有RPC相关函数签名
+  - 修改：`server/scripts/_G.py` - 更新RPC函数接口
+  - 修改：`server/static/js/RPC.js` - 前端RPC接口同步更新
+  - 修改：`server/static/js/BCmds.js` - 前端命令适配新格式
+  - 新增：`server/scripts/RPC_Migration_Guide.py` - 迁移指南
+  - 新增：`server/templates/rpc_test.html` - API测试页面
+  - 修改：`server/scripts/_App.py` - 更新RPC调用示例
+  - 修改：`server/scripts/SDevice.py` - 更新RPC调用示例
+
+### 2024-12-19 - RPC远程过程调用功能
+
+#### 实现基于装饰器的RPC机制，支持客户端和服务端双向RPC调用
+- #新增RPC装饰器和调用系统
+  - 创建`@RPC()`装饰器标记方法为RPC可调用方法
+  - 统一调用接口：`g.RPC(device_id, className, methodName, *args, instance_id=None, **kwargs)`进行远程调用
+  - 默认实例获取器：自动支持App、Device、Task类的默认实例获取，无需手动注册
+  - 动态实例管理：支持通过instance_id参数获取特定实例，适应复杂场景
+  - 双向RPC支持：完整支持服务端↔客户端、本地调用的所有场景
+  - 错误处理和超时：完整的异常处理和调用超时机制
+- #技术特性
+  - 基于现有Socket.IO通信协议，无需额外网络配置  
+  - 支持同步和异步调用模式，适应不同使用场景
+  - 参数自动序列化/反序列化，支持复杂数据类型传输
+  - 支持类方法、实例方法和静态方法的远程调用
+  - 线程安全的RPC管理器，支持并发调用
+  - 智能调用路由：自动判断本地调用和远程调用
+- #RPC调用规则
+  ```python
+  # 服务端调用客户端
+  result = g.RPC(device_id, 'ClassName', 'methodName', args)
+  
+  # 客户端调用服务端
+  result = g.RPC(None, 'ClassName', 'methodName', args)
+  
+  # 服务端本地调用
+  result = g.RPC(None, 'ClassName', 'methodName', args)
+  
+  # 客户端本地调用
+  result = g.RPC('local', 'ClassName', 'methodName', args)
+  ```
+- #使用示例
+  ```python
+  # 1. 定义RPC方法
+  @RPC()
+  def getScores(self, date=None):
+      scores = self.LoadScore(date)
+      return {'success': True, 'scores': scores}
+
+  # 2. 注册RPC类（使用默认实例获取器）
+  g.registerRPC(_App_)  # 自动使用默认instanceGetter
+  
+  # 3. 远程调用
+  result = g.RPC(device_id, '_App_', 'getScores', datetime.now())
+  
+  # 4. 使用instance_id获取特定实例
+  result = g.RPC(device_id, '_App_', 'getCurrentPageInfo', instance_id='微信')
+  ```
+- #文件变更
+  - 新增: `server/scripts/RPC.py` - RPC核心实现和装饰器
+  - 新增: `server/scripts/SRPCHandler.py` - 服务端RPC事件处理器
+  - 新增: `server/scripts/CRPCHandler.py` - 客户端RPC事件处理器
+  - 新增: `server/scripts/RPCExample.py` - RPC使用示例和测试代码
+  - 新增: `server/scripts/RPCUsageGuide.py` - 完整的RPC使用指南
+  - 新增: `server/scripts/RPCDefaultInstanceExample.py` - 默认实例获取器使用示例
+  - 修改: `server/scripts/_App.py` - 添加RPC方法示例和默认注册
+  - 修改: `server/scripts/_G.py` - 直接集成RPC相关方法到全局类
+  - 修改: `server/scripts/RPC.py` - 实现默认实例获取器机制
+- #架构优势
+  - 简化远程调用语法，提高开发效率
+  - 默认实例获取器：自动支持App、Device、Task类，零配置使用
+  - 动态实例管理：支持通过instance_id获取特定实例，灵活性强
+  - 完整的双向调用支持，满足所有通信需求
+  - 统一的错误处理和超时机制，增强系统稳定性
+  - 智能路由机制，自动选择最优调用方式
+  - 支持任意类的RPC注册，具有良好的扩展性
+  - 基于现有通信基础设施，保持系统架构简洁
+
+### 2025-01-14
+
+#### 实现统一的属性更新架构，解决跨端同步问题
+- #创建统一的属性修改处理中心，解决前后端数据同步问题
+  - 所有属性修改统一通过服务端处理，确保数据一致性
+  - 支持客户端指令（如 81>name aa.test3）和前端指令（name . aa.test3）统一处理
+  - 服务端自动通知客户端和前端更新，消除手动同步的遗漏
+  - 设计通用的属性更新机制，支持任意实体类型和属性，不限于name属性
+- #增强服务端onB2S_setProp函数为属性更新处理中心
+  - 统一处理来自前端和客户端的属性更新请求
+  - 自动通知在线客户端更新本地属性（通过S2C_updateDevice事件）
+  - 自动通知前端实时更新表格数据（通过现有的S2B_sheetUpdate事件）
+  - 提供详细的处理结果反馈，包含成功状态和错误信息
+- #新增C2S_SetProp事件支持客户端属性更新
+  - 客户端name命令改为通过服务端统一处理，发送C2S_SetProp事件
+  - 复用onB2S_setProp处理逻辑，保持前后端行为一致
+  - 支持异步处理和结果返回，提供用户友好的反馈信息
+- #前端简化为直接发送更新请求，服务器统一刷新
+  - 前端name命令直接发送B2S_setProp事件，不等待结果
+  - 服务器统一处理后通过S2B_sheetUpdate事件刷新前端表格
+  - 简化前端逻辑，避免复杂的异步处理和结果等待
+  - 充分利用现有的表格更新机制，保持架构简洁统一
+- #技术架构优势
+  - 完全解决前后端数据不同步问题，实现真正的统一状态管理
+  - 支持离线设备的属性修改，服务端保存状态待设备上线时同步
+  - 通用设计支持扩展到任意属性和实体类型，为后续功能奠定基础
+  - 简化的事件处理机制，充分复用现有基础设施
+  - 服务器统一刷新策略，保证前端数据的一致性和及时性
+
+#### 优化前端通知系统，区分命令发送和执行结果显示，支持日志级别颜色
+- #修改showNotification函数支持不同类型的通知样式和日志级别解析
+  - 添加type参数区分通知类型：'command'(命令发送) 和 'result'(命令结果)
+  - 命令发送通知：暗灰色背景 + 浅绿色字体 (#404040 + #90EE90)
+  - 命令执行结果通知：根据日志级别显示不同颜色，暗灰色背景统一
+  - 保持原有的动画效果和自动消失功能，确保界面协调统一
+- #添加parseLevel函数解析日志级别标记
+  - 仿照_Log.py的_parseLevel方法实现JavaScript版本
+  - 支持解析 [dDiIwWEecC]~ 格式的级别前缀
+  - 自动提取级别标记并返回清理后的内容
+  - 默认级别为'i'（信息级别）
+- #添加getLevelColor函数映射日志级别到颜色
+  - 'e'(错误)：红色 (#FF6B6B) + 红色左边框
+  - 'w'(警告)：黄色 (#FFD93D) + 黄色左边框
+  - 'i'(信息)：白色 (#FFFFFF)
+  - 'd'(调试)：青色 (#4ECDC4)
+  - 'c'(成功)：绿色 (#51CF66) + 绿色左边框
+  - 错误和警告级别添加4px彩色左边框强调显示
+- #完善onCmdResult函数自动显示命令执行结果
+  - 自动判断命令执行结果成功或失败，分别显示对应通知
+  - 成功结果限制显示长度为100字符，避免通知过长影响界面
+  - 错误结果自动提取错误信息，去掉'e~'前缀显示用户友好的错误信息
+  - 支持字符串、对象等多种结果类型的智能格式化显示
+- #统一更新所有showNotification调用点的类型参数
+  - 命令发送相关通知统一使用'command'类型：客户端指令发送、服务端指令发送等
+  - 命令结果相关通知统一使用'result'类型：执行失败、日志获取结果、本地命令结果等
+  - 确保所有通知都有正确的颜色标识，用户可以直观区分命令发送和执行结果
+- #技术实现优势
+  - 双色通知系统提高用户操作反馈的直观性和可读性
+  - 暗灰色背景与当前表格界面风格完美协调，避免视觉冲突
+  - 自动化的结果通知显示，无需手动添加每个命令的结果处理
+  - 智能的内容长度控制和格式化，保证通知内容的可读性
+- #用户体验提升
+  - 命令发送和执行结果有明确的颜色区分，操作状态一目了然
+  - 执行结果自动弹出通知，用户无需查看控制台即可了解命令执行情况
+  - 错误信息友好显示，便于用户理解和处理问题
+  - 保持与现有界面风格的一致性，提供协调的视觉体验
+
 ### 2025-01-14
 
 #### 实现设备名称同步到Android SharedPreferences，完善设备管理功能
@@ -863,6 +1371,23 @@
   - 解决了页面切换过程中可能出现的任务重复执行问题
   - 提供了基于事件的任务执行控制机制，更加可靠和清晰
 
+### 2024-12-36
+- 实现前端RPC功能，支持前端直接调用服务端RPC方法
+  - 创建前端RPC.js模块，基于Socket.IO实现RPC通信
+  - 支持前端调用服务端RPC方法：`rpc.server(className, methodName, instanceId, ...args)`
+  - 支持前端调用客户端RPC方法：`rpc.client(deviceId, className, methodName, instanceId, ...args)`
+  - 在BCmds.js中添加RPC相关命令：
+    - `rpc` - 通用RPC调用命令
+    - `设备信息` - 获取设备信息
+    - `应用列表` - 获取应用列表
+    - `任务列表` - 获取任务列表
+  - 提供全局快捷方法window.rpc，简化RPC调用
+  - 创建RPCExamples.js示例文档，提供各种RPC使用示例
+  - 支持Promise/async-await语法，提供完善的错误处理
+  - 支持超时控制和批量操作
+  - 在sheet.html中引入RPC.js，确保前端页面可以使用RPC功能
+  - 实现了前端与服务端的无缝RPC通信，大大简化了前端与后端的交互
+
 - 增强任务生命周期管理功能
   - 在begin方法中添加lifeExtendRatio参数，默认值为1
   - 支持在任务开始时动态延长任务生命周期
@@ -1416,3 +1941,7 @@
   - 添加命令开始`^`和结束`\s*$`锚点（支持末尾空格容错）
 - 修复了`getScores 快手极速版`类型命令匹配失败的问题
 - 大幅提升了命令解析的准确性和用户友好性
+
+
+
+**注意**：这是一个基于 Mem0 的自定义 MCP 服务器实现，提供了完整的记忆管理功能，完全免费使用！

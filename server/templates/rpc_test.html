@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPC测试页面</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 10px; border: 1px solid #ddd; }
+        button { margin: 5px; padding: 10px; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 4px; }
+        .result { margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <h1>RPC API 测试</h1>
+    
+    <div class="test-section">
+        <h2>新API格式测试</h2>
+        <button onclick="testNewAPI()">测试新API格式</button>
+        <div id="newApiResult" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>向后兼容测试</h2>
+        <button onclick="testBackwardCompatibility()">测试向后兼容</button>
+        <div id="backwardResult" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>复杂参数测试</h2>
+        <button onclick="testComplexParams()">测试复杂参数</button>
+        <div id="complexResult" class="result"></div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/static/js/Socketer.js"></script>
+    <script src="/static/js/RPC.js"></script>
+    
+    <script>
+        // 等待Socket.IO连接
+        setTimeout(() => {
+            console.log('开始RPC测试...');
+        }, 2000);
+        
+        async function testNewAPI() {
+            const resultDiv = document.getElementById('newApiResult');
+            resultDiv.innerHTML = '<p>测试中...</p>';
+            
+            try {
+                // 测试类方法调用（无需实例ID）
+                console.log('测试1: 类方法调用');
+                const result1 = await rpc.server('_App_', 'getAppList');
+                console.log('类方法调用结果:', result1);
+                
+                // 测试实例方法调用（使用新dict格式）
+                console.log('测试2: 实例方法调用（新格式）');
+                const result2 = await rpc.server('SDevice_', 'getDeviceInfo', {
+                    id: 'device1'
+                });
+                console.log('实例方法调用结果:', result2);
+                
+                // 测试带参数的方法调用
+                console.log('测试3: 带参数的方法调用');
+                const result3 = await rpc.server('STask_', 'updateTaskScore', {
+                    id: 'task1',
+                    args: [100]
+                });
+                console.log('带参数方法调用结果:', result3);
+                
+                resultDiv.innerHTML = `
+                    <h3>新API测试结果：</h3>
+                    <pre>测试1 - 类方法: ${JSON.stringify(result1, null, 2)}</pre>
+                    <pre>测试2 - 实例方法: ${JSON.stringify(result2, null, 2)}</pre>
+                    <pre>测试3 - 带参数: ${JSON.stringify(result3, null, 2)}</pre>
+                `;
+                
+            } catch (error) {
+                // 打印错误到日志表
+                console.error('新API测试失败:', error);
+                resultDiv.innerHTML = `<p style="color: red;">测试失败: ${error.message}</p>`;
+            }
+        }
+        
+        async function testBackwardCompatibility() {
+            const resultDiv = document.getElementById('backwardResult');
+            resultDiv.innerHTML = '<p>测试中...</p>';
+            
+            try {
+                // 测试向后兼容的调用方式
+                console.log('测试向后兼容: 旧格式调用');
+                const result = await rpc.server('SDevice_', 'getDeviceInfo', 'device1');
+                console.log('向后兼容调用结果:', result);
+                
+                resultDiv.innerHTML = `
+                    <h3>向后兼容测试结果：</h3>
+                    <pre>${JSON.stringify(result, null, 2)}</pre>
+                `;
+                
+            } catch (error) {
+                console.error('向后兼容测试失败:', error);
+                resultDiv.innerHTML = `<p style="color: red;">测试失败: ${error.message}</p>`;
+            }
+        }
+        
+        async function testComplexParams() {
+            const resultDiv = document.getElementById('complexResult');
+            resultDiv.innerHTML = '<p>测试中...</p>';
+            
+            try {
+                // 测试复杂参数调用
+                console.log('测试复杂参数');
+                const result = await rpc.server('STask_', 'updateTaskScore', {
+                    id: 'task1',
+                    args: [100, 'bonus'],
+                    kwargs: {
+                        reason: '完成任务',
+                        timestamp: Date.now()
+                    },
+                    timeout: 15000
+                });
+                console.log('复杂参数调用结果:', result);
+                
+                resultDiv.innerHTML = `
+                    <h3>复杂参数测试结果：</h3>
+                    <pre>${JSON.stringify(result, null, 2)}</pre>
+                `;
+                
+            } catch (error) {
+                console.error('复杂参数测试失败:', error);
+                resultDiv.innerHTML = `<p style="color: red;">测试失败: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html> 

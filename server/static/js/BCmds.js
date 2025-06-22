@@ -438,7 +438,7 @@ class BCmds {
                     targetDevices = [device];
                 }
                 
-                // 执行名称修改
+                // 执行批量更新，服务器会统一刷新前端
                 let results = [];
                 
                 targetDevices.forEach((device, index) => {
@@ -451,10 +451,7 @@ class BCmds {
                         finalName = newName;
                     }
                     
-                    // 更新本地数据
-                    device.name = finalName;
-                    
-                    // 发送到服务端更新
+                    // 发送到服务端统一处理
                     const data = {
                         'target': device.id,
                         'type': 'devices', 
@@ -462,15 +459,135 @@ class BCmds {
                     };
                     sheetPage.socketer.emit('B2S_setProp', data);
                     
-                    results.push(`设备 ${device.id} 名称已修改为: ${finalName}`);
+                    results.push(`设备 ${device.id} 名称修改请求已发送: ${finalName}`);
                 });
                 
-                // 刷新设备表格显示
-                if (sheetPage._deviceTable) {
-                    sheetPage._deviceTable.replaceData(sheetPage.devices);
-                }
-                
                 return results.join('\n');
+            }
+        );
+        
+
+        
+        // RPC设备信息命令
+        regCmd("#设备信息 (?<deviceId>\\S+)?", 'BCmds')(
+            async function deviceInfo({ deviceId, sheetPage }) {
+                /**
+                 * 功能：获取设备信息
+                 * 指令名：deviceInfo
+                 * 中文名：设备信息
+                 * 参数：
+                 *   deviceId - 设备ID（可选，默认使用选中的设备）
+                 * 示例：设备信息 device1
+                 * 示例：设备信息
+                 */
+                
+                try {
+                    let targetDeviceId = deviceId;
+                    
+                    if (!targetDeviceId) {
+                        // 使用选中的设备
+                        const selectedDevices = sheetPage.targets[sheetPage.DataType.DEVICES];
+                        if (selectedDevices.length === 0) {
+                            return "请先选择设备或指定设备ID";
+                        }
+                        targetDeviceId = selectedDevices[0];
+                    }
+                    
+                    console.log(`获取设备信息: ${targetDeviceId}`);
+                    
+                    const result = await rpc.call(null, 'SDevice_', 'getDeviceInfo', {id: targetDeviceId});
+                    
+                    return {
+                        success: true,
+                        deviceId: targetDeviceId,
+                        info: result
+                    };
+                    
+                } catch (error) {
+                    console.error('获取设备信息失败:', error);
+                    return {
+                        success: false,
+                        error: error.message
+                    };
+                }
+            }
+        );
+        
+        // RPC应用列表命令
+        regCmd("#应用列表", 'BCmds')(
+            async function appList() {
+                /**
+                 * 功能：获取应用列表
+                 * 指令名：appList
+                 * 中文名：应用列表
+                 * 参数：无
+                 * 示例：应用列表
+                 */
+                
+                try {
+                    console.log('获取应用列表...');
+                    
+                    const result = await rpc.call(null, '_App_', 'getAppList');
+                    
+                    return {
+                        success: true,
+                        apps: result.apps,
+                        count: result.apps ? result.apps.length : 0
+                    };
+                    
+                } catch (error) {
+                    console.error('获取应用列表失败:', error);
+                    return {
+                        success: false,
+                        error: error.message
+                    };
+                }
+            }
+        );
+        
+        // RPC任务列表命令
+        regCmd("#任务列表 (?<deviceId>\\S+)?", 'BCmds')(
+            async function taskList({ deviceId, sheetPage }) {
+                /**
+                 * 功能：获取任务列表
+                 * 指令名：taskList
+                 * 中文名：任务列表
+                 * 参数：
+                 *   deviceId - 设备ID（可选，默认使用选中的设备）
+                 * 示例：任务列表 device1
+                 * 示例：任务列表
+                 */
+                
+                try {
+                    let targetDeviceId = deviceId;
+                    
+                    if (!targetDeviceId) {
+                        // 使用选中的设备
+                        const selectedDevices = sheetPage.targets[sheetPage.DataType.DEVICES];
+                        if (selectedDevices.length === 0) {
+                            return "请先选择设备或指定设备ID";
+                        }
+                        targetDeviceId = selectedDevices[0];
+                    }
+                    
+                    console.log(`获取任务列表: ${targetDeviceId}`);
+                    
+                    const result = await rpc.call(null, 'STask_', 'getTaskList', {args: [parseInt(targetDeviceId)]});
+                    
+                    return {
+                        success: true,
+                        deviceId: targetDeviceId,
+                        taskCount: result.taskCount,
+                        tasks: result.tasks
+                    };
+                    
+                } catch (error) {
+                    console.error('获取任务列表失败:', error);
+                    return {
+                        success: false,
+                        error: error.message
+                    };
+                }
             }
         );
         

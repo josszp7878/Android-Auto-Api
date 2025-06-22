@@ -3,6 +3,7 @@ from SModelBase import SModelBase_
 from SModels import TaskModel_
 from Task import TaskBase
 from datetime import datetime
+from RPC import RPC
 
 class STask_(SModelBase_, TaskBase):
     """服务端任务类"""
@@ -16,6 +17,16 @@ class STask_(SModelBase_, TaskBase):
         data = TaskModel_.get(deviceId, name, date, create)
         if data:
             return cls(data)
+        return None
+    @classmethod
+    def getByID(cls, id: int):
+        """根据ID获取任务"""
+        from SDeviceMgr import deviceMgr
+        devices = deviceMgr.devices
+        for device in devices:
+            task = device.getTask(id)
+            if task:
+                return task
         return None
     
     @property
@@ -41,16 +52,6 @@ class STask_(SModelBase_, TaskBase):
     def life(self)->int:
         return int(self.getDBProp('life', 10))
     
-    def setLife(self, life: int):
-        if self.setDBProp('life', life):
-            # log = _Log._Log_
-            # log.d(f'设2置任务生命周期: {self.id}, life ={life}, isDirty = {self._isDirty}')
-            self.commit()
-            from SDevice import SDevice_
-            SDevice_.sendClient('S2C_updateTask', self.deviceId, {
-                'id': self.id,
-                'life': life
-            })
     
     @property
     def time(self)->str:
@@ -66,5 +67,75 @@ class STask_(SModelBase_, TaskBase):
         data['life'] = self.life
         return data
     
-
+    @RPC()
+    def getTaskInfo(self) -> dict:
+        """获取任务信息 - RPC方法"""
+        try:
+            return {
+                'success': True,
+                'id': self.id,
+                'name': self.name,
+                'state': self.state.value,
+                'progress': self.progress,
+                'score': self.score,
+                'life': self.life,
+                'deviceId': self.deviceId,
+                'time': self.time,
+                'data': self.data
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
     
+    @RPC()
+    def updateTaskScore(self, score: int) -> dict:
+        """更新任务分数 - RPC方法"""
+        try:
+            old_score = self.score
+            self.score = score
+            if self.commit():
+                return {
+                    'success': True,
+                    'taskId': self.id,
+                    'oldScore': old_score,
+                    'newScore': score,
+                    'message': f'任务 {self.name} 分数已更新'
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': '数据库更新失败'
+                }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    @RPC()
+    @classmethod
+    def getTaskList(cls, deviceId: int, date: datetime = None) -> dict:
+        """获取任务列表 - RPC方法"""
+        try:
+            from SDeviceMgr import deviceMgr
+            device = deviceMgr.get(deviceId)
+            if not device:
+                return {
+                    'success': False,
+                    'error': f'设备不存在: {deviceId}'
+                }
+            
+            tasks = device.getTasks(date)
+            return {
+                'success': True,
+                'deviceId': deviceId,
+                'taskCount': len(tasks),
+                'tasks': [task.toSheetData() for task in tasks.values()]
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }

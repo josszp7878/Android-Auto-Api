@@ -73,10 +73,10 @@ class SModel_:
             try:
                 data = self._fillDefaults(data)
                 sql = self.genInsertSql(data)
-                print(f'sql: {sql}')
+                # print(f'sql: {sql}')
                 db.session.execute(sql, data)
                 db.session.commit()
-                print(f'insertddddd: {data}')
+                # print(f'insertddddd: {data}')
                 return True
             except Exception as e:
                 _G._G_.Log().ex_(e, f"插入数据失败: {self.table}")

@@ -21,6 +21,11 @@ class DateHelper:
     DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'  # 日期时间格式: 2025-06-19 10:30:45
     
     @classmethod
+    def toDate(cls, date:str)->datetime:
+        """将字符串转换为日期对象"""
+        return datetime.strptime(date, cls.DATE_FORMAT)
+    
+    @classmethod
     def normalize(cls, date) -> str:
         """将各种日期格式统一转换为标准格式 YYYYMMDD
         
@@ -175,7 +180,7 @@ class _Log_:
                 subDir = 'server'
             else:
                 device = g.CDevice()
-                subDir = device.deviceID() if device else 'unknown'
+                subDir = device.deviceID if device else 'unknown'
             
             # 创建带设备/服务器名的日志目录
             logDir = os.path.join(baseLogDir, subDir)
@@ -213,7 +218,7 @@ class _Log_:
                 subDir = 'server'
             else:
                 device = g.CDevice()
-                subDir = device.deviceID() if device else 'unknown'
+                subDir = device.deviceID if device else 'unknown'
             
             logDir = os.path.join(baseLogDir, subDir)
             if not os.path.exists(logDir):
@@ -260,7 +265,7 @@ class _Log_:
                 subDir = 'server'
             else:
                 device = g.CDevice()
-                subDir = device.deviceID() if device else 'unknown'
+                subDir = device.deviceID if device else 'unknown'
             
             logDir = os.path.join(baseLogDir, subDir)
             logFile = os.path.join(logDir, f'{date}.log')
@@ -488,7 +493,7 @@ class _Log_:
                 # 客户端环境：添加到本地缓存
                 device = g.CDevice()
                 if device:
-                    deviceId = device.deviceID()
+                    deviceId = device.deviceID
                     tag = f'{deviceId}{tag}' if tag else deviceId
                     # 添加到客户端本地缓存
                     log = cls.add(content, tag, level)
@@ -516,7 +521,10 @@ class _Log_:
     @classmethod
     def result(cls, result):
         """记录命令执行结果到日志"""
-        if not result:
+        # 调试输出
+        # print(f"DEBUG: result方法收到参数: {result}, 类型: {type(result)}, 布尔值: {bool(result)}")
+        
+        if result is None:  # 只有None才返回，空字符串和False都要处理
             return
         content = ''
         level = 'i'
@@ -529,11 +537,14 @@ class _Log_:
                 content = f"  结果： 返回 {type(result).__name__} 数据，长度: {len(result)}"
             else:
                 content = f"  结果： {str(result)}"
+        
+        if not content:  # 如果content为空才返回
+            return
+        
         length = len(content)
         if length > 100:
             content = content[:100] + '...'
-        elif length == 0:
-            return
+        
         cls.add(content, '', level)
 
     @classmethod

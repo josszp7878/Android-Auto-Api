@@ -4,7 +4,6 @@ import hashlib
 import time
 import _G
 from typing import Optional, List
-import threading
 
 class SDeviceMgr_:
     """设备管理器：管理所有设备"""
@@ -36,7 +35,7 @@ class SDeviceMgr_:
         return self.__devices
     
     @property
-    def devices(self):
+    def devices(self)->List['SDevice_']:
         return [d for d in self._devices if not d.isConsole]
 
     def getByName(self, name: str, create=False) -> Optional[SDevice_]:

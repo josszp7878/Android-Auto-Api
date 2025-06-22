@@ -1,4 +1,3 @@
-import re
 import threading
 import time
 import _G
@@ -6,7 +5,7 @@ import os
 import json
 from datetime import datetime
 from typing import Optional, List, Tuple, TYPE_CHECKING, Dict
-from CDevice import CDevice_
+from RPC import RPC
 
 if TYPE_CHECKING:
     from _Page import _Page_
@@ -16,8 +15,7 @@ class _App_:
     """应用管理类：整合配置与实例"""
     _curAppName = _G.TOP  # 当前检测到的应用名称
     _lastApp = None  # 当前应用实例（延迟初始化）
-    
-    
+
     @classmethod
     def curName(cls):
         """获取当前应用名称"""
@@ -32,7 +30,8 @@ class _App_:
             if appName in cls.apps():
                 cls._lastApp = cls.apps()[appName]
     
-    _apps: Dict[str, "_App_"] = {} 
+    _apps: Dict[str, "_App_"] = {}
+
     @classmethod
     def apps(cls) -> Dict[str, "_App_"]:
         """获取所有应用"""
@@ -58,13 +57,14 @@ class _App_:
         return cls.getApp(cls._curAppName, False)
     
     @classmethod
-    def detectApp(cls)->Tuple['_App_', str]:
+    def detectApp(cls) -> Tuple['_App_', str]:
         """获取当前应用"""
         g = _G._G_
         log = g.Log()
         tools = g.Tools()
         try:
-            detectedApp = tools.curApp() if tools.isAndroid() else cls._curAppName
+            detectedApp = (tools.curApp() if tools.isAndroid()
+                          else cls._curAppName)
             cls._curAppName = detectedApp
             
             # 当检测到已知应用时更新实例
@@ -97,7 +97,7 @@ class _App_:
 
     def __getattr__(self, name):
         """重写 __getattr__ 方法，使 self.num 可以访问 self.data['num']"""
-        #解析 name_type,先找最后一个'_'
+        # 解析 name_type,先找最后一个'_'
         pos = name.rfind('_') + 1
         key = name
         if pos > 1:
@@ -127,12 +127,14 @@ class _App_:
     @data.setter
     def data(self, value):
         self._data = value
+
     @property
-    def toPage(self)->"_Page_":
+    def toPage(self) -> "_Page_":
         """获取当前页面"""
         return self._toPage
 
     PathSplit = '-'
+
     @classmethod
     def parseName(cls, str: str) -> Tuple[str, str]:
         """解析应用和页面名称
@@ -144,7 +146,8 @@ class _App_:
         if not str or not str.strip():
             return None, None
         import re
-        match = re.match(fr'(?P<appName>\S+)?\s*{cls.PathSplit}\s*(?P<name>\S+)?', str)
+        pattern = fr'(?P<appName>\S+)?\s*{cls.PathSplit}\s*(?P<name>\S+)?'
+        match = re.match(pattern, str)
         if match:
             appName = match.group('appName')
             if appName is None:
@@ -159,7 +162,7 @@ class _App_:
         """获取当前页面"""
         return self._curPage
 
-    def _setCurrentPage(self, page: "_Page_")->bool:
+    def _setCurrentPage(self, page: "_Page_") -> bool:
         """设置当前页面"""
         g = _G._G_
         log = g.Log()
@@ -412,6 +415,7 @@ class _App_:
             if name.startswith('#'):
                 # 解析引用页面格式: #引用页面名{参数}
                 import re
+                import json
                 match = re.match(r'#([^{]+)(?:{(.+)})?', name)
                 if match:
                     pageName = match.group(1)
@@ -424,7 +428,6 @@ class _App_:
                         if params:
                             content = f'{{{params.strip()}}}'
                             content = content.replace("'", '"')
-                            import json
                             try:
                                 paramsDict = json.loads(content)                                    
                             except Exception as e:
@@ -709,8 +712,11 @@ class _App_:
             cls._curAppName = oldCls._curAppName
             cls._lastApp = oldCls._curApp  # 修改属性名称
         else:
-            cls._lastApp = cls.getApp(_G.TOP, True)
-        cls.loadConfig()   
+            cls._lastApp = cls.getApp(_G.TOP, True)        
+        cls.loadConfig()
+        g = _G._G_
+        g.registerRPC(cls)
+
 
     # 处理页面跳转逻辑
     def _updateGoPath(self, log: "_Log_"):
@@ -765,7 +771,7 @@ class _App_:
                 self.curPage.update()
             self.userEvents = []
             # 更新当前任务
-            curTask = CDevice_.curTask()
+            curTask = g.CDevice().curTask()
             if curTask:
                 curTask.update(g)
             
@@ -885,7 +891,62 @@ class _App_:
         from CScore import CScore_
         return CScore_.loadScore(content, date)
     
-    # 关键文本的正则表达式
-  
-
-_App_.onLoad()
+    # RPC方法示例
+    @RPC()
+    def getScores(self, date: datetime = None) -> dict:
+        """获取收益分数 - RPC远程调用方法"""
+        try:
+            g = _G._G_
+            if g.isServer():
+                from SDeviceMgr import deviceMgr
+                deviceID = self.device_id
+                if deviceID is None:
+                    deviceID = deviceMgr.curDevice.id
+                return g.RPC(deviceID, '_App_', 'getScores', {'args': [date]})
+            else:
+                scores = self.LoadScore(date)
+                return {
+                    'success': True,
+                    'scores': scores,
+                    'timestamp': datetime.now().isoformat()
+                }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e),
+                'timestamp': datetime.now().isoformat()
+            }
+    
+    @RPC()
+    def getCurrentPageInfo(self) -> dict:
+        """获取当前页面信息 - RPC远程调用方法"""
+        try:
+            return {
+                'success': True,
+                'currentPage': self.curPage.name if self.curPage else None,
+                'appName': self.name,
+                'timestamp': datetime.now().isoformat()
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e),
+                'timestamp': datetime.now().isoformat()
+            }
+    
+    @RPC()
+    @classmethod
+    def getAppList(cls) -> dict:
+        """获取所有应用列表 - RPC远程调用方法"""
+        try:
+            return {
+                'success': True,
+                'apps': cls.getAppNames(),
+                'timestamp': datetime.now().isoformat()
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e),
+                'timestamp': datetime.now().isoformat()
+            }

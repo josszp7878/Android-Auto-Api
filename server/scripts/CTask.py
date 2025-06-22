@@ -7,6 +7,8 @@ import _G
 from typing import TYPE_CHECKING
 import socket
 from Task import TaskBase
+from Base import Base_
+from RPC import RPC
 
 if TYPE_CHECKING:
     from _Page import _Page_
@@ -14,11 +16,12 @@ if TYPE_CHECKING:
     from _Log import _Log_
     from _G import _G_
 
-class CTask_(TaskBase):
+class CTask_(TaskBase, Base_):
     """客户端任务类"""
     
     def __init__(self, name: str, config: dict, app: "_App_"):
         """初始化任务"""
+        super().__init__()
         self._app: "_App_" = app
         self._startTime = datetime.now()
         self._score: int = 0
@@ -37,7 +40,6 @@ class CTask_(TaskBase):
         self._exitScript = None   # 修改为exit脚本
         self._page: "_Page_" = None  # 目标页面
         self._config = config
-        self._dirty = False  # 改为布尔标记
         self.oldValues = {
             'score': self._score,
             'state': self._state.value,  # 存储枚举值
@@ -58,7 +60,7 @@ class CTask_(TaskBase):
     def score(self, value):
         if self._score != value:
             self._score = value
-            self._dirty = True  # 标记为脏
+            self._isDirty = True  # 标记为脏
     
     @property
     def state(self)->TaskState:
@@ -72,7 +74,7 @@ class CTask_(TaskBase):
         # log.i(f"任务{self._name}状态: self._state={self._state}, ==>value={value}")
         if self._state != value:
             self._state = value
-            self._dirty = True  # 标记为脏
+            self._isDirty = True  # 标记为脏
             self._emitUpdate(self._id, {
                 'state': value.value
             })
@@ -86,7 +88,7 @@ class CTask_(TaskBase):
     def progress(self, value:int):
         if self._progress != value:
             self._progress = value
-            self._dirty = True  # 标记为脏
+            self._isDirty = True  # 标记为脏
 
     @classmethod
     def _getConfigPath(cls):
@@ -224,6 +226,67 @@ class CTask_(TaskBase):
     def isCompleted(self):
         """判断任务是否完成"""
         return self.state == TaskState.SUCCESS or self.state == TaskState.FAILED
+    
+    @RPC()
+    def getTaskInfo(self) -> dict:
+        """获取任务信息 - RPC方法"""
+        try:
+            return {
+                'success': True,
+                'id': self._id,
+                'name': self._name,
+                'state': self._state.value,
+                'progress': self._progress,
+                'score': self._score,
+                'life': self._life,
+                'interval': self._interval,
+                'pageName': self.pageName,
+                'isCompleted': self.isCompleted(),
+                'startTime': self._startTime.isoformat() if self._startTime else None
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    @RPC()
+    def startTask(self, life: int = None) -> dict:
+        """开始任务 - RPC方法"""
+        try:
+            result = self.begin(life)
+            return {
+                'success': True,
+                'taskId': self._id,
+                'state': result.value if result else None,
+                'message': f'任务 {self._name} 已开始'
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    @RPC()
+    def stopTask(self, state: int = None) -> dict:
+        """停止任务 - RPC方法"""
+        try:
+            if state is not None:
+                stop_state = TaskState(state)
+            else:
+                stop_state = TaskState.PAUSED
+            result = self.stop(stop_state)
+            return {
+                'success': True,
+                'taskId': self._id,
+                'state': result.value if result else None,
+                'message': f'任务 {self._name} 已停止'
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
 
     def _Do(self, g: "_G_") -> bool:
         """执行任务具体工作"""
@@ -267,8 +330,8 @@ class CTask_(TaskBase):
             if not self._Do(g):
                 log.e(f"任务{self._name}执行失败")
                 return None
-            from CDevice import CDevice_
-            CDevice_.setCurTask(self)
+            device = _G._G_.CDevice()
+            device.setCurTask(self)
             self._emitUpdate(self._id, {
                 'state': self._state.value
             })
@@ -327,7 +390,7 @@ class CTask_(TaskBase):
     def _updateStateChanged(self, g: "_G_"):
         """更新任务状态"""
         changed = {}
-        if self._dirty:
+        if self._isDirty:
             # 检查所有被追踪字段
             values = {
                 'score': self._score,
@@ -348,7 +411,7 @@ class CTask_(TaskBase):
                 log = g.Log()
                 # log.i(f'任务{self._name}更新: {changed}')
                 self._emitUpdate(self._id, changed)
-                self._dirty = False  # 重置标记
+                self._isDirty = False  # 重置标记
     
     def update(self, g: "_G_"):
         """任务更新函数"""
@@ -416,4 +479,16 @@ class CTask_(TaskBase):
         log.i(f'发送任务更新事件: {data}')
         _G.g.emit('C2S_UpdateTask', data)
 
-    
+    def _onProp(self, key, value):
+        """CTask特殊处理"""
+        if key in ['score', 'state', 'progress']:
+            # 标记为脏，触发更新事件
+            self._isDirty = True
+
+    @classmethod
+    def onLoad(cls, oldCls=None):
+        """克隆"""
+        g = _G._G_
+        g.registerRPC(cls)
+
+CTask_.onLoad()
