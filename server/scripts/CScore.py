@@ -17,7 +17,7 @@ class CScore_:
         }
     
     @classmethod
-    def loadScore(cls, content: str, filterDate: datetime) -> List[dict]:
+    def loadScore(cls, content: str, filterDate: datetime = None) -> List[dict]:
         """解析OCR识别的文本内容"""
         if not content:
             return []
@@ -28,10 +28,14 @@ class CScore_:
                 return []            
             items = json.loads(content)
             if not isinstance(items, list):
-                return []            
+                return []    
+            # 过滤掉无效的OCR项目
             valids = cls._filterValidItems(items)
+            # 分类识别日期、金额和名字项目
             dates, amounts, names = cls._classifyItems(valids)
+            # 为每个金额项目匹配对应的日期和名字, 并过滤掉非filterDate的记录
             records = cls._matchItemsToRecords(amounts, dates, names, filterDate, log)            
+            # 合并相同名字的记录
             return cls._mergeRecords(records, log)
             
         except Exception as e:
@@ -151,10 +155,20 @@ class CScore_:
         """清理名字：移除标点符号，转换为小写"""
         name = re.sub(r'[^\w\u4e00-\u9fff]', '', name)
         return name.lower()
-
+    
     @classmethod
     def _matchItemsToRecords(cls, amounts: list, dates: list, names: list, filterDate: datetime, log) -> list:
-        """为每个金额项目匹配对应的日期和名字"""
+        """为每个金额项目匹配对应的日期和名字, 并过滤掉非filterDate的记录
+        
+        Args:
+            amounts: 金额列表
+            dates: 日期列表
+            names: 名字列表
+            filterDate: 过滤日期
+            log: 日志对象
+        Returns:
+            records: 匹配到的记录列表
+        """
         records = []
         
         for amount in amounts:
@@ -167,7 +181,7 @@ class CScore_:
                 continue
             
             try:
-                date_obj = datetime.strptime(closest_date['date_str'], '%Y.%m.%d')
+                date_obj = _G.DateHelper.toDate(closest_date['date_str'].replace('.', '-'))
                 amount = float(re.sub(r'[^\d.-]', '', amount['amount_str']))
                 name = cls._cleanName(closest_name['t'])
                 

@@ -77,27 +77,28 @@ class CmdMgr {
     }
     
     /**
-     * 处理参数组，将参数包装为带空格的可选结构
-     * 将 (?P<param>\S+) 转换为 (?:\s+(?P<param>\S+))?
+     * 处理参数组，将参数包装为带空格的可选结构，并兼容命令和参数之间、参数前后所有空白
+     * 用户写正则时只需写一个空格即可，系统自动处理为任意空白
      */
     static processParamSpaces(pattern) {
         try {
-            // 首先移除原有的空格，然后重新处理参数组
             let result = pattern;
-            
+            // 1. 命令头部允许任意空白
+            result = result.replace(/^\s*/, ''); // 去除头部空白
+            // 2. 参数捕获组前后允许空白，参数之间的空格全部替换为\s+
             // 查找所有参数捕获组（除了命令名CC组）- 使用JavaScript风格的命名组
             const paramPattern = /\s*\(\?<([^>]+)>([^)]+)\)(\??)\s*/g;
-            
             result = result.replace(paramPattern, (match, paramName, paramContent, optional) => {
                 // 如果是命令名捕获组，不处理
                 if (paramName === CmdMgr.CmdKey) {
                     return match;
                 }
-                
-                // 构建新的参数格式：(?:\s+(?<param>\S+))? 所有参数都可选
+                // 构建新的参数格式：允许前后空白，参数之间用\s+，所有参数都可选
                 return `(?:\\s+(?<${paramName}>${paramContent}))?`;
             });
-            
+            // 3. 命令和第一个参数之间允许任意空白
+            result = result.replace(/#(\S+)/, '#$1\\s*');
+            // 4. 结尾允许多余空白
             return result;
         } catch (e) {
             console.error('processParamSpaces错误:', e, 'pattern:', pattern);
@@ -107,6 +108,7 @@ class CmdMgr {
     
     /**
      * 注册命令装饰器
+     * 增强：自动在正则头部加^\\s*，结尾加\\s*$，参数间空白全部兼容
      */
     static reg(pattern, module = 'default') {
         return function(func) {
@@ -156,12 +158,12 @@ class CmdMgr {
             // 将所有Python风格的命名组转换为JavaScript风格
             finalPattern = finalPattern.replace(/\(\?P<([^>]+)>/g, '(?<$1>');
             
-            // 处理参数之间的空格
+            // 处理参数之间的空格（增强版）
             finalPattern = CmdMgr.processParamSpaces(finalPattern);
             
-            // 添加开始和结束锚点，并允许末尾空格容错
+            // 添加开始和结束锚点，并允许头尾多余空白
             if (!finalPattern.startsWith('^')) {
-                finalPattern = '^' + finalPattern;
+                finalPattern = '^\\s*' + finalPattern;
             }
             if (!finalPattern.endsWith('$')) {
                 finalPattern = finalPattern + '\\s*$';

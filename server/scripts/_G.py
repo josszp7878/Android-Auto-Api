@@ -1,6 +1,7 @@
 """
 全局状态管理模块 (兼容服务端和客户端)
 """
+from datetime import datetime
 import threading
 import os
 import sys  # 添加sys模块导入
@@ -9,6 +10,7 @@ from typing import TYPE_CHECKING, List, Optional
 from enum import Enum
 import uuid
 import asyncio
+import re
 
 if TYPE_CHECKING:
     from CFileServer import CFileServer_
@@ -19,7 +21,6 @@ if TYPE_CHECKING:
     from _App import _App_  
     from CDevice import CDevice_ 
     from SDeviceMgr import SDeviceMgr_
-    from SCommandHistory import SCommandHistory_
     from CTask import CTask_
 
 TOP = "top"
@@ -41,6 +42,108 @@ class ConnectState(str,Enum):
     OFFLINE = "offline"
     LOGIN = "login"
     LOGOUT = "logout"
+
+    
+class DateHelper:
+    """统一的日期处理工具类"""
+    
+    DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'  # 统一日期时间格式: 2025-06-19 10:30:45
+    DATE_FORMAT = '%Y-%m-%d'  # 日期格式: 2025-06-19
+    
+    @classmethod
+    def toDate(cls, date_str: str) -> datetime:
+        """将字符串转换为日期对象，支持多种格式"""
+        if not date_str:
+            return datetime.now()
+            
+        date_str = date_str.strip()
+        
+        # 尝试解析完整日期时间格式 YYYY-MM-DD HH:MM:SS
+        try:
+            return datetime.strptime(date_str, cls.DATETIME_FORMAT)
+        except ValueError:
+            pass
+            
+        # 尝试解析日期格式 YYYY-MM-DD
+        try:
+            return datetime.strptime(date_str, cls.DATE_FORMAT)
+        except ValueError:
+            pass
+            
+        # 尝试解析旧格式 YYYYMMDD
+        try:
+            if re.match(r'^\d{8}$', date_str):
+                return datetime.strptime(date_str, '%Y%m%d')
+        except ValueError:
+            pass
+            
+        # 尝试解析其他格式
+        formats = ['%Y/%m/%d', '%Y.%m.%d', '%m/%d/%Y', '%d/%m/%Y']
+        for fmt in formats:
+            try:
+                return datetime.strptime(date_str, fmt)
+            except ValueError:
+                continue
+                
+        # 如果都失败了，返回今天
+        return datetime.now()
+    
+    @classmethod
+    def normalize(cls, date_input) -> str:
+        """将各种日期格式统一转换为标准格式 YYYY-MM-DD
+        
+        Args:
+            date_input: 支持的格式:
+                - None: 返回今天
+                - '2025-06-19': 保持不变
+                - '20250619': 转换为 '2025-06-19'
+                - datetime对象: 转换为 '2025-06-19'
+                - '2025-06-19 10:30:45': 提取日期部分
+                
+        Returns:
+            str: 标准格式的日期字符串 YYYY-MM-DD
+        """
+        if date_input is None:
+            return datetime.now().strftime(cls.DATE_FORMAT)
+            
+        if isinstance(date_input, datetime):
+            return date_input.strftime(cls.DATE_FORMAT)
+            
+        if isinstance(date_input, str):
+            date_str = date_input.strip()
+            
+            # 已经是标准格式 YYYY-MM-DD
+            if re.match(r'^\d{4}-\d{2}-\d{2}$', date_str):
+                return date_str
+                
+            # 格式: YYYY-MM-DD HH:MM:SS (提取日期部分)
+            if ' ' in date_str:
+                date_part = date_str.split(' ')[0]
+                return cls.normalize(date_part)
+                
+            # 旧格式 YYYYMMDD
+            if re.match(r'^\d{8}$', date_str):
+                try:
+                    dt = datetime.strptime(date_str, '%Y%m%d')
+                    return dt.strftime(cls.DATE_FORMAT)
+                except ValueError:
+                    pass
+                    
+            # 其他格式，尝试解析
+            try:
+                dt = cls.toDate(date_str)
+                return dt.strftime(cls.DATE_FORMAT)
+            except:
+                pass
+                
+        # 如果无法解析，返回今天的日期
+        return datetime.now().strftime(cls.DATE_FORMAT)
+    
+    
+
+        
+    
+
 
 class _G_:
     # 使用线程安全的存储
@@ -390,45 +493,18 @@ class _G_:
         from RPC import callRPC
         return callRPC(device_id, className, methodName, params)
     
-    @classmethod
-    def registerRPC(cls, targetClass, instanceGetter=None):
-        """注册RPC类
-        
-        Args:
-            targetClass: 要注册的类
-            instanceGetter: 实例获取函数，如果为None则使用类方法调用
-        """
-        from RPC import registerRPC
-        registerRPC(targetClass, instanceGetter)
-    
+       
     @classmethod
     def handleRPC(cls, data: dict):
         """处理RPC调用"""
         from RPC import handleRpcCall
         return handleRpcCall(data)
     
-    @classmethod
-    def getInst(cls, targetClass, id=None):
-        """获取类实例的默认方法
-        
-        Args:
-            targetClass: 目标类
-            id: 实例ID（可选）
-            
-        Returns:
-            对应的实例
-        """
-        from RPC import getInst
-        return getInst(targetClass, id)
     
     @classmethod
     def SDeviceMgr(cls) -> 'SDeviceMgr_':
         from SDeviceMgr import deviceMgr
         return deviceMgr
-
-    @classmethod
-    def SCommandHistory(cls) -> 'SCommandHistory_':
-        return cls.getClassLazy('SCommandHistory')
 
     @classmethod
     def CallMethod(cls, module, methodName, *args, **kwargs):

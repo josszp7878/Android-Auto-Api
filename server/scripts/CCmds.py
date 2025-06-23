@@ -832,20 +832,16 @@ class CCmds_:
                 dict: 包含日志数据的响应
             """
             try:
-                from _Log import _Log_, DateHelper
-                
-                # 统一日期格式处理
-                normalized_date = DateHelper.normalize(date)
+                from _Log import _Log_
                 
                 # 获取客户端本地日志
-                logs = _Log_.gets(normalized_date)
+                logs = _Log_.gets(date)
                 logData = [logItem.toSheetData() for logItem in logs]
                 
                 return {
                     'success': True,
                     'data': logData,
-                    'date': DateHelper.format_display(normalized_date),
-                    'normalized_date': normalized_date,
+                    'date': date,
                     'count': len(logData)
                 }
                 

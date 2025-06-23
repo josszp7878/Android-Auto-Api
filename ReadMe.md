@@ -1,6 +1,72 @@
 # Android Auto API
 
-## 更新日志
+## 更更新日志
+
+### 2025-01-22 - 前端指令架构解耦优化
+
+#### 优化前端指令管理模块BCmds.js
+- #修正前端指令实现：使用JavaScript而不是Python
+  - 前端指令位于`server/static/js/BCmds.js`（JavaScript文件）
+  - 与服务端Python指令分离，采用不同的技术栈
+  - 使用`regCmd`函数注册前端JavaScript指令
+  - 通过RPC调用与服务端进行数据交互
+
+#### 实现getScores前端指令
+- #前端主动获取收益数据：`#获取收益 设备ID 应用名 [日期]`
+  ```javascript
+  regCmd("#获取收益 (?<deviceId>\\S+)\\s+(?<appName>\\S+)\\s*(?<date>\\S+)?", 'BCmds')
+  async function getScores({ deviceId, appName, date, sheetPage })
+  ```
+  - 支持设备ID、应用名称和可选日期参数
+  - 默认日期为当天，格式为YYYY-MM-DD
+  - 通过RPC调用服务端设备的getScores方法
+  - 获取成功后自动刷新前端任务表格
+
+#### 服务端推送逻辑解耦
+- #移除SDevice.py中的主动推送代码
+  - 注释掉 `g.emit('S2B_sheetUpdate', {'type': 'tasks', 'data': data})`
+  - 保留核心收益获取和数据库更新逻辑
+  - 服务端专注于数据处理，不再关心前端更新时机
+  - 减少服务端对前端的直接依赖
+
+#### 架构优势和解耦效果
+- #前端主动拉取模式
+  - 前端按需获取数据，提高响应速度
+  - 避免服务端频繁推送造成的性能开销
+  - 前端可以控制数据更新的时机和频率
+  - 更好的用户体验，数据获取更加精准
+
+- #职责分离明确
+  - 服务端：专注数据处理和存储，提供RPC接口
+  - 前端：主动调用指令，自主处理数据显示和更新
+  - 减少组件间的耦合，提高系统的可维护性
+  - 为后续功能扩展提供更灵活的架构基础
+
+#### 返回数据格式标准化
+```javascript
+// 成功返回格式
+{
+  "success": true,
+  "message": "获取收益成功: 设备ID 应用名 日期",
+  "deviceId": "设备ID",
+  "appName": "应用名称", 
+  "date": "日期"
+}
+
+// 错误返回格式  
+{
+  "success": false,
+  "error": "错误信息描述"
+}
+```
+
+#### 项目架构理解修正
+- #修正技术栈理解
+  - **Android客户端**：`app/` 目录，Java + Android SDK
+  - **服务端**：`server/scripts/` 目录，Python + Flask + Socket.IO
+  - **前端**：`server/static/js/` 目录，JavaScript + HTML，由服务端提供
+  - 前端指令使用JavaScript而非Python，通过浏览器执行
+  - 三个部分通过Socket.IO协议进行实时通信
 
 ### 2025-01-22 - 前端RPC命令格式重构
 

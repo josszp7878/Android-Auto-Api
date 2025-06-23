@@ -1834,11 +1834,13 @@ class SheetPage {
                 this.showNotification(result.result, 'result');
             } else {
                 // 处理对象类型的结果
-                console.log('本地命令执行结果:', result.result);
+                // console.log('本地命令执行结果:', result.result);
                 this.showNotification('命令执行完成，请查看控制台', 'result');
             }
         } else {
-            this.showNotification('本地命令未找到或执行失败', 'result');
+            let msg = 'w~本地命令未找到或执行失败';
+            this.addTempLog(msg, 'w');
+            this.showNotification(msg, 'result');
         }
     }
 

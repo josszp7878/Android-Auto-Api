@@ -590,6 +590,63 @@ class BCmds {
                 }
             }
         );
+
+        // 获取收益命令
+        regCmd("#获取收益 (?<deviceId>\\S+) (?<appName>\\S+?)(?: (?<date>\\S+))?", 'BCmds')(
+            async function getScores({deviceId, appName, date, sheetPage }) {
+                /**
+                 * 功能：获取设备某应用某天的所有任务收益，直接更新前端表格
+                 * 指令名：getScores
+                 * 中文名：获取收益
+                 * 参数：
+                 *   deviceId - 设备ID
+                 *   appName - 应用名称
+                 *   date - 日期(YYYY-MM-DD)，可选，默认为今天
+                 * 示例：获取收益 68 微信
+                 * 示例：获取收益 68 微信 2025-01-22
+                 */
+                try {
+                    // 如果没有提供日期，使用今天
+                    if (!date) {
+                        const today = new Date();
+                        date = today.toISOString().split('T')[0]; // YYYY-MM-DD格式
+                    }
+
+                    console.log(`获取收益: 设备${deviceId} ${appName} ${date}`);
+
+                    // 调用服务端设备实例的getScores方法
+                    const result = await rpc.call(null, 'SDevice_', 'getScores', { 
+                        id: parseInt(deviceId),
+                        kwargs: { appName: appName, date: date } 
+                    });
+
+                    if (result === 'OK') {
+                        // 获取成功后，刷新任务表格数据
+                        if (sheetPage && sheetPage.taskTable) {
+                            sheetPage._loadDatas(sheetPage.taskTable, true);
+                        }
+                        return {
+                            success: true,
+                            message: `获取收益成功: 设备${deviceId} ${appName} ${date}`,
+                            deviceId: deviceId,
+                            appName: appName,
+                            date: date
+                        };
+                    } else {
+                        return {
+                            success: false,
+                            error: `获取收益失败: ${result}`
+                        };
+                    }
+                } catch (error) {
+                    console.error('获取收益失败:', error);
+                    return {
+                        success: false,
+                        error: `获取收益失败: ${error.message}`
+                    };
+                }
+            }
+        );
         
         console.log('前端命令注册完成');
     }

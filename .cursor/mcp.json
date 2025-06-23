@@ -4,7 +4,7 @@
       "command": "mem0-mcp",
       "args": [],
       "env": {
-        "MEM0_API_KEY": "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",
+        "MEM0_API_KEY": "m0-jS6GcUJI3eZvN2j0JjOSmOkyIKhXsjMx4ooZlCqE",
         "DEFAULT_USER_ID": "user123",
         "DEFAULT_AGENT_ID": "agent123",
         "DEFAULT_APP_ID": "app123"

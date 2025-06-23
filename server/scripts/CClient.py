@@ -49,7 +49,27 @@ class CClient_:
             log.i("脚本更新完成")
 
     @classmethod
-    def Begin(cls, deviceID=None, server=None, fromAndroid=None):
+    def init(cls, deviceID=None, server=None)->bool:
+        """初始化客户端"""
+        g = _G._G_
+        log = g.Log()
+        try:
+            log.i("初始化客户端")
+            CDevice = g.CDevice()
+            CDevice.init(deviceID or 'TEST1', server)
+            CDevice.connect()
+            g.App().onLoad()
+            g.CFileServer().init(server)
+            g.CmdMgr().regAllCmds()
+            from RPC import initRPC
+            initRPC()
+        except Exception as e:
+            log.ex(e, '初始化失败')
+            return False
+        return True
+
+    @classmethod
+    def Begin(cls, deviceID=None, server=None, fromAndroid=None)->bool:
         """初始化客户端"""
         g = _G._G_
         log = g.Log()
@@ -63,21 +83,19 @@ class CClient_:
             cls._registerCleanup()
         
         try:
-            CDevice = g.CDevice()
-            CDevice.init(deviceID or 'TEST1', server)
-            CDevice.connect()
-            g.CFileServer().init(server)
-            g.CmdMgr().regAllCmds()
-            from RPC import initializeRPCHandlers
-            initializeRPCHandlers(isServer=False)
+            if not cls.init(deviceID, server):
+                return False
             #起一个线程去更新app
             g.App().update()
             print("按Ctrl+C退出")
-            
+            device = g.CDevice()
+            if device is None:
+                log.e("设备初始化失败")
+                return False
             cls.running = True  # 设置运行标志
             while cls.running:
                 try:
-                    cmd_input = input(f"{CDevice.deviceID}> ").strip()
+                    cmd_input = input(f"{device.deviceID}> ").strip()
                     g.CmdMgr().do({'cmd': cmd_input})
                 except EOFError:
                     cls.fromAndroid = True
@@ -86,12 +104,14 @@ class CClient_:
                     log.i('\n正在退出...')
                     break
                 except Exception as e:
-                    log.ex(e, '执行命令出错')                    
+                    log.ex(e, '执行命令出错')
+                    return False
         except Exception as e:
             log.ex(e, '初始化失败')
         finally:
             # 最后的安全网
             log.uninit()
+        return True
 
     @classmethod
     def End(cls):

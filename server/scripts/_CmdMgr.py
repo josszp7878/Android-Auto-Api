@@ -684,24 +684,25 @@ class _CmdMgr_:
             """
             功能：获取当前时间
             """ 
-            return str(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            return datetime.now().strftime(_G.DateHelper.DATETIME_FORMAT)
 
         @regCmd(r"#信息|xx")
         def info():
             """
             功能：查看设备连接状态
             """  
+            time = datetime.now().strftime(_G.DateHelper.DATETIME_FORMAT)
             g = _G._G_
             if g.isServer():
                 return{
-                    'Timestamp': str(datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
+                    'Timestamp': time,
                 }
             else:
                 device = g.CDevice()
                 return {
                     "deviceID": device.deviceID if device else "未知",
                     "state": device.state(),
-                    "timestamp": str(datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
+                    "timestamp": time,
                 }
        
     @classmethod

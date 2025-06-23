@@ -1,9 +1,10 @@
+from datetime import datetime
 import threading
 import time
-import _G
 import os
 import json
-from datetime import datetime
+import _G
+
 from typing import Optional, List, Tuple, TYPE_CHECKING, Dict
 from RPC import RPC
 
@@ -714,9 +715,6 @@ class _App_:
         else:
             cls._lastApp = cls.getApp(_G.TOP, True)        
         cls.loadConfig()
-        g = _G._G_
-        g.registerRPC(cls)
-
 
     # 处理页面跳转逻辑
     def _updateGoPath(self, log: "_Log_"):
@@ -824,7 +822,7 @@ class _App_:
             str: 文件路径
         """
         g = _G._G_
-        today = datetime.now().strftime("%Y-%m-%d")
+        today = datetime.now().strftime(_G.DateHelper.DATE_FORMAT)
         countersDir = os.path.join(g.rootDir(), "data", "apps")
         if not os.path.exists(countersDir):
             os.makedirs(countersDir)
@@ -895,27 +893,45 @@ class _App_:
     @RPC()
     def getScores(self, date: datetime = None) -> dict:
         """获取收益分数 - RPC远程调用方法"""
+        g = _G._G_
+        log = g.Log()
         try:
-            g = _G._G_
             if g.isServer():
                 from SDeviceMgr import deviceMgr
                 deviceID = self.device_id
                 if deviceID is None:
                     deviceID = deviceMgr.curDevice.id
-                return g.RPC(deviceID, '_App_', 'getScores', {'args': [date]})
+                result = g.RPC(deviceID, '_App_', 'getScores', {'args': [date]})
+                self._onGetScores(result, date)
+                return result
             else:
                 scores = self.LoadScore(date)
-                return {
-                    'success': True,
-                    'scores': scores,
-                    'timestamp': datetime.now().isoformat()
-                }
+                return scores
         except Exception as e:
-            return {
-                'success': False,
-                'error': str(e),
-                'timestamp': datetime.now().isoformat()
-            }
+            log.ex_(e, "获取收益分数失败")
+            return []
+        
+    def _onGetScores(self, result: dict, date: datetime = None):
+        """处理获取收益结果"""
+        if not result:
+            return
+        log = _G._G_.Log()
+        # 处理收益数据
+        changedTasks = []
+        for item in result:
+            taskName = item.get("name", "未知任务")
+            taskScore = item.get("amount", 0)  # 客户端返回的是amount字段
+            if not taskName or taskScore <= 0:
+                continue
+            from STask import STask_
+            # 获取或创建任务
+            task = STask_.get(deviceId=self.id, name=taskName, date=date, create=True)
+            if not task:
+                log.e(f"创建任务失败: {taskName}")
+                continue
+            task.score = taskScore
+            if task.commit():
+                changedTasks.append(task)
     
     @RPC()
     def getCurrentPageInfo(self) -> dict:

@@ -8,6 +8,7 @@ import _Log
 import base64
 import _G
 from SModelBase import SModelBase_
+
 from RPC import RPC
 if TYPE_CHECKING:
     from STask import STask_
@@ -260,7 +261,7 @@ class SDevice_(SModelBase_):
                 self._ensure_screenshot_dir()
                 
                 # 生成文件名
-                filename = datetime.now().strftime('%Y%m%d_%H%M%S.jpg')
+                filename = datetime.now().strftime('%Y-%m-%d_%H-%M-%S.jpg')
                 file_path = self.screenshot_dir / filename
                 
                 # 保存文件
@@ -463,7 +464,7 @@ class SDevice_(SModelBase_):
         if date is None:
             date = today
         if self._tasks and self.tasksDate == date:
-            return list(self._tasks.values())
+            return self._tasks
         return self._loadTasks(date)
     
     def _loadTasks(self, date=None) -> Dict[int, 'STask_']:
@@ -505,6 +506,7 @@ class SDevice_(SModelBase_):
             return {}
 
     # 向客户端发送命令获取收益
+    @RPC()
     def getScores(self, appName:str, date:str)->bool:
         """
         功能：获取设备某应用某天的所有任务收益
@@ -518,15 +520,16 @@ class SDevice_(SModelBase_):
         g = _G._G_
         log = g.Log()
         try:
-            result = g.RPC(self.id, 'CDevice_', 'LoadScore', {'kwargs': {'appName': appName, 'date': date}})
+            result = g.RPC(self.id, 'CDevice_', 'getScore', {'kwargs': {'appName': appName, 'date': date}})
             if not result:
                 return False
+            log.i(f"@@@@@获取收益: {result}")
             # 处理收益数据并更新任务
             changedTasks = []
             for item in result:
                 taskName = item.get("name", "未知任务")
                 taskScore = item.get("amount", 0)  # 客户端返回的是amount字段
-                date = datetime.strptime(item.get("date", date), "%Y-%m-%d")
+                date = _G.DateHelper.toDate(item.get("date", date))
                 if not taskName or taskScore <= 0:
                     continue
                 from STask import STask_
@@ -539,10 +542,8 @@ class SDevice_(SModelBase_):
                 if task.commit():
                     changedTasks.append(task)
                     # log.d_(f"更新任务: {taskName}, 分数: {taskScore}")
-            # 刷新任务列表
-            data = [task.toSheetData() for task in changedTasks]
-            # log.d_(f"更新任务: {data}")
-            g.emit('S2B_sheetUpdate', {'type': 'tasks', 'data': data})
+            # 移除服务端主动推送逻辑，改由前端主动调用获取数据
+            # g.emit('S2B_sheetUpdate', {'type': 'tasks', 'data': data})
             return 'OK'
         except Exception as e:
             log.ex(e, "获取收益失败")

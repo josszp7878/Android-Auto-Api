@@ -26,17 +26,15 @@ class RPCManager:
             return
         self._rpcMethods: Dict[str, Dict[str, Callable]] = {}  # {className: {methodName: method}}
         self._rpcClasses: Dict[str, type] = {}  # {className: class}
-        self._instanceGetters: Dict[str, Callable] = {}  # {className: instanceGetter}
         self._pendingCalls: Dict[str, Any] = {}  # {requestId: result}
         self._callLock = threading.Lock()
         self._initialized = True
     
-    def registerRpcClass(self, cls, instanceGetter=None):
-        """注册RPC类及其实例获取器
+    def registerRpcClass(self, cls):
+        """注册RPC类
         
         Args:
             cls: 要注册的类
-            instanceGetter: 实例获取函数，返回该类的实例，为None时使用默认获取器
         """
         className = cls.__name__
         if className not in self._rpcMethods:
@@ -44,13 +42,6 @@ class RPCManager:
         
         # 存储类对象
         self._rpcClasses[className] = cls
-        
-        # 注册实例获取器
-        if instanceGetter:
-            self._instanceGetters[className] = instanceGetter
-        else:
-            # 使用默认实例获取器，支持instance_id参数
-            self._instanceGetters[className] = lambda instance_id=None: getInst(cls, instance_id)
         
         # 扫描类中的RPC方法
         for methodName in dir(cls):
@@ -62,20 +53,20 @@ class RPCManager:
         """获取RPC方法"""
         return self._rpcMethods.get(className, {}).get(methodName)
     
-    def getRpcInstance(self, className: str) -> Optional[Any]:
+    def getRpcInstance(self, className: str, instance_id=None) -> Optional[Any]:
         """动态获取RPC实例"""
-        instanceGetter = self._instanceGetters.get(className)
-        if instanceGetter:
+        cls_obj = self._rpcClasses.get(className)
+        if cls_obj:
             try:
-                return instanceGetter()
+                return getInst(cls_obj, instance_id)
             except Exception as e:
                 g = _G._G_
                 log = g.Log()
-                log.ex(e, f"获取RPC实例失败: {className}")
+                log.ex(e, f"获取RPC实例失败: {className}, instance_id={instance_id}")
                 return None
         return None
     
-    def callRpcMethod(self, className: str, methodName: str, instance_id: str, args: list, kwargs: dict):
+    def callRpcMethod(self, className: str, methodName: str, id: str, args: list, kwargs: dict):
         """调用RPC方法"""
         import inspect
         
@@ -87,22 +78,25 @@ class RPCManager:
             if not method:
                 raise Exception(f"RPC方法不存在: {className}.{methodName}")
             
-            # 获取实例
-            instanceGetter = self._instanceGetters.get(className)
-            if instanceGetter:
+            # 获取实例 - 直接使用通用的getInst函数
+            cls_obj = self._rpcClasses.get(className)
+            if cls_obj:
                 try:
-                    if instance_id:
-                        instance = instanceGetter(instance_id)
-                    else:
-                        instance = instanceGetter()
+                    instance = getInst(cls_obj, id)
                 except Exception as e:
-                    log.ex(e, f"获取RPC实例失败: {className}")
+                    log.ex(e, f"获取RPC实例异常: {className}, instance_id={id}")
                     instance = None
             else:
+                log.e(f"RPC类未注册: {className}")
                 instance = None
             
+            if id and instance is None:
+                return {
+                    'success': False,
+                    'error': f'RPC实例不存在: {className}, instance_id={id}'
+                }
+            
             # 智能方法调用逻辑：根据方法类型选择合适的调用方式
-            cls_obj = self._rpcClasses.get(className)
             if cls_obj:
                 # 从类对象获取原始方法定义
                 original_method = getattr(cls_obj, methodName, None)
@@ -247,23 +241,39 @@ def _getAppInst(id=None):
 def _getDeviceInst(id=None):
     """获取Device实例"""
     g = _G._G_
+    log = g.Log()
     try:
         if g.isServer():
             # 服务端获取设备实例
             if id:
                 # 根据设备ID获取指定设备
                 deviceMgr = g.SDeviceMgr()
-                return deviceMgr.getDevice(id)
+                device = deviceMgr.get(id)
+                if device is None:
+                    log.e(f"服务端根据设备ID获取设备失败: id={id}, 设备不存在或未连接")
+                else:
+                    log.d(f"服务端成功获取设备实例: id={id}, device={device}")
+                return device
             else:
                 # 获取默认设备（可能是第一个在线设备）
                 deviceMgr = g.SDeviceMgr()
                 devices = deviceMgr.getOnlineDevices()
-                return devices[0] if devices else None
+                if not devices:
+                    log.e("服务端获取默认设备失败: 没有在线设备")
+                    return None
+                device = devices[0]
+                log.d(f"服务端获取默认设备: device={device}")
+                return device
         else:
             # 客户端获取当前设备实例
-            return g.CDevice()
+            device = g.CDevice()
+            if device is None:
+                log.e("客户端获取当前设备失败")
+            else:
+                log.d(f"客户端成功获取设备实例: device={device}")
+            return device
     except Exception as e:
-        g.Log().ex(e, f"获取Device实例失败: {id}")
+        log.ex(e, f"获取Device实例异常: id={id}")
         return None
 
 def _getTaskInst(id=None):
@@ -305,14 +315,13 @@ def RPC(className: str = None):
     
     return decorator
 
-def registerRPC(cls, instanceGetter=None):
+def registerRPC(cls):
     """注册RPC类
     
     Args:
         cls: 要注册的类
-        instanceGetter: 实例获取函数（可选）
     """
-    rpcManager.registerRpcClass(cls, instanceGetter)
+    rpcManager.registerRpcClass(cls)
 
 def callRPC(deviceID: str, className: str, methodName: str, params: dict = None):
     """远程调用RPC方法
@@ -356,7 +365,7 @@ def callRPC(deviceID: str, className: str, methodName: str, params: dict = None)
         #     return _callLocalRpc(className, methodName, params)
         
         # 解析参数用于远程调用
-        instance_id = params.get('id')
+        id = params.get('id')
         args = params.get('args', [])
         kwargs = params.get('kwargs', {})
         timeout = params.get('timeout', 8)
@@ -368,7 +377,7 @@ def callRPC(deviceID: str, className: str, methodName: str, params: dict = None)
             'requestId': request_id,
             'className': className,
             'methodName': methodName,
-            'id': instance_id,
+            'id': id,
             'args': args,
             'kwargs': kwargs,
             'timestamp': datetime.now().isoformat()
@@ -476,8 +485,7 @@ def handleRpcCall(data: dict):
             result = rpcManager.callRpcMethod(className, methodName, instance_id, args, kwargs)
         else:
             # 转发到指定客户端
-            log.i(f"转发RPC调用到客户端设备 {device_id}: {className}.{methodName}")
-            
+            log.i(f"转发RPC调用到客户端设备 {device_id}: {className}.{methodName}")            
             # 构造转发数据（去掉deviceId，避免客户端递归）
             forward_data = {
                 'requestId': request_id,
@@ -514,8 +522,7 @@ def handleRpcCall(data: dict):
         }
 
 # RPC功能已直接集成到_G_类中，无需额外扩展
-
-def init():
+def initRPC():
     """统一初始化所有RPC类注册
     
     这个函数会导入并注册所有包含RPC方法的类，确保RPC系统完整初始化
@@ -539,14 +546,14 @@ def init():
             log.i("注册客户端RPC类...")
         
         registered_count = 0
-        
+        isServer = g.isServer()
         for module_name in module_names:
             try:
                 # 根据模块名推导类名（添加后缀_）
                 class_name = f"{module_name}_"
                 
                 # 环境过滤：根据运行环境选择合适的模块
-                if g.isServer():
+                if isServer:
                     # 服务端跳过客户端特定模块
                     if module_name.startswith('C') and module_name not in ['_App']:
                         continue
@@ -558,34 +565,38 @@ def init():
                 # 使用_G_.getClassLazy延迟导入机制
                 cls = g.getClassLazy(module_name)
                 if cls:
-                    # 为每个类创建独立的实例获取器
-                    instanceGetter = lambda target_cls=cls: getInst(target_cls)
-                    registerRPC(cls, instanceGetter)
+                    registerRPC(cls)
                     registered_count += 1
                     # log.i(f"已注册RPC类: {class_name} (来自模块 {module_name})")
                     
             except Exception as e:
                 log.ex(e, f"注册RPC类 {class_name} 失败")
+
+        # 然后初始化RPC事件处理器
+        from RPCHandler import RPCHandler
+        RPCHandler.initializeRPCHandlers(isServer)
+
+        log.i(f"RPC系统初始化完成:")
         
         # 显示注册统计
-        total_classes = len(rpcManager._rpcClasses)
-        total_methods = sum(len(methods) for methods in rpcManager._rpcMethods.values())
+        # total_classes = len(rpcManager._rpcClasses)
+        # total_methods = sum(len(methods) for methods in rpcManager._rpcMethods.values())
         
-        log.i(f"RPC系统初始化完成:")
-        log.i(f"  - 本次注册类数: {registered_count}")
-        log.i(f"  - 总注册类数: {total_classes}")
-        log.i(f"  - 总RPC方法数: {total_methods}")
+        # log.i(f"  - 本次注册类数: {registered_count}")
+        # log.i(f"  - 总注册类数: {total_classes}")
+        # log.i(f"  - 总RPC方法数: {total_methods}")
         
-        # 输出详细的注册信息
-        for class_name, methods in rpcManager._rpcMethods.items():
-            method_names = list(methods.keys())
-            log.d(f"  - {class_name}: {method_names}")
+        # # 输出详细的注册信息
+        # for class_name, methods in rpcManager._rpcMethods.items():
+        #     method_names = list(methods.keys())
+        #     log.d(f"  - {class_name}: {method_names}")
         
         return True
         
     except Exception as e:
         log.ex(e, "RPC系统初始化失败")
         return False
+
 
 def debugRPCRegistry():
     """调试RPC注册状态"""
@@ -612,32 +623,3 @@ def debugRPCRegistry():
     log.i(f"getRpcMethod('_App_', 'getAppList'): {app_method}")
     
     log.i("=== RPC注册状态调试结束 ===")
-
-def initializeRPCHandlers(isServer=True):
-    """初始化RPC处理器（包含类注册和事件处理器）
-    
-    Args:
-        isServer: 是否为服务端模式
-    """
-    g = _G._G_
-    log = g.Log()
-    
-    try:
-        # 1. 首先初始化RPC类注册
-        if not init():
-            log.e("RPC类注册失败")
-            return False
-        
-        # 2. 调试RPC注册状态
-        debugRPCRegistry()
-        
-        # 3. 然后初始化RPC事件处理器
-        from RPCHandler import RPCHandler
-        RPCHandler.initializeRPCHandlers(isServer)
-        
-        log.i(f"RPC系统完整初始化完成 (模式: {'服务端' if isServer else '客户端'})")
-        return True
-        
-    except Exception as e:
-        log.ex(e, "RPC系统完整初始化失败")
-        return False 

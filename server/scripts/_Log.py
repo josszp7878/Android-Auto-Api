@@ -10,87 +10,7 @@ import re
 from datetime import datetime, timedelta
 from typing import List
 from enum import Enum
-
 import _G
-
-
-class DateHelper:
-    """统一的日期处理工具类"""
-    
-    DATE_FORMAT = '%Y%m%d'  # 标准日期格式: 20250619
-    DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'  # 日期时间格式: 2025-06-19 10:30:45
-    
-    @classmethod
-    def toDate(cls, date:str)->datetime:
-        """将字符串转换为日期对象"""
-        return datetime.strptime(date, cls.DATE_FORMAT)
-    
-    @classmethod
-    def normalize(cls, date) -> str:
-        """将各种日期格式统一转换为标准格式 YYYYMMDD
-        
-        Args:
-            date_input: 支持的格式:
-                - None: 返回今天
-                - '2025-06-19': 转换为 '20250619'
-                - '20250619': 保持不变
-                - datetime对象: 转换为 '20250619'
-                
-        Returns:
-            str: 标准格式的日期字符串 YYYYMMDD
-        """
-        if date is None:
-            return datetime.now().strftime(cls.DATE_FORMAT)
-            
-        if isinstance(date, datetime):
-            return date.strftime(cls.DATE_FORMAT)
-            
-        if isinstance(date, str):
-            date_str = date.strip()
-            # 已经是标准格式 YYYYMMDD
-            if re.match(r'^\d{8}$', date_str):
-                return date_str
-            # 格式: YYYY-MM-DD 或 YYYY/MM/DD
-            if re.match(r'^\d{4}[-/]\d{1,2}[-/]\d{1,2}$', date_str):
-                try:
-                    # 尝试解析多种分隔符格式
-                    for sep in ['-', '/']:
-                        if sep in date_str:
-                            parts = date_str.split(sep)
-                            if len(parts) == 3:
-                                year, month, day = parts
-                                return f"{year.zfill(4)}{month.zfill(2)}{day.zfill(2)}"
-                except:
-                    pass
-                    
-            # 格式: YYYY-MM-DD HH:MM:SS (提取日期部分)
-            if ' ' in date_str:
-                date_part = date_str.split(' ')[0]
-                return cls.normalize(date_part)
-                
-        # 如果无法解析，返回今天的日期
-        return datetime.now().strftime(cls.DATE_FORMAT)
-    
-    @classmethod
-    def today(cls) -> str:
-        """获取今天的标准格式日期"""
-        return datetime.now().strftime(cls.DATE_FORMAT)
-    
-    @classmethod
-    def isToday(cls, date_input) -> bool:
-        """检查给定日期是否为今天"""
-        return cls.normalize(date_input) == cls.today()
-    
-    @classmethod
-    def format_display(cls, date_input) -> str:
-        """将标准格式日期转换为显示格式 YYYY-MM-DD"""
-        normalized = cls.normalize(date_input)
-        try:
-            if len(normalized) == 8:
-                return f"{normalized[:4]}-{normalized[4:6]}-{normalized[6:8]}"
-        except:
-            pass
-        return normalized
 
 
 class TAG(Enum):
@@ -140,13 +60,8 @@ class _Log_:
         """获取日志日期"""
         time_str = self.data.get('time', '')
         if time_str:
-            try:
-                # 从 '2025-01-14 10:30:45' 格式中提取日期部分，转换为 '20250114'
-                date_part = time_str.split(' ')[0]  # 获取日期部分
-                return date_part.replace('-', '')  # 转换为 YYYYMMDD 格式
-            except:
-                pass
-        return datetime.now().strftime('%Y%m%d')  # 默认返回今天
+            return time_str.split(' ')[0].replace('-', '') 
+        return datetime.now().strftime(_G.DateHelper.DATE_FORMAT) 
 
     @classmethod
     def clear(cls):
@@ -172,7 +87,7 @@ class _Log_:
             if not dirtyLogs:
                 return
                 
-            today = datetime.now().strftime('%Y%m%d')
+            today = datetime.now().strftime(_G.DateHelper.DATE_FORMAT)
             baseLogDir = g.logDir()
             
             # 根据环境确定子目录名
@@ -225,7 +140,7 @@ class _Log_:
                 return
                 
             # 计算指定天数前的日期
-            cutoffDate = (datetime.now() - timedelta(days=days)).strftime('%Y%m%d')
+            cutoffDate = datetime.now() - timedelta(days=days)
             
             # 获取所有日志文件
             logFiles = glob.glob(os.path.join(logDir, '*.log'))
@@ -233,6 +148,7 @@ class _Log_:
             for logFile in logFiles:
                 fileName = os.path.basename(logFile)
                 fileDate = fileName.split('.')[0]
+                fileDate = _G.DateHelper.toDate(fileDate)
                 
                 if fileDate < cutoffDate:
                     os.remove(logFile)
@@ -289,21 +205,23 @@ class _Log_:
         """获取指定日期的日志"""
         g = _G._G_
         try:
+
             # 统一日期格式处理
-            normalized_date = DateHelper.normalize(date)
+            dateHelper = _G.DateHelper()
+            date = dateHelper.normalize(date)
             
-            if DateHelper.isToday(normalized_date):
+            if date == datetime.now().strftime(dateHelper.DATE_FORMAT):
                 # 如果是今天的日志，检查缓存
                 if cls._cache and len(cls._cache) > 0:
                     first = cls._cache[0]
                     # 使用统一格式比较缓存中的日期
-                    if DateHelper.normalize(first.date) == normalized_date:
+                    if dateHelper.normalize(first.date) == date:
                         return cls._cache
                 # 缓存为空或缓存日期不匹配，加载今天的日志并缓存
-                logs = cls._loadLogs(normalized_date)
+                logs = cls._loadLogs(date)
                 cls._cache = logs
-                cls._lastDate = normalized_date
-                cls.log_(f'加载了 {len(logs)} 条日志 (日期: {DateHelper.format_display(normalized_date)})')
+                cls._lastDate = date
+                cls.log_(f'加载了 {len(logs)} 条日志 (日期: {date})')
                 
                 # 如果是服务端，更新前台日志数据
                 if g.isServer():
@@ -318,7 +236,7 @@ class _Log_:
                 return cls._cache
             else:
                 # 如果不是今天的日志，不缓存，直接返回
-                return cls._loadLogs(normalized_date)
+                return cls._loadLogs(date)
         except Exception as e:
             cls.ex_(e, '获取日志失败')
             return []
@@ -369,7 +287,7 @@ class _Log_:
                 'message': message, 
                 'tag': tag, 
                 'level': level, 
-                'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                'time': datetime.now().strftime(_G.DateHelper.DATETIME_FORMAT)
             }
             # set id to the max id + 1
             logData['id'] = cls.genID()
@@ -629,7 +547,7 @@ class _Log_:
                     import time
                     time.sleep(3)  # 等待2秒让系统完全初始化
                     try:
-                        today = datetime.now().strftime('%Y%m%d')
+                        today = datetime.now().strftime(_G.DateHelper.DATE_FORMAT)
                         cls.getLogs(today)  # 这会加载今天的日志并发送到前台
                     except Exception as e:
                         print(f'延迟预加载日志失败: {e}')

@@ -1,6 +1,6 @@
 from datetime import datetime
 import _Log
-from SDeviceMgr import deviceMgr, SDeviceMgr_
+from SDeviceMgr import deviceMgr
 from STask import STask_
 import json
 import _G
@@ -108,28 +108,28 @@ class SCmds_:
                 _Log._Log_.ex(e, "获取任务列表失败")
                 return f"e~获取任务列表失败: {str(e)}"        
         
-        @regCmd(r"#获取收益(?P<appName>\S+)(?P<date>\S+)")
-        def getScores(target, appName, date:str = None)->bool:
-            """
-            功能：获取设备某应用某天的所有任务收益
-            指令名: getScores
-            参数: 
-                target - 设备ID
-                appName - 应用名称
-                date - 日期(YYYY-MM-DD)
-            返回: 处理结果和收益统计
-            """
-            g = _G._G_
-            log = g.Log()
-            try:
-                if not date:
-                    date = datetime.now().strftime("%Y-%m-%d")                
-                device = deviceMgr.get(target)
-                if not device:
-                    return f"e~设备不存在: {target}"                
-                return device.getScores(appName, date)
-            except Exception as e:
-                log.ex(e, "获取收益失败")
+        # @regCmd(r"#获取收益(?P<appName>\S+)(?P<date>\S+)")
+        # def getScores(target, appName, date:str = None)->bool:
+        #     """
+        #     功能：获取设备某应用某天的所有任务收益
+        #     指令名: getScores
+        #     参数: 
+        #         target - 设备ID
+        #         appName - 应用名称
+        #         date - 日期(YYYY-MM-DD)
+        #     返回: 处理结果和收益统计
+        #     """
+        #     g = _G._G_
+        #     log = g.Log()
+        #     try:
+        #         if not date:
+        #             date = datetime.now().strftime("%Y-%m-%d")                
+        #         device = deviceMgr.get(target)
+        #         if not device:
+        #             return f"e~设备不存在: {target}"                
+        #         return device.getScores(appName, date)
+        #     except Exception as e:
+        #         log.ex(e, "获取收益失败")
 
         @regCmd(r"#获取日志|getLogs(?P<date>\S+)?")
         def getLogs(date=None):
@@ -144,14 +144,11 @@ class SCmds_:
             g = _G._G_
             log = g.Log()
             try:
-                from _Log import _Log_, DateHelper
+                from _Log import _Log_
                 
-                # 统一日期格式处理
-                normalized_date = DateHelper.normalize(date) 
-                
-                logs = _Log_.gets(normalized_date)
+                logs = _Log_.gets(date)
                 logData = [logItem.toSheetData() for logItem in logs]
-                log.i(f'获取服务端日志: {DateHelper.format_display(normalized_date)}, {len(logData)} 条')
+                log.i(f'获取服务端日志: {date}, {len(logData)} 条')
                 return logData
                         
             except Exception as e:

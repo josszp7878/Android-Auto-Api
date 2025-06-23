@@ -4,11 +4,73 @@ globs:
 alwaysApply: true
 ---
 #我说的添加指令，除非我特别说明添加的目标文件，否则默认都是添加在以下文件里面：
-1、客户端指令： 添加在CCmds.py
-2、服务端指令： 添加在SCmds.py
-
-3、前端指令： 添加在BCmds.py
-
+1、客户端指令： 添加在CCmds.py (Python)
+2、服务端指令： 添加在SCmds.py (Python)
+3、前端指令： 添加在BCmds.js (JavaScript)
 
 # 如果只你的测试验证过程需要重启服务器或者客户端，不要自动执行。有我来手动执行，你只要提醒我就可以了
+
+#项目目录结构和作用说明：
+
+## 客户端部分 (Android应用)
+- `app/` - Android客户端根目录
+  - `app/src/main/java/` - Android Java源码，包含UI和业务逻辑
+  - `app/src/main/python/` - Android内嵌Python脚本（目前为空）
+  - `app/src/main/assets/` - Android资源文件（OCR数据等）
+  - `app/src/main/res/` - Android资源文件（布局、图片等）
+  - `app/build.gradle` - Android构建配置
+  - 客户端指令：`app/src/main/assets/CCmds.py` 和 `server/scripts/CCmds.py`
+
+## 服务端部分 (Python Flask + Socket.IO)
+- `server/` - 服务端根目录
+  - `server/scripts/` - Python脚本目录，包含所有业务逻辑
+    - `CCmds.py` - 客户端指令处理 (Python)
+    - `SCmds.py` - 服务端指令处理 (Python)
+    - `SDevice.py` - 服务端设备管理
+    - `CDevice.py` - 客户端设备管理
+    - `_App.py` - 应用管理RPC类
+    - `_G.py` - 全局管理器
+    - `RPC.py` - RPC通信系统
+    - `Server.py` - Flask服务器和Socket.IO事件处理
+    - 其他业务逻辑模块...
+  - `server/static/` - 静态文件目录（服务端提供给浏览器）
+    - `server/static/js/` - 前端JavaScript文件
+    - `server/static/css/` - 前端CSS样式文件
+    - `server/static/screenshots/` - 截图文件存储
+  - `server/templates/` - HTML模板文件
+  - `server/data/` - 数据存储目录
+  - `server/logs/` - 日志文件目录
+
+## 前端部分 (Browser Web界面)
+- `server/static/js/` - 前端JavaScript代码目录
+  - `BCmds.js` - 前端指令处理 (JavaScript)
+  - `sheet.js` - 表格管理和UI逻辑
+  - `dashboard.js` - 仪表板界面
+  - `RPC.js` - 前端RPC调用封装
+  - `socketer.js` - Socket.IO客户端封装
+  - `cmdmgr.js` - 前端命令管理器
+- `web/src/` - 前端源码目录（可能用于构建）
+  - `web/src/components/` - Vue.js/React组件（如果使用）
+
+## 通信架构
+- **Socket.IO协议**：实时双向通信
+  - C2S: 客户端到服务端 (Client to Server)
+  - S2C: 服务端到客户端 (Server to Client)  
+  - B2S: 浏览器到服务端 (Browser to Server)
+  - S2B: 服务端到浏览器 (Server to Browser)
+
+## RPC系统
+- **动态类注册**：通过`g.getScriptNames()`自动加载模块
+- **环境分离**：服务端注册S开头类，客户端注册C开头类，_App通用类两端都注册
+- **延迟导入**：使用`g.getClassLazy()`避免循环引用问题
+
+## 指令系统架构
+- **客户端指令** (CCmds.py)：在Android设备上执行的自动化操作
+- **服务端指令** (SCmds.py)：在服务器上执行的管理和协调操作  
+- **前端指令** (BCmds.js)：在浏览器中执行的界面交互和数据处理
+## 导入模块规则
+    python里面导入模块的写法都用是相对路径，而且scripts路径都已经添加到了模块路径里面:
+    不要再用类似： from server.scripts._Log import DateHelper
+    而是直接用：from _Log import DateHelper
+  
   

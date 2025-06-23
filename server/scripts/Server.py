@@ -30,8 +30,8 @@ def initSocketIO(sio):
     
     # 初始化RPC处理器
     print(f"[DEBUG] Server.initSocketIO 正在初始化RPC处理器...")
-    from RPC import initializeRPCHandlers
-    initializeRPCHandlers(isServer=True)
+    from RPC import initRPC
+    initRPC()
     print(f"[DEBUG] Server.initSocketIO RPC处理器初始化完成")
 
 

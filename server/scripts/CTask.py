@@ -485,10 +485,4 @@ class CTask_(TaskBase, Base_):
             # 标记为脏，触发更新事件
             self._isDirty = True
 
-    @classmethod
-    def onLoad(cls, oldCls=None):
-        """克隆"""
-        g = _G._G_
-        g.registerRPC(cls)
-
-CTask_.onLoad()
+   

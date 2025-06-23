@@ -266,8 +266,6 @@ class CDevice_(Base_):
             self._deviceID = oldCls._deviceID
             self.init()
             self.connect()
-        g = _G._G_
-        g.registerRPC(CDevice_)
 
     @property
     def name(self):
@@ -462,7 +460,7 @@ class CDevice_(Base_):
             self._setName(value)
 
     @RPC()
-    def LoadScore(self, appName:str, date:str)->List[dict]:
+    def getScore(self, appName:str, date:str)->List[dict]:
         """
         功能：获取指定应用指定日期的所有任务收益
         指令名: getScores
@@ -476,7 +474,7 @@ class CDevice_(Base_):
         if not app:
             log.e(f"应用不存在: {appName}")
             return []
-        date = log.toDate(date)
+        date = _G.DateHelper.toDate(date)
         result = app.LoadScore(date)
         if not result:
             log.e(f"获取收益失败: {appName} {date}")
