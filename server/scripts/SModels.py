@@ -53,13 +53,20 @@ class SModel_:
             try:
                 sql = self.genSelectSql()
                 params = {}
+                where_clauses = []
+                
                 if date and 'time' in self.fields:
-                    sql += " WHERE date(time) = :date"
+                    where_clauses.append("date(time) = :date")
                     if isinstance(date, datetime):
                         date = date.strftime('%Y-%m-%d')
                     params['date'] = date
+                
                 if where:
-                    sql += f" AND {where}"
+                    where_clauses.append(where)
+                
+                if where_clauses:
+                    sql += f" WHERE {' AND '.join(where_clauses)}"
+                
                 result = db.session.execute(sql, params)
                 return [self.toDict(row) for row in result.fetchall()]
             except Exception as e:
@@ -220,4 +227,108 @@ class TaskModel_:
     @classmethod
     def commit(cls, data: dict):
         return cls.model.commit(data)
+
+
+class AppModel_:
+    """App数据模型（自动SQL实现）"""
+    table = 'apps'
+    fields = {
+        'id': ('int', None),
+        'deviceId': ('str', None),
+        'appName': ('str', None),
+        'totalScore': ('float', 0.0),
+        'income': ('float', 0.0),
+        'status': ('str', 'idle'),
+        'lastUpdate': ('datetime', lambda: datetime.now())
+    }
+    model = SModel_(table, fields)
+
+    @classmethod
+    def all(cls, deviceId: str = None):
+        """获取所有App记录"""
+        where = f"deviceId = '{deviceId}'" if deviceId else None
+        return cls.model.load(where=where)
+
+    @classmethod
+    def get(cls, deviceId: str, appName: str, create: bool = False):
+        """获取或创建App记录"""
+        def db_operation(db):
+            nonlocal deviceId, appName, create
+            try:
+                sql = cls.model.genSelectSql() + " WHERE deviceId = :deviceId AND appName = :appName"
+                params = {'deviceId': deviceId, 'appName': appName}
+                result = db.session.execute(sql, params)
+                row = result.fetchone()
+                
+                if not row and create:
+                    # 从配置模板创建基础App记录
+                    import os
+                    configDir = os.path.join(_G._G_.rootDir(), 'config', 'pages')
+                    configFile = os.path.join(configDir, f'{appName}.json')
+                    
+                    # 只有配置文件存在才创建记录
+                    if os.path.exists(configFile):
+                        data = {
+                            'deviceId': deviceId,
+                            'appName': appName,
+                            'totalScore': 0.0,
+                            'income': 0.0,
+                            'status': 'idle'
+                        }
+                        
+                        cls.model._insert(data)
+                        result = db.session.execute(sql, params)
+                        row = result.fetchone()
+                    
+                return cls.model.toDict(row) if row else None
+            except Exception as e:
+                _G._G_.Log().ex_(e, f"获取或创建App记录失败: {appName}")
+                return None
+        return Database.sql(db_operation)
+
+    @classmethod
+    def updateStats(cls, deviceId: str, appName: str, totalScore: float = None, income: float = None, status: str = None):
+        """更新App统计数据"""
+        def db_operation(db):
+            try:
+                updates = []
+                params = {
+                    'deviceId': deviceId,
+                    'appName': appName,
+                    'lastUpdate': datetime.now()
+                }
+                
+                # 根据传入的参数构建更新语句
+                if totalScore is not None:
+                    updates.append("totalScore = :totalScore")
+                    params['totalScore'] = totalScore
+                
+                if income is not None:
+                    updates.append("income = :income")
+                    params['income'] = income
+                
+                if status is not None:
+                    updates.append("status = :status")
+                    params['status'] = status
+                
+                # 总是更新lastUpdate
+                updates.append("lastUpdate = :lastUpdate")
+                
+                if updates:
+                    sql = f"UPDATE {cls.table} SET {', '.join(updates)} WHERE deviceId = :deviceId AND appName = :appName"
+                    db.session.execute(sql, params)
+                    db.session.commit()
+                
+                return True
+            except Exception as e:
+                _G._G_.Log().ex_(e, f"更新App统计失败: {appName}")
+                db.session.rollback()
+                return False
+        return Database.sql(db_operation)
+
+    @classmethod
+    def commit(cls, data: dict):
+        return cls.model.commit(data)
+
+
 

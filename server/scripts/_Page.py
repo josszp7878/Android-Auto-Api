@@ -152,7 +152,7 @@ class _Page_:
         if self._app is None:
             return None
         g = _G.g
-        return g.App().getApp(self._app)
+        return g.App().getTemplate(self._app)
     
     @property
     def config(self) -> Dict[str, Any]:

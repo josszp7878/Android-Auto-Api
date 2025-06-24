@@ -373,9 +373,9 @@ class CmdMgr {
             // 执行命令函数
             const result = await bestMatch.func(finalArgs);
             cmd.result = result;
-            
-            console.log('命令执行结果:', result);
-            
+            if (result && result.error) {
+                sheet.addTempLog(result.error, 'e', '命令执行', 'Browser');
+            }
         } catch (e) {
             console.error('执行命令出错:', cmdStr, e);
             cmd.result = `执行命令出错: ${e.message}`;

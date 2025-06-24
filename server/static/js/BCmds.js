@@ -615,9 +615,9 @@ class BCmds {
                     console.log(`获取收益: 设备${deviceId} ${appName} ${date}`);
 
                     // 调用服务端设备实例的getScores方法
-                    const result = await rpc.call(null, 'SDevice_', 'getScores', { 
-                        id: parseInt(deviceId),
-                        kwargs: { appName: appName, date: date } 
+                    const result = await rpc.call(null, '_App_', 'getScores', { 
+                        id: `${deviceId}.${appName}`,
+                        kwargs: { date: date } 
                     });
 
                     if (result === 'OK') {
@@ -625,23 +625,15 @@ class BCmds {
                         if (sheetPage && sheetPage.taskTable) {
                             sheetPage._loadDatas(sheetPage.taskTable, true);
                         }
-                        return {
-                            success: true,
-                            message: `获取收益成功: 设备${deviceId} ${appName} ${date}`,
-                            deviceId: deviceId,
-                            appName: appName,
-                            date: date
-                        };
+                        return;
                     } else {
                         return {
-                            success: false,
                             error: `获取收益失败: ${result}`
                         };
                     }
                 } catch (error) {
                     console.error('获取收益失败:', error);
                     return {
-                        success: false,
                         error: `获取收益失败: ${error.message}`
                     };
                 }

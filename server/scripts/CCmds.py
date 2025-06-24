@@ -209,7 +209,7 @@ class CCmds_:
             g = _G._G_
             log = g.Log()
             App = g.App()
-            app = App.getApp(what) if what else App.last()
+            app = App.getTemplate(what) if what else App.last()
             if not app:
                 return f"e~应用{what}不存在"
             if re.match(r'^(pos|位置)$', type, re.IGNORECASE):
@@ -636,7 +636,7 @@ class CCmds_:
                 appName, name = App.parseName(name)
                 if not name:
                     return f"e~无效页面名: {name}"
-                app = App.getApp(appName)
+                app = App.getTemplate(appName)
                 if not app:
                     return f"e~无效应用: {appName}"
                 page = app.getPage(name, False, False)

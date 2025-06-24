@@ -1,7 +1,7 @@
 import json
 import os
 
-class TaskBase:
+class Task_:
     """任务配置基类，提供任务配置读取功能"""
     taskConfigs = {}
 

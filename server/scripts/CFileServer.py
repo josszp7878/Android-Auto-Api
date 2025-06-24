@@ -247,7 +247,7 @@ class CFileServer_:
             if name is None:
                 return False
             path = None
-            app = g.App().getApp(name)
+            app = g.App().getTemplate(name)
             if app:
                 path = app.saveConfig()
                 if path:

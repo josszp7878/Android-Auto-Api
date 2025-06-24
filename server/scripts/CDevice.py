@@ -5,11 +5,13 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import cast, List, TYPE_CHECKING
 import socketio.exceptions  # 新增导入
 from Base import Base_
+from _Device import _Device_
 from RPC import RPC
 if TYPE_CHECKING:
     from CTask import CTask_
+    from _App import _App_
 
-class CDevice_(Base_):
+class CDevice_(Base_, _Device_):
     _instance = None  # 单例实例
     
     def __new__(cls):
@@ -21,6 +23,7 @@ class CDevice_(Base_):
         if hasattr(self, 'initialized'):
             return
         super().__init__()
+        _Device_.__init__(self)  # 初始化App管理功能
         self._server = None
         self._deviceID = None
         self._executor = ThreadPoolExecutor(max_workers=4)
@@ -365,12 +368,18 @@ class CDevice_(Base_):
     def state(self):
         return self._state
 
+    def createApp(self, data: dict) -> '_App_':
+        """创建App"""
+        from CApp import CApp_ 
+        return CApp_(data)
+
     def onLogin(self, data):
-        """登录成功后初始化任务表，data为服务端返回的数据"""
+        """登录成功后初始化任务表和App列表，data为服务端返回的数据"""
         from CTask import CTask_
         g = _G._G_
         log = g.Log()
         # log.i_(f"登录成功，初始化任务表, data: {data}")
+        # 初始化任务表
         self._tasks = {}
         taskList = data.get('taskList', [])
         for t in taskList:
@@ -378,7 +387,14 @@ class CDevice_(Base_):
             if task:
                 task.fromData(t)
                 self._tasks[task.id] = task
-        log.i_(f"客户端任务表初始化完成，任务数: {len(self._tasks)}")
+        self._apps = {}
+        appList = data.get('appList', [])
+        for data in appList:
+            app = self.createApp(data)
+            if app:
+                self._apps[app.name] = app
+                # log.i_(f"客户端同步完成，应用: {app.data}")
+        log.i_(f"客户端同步完成，应用数: {len(self._apps)}，任务数: {len(self._tasks)}")
 
     def getTask(self, key)->'CTask_':
         """根据ID获取任务"""
@@ -470,7 +486,7 @@ class CDevice_(Base_):
         g = _G._G_
         log = g.Log()
         App = g.App()
-        app = App.getApp(appName)
+        app = App.getTemplate(appName)
         if not app:
             log.e(f"应用不存在: {appName}")
             return []

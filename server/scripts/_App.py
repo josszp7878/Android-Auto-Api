@@ -17,6 +17,60 @@ class _App_:
     _curAppName = _G.TOP  # 当前检测到的应用名称
     _lastApp = None  # 当前应用实例（延迟初始化）
 
+    def __init__(self, data: dict):
+        self._curPage: Optional["_Page_"] = None
+        self._lastPage: Optional["_Page_"] = None
+        self._toPage: Optional["_Page_"] = None
+        self.rootPage: Optional["_Page_"] = None
+        self._pages: Dict[str, "_Page_"] = {}  # 应用级的页面列表
+        self._path: Optional[List["_Page_"]] = None  # 当前缓存的路径 [path]
+        self.userEvents: List[str] = []  # 用户事件列表
+        self._counters = {}  # 计数器字典，用于统计页面访问次数和事件触发次数
+        self._countersModified = False  # 计数器是否被修改
+        self._toasts = {}  # toasts配置字典，用于存储toast匹配规则和操作
+        # 加载当天的计数数据
+        # self._loadData()
+        self._data = data
+
+    def __getattr__(self, name):
+        """重写 __getattr__ 方法，使 self.num 可以访问 self.data['num']"""
+        # 防止无限递归：如果访问的是_data本身，则抛出AttributeError
+        if name == '_data':
+            raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
+        
+        # 确保_data存在，如果不存在则返回None
+        if not hasattr(self, '_data') or self._data is None:
+            return None
+            
+        # 解析 name_type,先找最后一个'_'
+        pos = name.rfind('_') + 1
+        key = name
+        valueType = 'str'
+        if pos > 1:
+            key = name[:pos-1]
+            valueType = name[pos]
+        else:
+            valueType = 'str'
+        data = self._data
+        key = f'_{key}'
+        if key in data:
+            val = data[key]
+            if valueType == 'n':
+                return int(val)
+            elif valueType == 'f':
+                return float(val)
+            elif valueType == 'b':
+                return bool(val)
+            else:
+                return val
+        return None
+
+    @property
+    def name(self):
+        """获取应用名称"""
+        return self._data.get('appName', '')
+
+
     @classmethod
     def curName(cls):
         """获取当前应用名称"""
@@ -43,19 +97,19 @@ class _App_:
     @classmethod
     def Top(cls):
         """获取主屏幕/桌面应用"""
-        return cls.getApp(_G.TOP, True)
+        return cls.getTemplate(_G.TOP, True)
     
     @classmethod
     def last(cls) -> "_App_":
         """获取当前应用实例"""
         if cls._lastApp is None:
-            cls._lastApp = cls.getApp(_G.TOP, True)
+            cls._lastApp = cls.getTemplate(_G.TOP, True)
         return cls._lastApp
     
     @classmethod
     def cur(cls) -> "_App_":
         """获取当前应用实例"""
-        return cls.getApp(cls._curAppName, False)
+        return cls.getTemplate(cls._curAppName, False)
     
     @classmethod
     def detectApp(cls) -> Tuple['_App_', str]:
@@ -77,48 +131,7 @@ class _App_:
             log.ex(e, "获取当前应用失败")
             return None, None
     
-    def __init__(self, name: str, info: dict):
-        self.name = name
-        self._curPage: Optional["_Page_"] = None
-        self._lastPage: Optional["_Page_"] = None
-        self._toPage: Optional["_Page_"] = None
-        self.rootPage: Optional["_Page_"] = None
-        self.ratio = info.get("ratio", 10000)
-        self.description = info.get("description", '')
-        self.timeout = info.get("timeout", 5)
-        self._pages: Dict[str, "_Page_"] = {}  # 应用级的页面列表
-        self._path: Optional[List["_Page_"]] = None  # 当前缓存的路径 [path]
-        self.userEvents: List[str] = []  # 用户事件列表
-        self._counters = {}  # 计数器字典，用于统计页面访问次数和事件触发次数
-        self._countersModified = False  # 计数器是否被修改
-        self._toasts = {}  # toasts配置字典，用于存储toast匹配规则和操作
-        # 加载当天的计数数据
-        self._loadData()
-        self._data = {}
-
-    def __getattr__(self, name):
-        """重写 __getattr__ 方法，使 self.num 可以访问 self.data['num']"""
-        # 解析 name_type,先找最后一个'_'
-        pos = name.rfind('_') + 1
-        key = name
-        if pos > 1:
-            key = name[:pos-1]
-            type = name[pos]
-        else:
-            type = 'str'
-        data = self._data
-        key = f'_{key}'
-        if key in data:
-            val = data[key]
-            if type == 'n':
-                return int(val)
-            elif type == 'f':
-                return float(val)
-            elif type == 'b':
-                return bool(val)
-            else:
-                return val
-        return None
+ 
     
     @property
     def data(self):
@@ -309,13 +322,13 @@ class _App_:
                 log.e(f"配置文件 {configPath} 没配置{_G.ROOT}节点")
                 return False
             appName = rootConfig.get('name', appName)  
-            app = cls.getApp(appName, True)
+            app = cls.getTemplate(appName, True)
             rootPage = app.getPage(_G.ROOT, True)   
             rootPage.config = rootConfig
             app._curPage = rootPage
             app.rootPage = rootPage
             app._loadConfig(config)
-            app._loadData()
+            # app._loadData()
             return True
         except Exception as e:
             log.ex(e, f"加载配置文件失败: {configPath}")
@@ -514,7 +527,7 @@ class _App_:
         try:
             g = _G._G_
             log = g.Log()
-            app = cls.getApp(appName)
+            app = cls.getTemplate(appName)
             if not app:
                 log.w(f"未知应用:{appName}")
             else:
@@ -667,11 +680,11 @@ class _App_:
             if appName is None:
                 appName = cls.last().name  # 通过cur方法获取实例名称
             
-            app = cls.getApp(appName)
+            app = cls.getTemplate(appName)
             if not app:
                 return False
             # 保存计数器数据
-            app._saveData()
+            # app._saveData()
             app._stop()
             
             # 重置到主屏幕
@@ -684,21 +697,45 @@ class _App_:
             return False
         
     @classmethod
-    def getApp(cls, appName, create=False) -> "_App_":
-        """获取应用
+    def get(cls, key, create=False) -> "_App_":
+        """获取应用实例"""
+        # 将 key 转换为设备名.应用名称
+        if not key:
+            return None
+        if '.' in key:
+            # 安全地分割：只在第一个.处分割，支持应用名中包含.的情况
+            parts = key.split('.', 1)  # 限制最多分割成2部分
+            if len(parts) == 2:
+                deviceName, appName = parts
+            else:
+                deviceName = None
+                appName = key
+        else:
+            deviceName = None
+            appName = key
+        from _Device import _Device_
+        device = _Device_.get(deviceName)
+        if device:
+            return device.getApp(appName, create)
+        return None
+        
+        
+    @classmethod
+    def getTemplate(cls, name, create=False) -> "_App_":
+        """获取应用配置模板
         Args:
             appName: 应用名称
             create: 如果不存在是否创建
         Returns:
             _App_: 应用实例
         """
-        if appName is None:
+        if name is None:
             return None
         apps = cls.apps()
-        app = apps.get(appName)
+        app = apps.get(name)
         if not app and create:
-            app = cls(appName, {})
-            apps[appName] = app
+            app = cls({'appName': name})
+            apps[name] = app
         return app
 
     @classmethod
@@ -713,7 +750,7 @@ class _App_:
             cls._curAppName = oldCls._curAppName
             cls._lastApp = oldCls._curApp  # 修改属性名称
         else:
-            cls._lastApp = cls.getApp(_G.TOP, True)        
+            cls._lastApp = cls.getTemplate(_G.TOP, True)        
         cls.loadConfig()
 
     # 处理页面跳转逻辑
@@ -815,63 +852,6 @@ class _App_:
         except Exception as e:
             log.ex(e, f"添加用户事件失败: {eventName}")
             return False  
-
-    def _getDataFile(self) -> str:
-        """获取计数器文件路径
-        Returns:
-            str: 文件路径
-        """
-        g = _G._G_
-        today = datetime.now().strftime(_G.DateHelper.DATE_FORMAT)
-        countersDir = os.path.join(g.rootDir(), "data", "apps")
-        if not os.path.exists(countersDir):
-            os.makedirs(countersDir)
-        return os.path.join(countersDir, f"{self.name}_{today}.json")
-    
-    def _loadData(self) -> bool:
-        """从本地文件加载当天的数据
-        Returns:
-            bool: 是否加载成功
-        """
-        g = _G._G_
-        log = g.Log()
-        try:
-            file = self._getDataFile()
-            
-            if os.path.exists(file):
-                with open(file, "r", encoding="utf-8") as f:
-                    try:
-                        data = json.load(f)
-                        # 更新本地计数器
-                        for name, val in data.items():
-                            page = self._pages.get(name)
-                            if page:
-                                page.fromJson(val)
-                        log.d(f"从本地文件加载计数器数据成功: {len(data)}项")
-                        return True
-                    except Exception as e:
-                        log.ex(e, "从本地文件加载计数器数据失败")
-                        return False
-        except Exception as e:
-            log.ex(e, "加载计数器数据异常")
-            return False
-    
-    def _saveData(self) -> bool:
-        """保存数据到本地文件"""
-        g = _G._G_
-        log = g.Log()
-        try:
-            data = {}
-            for page in self._pages.values():
-                if not page.hasAttr(_G.TEMP):  # 跳过临时页面
-                    data[page.name] = page.toJson()
-            file = self._getDataFile()
-            with open(file, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-            return True
-        except Exception as e:
-            log.ex(e, "保存数据异常")
-            return False
 
     def LoadScore(self, date: datetime = None) -> List[dict]:
         # 导航到收益页面

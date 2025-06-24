@@ -8,23 +8,24 @@ import _Log
 import base64
 import _G
 from SModelBase import SModelBase_
+from _Device import _Device_
 
 from RPC import RPC
 if TYPE_CHECKING:
     from STask import STask_
 
 
-class SDevice_(SModelBase_):
+class SDevice_(SModelBase_, _Device_):
     """设备管理类"""
     SCREENSHOTS_DIR = os.path.join(_G.g.rootDir(), 'data', 'screenshots')
     
     def __init__(self, name):
         super().__init__(name, DeviceModel_)
+        _Device_.__init__(self)  # 初始化App管理功能
         self.sid:str = None
         self._state = _G.ConnectState.OFFLINE
         self._lastScreenshot = None
         self._ensure_screenshot_dir()
-        self.apps = []
         self._tasks: Dict[int, 'STask_'] = None  # 缓存当天任务列表
         self.tasksDate = None  # 当前缓存的日期
         self.debug = False  # debug开关，临时属性，不保存到数据库
@@ -197,18 +198,99 @@ class SDevice_(SModelBase_):
             return True
         except Exception as e:
             _Log._Log_.ex(e, '设备断开连接处理失败')
-            return False    
+            return False 
+
+    
+    def createApp(self, data: dict) -> '_App_':
+        """创建SApp"""
+        g = _G._G_
+        log = g.Log()
+        try:
+            appName = data.get('appName', '')
+            # 获取设备ID
+            deviceId = getattr(self, 'id', 'default_device')
+            # 创建新App（会自动创建数据库记录）
+            from SApp import SApp_
+            app = SApp_.get(deviceId, appName, create=True)
+            if app:
+                self._apps[appName] = app
+                log.i(f'创建App: {appName}')
+                return app
+            else:
+                return None
+        except Exception as e:
+            log.ex_(e, f"创建App失败: {appName}")
+            return None
+        
+    def _loadApps(self):
+        """Lazy初始化Apps - 仅服务端使用"""
+        try:
+            from SApp import SApp_
+            g = _G._G_
+            log = g.Log()
+            # 获取设备ID
+            deviceId = getattr(self, 'id', 'default_device')
+            
+            # 首先从数据库加载已有的App记录
+            from SModels import AppModel_
+            app_records = AppModel_.all(deviceId)
+            if app_records:
+                # 从数据库记录创建SApp_实例
+                for record in app_records:
+                    appName = record['appName']
+                    app = SApp_(record)  # 使用SApp_而不是_App_
+                    if app:
+                        self._apps[appName] = app
+                        log.d(f"从数据库加载App: {appName}")
+                        
+                log.i(f"从数据库加载了 {len(app_records)} 个App记录")
+            else:
+                # 数据库没有记录，从App模板创建
+                log.i("数据库无App记录，从App模板初始化...")
+                # 确保App配置已加载
+                from _App import _App_
+                _App_.loadConfig()                
+                # 从_App_.apps()获取所有App模板
+                templates = _App_.apps()
+                from SApp import SApp_
+                for appName, _ in templates.items():
+                    # 尝试从App模板创建数据库记录并创建SApp_实例
+                    app = SApp_.get(deviceId, appName, create=True)
+                    if app:
+                        self._apps[appName] = app
+                        log.d(f"从模板创建App: {appName}")
+                    else:
+                        log.e(f"创建App实例失败: {appName}")
+                
+                log.i(f"从App模板初始化了 {len(templates)} 个App")
+            
+            log.i(f"服务端App初始化完成，共加载 {len(self._apps)} 个App实例")
+            
+        except Exception as e:
+            log.ex_(e, "Load Apps失败")
+    
 
     def onLogin(self)->dict:
         """设备登录"""
+        g = _G._G_
+        log = g.Log()
         try:
-            log = _G._G_.Log()
             log.i(f'设备登录: {self.name}')
             self.state = _G.ConnectState.LOGIN
-            return {"taskList": [t.toSheetData() for t in self.tasks.values()]}
+            
+            # 初始化Apps（如果还没有初始化）
+            self._loadApps()
+            
+            # 准备返回数据
+            result = {
+                "taskList": [t.toSheetData() for t in self.tasks.values()],
+                "appList": [t.toSheetData() for t in self._apps.values()]
+            }
+            log.i(f'同步获取数据: app:{len(result["appList"])}, task:{len(result["taskList"])}')
+            return result
         except Exception as e:
-            _Log._Log_.ex(e, '设备登录失败')
-            return {"taskList": []}  # 返回空的任务列表而不是 False
+            log.ex(e, '设备登录失败')
+            return {}  # 返回空的列表
     
     def onLogout(self):
         """设备登出"""
@@ -347,10 +429,7 @@ class SDevice_(SModelBase_):
                                 db.session.add(record)
                             record.state = 'detected'
                         
-                        db.session.commit()
-                        self.apps = DeviceModel_.query.filter_by(
-                            name=self.name).all()
-                        
+                        db.session.commit()                        
                     _Log._Log_.i(f'成功更新{len(detected_apps)}个应用到数据库')
 
                 except Exception as e:
@@ -471,7 +550,18 @@ class SDevice_(SModelBase_):
         """获取指定日期的任务列表，默认当天，按天缓存"""
         from STask import STask_
         today = datetime.now().date()
-        taskList = [STask_(t) for t in TaskModel_.all(date, f"deviceId = {self.id}")]
+        
+        # 安全地获取任务数据，处理None情况
+        try:
+            task_data = TaskModel_.all(date, f"deviceId = {self.id}")
+            if task_data is None:
+                task_data = []
+            taskList = [STask_(t) for t in task_data]
+        except Exception as e:
+            log = _G._G_.Log()
+            log.ex_(e, "从数据库加载任务失败")
+            taskList = []
+        
         tasks = {}
         if len(taskList) > 0:
             # 如果任务列表不为空，则更新任务列表
@@ -490,11 +580,12 @@ class SDevice_(SModelBase_):
         log = _G._G_.Log()
         try:
             tasks = {}
-            from Task import TaskBase
-            for taskName, config in TaskBase.getConfig().items():
+            from Task import Task_
+            for taskName, config in Task_.getConfig().items():
                 # 不存在则尝试创建（TaskModel_.get已做唯一性判定）
                 data = TaskModel_.get(self.id, taskName, date, True)
                 if data:
+                    from STask import STask_
                     task = STask_(data)
                     # 根据CONFIG初始化任务
                     task.setDBProp('life', config.get('life', 10))

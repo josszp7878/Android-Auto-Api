@@ -205,11 +205,12 @@ def getInst(cls, id=None):
         
         # App类实例获取
         if className == '_App_':
-            return _getAppInst(id)
-        
+            from _App import _App_
+            return _App_.get(id)
         # Device类实例获取
         elif className in ['CDevice_', 'SDevice_', 'Device_']:
-            return _getDeviceInst(id)
+            from _Device import _Device_
+            return _Device_.get(id)
         
         # Task类实例获取  
         elif className in ['CTask_', 'STask_', 'Task_']:
@@ -221,59 +222,6 @@ def getInst(cls, id=None):
             
     except Exception as e:
         log.ex(e, f"获取默认实例失败: {className}")
-        return None
-
-def _getAppInst(id=None):
-    """获取App实例"""
-    g = _G._G_
-    try:
-        if id:
-            # 根据ID获取指定应用
-            app = g.App().getApp(id)
-            return app
-        else:
-            # 获取当前应用
-            return g.App().last()
-    except Exception as e:
-        g.Log().ex(e, f"获取App实例失败: {id}")
-        return None
-
-def _getDeviceInst(id=None):
-    """获取Device实例"""
-    g = _G._G_
-    log = g.Log()
-    try:
-        if g.isServer():
-            # 服务端获取设备实例
-            if id:
-                # 根据设备ID获取指定设备
-                deviceMgr = g.SDeviceMgr()
-                device = deviceMgr.get(id)
-                if device is None:
-                    log.e(f"服务端根据设备ID获取设备失败: id={id}, 设备不存在或未连接")
-                else:
-                    log.d(f"服务端成功获取设备实例: id={id}, device={device}")
-                return device
-            else:
-                # 获取默认设备（可能是第一个在线设备）
-                deviceMgr = g.SDeviceMgr()
-                devices = deviceMgr.getOnlineDevices()
-                if not devices:
-                    log.e("服务端获取默认设备失败: 没有在线设备")
-                    return None
-                device = devices[0]
-                log.d(f"服务端获取默认设备: device={device}")
-                return device
-        else:
-            # 客户端获取当前设备实例
-            device = g.CDevice()
-            if device is None:
-                log.e("客户端获取当前设备失败")
-            else:
-                log.d(f"客户端成功获取设备实例: device={device}")
-            return device
-    except Exception as e:
-        log.ex(e, f"获取Device实例异常: id={id}")
         return None
 
 def _getTaskInst(id=None):

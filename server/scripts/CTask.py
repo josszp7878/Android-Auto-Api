@@ -6,7 +6,7 @@ from _G import TaskState
 import _G
 from typing import TYPE_CHECKING
 import socket
-from Task import TaskBase
+from Task import Task_
 from Base import Base_
 from RPC import RPC
 
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from _Log import _Log_
     from _G import _G_
 
-class CTask_(TaskBase, Base_):
+class CTask_(Task_, Base_):
     """客户端任务类"""
     
     def __init__(self, name: str, config: dict, app: "_App_"):
@@ -103,7 +103,7 @@ class CTask_(TaskBase, Base_):
     @classmethod
     def _getConfig(cls, taskName):
         """获取任务配置"""
-        return TaskBase.getConfig(taskName)
+        return Task_.getConfig(taskName)
     
     @classmethod
     def create(cls, taskName, app):
