@@ -1,6 +1,7 @@
 from typing import Any
 from Base import Base_
 import _G
+from RPC import RPC
 
 class SModelBase_(Base_):
     """模型基类"""
@@ -13,10 +14,6 @@ class SModelBase_(Base_):
         super().__init__(name)
         self.modelClass = modelClass
 
-    @property
-    def name(self) -> str:
-        return self.getDBProp('name')
-    
     def _onProp(self, key, value):
         """服务端特殊处理：自动提交到数据库"""
         if self._isDirty:
@@ -47,6 +44,7 @@ class SModelBase_(Base_):
         # 子类可重写
         return self.data
 
+    @RPC()
     def update(self, data: dict, commit: bool = True, refresh: bool = True):
         """更新数据"""
         log = _G._G_.Log()

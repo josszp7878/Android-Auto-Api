@@ -95,6 +95,12 @@ class RPCManager:
                     'error': f'RPC实例不存在: {className}, instance_id={id}'
                 }
             
+            # 自动类型转换处理
+            if cls_obj:
+                original_method = getattr(cls_obj, methodName, None)
+                if original_method:
+                    args, kwargs = self._convertRpcTypes(original_method, args, kwargs)
+            
             # 智能方法调用逻辑：根据方法类型选择合适的调用方式
             if cls_obj:
                 # 从类对象获取原始方法定义
@@ -121,6 +127,100 @@ class RPCManager:
             return {
                 'error': str(e),
             }
+    
+    def _convertRpcTypes(self, method, args: list, kwargs: dict):
+        """自动转换RPC参数类型
+        
+        Args:
+            method: 目标方法对象
+            args: 位置参数列表  
+            kwargs: 关键字参数字典
+            
+        Returns:
+            转换后的(args, kwargs)元组
+        """
+        import inspect
+        from datetime import datetime, date
+        
+        try:
+            # 获取方法签名
+            sig = inspect.signature(method)
+            params = sig.parameters
+            param_names = list(params.keys())
+            
+            # 转换位置参数
+            converted_args = []
+            for i, arg in enumerate(args):
+                if i < len(param_names):
+                    param_name = param_names[i]
+                    param = params[param_name]
+                    # 跳过self/cls参数的类型转换
+                    if param_name in ['self', 'cls']:
+                        converted_args.append(arg)
+                    else:
+                        converted_arg = self._convertSingleType(arg, param.annotation)
+                        converted_args.append(converted_arg)
+                else:
+                    converted_args.append(arg)
+            
+            # 转换关键字参数
+            converted_kwargs = {}
+            for key, value in kwargs.items():
+                if key in params:
+                    param = params[key]
+                    converted_value = self._convertSingleType(value, param.annotation)
+                    converted_kwargs[key] = converted_value
+                else:
+                    converted_kwargs[key] = value
+            
+            return converted_args, converted_kwargs
+            
+        except Exception as e:
+            # 如果类型转换失败，返回原始参数
+            g = _G._G_
+            g.Log().ex(e, f"RPC类型转换失败: {method}")
+            return args, kwargs
+    
+    def _convertSingleType(self, value, annotation):
+        """转换单个值的类型
+        
+        Args:
+            value: 要转换的值
+            annotation: 目标类型注解
+            
+        Returns:
+            转换后的值
+        """
+        from datetime import datetime, date
+        import _G
+        
+        # 如果没有类型注解或值为None，直接返回
+        if annotation == inspect.Parameter.empty or value is None:
+            return value
+        
+        # 如果已经是目标类型，直接返回
+        if isinstance(value, annotation):
+            return value
+        
+        # 字符串转datetime
+        if annotation == datetime and isinstance(value, str):
+            try:
+                return _G.DateHelper.toDate(value)
+            except:
+                return value
+        
+        # 字符串转date
+        if annotation == date and isinstance(value, str):
+            try:
+                dt = _G.DateHelper.toDate(value)
+                return dt.date() if dt else value
+            except:
+                return value
+        
+        # 其他类型转换可以在这里添加
+        # ...
+        
+        return value
     
     def _callMethod(self, method, cls_obj, instance, args: list, kwargs: dict):
         """智能调用方法，根据方法类型选择合适的调用方式
@@ -352,7 +452,7 @@ def callRPC(deviceID: str, className: str, methodName: str, params: dict = None)
             # 如果没有错误但也没有result，返回整个字典
             return raw_result
         else:
-            log.e(f"RPC调用失败, 返回值不是字典 : {className}.{methodName} - {raw_result}")
+            # log.e(f"RPC调用失败, 返回值不是字典 : {className}.{methodName} - {raw_result}")
             return None
             
     except Exception as e:

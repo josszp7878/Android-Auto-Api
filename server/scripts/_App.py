@@ -69,11 +69,6 @@ class _App_(SModelBase_):
         return None
 
     @property
-    def name(self):
-        """获取应用名称"""
-        return self.getDBProp('appName', '')
-    
-    @property
     def deviceId(self):
         """获取设备ID"""
         return int(self.getDBProp('deviceId', 0))
@@ -85,13 +80,13 @@ class _App_(SModelBase_):
         return cls._curAppName
     
     @classmethod
-    def setCurName(cls, appName: str):
+    def setCurName(cls, name: str):
         """设置当前检测应用名称"""
-        if appName != cls._curAppName:
-            cls._curAppName = appName
+        if name != cls._curAppName:
+            cls._curAppName = name
             # 如果是已知应用则更新实例
-            if appName in cls.apps():
-                cls._lastApp = cls.apps()[appName]
+            if name in cls.apps():
+                cls._lastApp = cls.apps()[name]
     
     _apps: Dict[str, "_App_"] = {}
 
@@ -157,16 +152,16 @@ class _App_(SModelBase_):
         if not str or not str.strip():
             return None, None
         import re
-        pattern = fr'(?P<appName>\S+)?\s*{cls.PathSplit}\s*(?P<name>\S+)?'
+        pattern = fr'(?P<name>\S+)?\s*{cls.PathSplit}\s*(?P<pageName>\S+)?'
         match = re.match(pattern, str)
         if match:
-            appName = match.group('appName')
-            if appName is None:
-                appName = cls.last().name
-            return appName, match.group('name')
+            name = match.group('name')
+            if name is None:
+                name = cls.last().name
+            return name, match.group('pageName')
         # 如果没找到应用名，使用当前应用    
-        appName = cls.last().name
-        return appName, str  # 返回当前应用和页面名称    
+        name = cls.last().name
+        return name, str  # 返回当前应用和页面名称    
 
     @property
     def curPage(self) -> "_Page_":
@@ -312,14 +307,14 @@ class _App_(SModelBase_):
         try:
             with open(configPath, 'r', encoding='utf-8') as f:
                 config = json.load(f)
-            appName = os.path.basename(configPath)[:-5]
+            name = os.path.basename(configPath)[:-5]
             #根据root的name，获取应用
             rootConfig = config.get(_G.ROOT)
             if not rootConfig:
                 log.e(f"配置文件 {configPath} 没配置{_G.ROOT}节点")
                 return False
-            appName = rootConfig.get('name', appName)  
-            app = cls.getTemplate(appName, True)
+            name = rootConfig.get('name', name)  
+            app = cls.getTemplate(name, True)
             rootPage = app.getPage(_G.ROOT, True)   
             rootPage.config = rootConfig
             app._curPage = rootPage
@@ -468,10 +463,10 @@ class _App_(SModelBase_):
         # 解析页面名称，获取应用名和页面名
         pageName = pageName.strip().lower()
         if self.PathSplit in pageName:
-            appName, page_name = pageName.split(self.PathSplit, 1)
+            name, page_name = pageName.split(self.PathSplit, 1)
         else:
             # 使用当前应用
-            appName = self.curName()
+            name = self.curName()
             page_name = pageName
             
         # 在页面字典中查找匹配的页面
@@ -494,14 +489,14 @@ class _App_(SModelBase_):
         return list(cls.apps().keys())
 
     @classmethod
-    def exist(cls, appName: str) -> bool:
+    def exist(cls, name: str) -> bool:
         """检查应用是否存在
         Args:
-            appName: 应用名称
+            name: 应用名称
         Returns:
             bool: 是否存在
         """
-        return appName in cls.apps().keys()
+        return name in cls.apps().keys()
 
 
     @classmethod
@@ -519,32 +514,32 @@ class _App_(SModelBase_):
         return cls.open(_G.TOP)    
     
     @classmethod
-    def open(cls, appName) -> "_App_":
+    def open(cls, name) -> "_App_":
         """跳转到指定应用"""
         try:
             g = _G._G_
             log = g.Log()
-            app = cls.getTemplate(appName)
+            app = cls.getTemplate(name)
             if not app:
-                log.w(f"未知应用:{appName}")
+                log.w(f"未知应用:{name}")
             else:
-                appName = app.name
+                name = app.name
             tools = g.Tools()
-            if appName == cls._curAppName:
+            if name == cls._curAppName:
                 return app
-            ok = tools.openApp(appName)
+            ok = tools.openApp(name)
             if not ok:
                 return None
-            cls.setCurName(appName)
+            cls.setCurName(name)
             if g.isAndroid():
                 time.sleep(5)
-            app, appName = cls.detectApp()
+            app, name = cls.detectApp()
             if app:
-                cls.setCurName(appName)
-                log.i(f"=>{appName}")
+                cls.setCurName(name)
+                log.i(f"=>{name}")
             return app
         except Exception as e:
-            log.ex(e, f"跳转到应用 {appName} 失败")
+            log.ex(e, f"跳转到应用 {name} 失败")
             return None
 
     def findPath(self, fromPage: "_Page_", toPage: "_Page_", visited=None, path: List["_Page_"]=None) -> List["_Page_"]:
@@ -655,8 +650,8 @@ class _App_(SModelBase_):
             if not target:
                 log.e("目标页面路径不能为空")
                 return None
-            appName, pageName = cls.parseName(target)
-            ret = cls.open(appName)
+            name, pageName = cls.parseName(target)
+            ret = cls.open(name)
             if ret:
                 app = cls.last()
                 if app:
@@ -665,19 +660,19 @@ class _App_(SModelBase_):
                         return page
             return None
         except Exception as e:
-            log.ex(e, f"跳转到应用 {appName} 的页面 {pageName} 失败")
+            log.ex(e, f"跳转到应用 {name} 的页面 {pageName} 失败")
             return None
         
     @classmethod
-    def closeApp(cls, appName=None) -> bool:
+    def closeApp(cls, name=None) -> bool:
         """关闭应用"""
         g = _G._G_
         log = g.Log()
         try:
-            if appName is None:
-                appName = cls.last().name  # 通过cur方法获取实例名称
+            if name is None:
+                name = cls.last().name  # 通过cur方法获取实例名称
             
-            app = cls.getTemplate(appName)
+            app = cls.getTemplate(name)
             if not app:
                 return False
             # 保存计数器数据
@@ -685,12 +680,12 @@ class _App_(SModelBase_):
             app._stop()
             
             # 重置到主屏幕
-            if appName == cls.last().name:
+            if name == cls.last().name:
                 cls._lastApp = cls.Top()  # 修改属性名称
                 cls._curAppName = _G.TOP
             return True
         except Exception as e:
-            log.ex(e, f"关闭应用 {appName} 失败")
+            log.ex(e, f"关闭应用 {name} 失败")
             return False
     
     @classmethod
@@ -729,17 +724,17 @@ class _App_(SModelBase_):
             # 安全地分割：只在第一个.处分割，支持应用名中包含.的情况
             parts = key.split('.', 1)  # 限制最多分割成2部分
             if len(parts) == 2:
-                deviceName, appName = parts
+                deviceName, name = parts
             else:
                 deviceName = None
-                appName = key
+                name = key
         else:
             deviceName = None
-            appName = key
+            name = key
         from _Device import _Device_
         device = _Device_.get(deviceName)
         if device:
-            return device.getApp(appName, create)
+            return device.getApp(name, create)
         return None
         
         
@@ -747,7 +742,7 @@ class _App_(SModelBase_):
     def getTemplate(cls, name, create=False) -> "_App_":
         """获取应用配置模板
         Args:
-            appName: 应用名称
+            name: 应用名称
             create: 如果不存在是否创建
         Returns:
             _App_: 应用实例
@@ -757,7 +752,7 @@ class _App_(SModelBase_):
         apps = cls.apps()
         app = apps.get(name)
         if not app and create:
-            app = cls({'appName': name})
+            app = cls({'name': name})
             apps[name] = app
         return app
 

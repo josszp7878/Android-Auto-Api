@@ -12,6 +12,13 @@ class Base_():
             self.data = {'name': data}
             self._isDirty = True
 
+    @property
+    def id(self) -> int:
+        return int(self.getDBProp('id', 0))
+            
+    @property
+    def name(self) -> str:
+        return self.getDBProp('name')
     
     @property
     def isDirty(self):
@@ -77,6 +84,3 @@ class Base_():
         """属性设置后的钩子方法，子类可以重写进行特殊处理"""
         pass 
 
-    @property
-    def id(self) -> int:
-        return int(self.getDBProp('id', 0))

@@ -214,6 +214,28 @@ class _G_:
         cls._sio.connect()
         return True
 
+    @classmethod 
+    def _serializeForJson(cls, obj):
+        """递归转换对象，使其可以被JSON序列化"""
+        from datetime import datetime, date
+        
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        elif isinstance(obj, date):
+            return obj.isoformat()
+        elif isinstance(obj, dict):
+            # dict本身JSON支持，但需要处理值中可能的datetime对象
+            return {k: cls._serializeForJson(v) for k, v in obj.items()}
+        elif isinstance(obj, (list, tuple)):
+            # list/tuple本身JSON支持，但需要处理元素中可能的datetime对象
+            return [cls._serializeForJson(item) for item in obj]
+        elif isinstance(obj, set):
+            # set不被JSON支持，需要转换为list并处理元素中可能的datetime对象
+            return [cls._serializeForJson(item) for item in obj]
+        else:
+            # 其他类型直接返回（如str、int、float、bool、None等JSON原生支持的类型）
+            return obj
+
     @classmethod
     def emit(cls, event, data=None, sid=None, timeout=8, callback=None)->bool:
         """发送事件并等待结果"""
@@ -224,6 +246,11 @@ class _G_:
             if sio is None:
                 print('socketio无效')
                 return False
+            
+            # 预处理数据，确保可以被JSON序列化
+            if data is not None:
+                data = cls._serializeForJson(data)
+            
             # print(f'emit: {event}, {data}, {sid}')
             if cls.isServer():
                 if sid:

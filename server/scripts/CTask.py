@@ -5,7 +5,6 @@ import time
 from _G import TaskState
 import _G
 from typing import TYPE_CHECKING
-import socket
 from Task import Task_
 from Base import Base_
 from RPC import RPC
@@ -35,6 +34,8 @@ class CTask_(Task_, Base_):
         self._page: "_Page_" = None  # 目标页面
         self._config = CTask_.getConfig(name)
         self._oldValues = data.copy()
+        self._updateInterval = 5  # 更新间隔，默认5秒
+        self._lastUpdateTime = 0  # 上次更新时间
 
     @property
     def score(self):
@@ -46,7 +47,7 @@ class CTask_(Task_, Base_):
         self.setDBProp('score', value)
     
     @property
-    def state(self)->TaskState:
+    def state(self):
         """任务状态"""
         return self.getDBProp('state', TaskState.IDLE)
 
@@ -117,6 +118,17 @@ class CTask_(Task_, Base_):
             else:
                 self._interval = 0
         return self._interval
+    
+    # 更新间隔
+    @property
+    def updateInterval(self):
+        """更新间隔（秒）"""
+        return self._updateInterval
+    
+    @updateInterval.setter
+    def updateInterval(self, value):
+        """设置更新间隔"""
+        self._updateInterval = max(1, int(value))
 
     # 奖励分数
     @property
@@ -127,13 +139,6 @@ class CTask_(Task_, Base_):
             return self._page.app.bonus_n
         else:
             return int(val)
-        
-
-    # 任务名称
-    @property
-    def name(self):
-        """任务名称"""
-        return self.name
 
     # 目标页面名称
     @property
@@ -238,8 +243,6 @@ class CTask_(Task_, Base_):
         if not self._goPage(g):
             return False
         return True
-    
-
 
     def begin(self, life: int = None) -> TaskState:
         """开始任务，支持继续和正常开始
@@ -281,7 +284,7 @@ class CTask_(Task_, Base_):
         log = _G._G_.Log()
         log.i(f"任务{self.name}停止@@@@@@@@@@@: {state}")
         self._emitUpdate(self.id, {
-            'state': self.state.value,
+            'state': self.state,
             'progress': self.progress
         })
         return self.state
@@ -336,14 +339,18 @@ class CTask_(Task_, Base_):
                 if not self._next(g):
                     return False
         if self.isDirty:
-            # 比较新旧值，只发送有变化的字段
-            changed = {}
-            for key, value in self.data.items():
-                if self._oldValues.get(key) != value:
-                    changed[key] = value
-            if changed:
-                self._emitUpdate(self.id, changed)
-                self._oldValues.update(self.data)
+            # 检查更新间隔时间
+            currentTime = time.time()
+            if currentTime - self._lastUpdateTime >= self._updateInterval:
+                # 比较新旧值，只发送有变化的字段
+                changed = {}
+                for key, value in self.data.items():
+                    if self._oldValues.get(key) != value:
+                        changed[key] = value
+                if changed:
+                    self._emitUpdate(self.id, changed)
+                    self._oldValues.update(self.data)
+                    self._lastUpdateTime = currentTime
         return True
 
     def _next(self, g: "_G_")->bool:
@@ -391,15 +398,14 @@ class CTask_(Task_, Base_):
     @classmethod
     def _emitUpdate(cls, taskID, data):
         """发送任务更新事件"""
-        data['id'] = taskID
-        log = _G.g.Log()
-        log.i(f'发送任务更新事件: {data}')
-        _G.g.emit('C2S_UpdateTask', data)
+        g = _G._G_
+        g.RPC(g.CDevice().id, 'STask_', 'update', {'id': taskID, 'kwargs': {'data': data}})
 
     def _onProp(self, key, value):
         """CTask特殊处理"""
         if key in ['score', 'state', 'progress']:
             # 标记为脏，触发更新事件
             self._isDirty = True
-
+    
+    
    

@@ -14,17 +14,13 @@ class SApp_(_App_):
         self._model = AppModel_
     
     @classmethod
-    def get(cls, deviceId: str, appName: str, create: bool = False):
+    def get(cls, deviceId: str, name: str, create: bool = False):
         """获取或创建App"""
-        data = AppModel_.get(deviceId, appName, create)
+        data = AppModel_.get(deviceId, name, create)
         if data:
             return cls(data)
         return None
     
-    
-    @property
-    def appName(self) -> str:
-        return self.getDBProp('appName', '')
     
     @property
     def deviceId(self) -> str:
@@ -72,52 +68,4 @@ class SApp_(_App_):
     @RPC()
     def getAppInfo(self) -> dict:
         """获取App信息 - RPC方法"""
-        try:
-            return {
-                'result': {
-                    'id': self.id,
-                    'appName': self.appName,
-                    'deviceId': self.deviceId,
-                    'totalScore': self.totalScore,
-                    'income': self.income,
-                    'status': self.status,
-                    'lastUpdate': self.lastUpdate,
-                }
-            }
-        except Exception as e:
-            return {
-                'error': f"获取App信息失败: {str(e)}"
-            }
-    
-    @RPC()
-    def updateAppStats(self, totalScore: float = None, income: float = None, status: str = None) -> dict:
-        """更新App统计 - RPC方法"""
-        try:
-            old_data = {
-                'totalScore': self.totalScore,
-                'income': self.income,
-                'status': self.status
-            }
-            
-            if self.updateStats(totalScore, income, status):
-                return {
-                    'result': {
-                        'appId': self.id,
-                        'appName': self.appName,
-                        'oldData': old_data,
-                        'newData': {
-                            'totalScore': self.totalScore,
-                            'income': self.income,
-                            'status': self.status
-                        },
-                        'message': f'App {self.appName} 统计已更新'
-                    }
-                }
-            else:
-                return {
-                    'error': '数据库更新失败'
-                }
-        except Exception as e:
-            return {
-                'error': f"更新App统计失败: {str(e)}"
-            } 
+        return self.data

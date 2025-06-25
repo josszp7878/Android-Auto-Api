@@ -32,10 +32,10 @@ class _Device_:
                 return app
         return None
 
-    def getApp(self, appName: str, create: bool = True) -> Optional[_App_]:
+    def getApp(self, name: str, create: bool = True) -> Optional[_App_]:
         """获取指定的App
         Args:
-            appName: App名称
+            name: App名称
             lazyCreate: 服务端支持从模板创建，客户端不支持创建
         Returns:
             Optional[_App_]: App实例或None
@@ -43,20 +43,20 @@ class _Device_:
         g = _G._G_
         log = g.Log()
         try:
-            if not appName:
+            if not name:
                 return None
             # 首先检查缓存中是否存在
-            if appName in self.apps:
-                return self.apps[appName]            
+            if name in self.apps:
+                return self.apps[name]            
             if not create:
                 return None
-            app = self._createApp({'appName': appName})
+            app = self._createApp({'name': name})
             if app:
-                self.apps[appName] = app   # 添加到缓存
+                self.apps[name] = app   # 添加到缓存
                 return app
             return None
         except Exception as e:
-            log.ex_(e, f"获取App失败: {appName}")
+            log.ex_(e, f"获取App失败: {name}")
             return None
 
     def _createApp(self, data: dict) -> '_App_':
@@ -68,74 +68,29 @@ class _Device_:
     @RPC()
     def getAppList(self) -> dict:
         """获取设备的App列表"""
+        g = _G._G_
+        log = g.Log()
         try:
-            g = _G._G_
-            log = g.Log()
-            appList = []
-            for appName, app in self.apps.items():
-                appInfo = {
-                    'name': appName,
-                    'description': app.description if hasattr(app, 'description') else '',
-                    'isCurrent': (app == self._currentApp),
-                    'totalScore': getattr(app, 'totalScore', 0.0),
-                    'income': getattr(app, 'income', 0.0),
-                    'status': getattr(app, 'status', 'idle'),
-                    'lastUpdate': getattr(app, 'lastUpdate', None)
-                }
-                appList.append(appInfo)
-            
-            return {
-                'result': {
-                    'apps': appList,
-                    'currentApp': self._currentApp.name if self._currentApp else None,
-                    'totalCount': len(appList)
-                }
-            }
+            return [app.data for app in self.apps.values()]
         except Exception as e:
             log.ex_(e, "获取App列表失败")
-            return {
-                'error': f"获取App列表失败: {str(e)}"
-            }
+            return []
    
     
-    def setCurrentApp(self, appName: str) -> dict:
+    def setCurrentApp(self, name: str) -> Optional[_App_]:
         """设置当前跟踪的App"""
         try:
             g = _G._G_
             log = g.Log()
-            
-            if not appName:
-                self._currentApp = None
-                return {
-                    'success': True,
-                    'currentApp': None,
-                    'message': '已清除当前App'
-                }
-            # 获取App（支持Lazy创建）
-            app = self.getApp(appName, create=True)
+            app = self.getApp(name, create=False)
             if not app:
-                return {
-                    'success': False,
-                    'error': f'App "{appName}" 不存在或创建失败'
-                }
-            
-            # 设置当前App
-            oldApp = self._currentApp
+                return None
             self._currentApp = app
-            
-            log.i(f'设置当前App: {oldApp.name if oldApp else "None"} -> {appName}')
-            
-            return {
-                'success': True,
-                'oldApp': oldApp.name if oldApp else None,
-                'currentApp': appName,
-                'message': f'当前App已设置为: {appName}'
-            }
+            log.i(f'设置当前App:{name}')
+            return app
         except Exception as e:
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            log.ex_(e, f"设置当前App失败: {name}")
+            return None
     
     
     
@@ -162,30 +117,7 @@ class _Device_:
             'currentApp': self._currentApp.name if self._currentApp else None
         }
     
-    # def fromDict(self, data: dict):
-    #     """从字典格式加载数据"""
-    #     try:
-    #         from _App import _App_
-            
-    #         # 清空现有数据
-    #         self._apps.clear()
-    #         self._currentApp = None
-            
-    #         # 加载App列表
-    #         apps_data = data.get('apps', {})
-    #         for appName, appInfo in apps_data.items():
-    #             app = _App_(appName, appInfo)
-    #             self._apps[appName] = app
-            
-    #         # 加载当前App
-    #         currentAppName = data.get('currentApp')
-    #         if currentAppName and currentAppName in self._apps:
-    #             self._currentApp = self._apps[currentAppName]
-            
-    #     except Exception as e:
-    #         _G._G_.Log().ex(e, "从字典加载App数据失败") 
-
-
+   
     @classmethod
     def get(cls, id=None)->'_Device_':
         """获取Device实例"""

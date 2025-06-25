@@ -112,30 +112,4 @@ class STask_(SModelBase_, Task_):
             return {
                 'success': False,
                 'error': str(e)
-            }
-    
-    @RPC()
-    @classmethod
-    def getTaskList(cls, deviceId: int, date: datetime = None) -> dict:
-        """获取任务列表 - RPC方法"""
-        try:
-            from SDeviceMgr import deviceMgr
-            device = deviceMgr.get(deviceId)
-            if not device:
-                return {
-                    'success': False,
-                    'error': f'设备不存在: {deviceId}'
-                }
-            
-            tasks = device.getTasks(date)
-            return {
-                'success': True,
-                'deviceId': deviceId,
-                'taskCount': len(tasks),
-                'tasks': [task.toSheetData() for task in tasks.values()]
-            }
-        except Exception as e:
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            }    

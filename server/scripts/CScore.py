@@ -182,17 +182,17 @@ class CScore_:
             
             try:
                 date_obj = _G.DateHelper.toDate(closest_date['date_str'].replace('.', '-'))
-                amount = float(re.sub(r'[^\d.-]', '', amount['amount_str']))
+                amount_value = float(re.sub(r'[^\d.-]', '', amount['amount_str']))
                 name = cls._cleanName(closest_name['t'])
                 
                 if not filterDate or date_obj.date() == filterDate.date():
                     record = {
                         'date': date_obj.strftime('%Y-%m-%d'),
                         'name': name,
-                        'amount': amount
+                        'amount': amount_value
                     }
                     records.append(record)
-                    # log.d(f"找到收益记录: {name} {amount} {record['date']}")                    
+                    # log.d(f"找到收益记录: {name} {amount_value} {record['date']}")                    
             except Exception as e:
                 log.ex(e, f"解析数据失败: 日期={closest_date.get('date_str')}, 金额={amount.get('amount_str')}")
                 continue

@@ -235,7 +235,7 @@ class AppModel_:
     fields = {
         'id': ('int', None),
         'deviceId': ('str', None),
-        'appName': ('str', None),
+        'name': ('str', None),
         'totalScore': ('float', 0.0),
         'income': ('float', 0.0),
         'status': ('str', 'idle'),
@@ -250,13 +250,13 @@ class AppModel_:
         return cls.model.load(where=where)
 
     @classmethod
-    def get(cls, deviceId: str, appName: str, create: bool = False):
+    def get(cls, deviceId: str, name: str, create: bool = False):
         """获取或创建App记录"""
         def db_operation(db):
-            nonlocal deviceId, appName, create
+            nonlocal deviceId, name, create
             try:
-                sql = cls.model.genSelectSql() + " WHERE deviceId = :deviceId AND appName = :appName"
-                params = {'deviceId': deviceId, 'appName': appName}
+                sql = cls.model.genSelectSql() + " WHERE deviceId = :deviceId AND name = :name"
+                params = {'deviceId': deviceId, 'name': name}
                 result = db.session.execute(sql, params)
                 row = result.fetchone()
                 
@@ -264,13 +264,13 @@ class AppModel_:
                     # 从配置模板创建基础App记录
                     import os
                     configDir = os.path.join(_G._G_.rootDir(), 'config', 'pages')
-                    configFile = os.path.join(configDir, f'{appName}.json')
+                    configFile = os.path.join(configDir, f'{name}.json')
                     
                     # 只有配置文件存在才创建记录
                     if os.path.exists(configFile):
                         data = {
                             'deviceId': deviceId,
-                            'appName': appName,
+                            'name': name,
                             'totalScore': 0.0,
                             'income': 0.0,
                             'status': 'idle'
@@ -282,19 +282,19 @@ class AppModel_:
                     
                 return cls.model.toDict(row) if row else None
             except Exception as e:
-                _G._G_.Log().ex_(e, f"获取或创建App记录失败: {appName}")
+                _G._G_.Log().ex_(e, f"获取或创建App记录失败: {name}")
                 return None
         return Database.sql(db_operation)
 
     @classmethod
-    def updateStats(cls, deviceId: str, appName: str, totalScore: float = None, income: float = None, status: str = None):
+    def updateStats(cls, deviceId: str, name: str, totalScore: float = None, income: float = None, status: str = None):
         """更新App统计数据"""
         def db_operation(db):
             try:
                 updates = []
                 params = {
                     'deviceId': deviceId,
-                    'appName': appName,
+                    'name': name,
                     'lastUpdate': datetime.now()
                 }
                 
@@ -315,13 +315,13 @@ class AppModel_:
                 updates.append("lastUpdate = :lastUpdate")
                 
                 if updates:
-                    sql = f"UPDATE {cls.table} SET {', '.join(updates)} WHERE deviceId = :deviceId AND appName = :appName"
+                    sql = f"UPDATE {cls.table} SET {', '.join(updates)} WHERE deviceId = :deviceId AND name = :name"
                     db.session.execute(sql, params)
                     db.session.commit()
                 
                 return True
             except Exception as e:
-                _G._G_.Log().ex_(e, f"更新App统计失败: {appName}")
+                _G._G_.Log().ex_(e, f"更新App统计失败: {name}")
                 db.session.rollback()
                 return False
         return Database.sql(db_operation)

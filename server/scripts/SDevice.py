@@ -207,19 +207,19 @@ class SDevice_(SModelBase_, _Device_):
         g = _G._G_
         log = g.Log()
         try:
-            appName = data.get('appName', '')
+            name = data.get('name', '')
             # 获取设备ID
             deviceId = getattr(self, 'id', 'default_device')
             # 创建新App（会自动创建数据库记录）
             from SApp import SApp_
-            app = SApp_.get(deviceId, appName, create=True)
+            app = SApp_.get(deviceId, name, create=True)
             if app:
-                log.i(f'创建App: {appName}')
+                log.i(f'创建App: {name}')
                 return app
             else:
                 return None
         except Exception as e:
-            log.ex_(e, f"创建App失败: {appName}")
+            log.ex_(e, f"创建App失败: {name}")
             return None
         
     def _loadApps(self):
@@ -236,11 +236,11 @@ class SDevice_(SModelBase_, _Device_):
             if records:
                 # 从数据库记录创建SApp_实例
                 for record in records:
-                    appName = record['appName']
+                    name = record['name']
                     app = SApp_(record)
                     if app:
-                        self._apps[appName] = app
-                        log.d(f"从数据库加载App: {appName}")
+                        self._apps[name] = app
+                        log.d(f"从数据库加载App: {name}")
                         
                 log.i(f"从数据库加载了 {len(records)} 个App记录")
             else:
@@ -251,14 +251,14 @@ class SDevice_(SModelBase_, _Device_):
                 _App_.loadConfig()                
                 # 从_App_.apps()获取所有App模板
                 templates = _App_.apps()                
-                for appName, _ in templates.items():
+                for name, _ in templates.items():
                     # 尝试从App模板创建数据库记录并创建SApp_实例
-                    app = SApp_.get(deviceId, appName, create=True)
+                    app = SApp_.get(deviceId, name, create=True)
                     if app:
-                        self._apps[appName] = app
+                        self._apps[name] = app
                         # log.d(f"从模板创建App: {appName}")
                     else:
-                        log.e(f"创建App实例失败: {appName}")
+                        log.e(f"创建App实例失败: {name}")
                 
                 # log.i(f"从App模板初始化了 {len(templates)} 个App")
             
@@ -633,17 +633,10 @@ class SDevice_(SModelBase_, _Device_):
                 if task.commit():
                     changedTasks.append(task)
                     # log.d_(f"更新任务: {taskName}, 分数: {taskScore}")
-            # 移除服务端主动推送逻辑，改由前端主动调用获取数据
-            # g.emit('S2B_sheetUpdate', {'type': 'tasks', 'data': data})
             return {
-                'result': {
-                    'success': True,
-                    'changedTasksCount': len(changedTasks),
-                    'message': f'成功处理 {len(changedTasks)} 个任务的收益数据'
-                }
+                'result': changedTasks,
             }
         except Exception as e:
-            log.ex(e, "获取收益失败")
             return {
                 'error': f"获取收益失败: {str(e)}"
             }
