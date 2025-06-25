@@ -1,5 +1,4 @@
-from datetime import datetime, timedelta
-from SDatabase import Database, db
+from datetime import datetime
 import _G
 
 
@@ -46,6 +45,10 @@ class SModel_:
     def genSelectSql(self):
         columns = ', '.join(self.fields.keys())
         return f"SELECT {columns} FROM {self.table}"
+    
+    def SQL(self, dbFun):
+        from SDatabase import Database
+        return Database.sql(dbFun)
 
     def load(self, date: datetime = None, where: str = None):
         def db_operation(db):
@@ -72,7 +75,7 @@ class SModel_:
             except Exception as e:
                 _G._G_.Log().ex_(e, f"获取所有记录失败: {self.table}")
                 return []
-        return Database.sql(db_operation)
+        return self.SQL(db_operation)
 
     def _insert(self, data: dict):
         def db_operation(db):
@@ -89,7 +92,7 @@ class SModel_:
                 _G._G_.Log().ex_(e, f"插入数据失败: {self.table}")
                 db.session.rollback()
                 return False
-        return Database.sql(db_operation)
+        self.SQL(db_operation)
 
     def update(self, data: dict):
         def db_operation(db):
@@ -104,7 +107,7 @@ class SModel_:
                 _G._G_.Log().ex_(e, f"更新数据失败: {self.table}")
                 db.session.rollback()
                 return False
-        return Database.sql(db_operation)
+        self.SQL(db_operation)
     
     def commit(self, data: dict):
         def db_operation(db):
@@ -123,8 +126,7 @@ class SModel_:
                 _G._G_.Log().ex_(e, "提交设备数据失败")
                 db.session.rollback()
                 return False
-        return Database.sql(db_operation)
-
+        self.SQL(db_operation)
 
     def save(self, data: dict):
         return self._insert(data)
@@ -171,7 +173,7 @@ class DeviceModel_:
             except Exception as e:
                 _G._G_.Log().ex_(e, f"获取或创建设备记录失败: {cls.table}")
                 return None
-        return Database.sql(db_operation)
+        return cls.model.SQL(db_operation)
 
     @classmethod
     def commit(cls, data: dict):
@@ -222,7 +224,7 @@ class TaskModel_:
             except Exception as e:
                 log.ex_(e, "获取任务记录失败")
                 return None
-        return Database.sql(db_operation)
+        return cls.model.SQL(db_operation)
 
     @classmethod
     def commit(cls, data: dict):
@@ -284,7 +286,7 @@ class AppModel_:
             except Exception as e:
                 _G._G_.Log().ex_(e, f"获取或创建App记录失败: {name}")
                 return None
-        return Database.sql(db_operation)
+        return cls.model.SQL(db_operation)
 
     @classmethod
     def updateStats(cls, deviceId: str, name: str, totalScore: float = None, income: float = None, status: str = None):
@@ -324,7 +326,7 @@ class AppModel_:
                 _G._G_.Log().ex_(e, f"更新App统计失败: {name}")
                 db.session.rollback()
                 return False
-        return Database.sql(db_operation)
+        return cls.model.SQL(db_operation)
 
     @classmethod
     def commit(cls, data: dict):

@@ -1,10 +1,8 @@
-from datetime import datetime
-from typing import Dict, List, Optional, Any
-import json
+from typing import Dict, Optional
 from _App import _App_
 from RPC import RPC
 import _G
-from SModels import AppModel_
+
 
 class _Device_:
     """设备App管理基类：提供查询、创建和跟踪当前app的功能"""

@@ -2,6 +2,63 @@
 
 ## 更更新日志
 
+### 2025-01-22 - 数据库模型返回值修复
+
+#### 核心数据库错误修复
+- #修复SModels.py中所有数据库方法的返回值问题
+  - 问题：所有数据库操作方法（`load`、`get`、`updateStats`）没有返回数据库操作结果
+  - 根本原因：调用`self.SQL(db_operation)`后没有`return`语句，导致方法返回`None`
+  - 错误链：`DeviceModel_.all()` → `None` → `SDevice_.all()` → `TypeError: 'NoneType' object is not iterable`
+  - 影响范围：设备加载、任务管理、App管理等所有数据库操作
+
+#### 修复的方法列表
+- #SModel_.load方法：添加`return self.SQL(db_operation)`
+  - 修复前：`self.SQL(db_operation)` - 返回None
+  - 修复后：`return self.SQL(db_operation)` - 返回数据库查询结果列表
+  - 影响：所有模型的数据加载操作
+
+- #DeviceModel_.get方法：添加`return cls.model.SQL(db_operation)`
+  - 修复前：`self.SQL(db_operation)` - 返回None  
+  - 修复后：`return cls.model.SQL(db_operation)` - 返回设备记录字典
+  - 影响：设备查询和创建操作
+
+- #TaskModel_.get方法：添加`return cls.model.SQL(db_operation)`
+  - 修复前：`self.SQL(db_operation)` - 返回None
+  - 修复后：`return cls.model.SQL(db_operation)` - 返回任务记录字典
+  - 影响：任务查询和创建操作
+
+- #AppModel_.get方法：添加`return cls.model.SQL(db_operation)`
+  - 修复前：`self.SQL(db_operation)` - 返回None
+  - 修复后：`return cls.model.SQL(db_operation)` - 返回App记录字典
+  - 影响：App查询和创建操作
+
+- #AppModel_.updateStats方法：添加`return cls.model.SQL(db_operation)`
+  - 修复前：`cls.model.SQL(db_operation)` - 返回None
+  - 修复后：`return cls.model.SQL(db_operation)` - 返回更新操作结果布尔值
+  - 影响：App统计数据更新操作
+
+#### SDevice_.all方法防护加强
+- #增强设备列表获取的异常处理
+  - 问题：当`DeviceModel_.all()`返回`None`时，for循环抛出TypeError
+  - 解决：添加None检查和异常捕获机制
+  - 防护逻辑：`if deviceDatas is None: deviceDatas = []`
+  - 异常处理：捕获所有异常并返回空列表，确保不会中断系统运行
+  - 日志记录：异常发生时记录详细错误信息
+
+#### 错误场景重现和验证
+- #B2S_loadDatas请求处理流程
+  - 触发场景：浏览器请求加载设备数据
+  - 错误路径：`onB2S_loadDatas` → `deviceMgr.devices` → `self._devices` → `SDevice_.all()` → `DeviceModel_.all()`
+  - 错误原因：`DeviceModel_.all()`返回None而不是列表
+  - 修复验证：确保所有数据库操作都能正确返回预期的数据类型
+
+#### 数据库操作一致性
+- #统一数据库操作返回值模式
+  - 查询操作：返回字典（单条记录）或列表（多条记录）
+  - 更新操作：返回布尔值表示成功/失败
+  - 异常处理：数据库异常时返回None或False，业务层进行防护
+  - 空数据处理：查询无结果时返回None（单条）或空列表（多条）
+
 ### 2025-01-22 - RPC类型转换自动化
 
 #### RPC参数类型自动转换系统

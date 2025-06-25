@@ -65,8 +65,18 @@ class SDevice_(SModelBase_, _Device_):
     def all(cls):
         """获取所有设备"""
         devices = []
-        for d in DeviceModel_.all():
-            devices.append(cls(d))
+        try:
+            # 获取设备数据，确保不会是None
+            deviceDatas = DeviceModel_.all()
+            if deviceDatas is None:
+                deviceDatas = []
+            
+            for d in deviceDatas:
+                if d:  # 确保单个设备数据不是None
+                    devices.append(cls(d))
+        except Exception as e:
+            _G._G_.Log().ex_(e, "获取所有设备失败")
+            devices = []  # 异常时返回空列表
         return devices
     
     @property
