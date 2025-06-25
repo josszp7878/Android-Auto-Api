@@ -1,12 +1,17 @@
+from datetime import datetime
+from typing import Any
 import _G
 class Base_():
     """统一的基类，提供属性更新和脏标记功能"""
     
-    def __init__(self):
-        self._isDirty = False
-        # 统一使用data字典存储属性
-        if not hasattr(self, 'data'):
-            self.data = {}
+    def __init__(self, data: dict):
+        if isinstance(data, dict):
+            self.data = data
+            self._isDirty = False
+        else:
+            self.data = {'name': data}
+            self._isDirty = True
+
     
     @property
     def isDirty(self):
@@ -17,12 +22,24 @@ class Base_():
     def isDirty(self, value: bool):
         """设置脏标记"""
         self._isDirty = value
+
+    def getDBProp(self, key: str, default: Any = None) -> Any:
+        """获取数据库属性"""
+        return self.data.get(key, default)
+
+    def setDBProp(self, key: str, value: Any)->bool:
+        """设置数据库属性"""        
+        if isinstance(value, datetime):
+            value = value.strftime('%Y-%m-%d %H:%M:%S')
+        if self.data.get(key) != value:
+            self.data[key] = value
+            self._isDirty = True
+        return self._isDirty
     
     def setProp(self, params):
         """统一的属性设置方法"""
         if not params:
             return False
-        
         g = _G._G_
         log = g.Log()
         try:
@@ -46,11 +63,8 @@ class Base_():
                         continue
 
                 if not changed:
-                    if self.data.get(key) != value:
-                        self.data[key] = value
-                        self._isDirty = True
-                        log.i(f'设置到data: {key} = {value}')
-                        changed = True
+                    self.setDBProp(key, value)
+
                 if changed:
                     # 调用子类的特殊处理钩子
                     self._onProp(key, value)
@@ -62,3 +76,7 @@ class Base_():
     def _onProp(self, key, value):
         """属性设置后的钩子方法，子类可以重写进行特殊处理"""
         pass 
+
+    @property
+    def id(self) -> int:
+        return int(self.getDBProp('id', 0))

@@ -22,7 +22,7 @@ class CDevice_(Base_, _Device_):
     def __init__(self):
         if hasattr(self, 'initialized'):
             return
-        super().__init__()
+        super().__init__({})
         _Device_.__init__(self)  # 初始化App管理功能
         self._server = None
         self._deviceID = None
@@ -31,7 +31,6 @@ class CDevice_(Base_, _Device_):
         self._tasks = {}  # 任务字典，key为任务ID
         self._curTask = None
         # 统一使用data字典
-        self.data = {}
         self.initialized = False
 
     @classmethod
@@ -115,19 +114,19 @@ class CDevice_(Base_, _Device_):
         """获取设备信息 - RPC方法"""
         try:
             return {
-                'success': True,
-                'deviceId': self._deviceID,
-                'deviceName': self.name,
-                'state': self._state.value if self._state else 'unknown',
-                'isConnected': self.isConnected(),
-                'taskCount': len(self._tasks),
-                'currentTask': self._curTask.name if self._curTask else None,
-                'server': self._server
+                'result': {
+                    'deviceId': self._deviceID,
+                    'deviceName': self.name,
+                    'state': self._state.value if self._state else 'unknown',
+                    'isConnected': self.isConnected(),
+                    'taskCount': len(self._tasks),
+                    'currentTask': self._curTask.name if self._curTask else None,
+                    'server': self._server
+                }
             }
         except Exception as e:
             return {
-                'success': False,
-                'error': str(e)
+                'error': f"获取设备信息失败: {str(e)}"
             }
     
     @RPC()
@@ -137,15 +136,15 @@ class CDevice_(Base_, _Device_):
             old_name = self.name
             self.name = name
             return {
-                'success': True,
-                'oldName': old_name,
-                'newName': name,
-                'deviceId': self._deviceID
+                'result': {
+                    'oldName': old_name,
+                    'newName': name,
+                    'deviceId': self._deviceID
+                }
             }
         except Exception as e:
             return {
-                'success': False,
-                'error': str(e)
+                'error': f"设置设备名称失败: {str(e)}"
             }
 
     def connect(self) -> bool:
@@ -368,7 +367,7 @@ class CDevice_(Base_, _Device_):
     def state(self):
         return self._state
 
-    def createApp(self, data: dict) -> '_App_':
+    def _createApp(self, data: dict) -> '_App_':
         """创建App"""
         from CApp import CApp_ 
         return CApp_(data)
@@ -381,20 +380,39 @@ class CDevice_(Base_, _Device_):
         # log.i_(f"登录成功，初始化任务表, data: {data}")
         # 初始化任务表
         self._tasks = {}
-        taskList = data.get('taskList', [])
-        for t in taskList:
-            task = CTask_.create(t.get('name'), g.App())
-            if task:
-                task.fromData(t)
-                self._tasks[task.id] = task
-        self._apps = {}
-        appList = data.get('appList', [])
-        for data in appList:
-            app = self.createApp(data)
-            if app:
-                self._apps[app.name] = app
-                # log.i_(f"客户端同步完成，应用: {app.data}")
-        log.i_(f"客户端同步完成，应用数: {len(self._apps)}，任务数: {len(self._tasks)}")
+        self.setTasks(data.get('taskList'))
+        self.setApps(data.get('appList'))
+        log.i_(f"客户端同步完成，应用数: {len(self.apps)}，任务数: {len(self._tasks)}")
+
+    def setTasks(self, taskList: list):
+        """设置任务列表"""
+        if taskList is None:
+            return
+        g = _G._G_
+        log = g.Log()
+        from CTask import CTask_
+        for data in taskList:
+            try:
+                task = CTask_(data)
+            except Exception as e:
+                log.ex_(e, f"创建任务失败: {data}")
+                continue    
+            self._tasks[task.id] = task
+
+    def setApps(self, apps: List['_App_']):
+        if not apps:
+            return
+        g = _G._G_
+        log = g.Log()
+        from _App import _App_
+        for data in apps:
+            try:
+                app = _App_(data)
+            except Exception as e:
+                log.ex_(e, f"创建应用失败: {data}")
+                continue
+            self._apps[app.name] = app
+
 
     def getTask(self, key)->'CTask_':
         """根据ID获取任务"""
@@ -430,8 +448,6 @@ class CDevice_(Base_, _Device_):
     def setCurTask(self, value: 'CTask_'):
         """设置当前任务"""
         self._curTask = value
-        if self._curTask:
-            self._curTask._app = self
 
     def onS2C_SetProp(self, data):
         """统一的属性更新处理器 - 客户端版本"""
@@ -476,7 +492,7 @@ class CDevice_(Base_, _Device_):
             self._setName(value)
 
     @RPC()
-    def getScore(self, appName:str, date:str)->List[dict]:
+    def getScore(self, appName:str, date:str)->dict:
         """
         功能：获取指定应用指定日期的所有任务收益
         指令名: getScores
@@ -485,17 +501,29 @@ class CDevice_(Base_, _Device_):
         """
         g = _G._G_
         log = g.Log()
-        App = g.App()
-        app = App.getTemplate(appName)
-        if not app:
-            log.e(f"应用不存在: {appName}")
-            return []
-        date = _G.DateHelper.toDate(date)
-        result = app.LoadScore(date)
-        if not result:
-            log.e(f"获取收益失败: {appName} {date}")
-            return []
-        return result
+        try:
+            App = g.App()
+            app = App.getTemplate(appName)
+            if not app:
+                return {
+                    'error': f"应用不存在: {appName}"
+                }
+            
+            date = _G.DateHelper.toDate(date)
+            result = app.LoadScore(date)
+            if not result:
+                return {
+                    'error': f"获取收益失败: {appName} {date}"
+                }
+            
+            return {
+                'result': result
+            }
+        except Exception as e:
+            log.ex(e, f"获取收益异常: {appName} {date}")
+            return {
+                'error': f"获取收益异常: {str(e)}"
+            }
 
 
 CDevice_.instance().onLoad(None)

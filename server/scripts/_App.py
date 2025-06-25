@@ -7,17 +7,23 @@ import _G
 
 from typing import Optional, List, Tuple, TYPE_CHECKING, Dict
 from RPC import RPC
-
+from SModelBase import SModelBase_
 if TYPE_CHECKING:
     from _Page import _Page_
     from _Log import _Log_
 
-class _App_:
+class _App_(SModelBase_):
     """应用管理类：整合配置与实例"""
     _curAppName = _G.TOP  # 当前检测到的应用名称
     _lastApp = None  # 当前应用实例（延迟初始化）
 
     def __init__(self, data: dict):
+        g = _G._G_
+        if g.isServer():
+            from SModels import AppModel_
+            super().__init__(data, AppModel_)
+        else:
+            super().__init__(data, None)
         self._curPage: Optional["_Page_"] = None
         self._lastPage: Optional["_Page_"] = None
         self._toPage: Optional["_Page_"] = None
@@ -28,18 +34,15 @@ class _App_:
         self._counters = {}  # 计数器字典，用于统计页面访问次数和事件触发次数
         self._countersModified = False  # 计数器是否被修改
         self._toasts = {}  # toasts配置字典，用于存储toast匹配规则和操作
-        # 加载当天的计数数据
-        # self._loadData()
-        self._data = data
 
     def __getattr__(self, name):
         """重写 __getattr__ 方法，使 self.num 可以访问 self.data['num']"""
         # 防止无限递归：如果访问的是_data本身，则抛出AttributeError
-        if name == '_data':
+        if name == 'data':
             raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
         
         # 确保_data存在，如果不存在则返回None
-        if not hasattr(self, '_data') or self._data is None:
+        if not hasattr(self, 'data') or self.data is None:
             return None
             
         # 解析 name_type,先找最后一个'_'
@@ -51,7 +54,7 @@ class _App_:
             valueType = name[pos]
         else:
             valueType = 'str'
-        data = self._data
+        data = self.data
         key = f'_{key}'
         if key in data:
             val = data[key]
@@ -68,7 +71,12 @@ class _App_:
     @property
     def name(self):
         """获取应用名称"""
-        return self._data.get('appName', '')
+        return self.getDBProp('appName', '')
+    
+    @property
+    def deviceId(self):
+        """获取设备ID"""
+        return int(self.getDBProp('deviceId', 0))
 
 
     @classmethod
@@ -131,17 +139,6 @@ class _App_:
             log.ex(e, "获取当前应用失败")
             return None, None
     
- 
-    
-    @property
-    def data(self):
-        """获取数据"""
-        return self._data
-    
-    @data.setter
-    def data(self, value):
-        self._data = value
-
     @property
     def toPage(self) -> "_Page_":
         """获取当前页面"""
@@ -695,13 +692,39 @@ class _App_:
         except Exception as e:
             log.ex(e, f"关闭应用 {appName} 失败")
             return False
-        
+    
+    @classmethod
+    def getByID(cls, id: int) -> "_App_":
+        """根据ID获取应用实例"""
+        g = _G._G_
+        try:
+            if g.isServer():
+                # 服务端：在所有设备中查找
+                deviceMgr = g.SDeviceMgr()
+                devices = deviceMgr.devices
+                for device in devices:
+                    app = device.getAppByID(id)
+                    if app:
+                        return app
+            else:
+                # 客户端：在当前设备中查找
+                device = g.CDevice()
+                if device:
+                    return device.getAppByID(id)
+        except Exception as e:
+            g.Log().ex(e, f"根据ID获取应用失败: {id}")
+        return None
+    
     @classmethod
     def get(cls, key, create=False) -> "_App_":
         """获取应用实例"""
         # 将 key 转换为设备名.应用名称
         if not key:
             return None
+        # 如果key是数字，或者可以转换为数字，则认为是id
+        if isinstance(key, int) or (isinstance(key, str) and key.isdigit()):
+            app_id = int(key) if isinstance(key, str) else key
+            return cls.getByID(app_id)
         if '.' in key:
             # 安全地分割：只在第一个.处分割，支持应用名中包含.的情况
             parts = key.split('.', 1)  # 限制最多分割成2部分
@@ -878,18 +901,24 @@ class _App_:
         try:
             if g.isServer():
                 from SDeviceMgr import deviceMgr
-                deviceID = self.device_id
+                deviceID = self.deviceId
                 if deviceID is None:
                     deviceID = deviceMgr.curDevice.id
-                result = g.RPC(deviceID, '_App_', 'getScores', {'args': [date]})
+                result = g.RPC(deviceID, '_App_', 'getScores', {'id':self.id, 'args': [date]})
                 self._onGetScores(result, date)
-                return result
+                return {
+                    'result': result
+                }
             else:
                 scores = self.LoadScore(date)
-                return scores
+                return {
+                    'result': scores
+                }
         except Exception as e:
             log.ex_(e, "获取收益分数失败")
-            return []
+            return {
+                'error': f"获取收益分数失败: {str(e)}"
+            }
         
     def _onGetScores(self, result: dict, date: datetime = None):
         """处理获取收益结果"""
@@ -918,16 +947,15 @@ class _App_:
         """获取当前页面信息 - RPC远程调用方法"""
         try:
             return {
-                'success': True,
-                'currentPage': self.curPage.name if self.curPage else None,
-                'appName': self.name,
-                'timestamp': datetime.now().isoformat()
+                'result': {
+                    'currentPage': self.curPage.name if self.curPage else None,
+                    'appName': self.name,
+                    'timestamp': datetime.now().isoformat()
+                }
             }
         except Exception as e:
             return {
-                'success': False,
-                'error': str(e),
-                'timestamp': datetime.now().isoformat()
+                'error': f"获取当前页面信息失败: {str(e)}"
             }
     
     @RPC()
@@ -936,13 +964,12 @@ class _App_:
         """获取所有应用列表 - RPC远程调用方法"""
         try:
             return {
-                'success': True,
-                'apps': cls.getAppNames(),
-                'timestamp': datetime.now().isoformat()
+                'result': {
+                    'apps': cls.getAppNames(),
+                    'timestamp': datetime.now().isoformat()
+                }
             }
         except Exception as e:
             return {
-                'success': False,
-                'error': str(e),
-                'timestamp': datetime.now().isoformat()
+                'error': f"获取应用列表失败: {str(e)}"
             }

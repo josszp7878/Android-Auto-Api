@@ -123,21 +123,21 @@ class SDevice_(SModelBase_, _Device_):
         """获取设备信息 - RPC方法"""
         try:
             return {
-                'success': True,
-                'id': self.id,
-                'name': self.name,
-                'state': self._state.value if self._state else 'unknown',
-                'isConnected': self.isConnected(),
-                'group': self.group,
-                'isConsole': self.isConsole,
-                'taskCount': len(self.tasks),
-                'sid': self.sid,
-                'data': self.data
+                'result': {
+                    'id': self.id,
+                    'name': self.name,
+                    'state': self._state.value if self._state else 'unknown',
+                    'isConnected': self.isConnected(),
+                    'group': self.group,
+                    'isConsole': self.isConsole,
+                    'taskCount': len(self.tasks),
+                    'sid': self.sid,
+                    'data': self.data
+                }
             }
         except Exception as e:
             return {
-                'success': False,
-                'error': str(e)
+                'error': f"获取设备信息失败: {str(e)}"
             }
     
     def sendCommand(self, command: str, params: dict = None) -> dict:
@@ -145,15 +145,15 @@ class SDevice_(SModelBase_, _Device_):
         try:
             result = self.sendClientCmd(command, params)
             return {
-                'success': True,
-                'deviceId': self.id,
-                'command': command,
-                'result': result
+                'result': {
+                    'deviceId': self.id,
+                    'command': command,
+                    'result': result
+                }
             }
         except Exception as e:
             return {
-                'success': False,
-                'error': str(e)
+                'error': f"发送命令失败: {str(e)}"
             }
     
     @RPC()
@@ -162,14 +162,15 @@ class SDevice_(SModelBase_, _Device_):
         try:
             result = self.takeScreenshot()
             return {
-                'success': result,
-                'deviceId': self.id,
-                'message': '截屏指令已发送' if result else '截屏失败'
+                'result': {
+                    'deviceId': self.id,
+                    'success': result,
+                    'message': '截屏指令已发送' if result else '截屏失败'
+                }
             }
         except Exception as e:
             return {
-                'success': False,
-                'error': str(e)
+                'error': f"截屏失败: {str(e)}"
             }
 
     def onConnect(self, sid:str):
@@ -201,7 +202,7 @@ class SDevice_(SModelBase_, _Device_):
             return False 
 
     
-    def createApp(self, data: dict) -> '_App_':
+    def _createApp(self, data: dict) -> '_App_':
         """创建SApp"""
         g = _G._G_
         log = g.Log()
@@ -213,7 +214,6 @@ class SDevice_(SModelBase_, _Device_):
             from SApp import SApp_
             app = SApp_.get(deviceId, appName, create=True)
             if app:
-                self._apps[appName] = app
                 log.i(f'创建App: {appName}')
                 return app
             else:
@@ -224,26 +224,25 @@ class SDevice_(SModelBase_, _Device_):
         
     def _loadApps(self):
         """Lazy初始化Apps - 仅服务端使用"""
+        g = _G._G_
+        log = g.Log()
         try:
-            from SApp import SApp_
-            g = _G._G_
-            log = g.Log()
             # 获取设备ID
-            deviceId = getattr(self, 'id', 'default_device')
-            
+            deviceId = getattr(self, 'id', 'default_device')            
             # 首先从数据库加载已有的App记录
             from SModels import AppModel_
-            app_records = AppModel_.all(deviceId)
-            if app_records:
+            records = AppModel_.all(deviceId)
+            from SApp import SApp_
+            if records:
                 # 从数据库记录创建SApp_实例
-                for record in app_records:
+                for record in records:
                     appName = record['appName']
-                    app = SApp_(record)  # 使用SApp_而不是_App_
+                    app = SApp_(record)
                     if app:
                         self._apps[appName] = app
                         log.d(f"从数据库加载App: {appName}")
                         
-                log.i(f"从数据库加载了 {len(app_records)} 个App记录")
+                log.i(f"从数据库加载了 {len(records)} 个App记录")
             else:
                 # 数据库没有记录，从App模板创建
                 log.i("数据库无App记录，从App模板初始化...")
@@ -251,20 +250,19 @@ class SDevice_(SModelBase_, _Device_):
                 from _App import _App_
                 _App_.loadConfig()                
                 # 从_App_.apps()获取所有App模板
-                templates = _App_.apps()
-                from SApp import SApp_
+                templates = _App_.apps()                
                 for appName, _ in templates.items():
                     # 尝试从App模板创建数据库记录并创建SApp_实例
                     app = SApp_.get(deviceId, appName, create=True)
                     if app:
                         self._apps[appName] = app
-                        log.d(f"从模板创建App: {appName}")
+                        # log.d(f"从模板创建App: {appName}")
                     else:
                         log.e(f"创建App实例失败: {appName}")
                 
-                log.i(f"从App模板初始化了 {len(templates)} 个App")
+                # log.i(f"从App模板初始化了 {len(templates)} 个App")
             
-            log.i(f"服务端App初始化完成，共加载 {len(self._apps)} 个App实例")
+            # log.i(f"服务端App初始化完成，共加载 {len(self.apps)} 个App实例")
             
         except Exception as e:
             log.ex_(e, "Load Apps失败")
@@ -284,7 +282,7 @@ class SDevice_(SModelBase_, _Device_):
             # 准备返回数据
             result = {
                 "taskList": [t.toSheetData() for t in self.tasks.values()],
-                "appList": [t.toSheetData() for t in self._apps.values()]
+                "appList": [t.toSheetData() for t in self.apps.values()]
             }
             log.i(f'同步获取数据: app:{len(result["appList"])}, task:{len(result["taskList"])}')
             return result
@@ -598,7 +596,7 @@ class SDevice_(SModelBase_, _Device_):
 
     # 向客户端发送命令获取收益
     @RPC()
-    def getScores(self, appName:str, date:str)->bool:
+    def getScores(self, appName:str, date:str)->dict:
         """
         功能：获取设备某应用某天的所有任务收益
         指令名: getScores
@@ -613,7 +611,9 @@ class SDevice_(SModelBase_, _Device_):
         try:
             result = g.RPC(self.id, 'CDevice_', 'getScore', {'kwargs': {'appName': appName, 'date': date}})
             if not result:
-                return False
+                return {
+                    'error': f"从客户端获取收益数据失败"
+                }
             log.i(f"@@@@@获取收益: {result}")
             # 处理收益数据并更新任务
             changedTasks = []
@@ -635,6 +635,15 @@ class SDevice_(SModelBase_, _Device_):
                     # log.d_(f"更新任务: {taskName}, 分数: {taskScore}")
             # 移除服务端主动推送逻辑，改由前端主动调用获取数据
             # g.emit('S2B_sheetUpdate', {'type': 'tasks', 'data': data})
-            return 'OK'
+            return {
+                'result': {
+                    'success': True,
+                    'changedTasksCount': len(changedTasks),
+                    'message': f'成功处理 {len(changedTasks)} 个任务的收益数据'
+                }
+            }
         except Exception as e:
             log.ex(e, "获取收益失败")
+            return {
+                'error': f"获取收益失败: {str(e)}"
+            }

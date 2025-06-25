@@ -12,25 +12,19 @@ from RPC import RPC
 
 if TYPE_CHECKING:
     from _Page import _Page_
-    from _App import _App_
-    from _Log import _Log_
     from _G import _G_
 
 class CTask_(Task_, Base_):
     """客户端任务类"""
     
-    def __init__(self, name: str, config: dict, app: "_App_"):
+    def __init__(self, data: dict):
         """初始化任务"""
-        super().__init__()
-        self._app: "_App_" = app
+        name = data.get('name')
+        if not name:
+            raise ValueError(f"任务名称不能为空: {data}")
+        super().__init__(data)
         self._startTime = datetime.now()
-        self._score: int = 0
-        self._progress: int = 0
-        self._state: TaskState = TaskState.IDLE
         self._lastInPage: bool = False
-        self._id: int = 0    
-        self._name: str = name
-        self._life: int = None
         self._interval: int = None
         self._deltaTime: int = 0
         self._lastTime: datetime = None
@@ -39,56 +33,39 @@ class CTask_(Task_, Base_):
         self._beginScript = None  # 修改为begin脚本
         self._exitScript = None   # 修改为exit脚本
         self._page: "_Page_" = None  # 目标页面
-        self._config = config
-        self.oldValues = {
-            'score': self._score,
-            'state': self._state.value,  # 存储枚举值
-            'progress': self._progress
-        }
-
-    @property
-    def id(self):
-        """任务ID"""
-        return self._id
+        self._config = CTask_.getConfig(name)
+        self._oldValues = data.copy()
 
     @property
     def score(self):
         """任务得分"""
-        return self._score
+        return self.getDBProp('score', 0)
     
     @score.setter
     def score(self, value):
-        if self._score != value:
-            self._score = value
-            self._isDirty = True  # 标记为脏
+        self.setDBProp('score', value)
     
     @property
     def state(self)->TaskState:
         """任务状态"""
-        return self._state
+        return self.getDBProp('state', TaskState.IDLE)
 
     @state.setter
     def state(self, value: TaskState):
         """任务状态"""
-        log = _G.g.Log()
-        # log.i(f"任务{self._name}状态: self._state={self._state}, ==>value={value}")
-        if self._state != value:
-            self._state = value
-            self._isDirty = True  # 标记为脏
-            self._emitUpdate(self._id, {
+        if self.setDBProp('state', value.value):
+            self._emitUpdate(self.id, {
                 'state': value.value
             })
 
     @property
     def progress(self)->int:
         """任务进度"""
-        return self._progress
+        return self.getDBProp('progress', 0)
     
     @progress.setter
     def progress(self, value:int):
-        if self._progress != value:
-            self._progress = value
-            self._isDirty = True  # 标记为脏
+        self.setDBProp('progress', value)
 
     @classmethod
     def _getConfigPath(cls):
@@ -104,20 +81,6 @@ class CTask_(Task_, Base_):
     def _getConfig(cls, taskName):
         """获取任务配置"""
         return Task_.getConfig(taskName)
-    
-    @classmethod
-    def create(cls, taskName, app):
-        """创建任务实例"""
-        log = _G.g.Log()
-        try:
-            config = cls._getConfig(taskName)
-            if not config:
-                log.e(f"任务配置不存在: {taskName}")
-                return None
-            return CTask_(taskName, config, app)
-        except Exception as e:
-            log.ex(e, f"创建任务实例失败: {taskName}")
-            return None
     
     # 检查条件
     @property
@@ -137,13 +100,11 @@ class CTask_(Task_, Base_):
     @property
     def life(self):
         """生命周期（正数=秒，负数=次数）"""
-        if self._life is None:
-            self._life = int(self._getProp('life'))
-        return self._life
+        return self.getDBProp('life', 0)
 
     @life.setter
     def life(self, value):
-        self._life = int(value)
+        self.setDBProp('life', int(value))
 
     # 执行间隔
     @property
@@ -172,7 +133,7 @@ class CTask_(Task_, Base_):
     @property
     def name(self):
         """任务名称"""
-        return self._name
+        return self.name
 
     # 目标页面名称
     @property
@@ -230,25 +191,7 @@ class CTask_(Task_, Base_):
     @RPC()
     def getTaskInfo(self) -> dict:
         """获取任务信息 - RPC方法"""
-        try:
-            return {
-                'success': True,
-                'id': self._id,
-                'name': self._name,
-                'state': self._state.value,
-                'progress': self._progress,
-                'score': self._score,
-                'life': self._life,
-                'interval': self._interval,
-                'pageName': self.pageName,
-                'isCompleted': self.isCompleted(),
-                'startTime': self._startTime.isoformat() if self._startTime else None
-            }
-        except Exception as e:
-            return {
-                'success': False,
-                'error': str(e)
-            }
+        return self.data
     
     @RPC()
     def startTask(self, life: int = None) -> dict:
@@ -257,9 +200,9 @@ class CTask_(Task_, Base_):
             result = self.begin(life)
             return {
                 'success': True,
-                'taskId': self._id,
+                'taskId': self.id,
                 'state': result.value if result else None,
-                'message': f'任务 {self._name} 已开始'
+                'message': f'任务 {self.name} 已开始'
             }
         except Exception as e:
             return {
@@ -278,9 +221,9 @@ class CTask_(Task_, Base_):
             result = self.stop(stop_state)
             return {
                 'success': True,
-                'taskId': self._id,
+                'taskId': self.id,
                 'state': result.value if result else None,
-                'message': f'任务 {self._name} 已停止'
+                'message': f'任务 {self.name} 已停止'
             }
         except Exception as e:
             return {
@@ -296,15 +239,7 @@ class CTask_(Task_, Base_):
             return False
         return True
     
-    def fromData(self, data: dict):
-        """从数据更新任务"""
-        if data is None or not isinstance(data, dict):
-            return
-        self._id = int(data.get('id'))
-        self._progress = int(data.get('progress'))
-        self._state = TaskState(data.get('state'))
-        self._score = int(data.get('score'))
-        self._life = int(data.get('life'))
+
 
     def begin(self, life: int = None) -> TaskState:
         """开始任务，支持继续和正常开始
@@ -324,18 +259,18 @@ class CTask_(Task_, Base_):
                         exec(self.beginScript)
                     except Exception as e:
                         log.ex(e, f"执行任务开始脚本失败: {e}")
-            self._state = TaskState.RUNNING
+            self.state = TaskState.RUNNING
             self._startTime = datetime.now()
             self._lastTime = self._startTime
             if not self._Do(g):
-                log.e(f"任务{self._name}执行失败")
+                log.e(f"任务{self.name}执行失败")
                 return None
             device = _G._G_.CDevice()
             device.setCurTask(self)
-            self._emitUpdate(self._id, {
-                'state': self._state.value
+            self._emitUpdate(self.id, {
+                'state': self.state.value
             })
-            return self._state
+            return self.state
         except Exception as e:
             log.ex(e, f"任务开始失败: {e}")
             return None
@@ -344,12 +279,12 @@ class CTask_(Task_, Base_):
         """停止任务"""
         self.state = state
         log = _G._G_.Log()
-        log.i(f"任务{self._name}停止@@@@@@@@@@@: {state}")
-        self._emitUpdate(self._id, {
-            'state': self._state.value,
-            'progress': self._progress
+        log.i(f"任务{self.name}停止@@@@@@@@@@@: {state}")
+        self._emitUpdate(self.id, {
+            'state': self.state.value,
+            'progress': self.progress
         })
-        return self._state
+        return self.state
     
         
     def _goPage(self, g: "_G_")->bool:
@@ -385,33 +320,7 @@ class CTask_(Task_, Base_):
             return True
         # 更新状态
         self._lastInPage = isCurPage
-        return False
-    
-    def _updateStateChanged(self, g: "_G_"):
-        """更新任务状态"""
-        changed = {}
-        if self._isDirty:
-            # 检查所有被追踪字段
-            values = {
-                'score': self._score,
-                'state': self._state.value,  # 获取枚举值
-                'progress': self._progress
-            }
-            
-            for field in ['score', 'state', 'progress']:
-                current = values[field]
-                prev = self.oldValues[field]
-                
-                if current != prev:
-                    changed[field] = current
-                    self.oldValues[field] = current  # 更新存储值
-            
-            # 如果有变化则发送事件
-            if changed:
-                log = g.Log()
-                # log.i(f'任务{self._name}更新: {changed}')
-                self._emitUpdate(self._id, changed)
-                self._isDirty = False  # 重置标记
+        return False    
     
     def update(self, g: "_G_"):
         """任务更新函数"""
@@ -426,7 +335,15 @@ class CTask_(Task_, Base_):
             if self._updateProgress():
                 if not self._next(g):
                     return False
-        self._updateStateChanged(g)
+        if self.isDirty:
+            # 比较新旧值，只发送有变化的字段
+            changed = {}
+            for key, value in self.data.items():
+                if self._oldValues.get(key) != value:
+                    changed[key] = value
+            if changed:
+                self._emitUpdate(self.id, changed)
+                self._oldValues.update(self.data)
         return True
 
     def _next(self, g: "_G_")->bool:
@@ -435,7 +352,7 @@ class CTask_(Task_, Base_):
             if waitTime > 0:
                 time.sleep(waitTime)
         if not self._Do(g):
-            g.Log().e(f"任务{self._name}执行失败")
+            g.Log().e(f"任务{self.name}执行失败")
             return False
         return True
     

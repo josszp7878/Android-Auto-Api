@@ -4,14 +4,14 @@ from _App import _App_
 from datetime import datetime
 from RPC import RPC
 
-class SApp_(SModelBase_, _App_):
+class SApp_(_App_):
     """服务端App类"""
     def __init__(self, data: dict):
         """初始化App"""
-        # 先初始化SModelBase_
-        SModelBase_.__init__(self, data, AppModel_)
-        # 从data中获取appName来初始化_App_
-        _App_.__init__(self,  data)
+        # 先初始化父类_App_（它会处理SModelBase_的初始化）
+        super().__init__(data)
+        # 设置数据库模型
+        self._model = AppModel_
     
     @classmethod
     def get(cls, deviceId: str, appName: str, create: bool = False):
@@ -21,16 +21,6 @@ class SApp_(SModelBase_, _App_):
             return cls(data)
         return None
     
-    @classmethod
-    def getByID(cls, id: int):
-        """根据ID获取App"""
-        from SDeviceMgr import deviceMgr
-        devices = deviceMgr.devices
-        for device in devices:
-            for app in device._apps.values():
-                if hasattr(app, 'id') and app.id == id:
-                    return app
-        return None
     
     @property
     def appName(self) -> str:
@@ -77,28 +67,26 @@ class SApp_(SModelBase_, _App_):
         if status is not None:
             self.status = status
         self.setDBProp('lastUpdate', datetime.now())
-        return self.commit()
-    
+        return self.commit()    
     
     @RPC()
     def getAppInfo(self) -> dict:
         """获取App信息 - RPC方法"""
         try:
             return {
-                'success': True,
-                'id': self.id,
-                'appName': self.appName,
-                'deviceId': self.deviceId,
-                'totalScore': self.totalScore,
-                'income': self.income,
-                'status': self.status,
-                'lastUpdate': self.lastUpdate,
-                'data': self.data
+                'result': {
+                    'id': self.id,
+                    'appName': self.appName,
+                    'deviceId': self.deviceId,
+                    'totalScore': self.totalScore,
+                    'income': self.income,
+                    'status': self.status,
+                    'lastUpdate': self.lastUpdate,
+                }
             }
         except Exception as e:
             return {
-                'success': False,
-                'error': str(e)
+                'error': f"获取App信息失败: {str(e)}"
             }
     
     @RPC()
@@ -113,24 +101,23 @@ class SApp_(SModelBase_, _App_):
             
             if self.updateStats(totalScore, income, status):
                 return {
-                    'success': True,
-                    'appId': self.id,
-                    'appName': self.appName,
-                    'oldData': old_data,
-                    'newData': {
-                        'totalScore': self.totalScore,
-                        'income': self.income,
-                        'status': self.status
-                    },
-                    'message': f'App {self.appName} 统计已更新'
+                    'result': {
+                        'appId': self.id,
+                        'appName': self.appName,
+                        'oldData': old_data,
+                        'newData': {
+                            'totalScore': self.totalScore,
+                            'income': self.income,
+                            'status': self.status
+                        },
+                        'message': f'App {self.appName} 统计已更新'
+                    }
                 }
             else:
                 return {
-                    'success': False,
                     'error': '数据库更新失败'
                 }
         except Exception as e:
             return {
-                'success': False,
-                'error': str(e)
+                'error': f"更新App统计失败: {str(e)}"
             } 

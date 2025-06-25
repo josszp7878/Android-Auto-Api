@@ -222,7 +222,7 @@ class _G_:
             log = cls.log
             # log.i_(f'emit: {event}, {callback}')
             if sio is None:
-                log.e('socketio无效')
+                print('socketio无效')
                 return False
             # print(f'emit: {event}, {data}, {sid}')
             if cls.isServer():

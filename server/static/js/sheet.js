@@ -1829,18 +1829,8 @@ class SheetPage {
         };
         
         const result = await CmdMgr.do(cmd);
-        if (result && result.result) {
-            if (typeof result.result === 'string') {
-                this.showNotification(result.result, 'result');
-            } else {
-                // 处理对象类型的结果
-                // console.log('本地命令执行结果:', result.result);
-                this.showNotification('命令执行完成，请查看控制台', 'result');
-            }
-        } else {
-            let msg = 'w~本地命令未找到或执行失败';
-            this.addTempLog(msg, 'w');
-            this.showNotification(msg, 'result');
+        if (result) {
+            this.showNotification(result, 'result');
         }
     }
 

@@ -76,7 +76,7 @@ class RPCManager:
         try:
             method = self.getRpcMethod(className, methodName)
             if not method:
-                raise Exception(f"RPC方法不存在: {className}.{methodName}")
+                log.e(f"RPC方法不存在: {className}.{methodName}")
             
             # 获取实例 - 直接使用通用的getInst函数
             cls_obj = self._rpcClasses.get(className)
@@ -92,7 +92,6 @@ class RPCManager:
             
             if id and instance is None:
                 return {
-                    'success': False,
                     'error': f'RPC实例不存在: {className}, instance_id={id}'
                 }
             
@@ -109,17 +108,18 @@ class RPCManager:
                 # 没有类对象，直接调用method
                 result = self._callMethod(method, None, instance, args, kwargs)
             
-            return {
-                'success': True,
-                'result': result,
-                'timestamp': datetime.now().isoformat()
-            }
+            # 检查方法返回值是否已经是标准格式
+            if isinstance(result, dict) and ('error' in result or 'result' in result):
+                return result
+            else:
+                # 包装为标准格式
+                return {
+                    'result': result,
+                }
         except Exception as e:
             log.ex(e, f"RPC方法调用失败: {className}.{methodName}")
             return {
-                'success': False,
                 'error': str(e),
-                'timestamp': datetime.now().isoformat()
             }
     
     def _callMethod(self, method, cls_obj, instance, args: list, kwargs: dict):
@@ -204,7 +204,7 @@ def getInst(cls, id=None):
         className = cls.__name__
         
         # App类实例获取
-        if className == '_App_':
+        if className in ['_App_', 'SApp_']:
             from _App import _App_
             return _App_.get(id)
         # Device类实例获取
@@ -285,7 +285,7 @@ def callRPC(deviceID: str, className: str, methodName: str, params: dict = None)
             - timeout: 超时时间（可选，默认8秒）
     
     Returns:
-        RPC调用结果
+        RPC调用结果或None（如果出错）
         
     Examples:
         # 类方法调用
@@ -308,10 +308,6 @@ def callRPC(deviceID: str, className: str, methodName: str, params: dict = None)
         if params is None:
             params = {}
         
-        # 如果是本地调用，直接执行
-        # if _shouldCallLocal(deviceID):
-        #     return _callLocalRpc(className, methodName, params)
-        
         # 解析参数用于远程调用
         id = params.get('id')
         args = params.get('args', [])
@@ -329,31 +325,39 @@ def callRPC(deviceID: str, className: str, methodName: str, params: dict = None)
             'args': args,
             'kwargs': kwargs,
             'timestamp': datetime.now().isoformat()
-        }        
+        } 
+        
+        # 根据是否为服务端选择调用方式
         if g.isServer():
             if deviceID:
                 # 服务端向指定客户端发送RPC调用
-                return _callRpcToClient(deviceID, rpcData, timeout)
+                raw_result = _callRpcToClient(deviceID, rpcData, timeout)
             else:
                 log.e("缺少必要参数deviceID")
-                return {
-                    'success': False,
-                    'error': '缺少必要参数deviceID',
-                    'timestamp': datetime.now().isoformat()
-                }
+                return None
         else:
             # 客户端向服务端发送RPC调用
-            return _callRpcToServer(rpcData, timeout)
+            raw_result = _callRpcToServer(rpcData, timeout)
+        
+        # 处理标准化的RPC返回格式
+        if isinstance(raw_result, dict):
+            # 检查是否有错误
+            if 'error' in raw_result and raw_result['error']:
+                log.e(f"RPC调用失败: {className}.{methodName} - {raw_result['error']}")
+                return None
+            # 返回实际结果
+            if 'result' in raw_result:
+                return raw_result['result']
+            
+            # 如果没有错误但也没有result，返回整个字典
+            return raw_result
+        else:
+            log.e(f"RPC调用失败, 返回值不是字典 : {className}.{methodName} - {raw_result}")
+            return None
             
     except Exception as e:
         log.ex(e, f"RPC调用失败: {className}.{methodName}")
-        return {
-            'success': False,
-            'error': str(e),
-            'timestamp': datetime.now().isoformat()
-        }
-
-
+        return None
 
 def _callRpcToClient(device_id: str, rpcData: dict, timeout: int):
     """服务端向客户端发送RPC调用"""
@@ -419,18 +423,17 @@ def handleRpcCall(data: dict):
         device_id = data.get('deviceId')
         className = data.get('className')
         methodName = data.get('methodName')
-        instance_id = data.get('id')
+        instanceID = data.get('id')
         args = data.get('args', [])
         kwargs = data.get('kwargs', {})
         timeout = data.get('timeout', 8)
         
-        log.i(f"处理RPC调用: deviceId={device_id}, {className}.{methodName}")
+        log.i_(f"处理RPC调用: deviceId={device_id}, {className}.{methodName}")
         
         # 路由判断：根据deviceId决定本地处理还是转发到客户端
         if device_id is None or device_id == '':
             # 服务端本地调用
-            log.i(f"服务端本地RPC调用: {className}.{methodName}")
-            result = rpcManager.callRpcMethod(className, methodName, instance_id, args, kwargs)
+            result = rpcManager.callRpcMethod(className, methodName, instanceID, args, kwargs)
         else:
             # 转发到指定客户端
             log.i(f"转发RPC调用到客户端设备 {device_id}: {className}.{methodName}")            
@@ -439,7 +442,7 @@ def handleRpcCall(data: dict):
                 'requestId': request_id,
                 'className': className,
                 'methodName': methodName,
-                'id': instance_id,
+                'id': instanceID,
                 'args': args,
                 'kwargs': kwargs,
                 'timestamp': data.get('timestamp')

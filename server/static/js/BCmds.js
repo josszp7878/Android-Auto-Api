@@ -620,16 +620,12 @@ class BCmds {
                         kwargs: { date: date } 
                     });
 
-                    if (result === 'OK') {
+                    if (result) {
                         // 获取成功后，刷新任务表格数据
                         if (sheetPage && sheetPage.taskTable) {
                             sheetPage._loadDatas(sheetPage.taskTable, true);
                         }
-                        return;
-                    } else {
-                        return {
-                            error: `获取收益失败: ${result}`
-                        };
+                        return `获取收益成功: ${result}`;
                     }
                 } catch (error) {
                     console.error('获取收益失败:', error);

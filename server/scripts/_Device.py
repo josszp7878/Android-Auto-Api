@@ -24,8 +24,14 @@ class _Device_:
     def currentApp(self) -> Optional[_App_]:
         """获取当前App"""
         return self._currentApp
-    
-       
+
+    def getAppByID(self, id: int) -> "_App_":
+        """根据ID获取应用实例"""
+        for app in self.apps.values():
+            if app.id == id:
+                return app
+        return None
+
     def getApp(self, appName: str, create: bool = True) -> Optional[_App_]:
         """获取指定的App
         Args:
@@ -40,64 +46,23 @@ class _Device_:
             if not appName:
                 return None
             # 首先检查缓存中是否存在
-            if appName in self._apps:
-                return self._apps[appName]            
+            if appName in self.apps:
+                return self.apps[appName]            
             if not create:
                 return None
-            app = self.createApp({'appName': appName})
+            app = self._createApp({'appName': appName})
             if app:
-                self._apps[appName] = app   # 添加到缓存
+                self.apps[appName] = app   # 添加到缓存
                 return app
             return None
         except Exception as e:
             log.ex_(e, f"获取App失败: {appName}")
             return None
 
-    def createApp(self, data: dict) -> '_App_':
+    def _createApp(self, data: dict) -> '_App_':
         """创建App"""
         return None
     
-    # @RPC()
-    def getAvailableApps(self) -> dict:
-        """获取可用的App列表（从数据库获取）"""
-        try:
-            g = _G._G_
-            
-            # 获取设备ID
-            deviceId = getattr(self, 'id', 'default_device')
-            
-            # 从数据库获取所有App记录
-            app_records = AppModel_.all(deviceId)
-            availableApps = []
-            
-            for record in app_records:
-                appName = record['appName']
-                # 检查是否已加载到内存
-                isLoaded = appName in self._apps
-                
-                availableApps.append({
-                    'id': record['id'],
-                    'appName': appName,
-                    'totalScore': record['totalScore'],
-                    'income': record['income'],
-                    'status': record['status'],
-                    'isLoaded': isLoaded,
-                    'isCurrent': (self._currentApp and self._currentApp.name == appName),
-                    'lastUpdate': record['lastUpdate']
-                })
-            
-            return {
-                'success': True,
-                'apps': availableApps,
-                'totalCount': len(availableApps),
-                'loadedCount': len(self._apps),
-                'currentApp': self._currentApp.name if self._currentApp else None
-            }
-        except Exception as e:
-            return {
-                'success': False,
-                'error': str(e)
-            }
     
        
     @RPC()
@@ -107,7 +72,7 @@ class _Device_:
             g = _G._G_
             log = g.Log()
             appList = []
-            for appName, app in self._apps.items():
+            for appName, app in self.apps.items():
                 appInfo = {
                     'name': appName,
                     'description': app.description if hasattr(app, 'description') else '',
@@ -120,16 +85,16 @@ class _Device_:
                 appList.append(appInfo)
             
             return {
-                'success': True,
-                'apps': appList,
-                'currentApp': self._currentApp.name if self._currentApp else None,
-                'totalCount': len(appList)
+                'result': {
+                    'apps': appList,
+                    'currentApp': self._currentApp.name if self._currentApp else None,
+                    'totalCount': len(appList)
+                }
             }
         except Exception as e:
             log.ex_(e, "获取App列表失败")
             return {
-                'success': False,
-                'error': str(e)
+                'error': f"获取App列表失败: {str(e)}"
             }
    
     
@@ -193,7 +158,7 @@ class _Device_:
         """转换为字典格式"""
         return {
             'apps': {name: {'name': name, 'description': getattr(app, 'description', '')} 
-                    for name, app in self._apps.items()},
+                    for name, app in self.apps.items()},
             'currentApp': self._currentApp.name if self._currentApp else None
         }
     
@@ -233,10 +198,8 @@ class _Device_:
                     # 根据设备ID获取指定设备
                     deviceMgr = g.SDeviceMgr()
                     device = deviceMgr.get(id)
-                    if device is None:
-                        log.e(f"服务端根据设备ID获取设备失败: id={id}, 设备不存在或未连接")
-                    else:
-                        log.d(f"服务端成功获取设备实例: id={id}, device={device}")
+                    # if device is None:
+                    #     log.e(f"服务端根据设备ID获取设备失败: id={id}, 设备不存在或未连接")
                     return device
                 else:
                     # 获取默认设备（可能是第一个在线设备）

@@ -1,6 +1,14 @@
 /**
  * 前端RPC模块 - 支持前端调用服务端RPC方法
  * 基于Socket.IO实现
+ * 
+ * 使用示例：
+ * const result = await rpc.call('device123', 'SDevice', 'getInfo', {});
+ * if (result) {
+ *     console.log('调用成功:', result);
+ * } else {
+ *     console.log('调用失败，请查看控制台错误信息');
+ * }
  */
 class RPC {
     /** @type {Map<string, Function>} 等待响应的请求 */
@@ -69,16 +77,18 @@ class RPC {
      * @param {Array} params.args 位置参数列表（可选）
      * @param {Object} params.kwargs 关键字参数对象（可选）
      * @param {number} params.timeout 超时时间（可选，默认10000ms）
-     * @returns {Promise<any>} RPC调用结果
+     * @returns {Promise<any>} RPC调用结果，出错时返回null
      */
     static async call(deviceId, className, methodName, params = {}) {
         const socket = Socketer.getSocket();
         if (!socket) {
-            throw new Error('Socket.IO未连接');
+            console.error('RPC调用失败: Socket.IO未连接');
+            return null;
         }
         
         const requestId = this.#generateRequestId();
         const timeout = params.timeout || 10000;
+        const startTime = Date.now();
         
         const rpcData = {
             requestId,
@@ -88,36 +98,42 @@ class RPC {
             id: params.id,
             args: params.args || [],
             kwargs: params.kwargs || {},
-            timestamp: Date.now()
+            timestamp: startTime
         };
         
         console.log('发送RPC调用:', rpcData);
-        console.log('Socket连接状态:', socket.connected);
+        // console.log('Socket连接状态:', socket.connected);
         
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve) => {
             // 设置超时
             const timeoutId = setTimeout(() => {
                 this.#pendingRequests.delete(requestId);
-                console.error(`RPC调用超时: ${className}.${methodName} (${timeout}ms)`);
-                reject(new Error(`RPC调用超时: ${className}.${methodName} (${timeout}ms)`));
+                const executionTime = Date.now() - startTime;
+                sheet.addTempLog(`RPC调用超时: ${className}.${methodName} (${timeout}ms), 执行时间: ${executionTime}ms`, 'e', 'RPC', 'Browser');
+                resolve(null);
             }, timeout);
             
             // 保存请求解析器
             this.#pendingRequests.set(requestId, (response) => {
                 clearTimeout(timeoutId);
-                console.log('收到RPC响应:', response);
+                const executionTime = Date.now() - startTime;
+                // console.log('收到RPC响应:', response);
                 
-                if (response.success === false) {
-                    reject(new Error(response.error || 'RPC调用失败'));
+                // 如果有错误，显示错误信息并返回null
+                if (response.error) {
+                    sheet.addTempLog(`RPC调用出错: ${className}.${methodName} - ${response.error}, 执行时间: ${executionTime}ms`, 'e', 'RPC', 'Browser');
+                    resolve(null);
+                } else if (response.success === false) {
+                    sheet.addTempLog(`RPC调用失败: ${className}.${methodName}, 执行时间: ${executionTime}ms`, 'e', 'RPC', 'Browser');
+                    resolve(null);
                 } else {
-                    resolve(response.result || response);
+                    // 成功时返回结果
+                    resolve(response.result);
                 }
             });
             
             // 发送RPC请求
-            console.log('正在发送RPC_Call事件到服务端...');
             socket.emit('RPC_Call', rpcData);
-            console.log('RPC_Call事件已发送');
         });
     }
     
@@ -147,6 +163,7 @@ window.rpc = {
      * @param {string} className 类名
      * @param {string} methodName 方法名
      * @param {Object} params 参数对象
+     * @returns {Promise<any>} 返回结果数据，出错时返回null（错误信息会在控制台显示）
      */
     call: (deviceId, className, methodName, params = {}) => 
         RPC.call(deviceId, className, methodName, params)

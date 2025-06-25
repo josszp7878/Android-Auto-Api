@@ -1031,7 +1031,7 @@ class _Tools_:
         return screenSize
     
     @classmethod
-    def getScreenInfo(cls, refresh=False)->list[dict]:
+    def getScreenInfo(cls, refresh=False)->List[dict]:
         """获取并解析屏幕信息,支持缓存"""
         g = _G._G_
         log = g.Log()

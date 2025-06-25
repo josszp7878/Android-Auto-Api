@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Any
 from Base import Base_
 import _G
@@ -11,43 +10,12 @@ class SModelBase_(Base_):
             name: 名称
             modelClass: 模型类
         """
-        super().__init__()
-        if isinstance(name, dict):
-            self.data = name
-            self._isDirty = False
-        else:
-            self.data = {'name': name}
-            self._isDirty = True
+        super().__init__(name)
         self.modelClass = modelClass
 
     @property
-    def Dirty(self):
-        return self._isDirty
-    
-    @Dirty.setter
-    def Dirty(self, value: bool):
-        self._isDirty = value
-
-    @property
-    def id(self) -> int:
-        return self.data.get('id')
-    
-    @property
     def name(self) -> str:
-        return self.data.get('name')
-
-    def getDBProp(self, key: str, default: Any = None) -> Any:
-        """获取数据库属性"""
-        return self.data.get(key, default)
-
-    def setDBProp(self, key: str, value: Any)->bool:
-        """设置数据库属性"""        
-        if isinstance(value, datetime):
-            value = value.strftime('%Y-%m-%d %H:%M:%S')
-        if self.data.get(key) != value:
-            self.data[key] = value
-            self._isDirty = True
-        return self._isDirty
+        return self.getDBProp('name')
     
     def _onProp(self, key, value):
         """服务端特殊处理：自动提交到数据库"""
