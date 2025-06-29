@@ -821,7 +821,8 @@ class _Tools_:
             else:
                 # 根据系统类型选择打开方式
                 if cls.isHarmonyOS():
-                    opened = cls.click(f'{appName}(y-150)', 'LR')
+                    opened = cls.click(appName, 'LR', (100, -100))
+                    # opened = cls.click(appName, 'LR')
                 else:
                     # Android系统使用服务方式打开
                     opened = g.android.openApp(appName)
@@ -1306,7 +1307,6 @@ class _Tools_:
                     return None
                 else:
                     return (0, 0)
-            
             # 获取第一个匹配项的中心坐标
             item = matches[0][0]
             bounds = item.get('b')
@@ -1317,6 +1317,7 @@ class _Tools_:
                 bounds = [int(b) for b in bounds]
             else:
                 bounds = None
+            log.i_(f"匹配文本: {text}, 匹配: {bounds}")
             if not bounds or len(bounds) < 4:
                 log.e(f"非法边界坐标: {bounds}")
                 return None            
@@ -1407,12 +1408,13 @@ class _Tools_:
         return _G._G_.android is not None
 
     @classmethod
-    def click(cls, text: str, direction: str = None, waitTime: int = 1) -> bool:
+    def click(cls, text: str, direction: str = None, offset: tuple = (0, 0), waitTime: int = 1) -> bool:
         """点击屏幕上的文本
         
         Args:
             text: 要点击的文本或坐标
             direction: 如果找不到文本，滑动方向继续查找
+            offset: 点击位置的偏移量
             waitTime: 点击后等待时间（秒）
             
         Returns:
@@ -1429,7 +1431,7 @@ class _Tools_:
                 return g.android is None
             
             # 点击位置
-            cls.clickPos(pos)
+            cls.clickPos(pos, offset)
             # 等待指定时间
             if waitTime > 0 and cls.isAndroid():
                 time.sleep(waitTime)
@@ -1522,7 +1524,7 @@ class _Tools_:
             return False
 
     @classmethod  
-    def swipeTo(cls, direction, matchFunc, maxTry=3):
+    def swipeTo(cls, direction, matchFunc, maxTry=10):
         """智能滑动查找
         
         Args:
@@ -1551,19 +1553,16 @@ class _Tools_:
             'U': 'CU',
             'D': 'CD'
         }
-        
         # 开始主方向滑动
         current_dir = primary_dir
         tries = 0
         lastScreen = None
-        
         while tries < maxTry:
             # 获取当前屏幕内容用于相似度比较
             currentScreen = cls.refreshScreenInfos()
             if currentScreen is None:
                 tries += 1
-                continue
-            
+                continue            
             # 检查是否已经到达边界(屏幕内容相似度高)
             if lastScreen and cls.isScreenSimilar(currentScreen, lastScreen):
                 log.i(f"方向{current_dir}已到达边界")
@@ -1571,7 +1570,7 @@ class _Tools_:
                 # 如果支持双向且当前是主方向，切换到次方向
                 if has_secondary and current_dir == primary_dir:
                     current_dir = secondary_dir
-                    log.i(f"切换到次方向: {current_dir}")
+                    log.i(f"切换到反方向: {current_dir}")
                     lastScreen = None  # 重置屏幕比较
                     tries = 0  # 重置尝试次数
                     continue
@@ -1636,26 +1635,22 @@ class _Tools_:
 
     @classmethod
     def findTextPos(cls, text: str, searchDir: str = None) -> Optional[Tuple[int, int]]:
-        """查找文本位置
-        
+        """查找文本位置        
         Args:
             text: 要查找的文本
-            searchDir: 如果当前屏幕未找到，滑动方向继续查找
-            
+            searchDir: 如果当前屏幕未找到，滑动方向继续查找            
         Returns:
             tuple: 文本位置坐标(x,y)，未找到则返回None
         """
         log = _G._G_.Log()
-        if searchDir:
-            # 定义匹配函数
-            def matchFunc():
-                pos = cls._findTextPos(text)
-                log.i_(f"查找文本: {text}, pos: {pos}")
-                return pos is not None
-            # 滑动查找
-            found = cls.swipeTo(searchDir, matchFunc)
-            if not found:
-                return None
-        
-        # 在当前屏幕查找
-        return cls._findTextPos(text)
+        pos = None
+
+        def _findPos():
+            nonlocal pos
+            pos = cls._findTextPos(text)
+            log.i(f"查找文本: {text}, pos: {pos}")
+            return pos is not None
+        if not _findPos():
+            if searchDir:
+                cls.swipeTo(searchDir, _findPos)
+        return pos

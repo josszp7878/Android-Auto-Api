@@ -271,8 +271,8 @@ class CCmds_:
 
         
 
-        @regCmd(r"#查找|cz (?P<text>\S+)(?:\s+(?P<dir>[LRUDNONE]+))?(?:\s+(?P<distance>\d+))?")
-        def findText(text, dir=None, distance=None):
+        @regCmd(r"#查找|cz (?P<text>\S+)(?P<dir>[LlRrUuDd]+)?")
+        def findText(text, dir=None):
             """
             功能：查找屏幕上的文字
             指令名: findText-f
@@ -283,20 +283,16 @@ class CCmds_:
               distance - 查找距离(可选)
             示例: 查找 下一步 [LR] [500]
             """
-            distance = int(distance) if distance else None
             g = _G._G_
-            log = g.Log()
-            pos = g.Tools().findText(text, dir, distance)
-            log.i(f"找到文字位置: {pos}")
-            
+            pos = g.Tools().findTextPos(text, dir)            
             if pos:
                 # 安全地访问坐标
                 if isinstance(pos, tuple) and len(pos) >= 2:
                     return f"找到文字位置: {pos[0]},{pos[1]}"
                 else:
                     # 处理非元组返回值
-                    return f"找到文字，但返回格式异常: {pos}"
-            return "未找到匹配文字"
+                    return f"e~找到文字，但返回格式异常: {pos}"
+            return "e~未找到匹配文字"
        
 
         @regCmd(r"#下载 (?P<fileName>.+)?")

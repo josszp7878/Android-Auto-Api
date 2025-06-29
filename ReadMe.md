@@ -2,6 +2,114 @@
 
 ## 更更新日志
 
+### 2025-01-23 - 前端RPC参数解析增强
+
+#### 智能参数解析系统
+- #完善RPC命令参数解析逻辑：支持多种参数格式和自动类型转换
+  - JSON格式：`@SDevice_.getInfo {"id":"device1","timeout":5000}`
+  - 键值对格式：`@SDevice_.getInfo id=device1,timeout=5000,name="测试设备"`
+  - 混合格式：`@SDevice_.method param1,param2=value2,param3=123`
+  - 容错处理：解析失败时自动降级为字符串参数
+
+#### 参数分类和路由
+- #智能参数分类：根据参数名自动分配到正确的位置
+  - 特殊参数：`id`, `timeout` 直接放在params根级别
+  - 业务参数：其他键值对参数放在`kwargs`对象中
+  - 位置参数：无键名的参数放在`args`数组中
+  - 格式示例：`{id: "123", timeout: 5000, args: ["param1"], kwargs: {name: "test"}}`
+
+#### 自动类型转换
+- #`_parseParamValue`方法：智能识别并转换参数数据类型
+  - 字符串：支持单引号和双引号包围的字符串
+  - 数字：自动识别整数和浮点数，支持负数
+  - 布尔值：`true`/`false` 转换为布尔类型
+  - 特殊值：`null`, `undefined` 转换为对应的JavaScript值
+  - 数组：`[1,2,3]` 格式自动解析为数组
+  - 对象：`{key:value}` 格式自动解析为对象
+
+#### 使用示例
+- #支持的RPC命令格式：
+  ```
+  # JSON格式参数
+  @SDevice_.getInfo {"id":"device1","timeout":5000}
+  
+  # 键值对格式参数
+  @SDevice_.updateName id=device1,name="新设备名",timeout=3000
+  
+  # 混合格式参数
+  @STask_.updateScore device1,score=100,reason="完成任务"
+  
+  # 纯位置参数
+  @SApp_.getScores device1,app1
+  
+  # 复杂参数类型
+  @SDevice_.setBatch ids=[1,2,3],config={"auto":true},timeout=10000
+  ```
+
+#### 错误处理和容错
+- #参数解析容错机制：确保命令执行的稳定性
+  - JSON解析失败：自动降级为键值对解析
+  - 键值对解析异常：将原始字符串作为args参数
+  - 类型转换失败：保持原字符串形式
+  - 警告日志：解析失败时记录警告信息，不中断命令执行
+
+#### 向下兼容
+- #保持现有RPC调用格式完全兼容：无需修改现有代码
+  - 简单调用：`@SDevice_.getInfo` 无参数调用保持不变
+  - 原有格式：所有现有的参数格式继续有效
+  - 扩展支持：新增的格式作为增强功能，不影响原有使用
+
+### 2025-01-23 - RPC功能整合到Socketer类
+
+#### 代码结构优化
+- #将RPC.js功能整合到Socketer类：简化前端代码结构，减少文件数量
+  - 移除文件：删除独立的`RPC.js`文件
+  - 功能迁移：将所有RPC相关功能迁移到`socketer.js`中的Socketer类
+  - 类结构：添加静态方法`Socketer.rpcCall()`处理RPC调用
+  - 向下兼容：保持全局`window.rpc.call()`接口不变
+
+#### RPC功能重构
+- #RPC请求ID管理：添加静态计数器`#rpcRequestIdCounter`
+  - 唯一ID生成：`#generateRpcRequestId()`方法生成格式`rpc_{counter}_{timestamp}`
+  - 避免冲突：确保每个RPC请求都有唯一标识符
+  - 调试支持：便于在日志中跟踪特定的RPC调用
+
+- #核心RPC调用方法：`Socketer.rpcCall(deviceId, className, methodName, params)`
+  - 参数验证：检查Socket连接状态，连接失败时直接返回null
+  - 超时控制：支持自定义超时时间，默认10000ms
+  - 错误处理：统一处理RPC调用异常，返回null并记录错误日志
+  - 性能监控：记录RPC调用执行时间，便于性能分析
+
+- #RPC初始化：`Socketer.initRpc()`静态方法
+  - 事件监听：注册`test_rpc_response`事件监听器
+  - 状态检查：验证Socket连接状态
+  - 日志输出：初始化成功时输出确认信息
+
+#### 向下兼容保证
+- #保持全局RPC接口：`window.rpc.call()`方法保持不变
+  - 接口一致：现有的`rpc.call(deviceId, className, methodName, params)`调用方式完全兼容
+  - 内部重定向：全局方法内部调用`Socketer.rpcCall()`
+  - 无缝升级：现有代码无需修改，自动使用新的实现
+
+#### 文件更新
+- #HTML模板更新：移除对RPC.js的引用
+  - `sheet.html`：移除`<script src="/static/js/RPC.js"></script>`
+  - `rpc_test.html`：移除RPC.js引用，修正socketer.js路径大小写
+  - 加载顺序：确保socketer.js在其他依赖脚本之前加载
+
+#### 自动初始化
+- #页面加载时自动初始化RPC系统
+  - DOM就绪：使用`DOMContentLoaded`事件确保页面加载完成
+  - 延迟初始化：1秒延迟确保Socket.IO连接建立
+  - 测试事件：自动发送测试RPC事件验证连接
+
+#### 影响范围
+- #现有RPC调用保持不变：所有使用`rpc.call()`的代码继续正常工作
+  - `sheet.js`：表格管理中的RPC调用
+  - `BCmds.js`：前端命令中的RPC调用  
+  - `rpc_test.html`：RPC测试页面
+  - 其他模块：所有依赖RPC功能的前端代码
+
 ### 2025-01-23 - 客户端应用类CApp创建
 
 #### 应用架构重构

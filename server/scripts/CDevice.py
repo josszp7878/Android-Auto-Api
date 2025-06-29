@@ -36,9 +36,11 @@ class CDevice_(Base_, _Device_):
         self.initialized = False
 
     @classmethod
-    def instance(cls):
+    def instance(cls, reset=False):
         """获取单例实例"""
-        if cls._instance is None:
+        if reset:
+            cls._instance = None
+        if cls._instance is None or reset:
             cls._instance = cls()
         return cls._instance
 
@@ -48,7 +50,7 @@ class CDevice_(Base_, _Device_):
 
     @property
     def server(self):
-        return self._server
+        return self._server 
     
     def setCurrentApp(self, name: str) -> Optional['_App_']:
         """设置当前跟踪的App"""
@@ -60,7 +62,7 @@ class CDevice_(Base_, _Device_):
             app = super().setCurrentApp(name)
             # log.i(f'设置当前App:{name}')
             # rpc 调用SDevice的setCurrentApp
-            g.RPC(None, 'SDevice_', 'setCurrentApp', {'name': name})
+            g.RPCClient(self.id, 'SDevice_.setCurrentApp', {'name': name})
             return app
         except Exception as e:
             log.ex_(e, f"设置当前App失败: {name}")
@@ -277,16 +279,6 @@ class CDevice_(Base_, _Device_):
         except Exception as e:
             log.ex(e, "截图失败")
 
-    def onUnload(self):
-        self.uninit()
-
-    def onLoad(self, oldCls):
-        if oldCls:
-            self._server = oldCls._server
-            self._deviceID = oldCls._deviceID
-            self.init()
-            self.connect()
-
     @property
     def name(self):
         """获取设备名称"""
@@ -400,6 +392,7 @@ class CDevice_(Base_, _Device_):
         self._tasks = {}
         self.setTasks(data.get('taskList'))
         self.setApps(data.get('appList'))
+        self.info = data.get('info')
         log.i_(f"客户端同步完成，应用数: {len(self.apps)}，任务数: {len(self._tasks)}")
 
     def setTasks(self, taskList: list):
@@ -624,39 +617,21 @@ class CDevice_(Base_, _Device_):
         except Exception as e:
             log.ex(e, f"跳转到应用 {name} 失败")
             return None
-    # @RPC()
-    # def getScore(self, appName:str, date:str)->dict:
-    #     """
-    #     功能：获取指定应用指定日期的所有任务收益
-    #     指令名: getScores
-    #     参数: appName 应用名, date 日期(YYYY-MM-DD)
-    #     返回: [{"taskName":..., "score":...}, ...]
-    #     """
-    #     g = _G._G_
-    #     log = g.Log()
-    #     try:
-    #         App = g.App()
-    #         app = App.getTemplate(appName)
-    #         if not app:
-    #             return {
-    #                 'error': f"应用不存在: {appName}"
-    #             }
-            
-    #         date = _G.DateHelper.toDate(date)
-    #         result = app.LoadScore(date)
-    #         if not result:
-    #             return {
-    #                 'error': f"获取收益失败: {appName} {date}"
-    #             }
-            
-    #         return {
-    #             'result': result
-    #         }
-    #     except Exception as e:
-    #         log.ex(e, f"获取收益异常: {appName} {date}")
-    #         return {
-    #             'error': f"获取收益异常: {str(e)}"
-    #         }
+   
+    @classmethod
+    def onLoad(cls, oldCls):
+        if oldCls:
+            oldInstance = oldCls.instance()
+            instance = cls.instance(reset=True)
+            instance._server = oldInstance._server
+            instance._deviceID = oldInstance._deviceID
+            log = _G._G_.Log()
+            log.i(f"设备 {instance._deviceID} 重新加载: server={instance._server}, deviceID={instance._deviceID}")
+            instance.init()
+            instance.connect()
 
+    @classmethod
+    def onUnload(cls):
+        cls.instance().uninit()
 
 CDevice_.instance().onLoad(None)

@@ -390,7 +390,7 @@ class CTask_(Task_, Base_):
     def _emitUpdate(cls, taskID, data):
         """发送任务更新事件"""
         g = _G._G_
-        g.RPC(g.CDevice().id, 'STask_', 'update', {'id': taskID, 'kwargs': {'data': data}})
+        g.RPCClient(taskID, 'STask_.update', {'data': data})
 
     def _onProp(self, key, value):
         """CTask特殊处理"""

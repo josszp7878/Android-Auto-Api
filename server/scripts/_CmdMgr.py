@@ -420,8 +420,11 @@ class _CmdMgr_:
                 module = sys.modules[moduleName]
                 oldCls = g.getClassLazy(moduleName)
                 # 获取模块对应的类（假设类名为模块名加下划线）
-                if hasattr(oldCls, 'onUnload'):
-                    oldCls.onUnload()
+                try:
+                    if hasattr(oldCls, 'onUnload'):
+                        oldCls.onUnload()
+                except Exception as e:
+                    log.ex(e, f"卸载模块 {moduleName} 失败")
                 # 获取所有引用了该模块的模块
                 referrers = [
                     m for m in sys.modules.values() 

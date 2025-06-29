@@ -564,7 +564,7 @@ class PythonServices {
                 runBlocking {
                     gestureSwipe(startX, startY, endX, endY, duration)
                 }
-                ToolBarService.log("Sweep $swipeDirection successful")
+                // ToolBarService.log("Sweep $swipeDirection successful")
                 true
             } catch (e: Exception) {
                 ToolBarService.logEx(e, "Sweep $swipeDirection failed")

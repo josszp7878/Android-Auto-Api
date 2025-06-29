@@ -181,7 +181,7 @@ def onC2S_Log(data):
     """处理客户端日志"""
     Log = _Log._Log_
     try:
-        print("log@@@")
+        # print("log@@@")
         message = data.get('message')
         tag = data.get('tag')
         level = data.get('level', 'i')

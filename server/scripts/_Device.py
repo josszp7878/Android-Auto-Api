@@ -4,13 +4,31 @@ from RPC import RPC
 import _G
 
 
-class _Device_:
+class _Device_():
     """设备App管理基类：提供查询、创建和跟踪当前app的功能"""
     
     def __init__(self):
         self._apps: Dict[str, _App_] = {}  # 设备的App列表
         self._currentApp: Optional[_App_] = None  # 当前跟踪的App
         self._curAppName = _G.TOP
+
+
+    @property
+    def info(self) -> dict:
+        """获取设备信息"""
+        return {
+            'id': self.id,
+        }
+    
+    @info.setter
+    def info(self, value: dict):
+        """设置设备信息"""
+        self.id = int(value.get('id'))
+    
+    @property
+    def deviceName(self) -> str:
+        """获取设备名称"""
+        return self.name
         
     @property
     def apps(self) -> Dict[str, _App_]:
@@ -18,7 +36,7 @@ class _Device_:
         if not self._apps:
             self._loadApps()
         return self._apps
-
+    
     @RPC()
     def setCurrent(self, name: str):
         """设置当前检测应用名称"""
@@ -33,7 +51,7 @@ class _Device_:
             # rpc 同步服务端
             log = g.Log()
             log.i(f"@rpc server setCurrent: {name}")
-            g.RPC(None, 'Device_', 'setCurrent', {'name': name})
+            g.RPCClient(self.id, '_Device_.setCurrent', {'name': name})
     
     @property
     def currentApp(self) -> Optional[_App_]:
@@ -168,8 +186,8 @@ class _Device_:
                 device = g.CDevice()
                 if device is None:
                     log.e("客户端获取当前设备失败")
-                else:
-                    log.d(f"客户端成功获取设备实例: device={device}")
+                # else:
+                    # log.d(f"客户端成功获取设备实例: device={device}")
                 return device
         except Exception as e:
             log.ex_(e, f"获取Device实例异常: id={id}")

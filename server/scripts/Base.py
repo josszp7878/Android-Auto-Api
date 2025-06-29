@@ -15,6 +15,10 @@ class Base_():
     @property
     def id(self) -> int:
         return int(self.getDBProp('id', 0))
+    
+    @id.setter
+    def id(self, id:int):
+        self.setDBProp('id', id)
             
     @property
     def name(self) -> str:

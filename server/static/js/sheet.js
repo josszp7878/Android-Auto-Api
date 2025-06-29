@@ -2009,7 +2009,7 @@ class SheetPage {
             const spaceIndex = command.indexOf(' ');
             let paramsStr = null;
             if (spaceIndex !== -1) {
-                paramsStr = command.substring(spaceIndex + 1);
+                paramsStr = command.substring(spaceIndex + 1).trim();
                 command = command.substring(0, spaceIndex);
             }
             
@@ -2033,35 +2033,49 @@ class SheetPage {
                 methodName = parts[1];
             }
             let params = {};
-            // 解析参数
-            if (paramsStr) {
+            if (paramsStr && paramsStr !== '') {
+                // 解析参数：支持多种格式
                 try {
-                    // 尝试解析JSON格式的参数
-                    if (paramsStr.trim().startsWith('{')) {
+                    // 首先尝试解析为JSON格式
+                    if (paramsStr.startsWith('{') && paramsStr.endsWith('}')) {
                         params = JSON.parse(paramsStr);
                     } else {
-                        // 将空格分隔的参数作为args数组
-                        const args = paramsStr.split(/\s+/).filter(arg => arg.length > 0);
-                        if (args.length === 1) {
-                            // 单个参数可能是instance id
-                            params = { id: args[0] };
-                        } else if (args.length > 1) {
-                            // 多个参数作为args数组
-                            params = { args: args };
+                        // 解析键值对格式：param1=value1,param2=value2
+                        const pairs = paramsStr.split(',');
+                        for (const pair of pairs) {
+                            const trimmedPair = pair.trim();
+                            if (!trimmedPair) continue;
+                            
+                            const eqIndex = trimmedPair.indexOf('=');
+                            if (eqIndex === -1) {
+                                // 没有等号的参数作为args数组的一部分
+                                this.log(`${trimmedPair} 必须提供参数名`, 'e');
+                                continue;
+                            } else {
+                                // 键值对参数
+                                const key = trimmedPair.substring(0, eqIndex).trim();
+                                const value = trimmedPair.substring(eqIndex + 1).trim();
+                                if(key == '' || key == null) {
+                                    this.log(`${value} 必须提供参数名`, 'e');
+                                    continue;
+                                }
+                                params[key] = this._parseParamValue(value);
+                            }
                         }
                     }
-                } catch (e) {
-                    this.log(`参数解析失败: ${e.message}`, 'e');
-                    return;
+                } catch (error) {
+                    this.log(`参数解析失败: ${error.message}，使用原始字符串`, 'w');
+                    // 解析失败时，将整个参数字符串作为args的第一个元素
+                    params = { args: [paramsStr] };
                 }
             }
             
-            console.log(`执行RPC调用: ${targetsStr}.${className}.${methodName}`, params);
+            // console.log(`执行RPC调用: ${targetsStr}.${className}.${methodName}`, params);
             
             // 根据targets字符串决定调用类型
             if (targetsStr === '@') {
                 // 空targets表示服务端调用
-                this.log(`服务端RPC调用: ${className}.${methodName}`, 'i');                
+                // this.log(`服务端RPC调用: ${className}.${methodName}`, 'i');                
                 const result = await rpc.call(null, className, methodName, params);
                 this.showResult(result);
             } else if (targetsStr === '!') {
@@ -2192,6 +2206,60 @@ class SheetPage {
         return result;
     }
 
+
+    /**
+     * 解析参数值，自动转换类型
+     * @param {string} value - 参数值字符串
+     * @returns {any} 转换后的值
+     */
+    _parseParamValue(value) {
+        if (!value || typeof value !== 'string') return value;
+        
+        const trimmed = value.trim();
+        
+        // 处理引号包围的字符串
+        if ((trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+            (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+            return trimmed.slice(1, -1);
+        }
+        
+        // 处理布尔值
+        if (trimmed.toLowerCase() === 'true') return true;
+        if (trimmed.toLowerCase() === 'false') return false;
+        
+        // 处理null和undefined
+        if (trimmed.toLowerCase() === 'null') return null;
+        if (trimmed.toLowerCase() === 'undefined') return undefined;
+        
+        // 处理数字
+        if (/^-?\d+$/.test(trimmed)) {
+            return parseInt(trimmed, 10);
+        }
+        if (/^-?\d*\.\d+$/.test(trimmed)) {
+            return parseFloat(trimmed);
+        }
+        
+        // 处理数组格式 [1,2,3]
+        if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+            try {
+                return JSON.parse(trimmed);
+            } catch (e) {
+                // JSON解析失败，按字符串处理
+            }
+        }
+        
+        // 处理对象格式 {key:value}
+        if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+            try {
+                return JSON.parse(trimmed);
+            } catch (e) {
+                // JSON解析失败，按字符串处理
+            }
+        }
+        
+        // 默认返回原字符串
+        return trimmed;
+    }
 
     /**
      * 根据ID或名字查找设备

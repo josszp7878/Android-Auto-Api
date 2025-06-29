@@ -275,15 +275,15 @@ class SDevice_(SModelBase_, _Device_):
         log = g.Log()
         try:
             log.i(f'设备登录: {self.name}')
-            self.state = _G.ConnectState.LOGIN
-            
+            self.state = _G.ConnectState.LOGIN            
             # 初始化Apps（如果还没有初始化）
             self._loadApps()
             
             # 准备返回数据
             result = {
                 "taskList": [t.toSheetData() for t in self.tasks.values()],
-                "appList": [t.toSheetData() for t in self.apps.values()]
+                "appList": [t.toSheetData() for t in self.apps.values()],
+                "info": self.info
             }
             log.i(f'同步获取数据: app:{len(result["appList"])}, task:{len(result["taskList"])}')
             return result
@@ -459,7 +459,7 @@ class SDevice_(SModelBase_, _Device_):
             if not pageName:
                 pageName = 'Last'
             # 通过RPC调用客户端方法获取屏幕信息
-            screenData = g.RPC(deviceID, 'CDevice_', 'getScreenInfo', {})            
+            screenData = g.RPCServer(deviceID, 'CDevice_.getScreenInfo')            
             if not screenData:
                 return None
             # 保存到文件
@@ -496,9 +496,7 @@ class SDevice_(SModelBase_, _Device_):
                 return {'error': '屏幕信息为空或文件不存在'}
             
             # 通过RPC调用客户端方法设置屏幕信息
-            result = g.RPC(deviceID, 'CDevice_', 'setScreenInfo', {
-                'kwargs': {'screenInfos': screenInfo}
-            })
+            result = g.RPCServer(deviceID, 'CDevice_.setScreenInfo', id=deviceID, screenInfos=screenInfo)
             
             if result and result.get('result'):
                 log.i(f"设置屏幕信息成功: {pageName}")
@@ -678,7 +676,7 @@ class SDevice_(SModelBase_, _Device_):
         g = _G._G_
         log = g.Log()
         try:
-            result = g.RPC(self.id, 'CDevice_', 'getScore', {'kwargs': {'appName': appName, 'date': date}})
+            result = g.RPCServer(self.id, 'CDevice_.getScore', appName=appName, date=date)
             if not result:
                 return {
                     'error': f"从客户端获取收益数据失败"

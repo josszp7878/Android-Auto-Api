@@ -509,20 +509,46 @@ class _G_:
         """获取设备实例（单例模式）"""
         from CDevice import CDevice_
         return CDevice_.instance()
-        
+    
     @classmethod
-    def RPC(cls, device_id: str, className: str, methodName: str, params: dict = None):
-        """远程过程调用
-        
+    def toClassName(cls, className: str) -> str:
+        """获取RPC类名"""
+        if not className.endswith('_'):
+            className = className + '_'
+        return className
+    
+    @classmethod
+    def RPCClient(cls, id, methodName: str, params: dict = None):
+        """服务端调用"""
+        if not methodName or '.' not in methodName:
+            return None
+        strs = methodName.split('.')
+        className = strs[0]
+        methodName = strs[1]
+        if id:
+            log = cls.log
+            log.i(f"RPCClient@@@@@@@@@@@@: {id}, {methodName}, {params}")
+            params['id'] = id
+        return cls._RPC(None, className, methodName, params)
+
+    @classmethod
+    def RPCServer(cls, deviceID, methodName: str, params: dict = None):
+        """服务端调用"""
+        if not methodName or '.' not in methodName:
+            return None
+        strs = methodName.split('.')
+        className = strs[0]
+        methodName = strs[1]
+        return cls._RPC(deviceID, className, methodName,  params)
+
+    @classmethod
+    def _RPC(cls, device_id: str, className: str, methodName: str, params: dict = None):
+        """远程过程调用        
         Args:
             device_id: 设备ID（如果是服务端调用客户端，为None则是客户端调用服务端）
             className: 类名
             methodName: 方法名
-            params: 参数字典，支持以下键：
-                - id: 实例ID（可选）
-                - args: 位置参数列表（可选）
-                - kwargs: 关键字参数字典（可选）
-                - timeout: 超时时间（可选，默认8秒）
+            params: 参数字典
         """
         from RPC import callRPC
         return callRPC(device_id, className, methodName, params)
