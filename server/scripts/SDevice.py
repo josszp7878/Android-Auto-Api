@@ -1,6 +1,5 @@
 from datetime import datetime
-from pathlib import Path
-import json
+import json 
 import os
 from typing import TYPE_CHECKING, Dict
 from SModels import DeviceModel_, TaskModel_
@@ -11,21 +10,20 @@ from SModelBase import SModelBase_
 from _Device import _Device_
 
 from RPC import RPC
+from typing import Optional
 if TYPE_CHECKING:
     from STask import STask_
-
+    from SApp import SApp_
 
 class SDevice_(SModelBase_, _Device_):
     """设备管理类"""
-    SCREENSHOTS_DIR = os.path.join(_G.g.rootDir(), 'data', 'screenshots')
-    
+    SCREENSHOTS_DIR = 'screenshots'
     def __init__(self, name):
         super().__init__(name, DeviceModel_)
         _Device_.__init__(self)  # 初始化App管理功能
         self.sid:str = None
         self._state = _G.ConnectState.OFFLINE
         self._lastScreenshot = None
-        self._ensure_screenshot_dir()
         self._tasks: Dict[int, 'STask_'] = None  # 缓存当天任务列表
         self.tasksDate = None  # 当前缓存的日期
         self.debug = False  # debug开关，临时属性，不保存到数据库
@@ -42,13 +40,6 @@ class SDevice_(SModelBase_, _Device_):
     def state(self)->_G.ConnectState:
         return self._state
     
-    # def _refreshTasks(self):
-    #     """刷新任务列表"""
-    #     tasks = self.getTasks()
-    #     g = _G._G_
-    #     log = g.Log()
-    #     log.i(f'刷新任务列表: {self.name}, {tasks}')
-    #     g.emit('S2B_sheetUpdate', {'type': 'tasks', 'data': [t.toSheetData() for t in tasks]})
     
     @state.setter
     def state(self, value: _G.ConnectState):
@@ -60,6 +51,10 @@ class SDevice_(SModelBase_, _Device_):
         self.commit()
         self.refresh()
 
+    @RPC()
+    def setCurrentApp(self, name: str)->Optional['SApp_']:
+        """设置当前跟踪的App"""
+        return super().setCurrentApp(name)
     
     @classmethod
     def all(cls):
@@ -120,11 +115,7 @@ class SDevice_(SModelBase_, _Device_):
             log.ex(e, '更新客户端数据失败')
             return False
     
-    def _ensure_screenshot_dir(self):
-        """确保设备的截图目录存在"""
-        self.screenshot_dir = Path(self.SCREENSHOTS_DIR) / (str(self.id))
-        self.screenshot_dir.mkdir(parents=True, exist_ok=True)
-
+    
     def isConnected(self) -> bool:
         return self._state != _G.ConnectState.OFFLINE
     
@@ -345,14 +336,11 @@ class SDevice_(SModelBase_, _Device_):
             # 解码base64数据
             if base64_data.startswith('data:image'):
                 image_data = base64_data.split(',', 1)[1]
-                image_bytes = base64.b64decode(image_data)
-                
-                # 确保目录存在
-                self._ensure_screenshot_dir()
-                
+                image_bytes = base64.b64decode(image_data)                
                 # 生成文件名
                 filename = datetime.now().strftime('%Y-%m-%d_%H-%M-%S.jpg')
-                file_path = self.screenshot_dir / filename
+                g = _G._G_
+                file_path = g.dataDir(os.path.join(self.SCREENSHOTS_DIR, str(self.id), filename))
                 
                 # 保存文件
                 with open(file_path, 'wb') as f:
@@ -450,14 +438,81 @@ class SDevice_(SModelBase_, _Device_):
             _Log._Log_.ex(e, "分析屏幕应用失败")
             return False
 
-    @classmethod
-    def _screenInfoFile(cls, pageName) -> str:
-        return f"{cls.SCREENSHOTS_DIR}/{pageName}.json"
     
     _lastScreenInfo = None
     
     @classmethod
-    def setScreenInfo(cls, pageName: str, screenInfo: str) -> bool:
+    @RPC()
+    def getScreenInfo(cls, deviceID: int, pageName: str = None) -> dict:
+        """RPC方法：获取设备屏幕信息
+        
+        Args:
+            deviceID: 设备ID
+            pageName: 页面名称，用于文件缓存
+            
+        Returns:
+            dict: RPC结果，包含屏幕信息或错误信息
+        """
+        g = _G._G_
+        log = g.Log()
+        try:
+            if not pageName:
+                pageName = 'Last'
+            # 通过RPC调用客户端方法获取屏幕信息
+            screenData = g.RPC(deviceID, 'CDevice_', 'getScreenInfo', {})            
+            if not screenData:
+                return None
+            # 保存到文件
+            pageName = pageName or 'Last'
+            success = cls._saveScreenInfoToFile(pageName, screenData)
+            if not success:
+                log.e(f"保存屏幕信息失败: {pageName}")
+                return None
+            return screenData                
+        except Exception as e:
+            log.ex(e, "获取屏幕信息失败")
+            return None
+
+    @classmethod
+    @RPC()
+    def setScreenInfo(cls, deviceID: int, pageName: str = None) -> dict:
+        """RPC方法：设置设备屏幕信息
+        
+        Args:
+            deviceID: 设备ID
+            pageName: 页面名称，用于从文件加载
+            
+        Returns:
+            dict: RPC结果，包含设置结果或错误信息
+        """
+        g = _G._G_
+        log = g.Log()
+        try:
+            if not pageName:
+                pageName = 'Last'
+            # 从文件加载屏幕信息
+            screenInfo = cls._loadScreenInfoFromFile(pageName)
+            if not screenInfo:
+                return {'error': '屏幕信息为空或文件不存在'}
+            
+            # 通过RPC调用客户端方法设置屏幕信息
+            result = g.RPC(deviceID, 'CDevice_', 'setScreenInfo', {
+                'kwargs': {'screenInfos': screenInfo}
+            })
+            
+            if result and result.get('result'):
+                log.i(f"设置屏幕信息成功: {pageName}")
+                return {'result': {'pageName': pageName, 'success': True}}
+            else:
+                error = result.get('error') if result else '设置屏幕信息失败'
+                return {'error': error}
+                
+        except Exception as e:
+            log.ex(e, "设置屏幕信息失败")
+            return {'error': f'设置屏幕信息失败: {str(e)}'}
+
+    @classmethod
+    def _saveScreenInfoToFile(cls, pageName: str, screenInfo) -> bool:
         """将屏幕信息保存到文件
         
         Args:
@@ -469,31 +524,28 @@ class SDevice_(SModelBase_, _Device_):
         """
         if not screenInfo:
             return False
-        log = _G._G_.Log()
+        g = _G._G_
+        log = g.Log()
         try:
             # 构建文件名
-            fileName = cls._screenInfoFile(pageName)
+            fileName = os.path.join(g.dataDir(cls.SCREENSHOTS_DIR), f'{pageName}.json')
+            
             # 确保目录存在
             os.makedirs(os.path.dirname(fileName), exist_ok=True)
-            # 尝试解析JSON并重新格式化
-            try:
-                if screenInfo is None or screenInfo.strip() == '':
-                    return False
-                cls._lastScreenInfo = screenInfo
-                json_data = json.loads(screenInfo)
-                # 换成美观的json格式
-                screenInfo = json.dumps(
-                    json_data, 
-                    ensure_ascii=False, 
-                    indent=4,
-                    sort_keys=True
-                )
-                # 将屏幕信息保存到文件
-                with open(fileName, 'w', encoding='utf-8') as f:
-                    f.write(screenInfo)
-            except Exception as e:
-                log.ex(e, f"保存屏幕信息到文件失败: {pageName}")
-                return False
+            
+            # 格式化JSON数据
+            json_data = json.dumps(
+                screenInfo, 
+                ensure_ascii=False, 
+                indent=4,
+                sort_keys=True
+            )
+            
+            # 保存到文件
+            with open(fileName, 'w', encoding='utf-8') as f:
+                f.write(json_data)
+            
+            cls._lastScreenInfo = json_data
             log.i(f"保存屏幕信息到文件成功: {fileName}")
             return True
         except Exception as e:
@@ -501,27 +553,34 @@ class SDevice_(SModelBase_, _Device_):
             return False
 
     @classmethod
-    def getScreenInfo(cls, pageName) -> str:
+    def _loadScreenInfoFromFile(cls, pageName: str = None):
         """从文件加载屏幕信息
         
         Args:
             pageName: 页面名称，用于构建文件名
             
         Returns:
-            bool: 是否加载成功
+            屏幕信息数据或None
         """
-        log = _G._G_.Log()
+        g = _G._G_
+        log = g.Log()
         try:
             if pageName is None:
-                return cls._lastScreenInfo
+                if cls._lastScreenInfo:
+                    return json.loads(cls._lastScreenInfo)
+                return None
+            
             # 构建文件名
-            fileName = cls._screenInfoFile(pageName)            
+            fileName = os.path.join(g.dataDir(cls.SCREENSHOTS_DIR), f'{pageName}.json')
+            
             # 检查文件是否存在
             if not os.path.exists(fileName):
+                log.w(f"屏幕信息文件不存在: {fileName}")
                 return None
+            
             # 从文件加载屏幕信息
             with open(fileName, 'r', encoding='utf-8') as f:
-                return f.read()
+                return json.loads(f.read())
         except Exception as e:
             log.ex(e, f"从文件加载屏幕信息失败: {pageName}")
             return None

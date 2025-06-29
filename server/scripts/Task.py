@@ -1,22 +1,17 @@
 import json
 import os
+import _G
 
 class Task_:
     """任务配置基类，提供任务配置读取功能"""
     taskConfigs = {}
 
-    @classmethod
-    def _getConfigPath(cls):
-        from _G import g
-        configDir = os.path.join(g.rootDir(), "config")
-        if not os.path.exists(configDir):
-            os.makedirs(configDir)
-        return os.path.join(configDir, "task.json")
 
     @classmethod
     def loadConfig(cls):
         try:
-            configPath = cls._getConfigPath()
+            g = _G._G_
+            configPath = g.configDir()
             if os.path.exists(configPath):
                 with open(configPath, "r", encoding="utf-8") as f:
                     configs = json.load(f)
@@ -36,9 +31,10 @@ class Task_:
     @classmethod
     def _saveConfig(cls):
         """保存任务配置"""
-        log = _G.g.Log()
+        g = _G._G_
+        log = g.Log()
         try:
-            configPath = cls._getConfigPath()
+            configPath = g.configDir()
             with open(configPath, "w", encoding="utf-8") as f:
                 json.dump(cls.taskConfigs, f, ensure_ascii=False, indent=4)
         except Exception as e:

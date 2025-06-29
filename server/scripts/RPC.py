@@ -51,32 +51,26 @@ class RPCManager:
                 
     def getRpcMethod(self, className: str, methodName: str) -> Optional[Callable]:
         """获取RPC方法"""
-        return self._rpcMethods.get(className, {}).get(methodName)
-    
-    def getRpcInstance(self, className: str, instance_id=None) -> Optional[Any]:
-        """动态获取RPC实例"""
-        cls_obj = self._rpcClasses.get(className)
-        if cls_obj:
-            try:
-                return getInst(cls_obj, instance_id)
-            except Exception as e:
-                g = _G._G_
-                log = g.Log()
-                log.ex(e, f"获取RPC实例失败: {className}, instance_id={instance_id}")
-                return None
-        return None
+        # 先尝试获取方法
+        call = self._rpcMethods.get(className, {}).get(methodName)
+        # 如果方法不存在，则尝试获取带下划线的方法
+        if not call and not className.endswith('_'):
+            call = self._rpcMethods.get(className + '_', {}).get(methodName)
+        return call    
     
     def callRpcMethod(self, className: str, methodName: str, id: str, args: list, kwargs: dict):
         """调用RPC方法"""
         import inspect
-        
         g = _G._G_
         log = g.Log()
         
         try:
             method = self.getRpcMethod(className, methodName)
             if not method:
-                log.e(f"RPC方法不存在: {className}.{methodName}")
+                # log.e(f"RPC方法不存在: {className}.{methodName}")
+                return {
+                    'error': f'RPC方法不存在: {className}.{methodName}'
+                }
             
             # 获取实例 - 直接使用通用的getInst函数
             cls_obj = self._rpcClasses.get(className)
@@ -459,7 +453,7 @@ def callRPC(deviceID: str, className: str, methodName: str, params: dict = None)
         log.ex(e, f"RPC调用失败: {className}.{methodName}")
         return None
 
-def _callRpcToClient(device_id: str, rpcData: dict, timeout: int):
+def _callRpcToClient(strDeviceID: str, rpcData: dict, timeout: int):
     """服务端向客户端发送RPC调用"""
     g = _G._G_
     log = g.Log()
@@ -467,11 +461,13 @@ def _callRpcToClient(device_id: str, rpcData: dict, timeout: int):
     try:
         # 先根据deviceID获取Device对象
         deviceMgr = g.SDeviceMgr()
-        device = deviceMgr.get(device_id)
+        devices = deviceMgr.devices
+        deviceID = int(strDeviceID)
+        device = next((d for d in devices if d.id == deviceID and d.isConnected()), None)
         if not device:
             return {
                 'success': False,
-                'error': f'设备不存在: {device_id}',
+                'error': f'设备不存在: {strDeviceID}',
                 'timestamp': datetime.now().isoformat()
             }
         
@@ -480,7 +476,7 @@ def _callRpcToClient(device_id: str, rpcData: dict, timeout: int):
         if not sid:
             return {
                 'success': False,
-                'error': f'设备未连接: {device_id}',
+                'error': f'设备未连接: {strDeviceID}',
                 'timestamp': datetime.now().isoformat()
             }
         
@@ -489,7 +485,7 @@ def _callRpcToClient(device_id: str, rpcData: dict, timeout: int):
         return result
         
     except Exception as e:
-        log.ex(e, f"向客户端发送RPC调用失败: {device_id}")
+        log.ex(e, f"向客户端发送RPC调用失败: {strDeviceID}")
         return {
             'success': False,
             'error': str(e),

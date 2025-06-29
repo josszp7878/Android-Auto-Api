@@ -51,7 +51,7 @@ class Socketer {
      * @param {number} [timeout=5000] 超时时间(ms)
      * @returns {Promise} 返回响应数据
      */
-        emitRet(event, data = {}, timeout = 10000) {
+    emitRet(event, data = {}, timeout = 10000) {
             return new Promise((resolve, reject) => {
                 const timer = setTimeout(() => {
                     reject(new Error(`请求超时: ${event}`));
@@ -77,15 +77,15 @@ class Socketer {
                 payload.deviceId = this.deviceId;
             }
 
-            console.log(`[DEBUG] Socketer.emit 发送事件: ${event}`, payload);
-            console.log(`[DEBUG] Socket连接状态: ${Socketer.#socket.connected}`);
-            console.log(`[DEBUG] Socket ID: ${Socketer.#socket.id}`);
+            // sheet.log(`[DEBUG] Socketer.emit 发送事件: ${event}`, payload);
+            // sheet.log(`[DEBUG] Socket连接状态: ${Socketer.#socket.connected}`);
+            // sheet.log(`[DEBUG] Socket ID: ${Socketer.#socket.id}`);
             
             Socketer.#socket.emit(event, payload);
-            console.log(`[DEBUG] 事件 ${event} 已发送`);
+            // console.log(`[DEBUG] 事件 ${event} 已发送`);
             return true;
         } catch (e) {
-            console.error(`[DEBUG] 发送事件 ${event} 失败:`, e);
+            // console.error(`[DEBUG] 发送事件 ${event} 失败:`, e);
             if (retries > 0) {
                 return this.emit(event, data, { sid, retries: retries - 1 });
             }

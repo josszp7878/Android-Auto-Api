@@ -93,7 +93,7 @@ class SheetPage {
                         const deviceName = data.name || data.id;
                         // 检查设备是否在线
                         if (data.state === 'offline') {
-                            this.showNotification(`设备 ${deviceName} 离线，无法获取日志`, 'result');
+                            this.log(`设备 ${deviceName} 离线，无法获取日志`, 'e');
                             return;
                         }
                         // 发送 getLogs 指令
@@ -1285,7 +1285,7 @@ class SheetPage {
      * @param {string} message - 消息内容
      * @param {string} type - 通知类型：'command'(命令发送) 或 'result'(命令结果)
      */
-    showNotification(message, type = 'command') {
+    _notify(message, level = null) {
         // 获取现有通知的数量，用于计算位置
         const existingNotifications = document.querySelectorAll('.notification');
         const notificationHeight = 50; // 预估的单个通知高度
@@ -1306,29 +1306,67 @@ class SheetPage {
         notification.style.fontSize = '14px';
         notification.style.lineHeight = '1.4';
         notification.style.backgroundColor = '#404040'; // 统一暗灰色背景
+        notification.style.display = 'flex';
+        notification.style.flexDirection = 'column';
+        notification.style.gap = '8px';
         
-        // 根据类型设置不同样式
-        if (type === 'result') {
-            // 对于结果类型，解析LEVEL并设置相应颜色
+        // 创建消息内容容器
+        const messageContent = document.createElement('div');
+        messageContent.style.flex = '1';
+        
+        if(level === null) {
             const parsed = this.parseLevel(message, 'i');
-            const levelColor = this.getLevelColor(parsed.level);
-            
-            notification.textContent = parsed.content || message;
-            notification.style.color = levelColor;
-            
-            // 为错误和警告添加特殊的边框标识
-            if (parsed.level === 'e') {
-                notification.style.borderLeft = '4px solid #FF6B6B';
-            } else if (parsed.level === 'w') {
-                notification.style.borderLeft = '4px solid #FFD93D';
-            } else if (parsed.level === 'c') {
-                notification.style.borderLeft = '4px solid #51CF66';
-            }
-        } else {
-            // 命令发送显示为浅绿色字体
-            notification.textContent = message;
-            notification.style.color = '#90EE90';
+            level = parsed.level;
+            message = parsed.content;
         }
+        // 根据类型设置不同样式
+        const levelColor = this.getLevelColor(level);
+        messageContent.textContent = message;
+        messageContent.style.color = levelColor;
+        // 为错误和警告添加特殊的边框标识
+        if (level === 'e') {
+            notification.style.borderLeft = '4px solid #FF6B6B';
+        } else if (level === 'w') {
+            notification.style.borderLeft = '4px solid #FFD93D';
+        } else if (level === 'c') {
+            notification.style.borderLeft = '4px solid #51CF66';
+        } 
+        
+        // 创建按钮容器
+        const buttonContainer = document.createElement('div');
+        buttonContainer.style.display = 'flex';
+        buttonContainer.style.gap = '8px';
+        buttonContainer.style.justifyContent = 'flex-end';
+        buttonContainer.style.marginTop = '5px';
+        
+        // 创建COPY按钮
+        const copyButton = document.createElement('button');
+        copyButton.textContent = 'COPY';
+        copyButton.style.padding = '4px 8px';
+        copyButton.style.fontSize = '12px';
+        copyButton.style.backgroundColor = '#3273dc';
+        copyButton.style.color = 'white';
+        copyButton.style.border = 'none';
+        copyButton.style.borderRadius = '3px';
+        copyButton.style.cursor = 'pointer';
+        copyButton.style.transition = 'background-color 0.2s';
+        
+        copyButton.addEventListener('mouseenter', () => {
+            copyButton.style.backgroundColor = '#2368d1';
+        });
+        copyButton.addEventListener('mouseleave', () => {
+            copyButton.style.backgroundColor = '#3273dc';
+        });
+        
+        // COPY按钮点击事件
+        copyButton.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            await this.copyNotificationContent(message);
+        });
+        
+        buttonContainer.appendChild(copyButton);
+        notification.appendChild(messageContent);
+        notification.appendChild(buttonContainer);
         
         // 计算底部位置，避免遮挡输入框，向上扩展
         const commandArea = document.querySelector('.command-area');
@@ -1388,6 +1426,154 @@ class SheetPage {
             const bottomPosition = baseBottom + (index * (notificationHeight + spacing));
             notification.style.bottom = `${bottomPosition}px`;
         });
+    }
+
+    /**
+     * 复制通知内容到剪贴板并询问是否保存文件
+     * @param {string} content - 要复制的内容
+     */
+    async copyNotificationContent(content) {
+        try {
+            // 复制到剪贴板
+            await navigator.clipboard.writeText(content);
+            
+            // 显示复制成功的临时提示
+            this.showTempMessage('内容已复制到剪贴板', 'success');
+            
+            // 询问是否需要保存临时文件
+            const shouldSave = confirm('内容已复制到剪贴板。\n\n是否需要保存为文件？');
+            
+            if (shouldSave) {
+                this.saveContentToFile(content);
+            }
+            
+        } catch (error) {
+            console.error('复制失败:', error);
+            
+            // 如果剪贴板API不可用，尝试使用备用方法
+            if (this.fallbackCopyToClipboard(content)) {
+                this.showTempMessage('内容已复制到剪贴板（备用方法）', 'success');
+                
+                const shouldSave = confirm('内容已复制到剪贴板。\n\n是否需要保存为文件？');
+                if (shouldSave) {
+                    this.saveContentToFile(content);
+                }
+            } else {
+                this.showTempMessage('复制失败，请手动复制内容', 'error');
+            }
+        }
+    }
+
+    /**
+     * 备用的复制到剪贴板方法
+     * @param {string} text - 要复制的文本
+     * @returns {boolean} 是否成功
+     */
+    fallbackCopyToClipboard(text) {
+        try {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            textArea.style.top = '-999999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            
+            const success = document.execCommand('copy');
+            document.body.removeChild(textArea);
+            return success;
+        } catch (error) {
+            console.error('备用复制方法也失败:', error);
+            return false;
+        }
+    }
+
+    /**
+     * 保存内容到文件
+     * @param {string} content - 要保存的内容
+     */
+    saveContentToFile(content) {
+        try {
+            // 获取当前时间作为默认文件名
+            const now = new Date();
+            const timestamp = now.toISOString().replace(/[:.]/g, '-');
+            const defaultFileName = `notification_${timestamp}.txt`;
+            
+            // 询问用户文件名
+            const fileName = prompt('请输入文件名:', defaultFileName);
+            
+            if (fileName) {
+                // 创建Blob对象
+                const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+                
+                // 创建下载链接
+                const url = URL.createObjectURL(blob);
+                const downloadLink = document.createElement('a');
+                downloadLink.href = url;
+                downloadLink.download = fileName;
+                downloadLink.style.display = 'none';
+                
+                // 触发下载
+                document.body.appendChild(downloadLink);
+                downloadLink.click();
+                document.body.removeChild(downloadLink);
+                
+                // 清理URL对象
+                URL.revokeObjectURL(url);
+                
+                this.showTempMessage(`文件已保存: ${fileName}`, 'success');
+            }
+        } catch (error) {
+            console.error('保存文件失败:', error);
+            this.showTempMessage('保存文件失败', 'error');
+        }
+    }
+
+    /**
+     * 显示临时提示消息
+     * @param {string} message - 提示消息
+     * @param {string} type - 消息类型 ('success', 'error', 'info')
+     */
+    showTempMessage(message, type = 'info') {
+        const tempMessage = document.createElement('div');
+        tempMessage.style.position = 'fixed';
+        tempMessage.style.top = '20px';
+        tempMessage.style.right = '20px';
+        tempMessage.style.padding = '8px 16px';
+        tempMessage.style.borderRadius = '4px';
+        tempMessage.style.fontSize = '12px';
+        tempMessage.style.zIndex = '2000';
+        tempMessage.style.transition = 'opacity 0.3s ease';
+        tempMessage.textContent = message;
+        
+        // 根据类型设置样式
+        switch (type) {
+            case 'success':
+                tempMessage.style.backgroundColor = '#51CF66';
+                tempMessage.style.color = 'white';
+                break;
+            case 'error':
+                tempMessage.style.backgroundColor = '#FF6B6B';
+                tempMessage.style.color = 'white';
+                break;
+            default:
+                tempMessage.style.backgroundColor = '#3273dc';
+                tempMessage.style.color = 'white';
+                break;
+        }
+        
+        document.body.appendChild(tempMessage);
+        
+        // 2秒后自动移除
+        setTimeout(() => {
+            tempMessage.style.opacity = '0';
+            setTimeout(() => {
+                if (tempMessage.parentNode) {
+                    document.body.removeChild(tempMessage);
+                }
+            }, 300);
+        }, 2000);
     }
     
     /**
@@ -1531,9 +1717,7 @@ class SheetPage {
             });
             
         } catch (error) {
-            console.error('发送命令失败:', error);
-            this.showNotification(`命令执行失败: ${error.message}`, 'result');
-            throw error;
+            this.log(`命令执行失败: ${error.message}`, 'e');
         }
     }
 
@@ -1545,45 +1729,16 @@ class SheetPage {
      * @param {Array} targets - 目标设备列表
      */
     onCmdResult(cmd, result, targets = []) {
-        console.log('命令执行结果:', cmd, result);
-        
         // 解析命令类型
         const cmdParts = cmd.trim().split(/\s+/);
         const cmdName = cmdParts[0];
-        
-        // 显示命令执行结果通知
-        if (typeof result === 'string' && result.startsWith('e~')) {
-            // 错误结果
-            this.showNotification(`命令执行失败: ${result.substring(2)}`, 'result');
-        } else if (result) {
-            // 成功结果
-            let resultMessage = '';
-            if (typeof result === 'string') {
-                resultMessage = result;
-            } else if (typeof result === 'object') {
-                resultMessage = JSON.stringify(result);
-            } else {
-                resultMessage = String(result);
-            }
-            
-            // 限制显示长度，避免通知过长
-            if (resultMessage.length > 100) {
-                resultMessage = resultMessage.substring(0, 100) + '...';
-            }
-            
-            this.showNotification(`${resultMessage}`, 'result');
-        }
-        
         // 特殊命令处理
         switch (cmdName) {
             case this.CMD.getLogs:
                 this.onGetLogs(result, targets);
                 break;
             default:
-                // 默认处理已在上面完成
-                if (result) {
-                    console.log('命令执行成功:', result);
-                }
+                this.showResult(result);
                 break;
         }
     }
@@ -1729,7 +1884,7 @@ class SheetPage {
         result = result[target];
         if (typeof result === 'string' && result.startsWith('e~')) {
             const deviceName = targets.length > 0 ? targets[0] : '设备';
-            this.showNotification(`获取${deviceName}日志失败: ${result.substring(2)}`, 'result');
+            this.log(`获取${deviceName}日志失败: ${result.substring(2)}`, 'e');
         } else if (Array.isArray(result)) {
             // 刷新日志表格数据, 只获取第一个元素
             this._updateTable(result, this.DataType.LOGS, this.logs);
@@ -1740,10 +1895,10 @@ class SheetPage {
                 this._logTable.setHeaderFilterValue("date", formattedDate);
             }
             const deviceName = targets.length > 0 ? targets[0] : '服务端';
-            this.showNotification(`成功获取${deviceName}的 ${result.length} 条日志`, 'result');
+            this.log(`成功获取${deviceName}的 ${result.length} 条日志`, 'i');
         } else {
             const deviceName = targets.length > 0 ? targets[0] : '设备';
-            this.showNotification(`${deviceName}没有日志数据`, 'result');
+            this.log(`${deviceName}没有日志数据`, 'i');
         }
     }
 
@@ -1754,28 +1909,17 @@ class SheetPage {
      */
     async sendCommand() {
         const commandInput = document.getElementById('commandInput');
-        if (!commandInput || !commandInput.value.trim()) return;
-        
-        let rawCommand = commandInput.value.trim();
-        console.log('发送命令:', rawCommand);
-        
-        // 添加到历史记录
+        if (!commandInput ) return;
+        let rawCommand = this.normalizeCharacters(commandInput.value);
+        if (rawCommand == '') return;
         this.addCommandToHistory(rawCommand);
-        
         // 字符标准化处理
-        rawCommand = this.normalizeCharacters(rawCommand);
-        
+        rawCommand = this.normalizeCharacters(rawCommand);        
         // 解析命令格式
         const parsedCmd = this.parseCommand(rawCommand);
-        console.log('解析结果:', parsedCmd);
-        
-        if (parsedCmd.type === 'error') {
-            // 解析出现错误，已在parseRPCCommand中显示错误信息
-            return;
-        }
         
         if (!parsedCmd.command) {
-            this.showNotification('命令内容不能为空', 'command');
+            this.log('命令内容不能为空', 'e');
             return;
         }
         
@@ -1793,21 +1937,20 @@ class SheetPage {
                     
                 case 'server':
                     // 服务端指令 - 发送到服务器
-                    this.executeServerCommand(parsedCmd.command, parsedCmd.targets);
+                    this.executeServerCommand(parsedCmd.command);
                     break;
                     
                 case 'rpc':
                     // RPC指令 - 调用远程过程
-                    await this.executeRPCCommand(parsedCmd.command, parsedCmd.targets, parsedCmd.deviceTarget);
+                    this.executeRPCCommand(parsedCmd.command, parsedCmd.targets);
                     break;
                     
                 default:
-                    this.showNotification(`未知的命令类型: ${parsedCmd.type}`, 'command');
+                    this.log(`未知的命令类型: ${parsedCmd.type}`, 'e');
                     return;
             }
         } catch (error) {
-            console.error('命令执行出错:', error);
-            this.showNotification(`命令执行出错: ${error.message}`, 'result');
+            this.log(`命令执行出错: ${error.message}`, 'e');
         }
         
         // 清空输入框
@@ -1827,11 +1970,8 @@ class SheetPage {
                 sheetPage: this
             }
         };
-        
         const result = await CmdMgr.do(cmd);
-        if (result) {
-            this.showNotification(result, 'result');
-        }
+        this.showResult(result);
     }
 
     /**
@@ -1841,13 +1981,11 @@ class SheetPage {
      */
     executeClientCommand(command, targets) {
         if (targets.length === 0) {
-            this.showNotification('没有指定目标设备', 'command');
+            this.log('没有指定目标设备', 'e');
             return;
         }
-        
-        console.log(`发送客户端指令到设备 [${targets.join(', ')}]: ${command}`);
+        // console.log(`发送客户端指令到设备 [${targets.join(', ')}]: ${command}`);
         this.sendCmd(command, targets);
-        this.showNotification(`客户端指令已发送到 ${targets.length} 个设备`, 'command');
     }
 
     /**
@@ -1855,17 +1993,8 @@ class SheetPage {
      * @param {string} command - 命令内容
      * @param {Array} targets - 目标设备ID数组（服务端指令可能不需要目标）
      */
-    executeServerCommand(command, targets) {
-        console.log(`发送服务端指令: ${command}`, targets.length > 0 ? `目标: [${targets.join(', ')}]` : '');
-        
-        // 服务端指令可能不需要目标设备，直接发送到服务器
-        this.sendCmd(command, targets);
-        
-        if (targets.length > 0) {
-            this.showNotification(`服务端指令已发送，目标: ${targets.length} 个设备`, 'command');
-        } else {
-            this.showNotification('服务端指令已发送', 'command');
-        }
+    executeServerCommand(command) {
+        this.sendCmd(command);
     }
 
     /**
@@ -1875,17 +2004,36 @@ class SheetPage {
      */
     async executeRPCCommand(command, targets, deviceTarget = null) {
         try {
-            // 解析RPC命令: className.methodName [params...]
-            const rpcMatch = command.match(/^(\w+)\.(\w+)(?:\s+(.+))?$/);
-            if (!rpcMatch) {
-                this.showNotification('RPC命令格式错误，正确格式: className.methodName [params...]', 'result');
-                return;
+            // 命令格式：@[targets] className.methodName [params...]
+            // 用第一个空格区分出，命令和参数
+            const spaceIndex = command.indexOf(' ');
+            let paramsStr = null;
+            if (spaceIndex !== -1) {
+                paramsStr = command.substring(spaceIndex + 1);
+                command = command.substring(0, spaceIndex);
             }
             
-            const [, className, methodName, paramsStr] = rpcMatch;
-            
-            // 解析参数
+            const parts = command.split('.');
+            // 至少需要3部分：targets, className, methodName
+            if (parts.length < 2) {
+                this.log('e~RPC命令格式错误，正确格式: @targets.className.methodName [params...]', 'e');
+                return;
+            }
+            // 如果只有2个部分，则没有目标，目标就是服务器
+            let targetsStr = '@';
+            let className = null;
+            let methodName = null;
+            const len = parts.length;
+            if (len >2) {
+                targetsStr = parts[0];
+                className = parts[1];
+                methodName = parts[2];
+            } else {
+                className = parts[0];
+                methodName = parts[1];
+            }
             let params = {};
+            // 解析参数
             if (paramsStr) {
                 try {
                     // 尝试解析JSON格式的参数
@@ -1903,53 +2051,52 @@ class SheetPage {
                         }
                     }
                 } catch (e) {
-                    this.showNotification(`参数解析失败: ${e.message}`, 'result');
+                    this.log(`参数解析失败: ${e.message}`, 'e');
                     return;
                 }
             }
             
-            console.log(`执行RPC调用: ${className}.${methodName}`, params);
+            console.log(`执行RPC调用: ${targetsStr}.${className}.${methodName}`, params);
             
-            // 根据deviceTarget决定调用类型
-            if (deviceTarget === 'server' || targets.length === 0) {
-                // 服务端RPC调用
-                this.showNotification(`服务端RPC调用: ${className}.${methodName}`, 'command');
-                
+            // 根据targets字符串决定调用类型
+            if (targetsStr === '@') {
+                // 空targets表示服务端调用
+                this.log(`服务端RPC调用: ${className}.${methodName}`, 'i');                
                 const result = await rpc.call(null, className, methodName, params);
-                console.log('RPC调用结果:', result);
-                
-                if (result && typeof result === 'object') {
-                    this.showNotification(`RPC调用成功: ${JSON.stringify(result).substring(0, 100)}...`, 'result');
-                } else {
-                    this.showNotification(`RPC调用成功: ${result}`, 'result');
+                this.showResult(result);
+            } else if (targetsStr === '!') {
+                 // 表示使用当前选中的设备
+                if (targets.length === 0) {
+                    this.log('请先选择设备', 'e');
+                    return;
                 }
+                this.log(`选中设备RPC调用: ${className}.${methodName}`, 'i');
                 
-            } else {
-                // 客户端RPC调用
-                const targetInfo = deviceTarget === 'selected' ? '选中设备' : `设备${deviceTarget}`;
-                this.showNotification(`客户端RPC调用: ${targetInfo} -> ${className}.${methodName}`, 'command');
-                
-                const results = [];
                 for (const deviceId of targets) {
                     try {
-                        const result = await rpc.call(deviceId, className, methodName, params);
-                        results.push({ deviceId, success: true, result });
-                        console.log(`设备 ${deviceId} RPC调用结果:`, result);
+                        const result = await rpc.call(parseInt(deviceId), className, methodName, params);
+                        this.showResult(result, `设备${deviceId}`);
                     } catch (error) {
-                        results.push({ deviceId, success: false, error: error.message });
-                        // console.error(`设备 ${deviceId} RPC调用失败:`, error);
-                        this.addTempLog(`设备 ${deviceId} RPC调用失败: ${error.message}`, 'e', 'RPC', 'Browser');
+                        this.log(`e~设备 ${deviceId} RPC调用失败: ${error.message}`, 'e');
                     }
                 }
+            } else {
+                // 具体的设备ID或设备列表
+                const deviceIds = targetsStr.split(',').map(id => id.trim()).filter(id => id);
+                this.log(`指定设备RPC调用: [${deviceIds.join(',')}] -> ${className}.${methodName}`, 'i');
                 
-                const successCount = results.filter(r => r.success).length;
-                this.showNotification(`RPC调用完成: ${successCount}/${targets.length} 个设备成功`, 'result');
+                for (const deviceId of deviceIds) {
+                    try {
+                        const result = await rpc.call(parseInt(deviceId), className, methodName, params);
+                        this.showResult(result, `设备${deviceId}`);
+                    } catch (error) {
+                        this.log(`e~设备 ${deviceId} RPC调用失败: ${error.message}`, 'e');
+                    }
+                }
             }
             
         } catch (error) {
-            // console.error('RPC命令执行出错:', error);
-            this.addTempLog(`RPC命令执行出错: ${error.message}`, 'e', 'RPC', 'Browser');
-            this.showNotification(`e~RPC命令执行出错: ${error.message}`, 'result');
+            this.log(`RPC命令执行出错: ${error.message}`, 'e');
         }
     }
     
@@ -2011,6 +2158,7 @@ class SheetPage {
      */
     normalizeCharacters(text, charMap = null) {
         if (!text || typeof text !== 'string') return text;
+        text = text.trim();
         
         // 默认字符映射表：中文标点符号 -> 英文标点符号
         const defaultCharMap = {
@@ -2044,88 +2192,6 @@ class SheetPage {
         return result;
     }
 
-    /**
-     * 解析命令格式: 
-     * 旧格式: 目标数组 分类符 命令内容
-     * 新格式: @设备ID或者名字:类名.方法名 参数列表
-     * @param {string} rawCommand - 原始命令字符串
-     * @returns {Object} 解析结果 { targets: Array, type: String, command: String, deviceTarget: String }
-     */
-    parseCommand(rawCommand) {
-        if (!rawCommand || typeof rawCommand !== 'string') {
-            return { targets: [], type: 'local', command: '', deviceTarget: null };
-        }
-
-        const command = rawCommand.trim();
-        
-        // 检查是否是新的RPC格式: @设备ID或者名字:类名.方法名 参数列表
-        if (command.startsWith('@')) {
-            return this.parseRPCCommand(command);
-        }
-        
-        // 保留旧的命令格式解析逻辑
-        return this.parseLegacyCommand(command);
-    }
-
-    /**
-     * 解析新的RPC命令格式: @设备ID或者名字:类名.方法名 参数列表
-     * @param {string} command - RPC命令字符串
-     * @returns {Object} 解析结果
-     */
-    parseRPCCommand(command) {
-        try {
-            // 移除开头的@符号
-            const rpcPart = command.substring(1);
-            
-            // 查找第一个冒号，分离设备标识和类名.方法名
-            const colonIndex = rpcPart.indexOf(':');
-            
-            let deviceTarget = null;
-            let classMethodPart = '';
-            let targets = [];
-            
-            if (colonIndex === -1) {
-                // 没有设备标识，表示是服务器RPC
-                classMethodPart = rpcPart;
-                deviceTarget = 'server';
-            } else {
-                // 有设备标识
-                const deviceId = rpcPart.substring(0, colonIndex).trim();
-                classMethodPart = rpcPart.substring(colonIndex + 1);
-                
-                if (deviceId === '!') {
-                    // 使用当前选择的目标设备的第一个设备ID
-                    const selectedDevices = this.targets[this.DataType.DEVICES];
-                    if (selectedDevices.length === 0) {
-                        this.addTempLog('没有选择目标设备，无法执行RPC命令', 'e');
-                        return { targets: [], type: 'error', command: '', deviceTarget: null };
-                    }
-                    targets = [selectedDevices[0]];
-                    deviceTarget = 'selected';
-                } else {
-                    // 指定的设备ID或名字
-                    const device = this.findDeviceByIdOrName(deviceId);
-                    if (!device) {
-                        this.addTempLog(`未找到设备: ${deviceId}`, 'e');
-                        return { targets: [], type: 'error', command: '', deviceTarget: null };
-                    }
-                    targets = [device.id];
-                    deviceTarget = deviceId;
-                }
-            }
-            
-            return {
-                targets: targets,
-                type: 'rpc',
-                command: classMethodPart.trim(),
-                deviceTarget: deviceTarget
-            };
-            
-        } catch (error) {
-            this.addTempLog(`RPC命令解析失败: ${error.message}`, 'e');
-            return { targets: [], type: 'error', command: '', deviceTarget: null };
-        }
-    }
 
     /**
      * 根据ID或名字查找设备
@@ -2147,7 +2213,7 @@ class SheetPage {
      * @param {string} command - 原始命令字符串
      * @returns {Object} 解析结果
      */
-    parseLegacyCommand(command) {
+    parseCommand(command) {
         // 查找分类符的位置
         let separatorIndex = -1;
         let commandType = 'local'; // 默认为本地指令
@@ -2231,7 +2297,27 @@ class SheetPage {
     get(id) {
         return this.devices.find(d => d.id === id) || null;
     }
-    
+
+    showResult(result, devicePrefix = '') {
+        const prefix = devicePrefix ? `[${devicePrefix}] ` : '';
+        
+        if (result && typeof result === 'object') {
+            // 如果result是字符串，获取level, 则直接显示
+            if (typeof result === 'string') {
+                const { level, content } = this.parseLevel(result);
+                this.log(`${prefix}${content}`, level);
+            } else {
+                this.log(`${prefix}${JSON.stringify(result)}`, 'i');
+            }
+        } else if (typeof result === 'string') {
+            const { level, content } = this.parseLevel(result);
+            this.log(`${prefix}${content}`, level);
+        }
+    }
+
+    log(message, level = 'e') {
+        this._addLocalLog(message, level, '前端');
+    }
     /**
      * 添加临时日志到前端日志表格
      * @param {string} message - 日志消息
@@ -2239,7 +2325,7 @@ class SheetPage {
      * @param {string} tag - 日志标签，默认为'前端'
      * @param {string} sender - 发送者，默认为'Browser'
      */
-    addTempLog(message, level = 'e', tag = '前端', sender = 'Browser') {
+    _addLocalLog(message, level = 'i', tag = '前端', sender = 'Browser') {
         try {
             const now = new Date();
             const date = now.toISOString().split('T')[0];
@@ -2259,10 +2345,10 @@ class SheetPage {
                 message: message,
                 isTemp: true // 标记为临时日志
             };
-            
+            this._notify(`${message}`, level);
+
             // 添加到日志数组的开头（最新的日志在前面）
-            this.logs.unshift(tempLog);
-            
+            this.logs.unshift(tempLog);            
             // 如果当前显示的是日志标签页，更新表格
             if (this.curTabType === this.DataType.LOGS && this._logTable) {
                 try {
@@ -2283,7 +2369,7 @@ class SheetPage {
                 }
             }
             
-            console.log('临时日志已添加:', tempLog);
+            // console.log('临时日志已添加:', tempLog);
             
         } catch (error) {
             console.error('添加临时日志失败:', error);

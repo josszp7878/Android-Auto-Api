@@ -120,8 +120,7 @@ class CCmds_:
             参数: appName - 应用名称
             示例: 打开 微信
             """
-            App = _G._G_.App()
-            ret = App.open(appName)
+            ret = _G._G_.CDevice().open(appName)
             if not ret:
                 return f"打开应用 {appName} 失败"
             return f"成功打开应用 {appName}, ret:{ret}"
@@ -135,13 +134,7 @@ class CCmds_:
             参数: appName - 应用名称(可选)，不提供则关闭当前应用
             示例: 关闭 [微信]
             """
-            App = _G._G_.App()
-            # 如果未指定应用名，使用当前应用
-            if not appName:
-                appName = App.curName()
-                if not appName:
-                    return "未指定要关闭的应用"            
-            return App.closeApp(appName)
+            return _G._G_.CDevice().closeApp(appName)
             
         @regCmd(r"#截屏|jp")
         def getScreen():
@@ -209,7 +202,7 @@ class CCmds_:
             g = _G._G_
             log = g.Log()
             App = g.App()
-            app = App.getTemplate(what) if what else App.last()
+            app = App.getTemplate(what) if what else g.CDevice().currentApp
             if not app:
                 return f"e~应用{what}不存在"
             if re.match(r'^(pos|位置)$', type, re.IGNORECASE):
@@ -244,7 +237,7 @@ class CCmds_:
             参数: to - 目标页面
             示例: 路径 设置
             """
-            curApp = _G._G_.App().last()
+            curApp = _G._G_.CDevice().currentApp
             toPage = curApp.getPage(to)
             if not toPage:
                 return f"未找到目标页面 {to}"
@@ -454,12 +447,7 @@ class CCmds_:
             g = _G._G_
             log = g.Log()
             android = g.android
-            log.i(f"显示{uiName}: {enable}")
-            
-            if not android:
-                return
-            
-            # UI组件配置：[别名1, 别名2, ..., 方法名]
+            # log.i(f"显示{uiName}: {enable}")
             showConfig = [
                 ['坐标', 'zb', 'pos', 'showClick'],
                 ['工具栏', 'gjl', 'toolbar', 'showToolbar'],
@@ -468,19 +456,16 @@ class CCmds_:
                 ['光标', 'gb', 'cursor', 'showCursor']
             ]
             # 在配置中查找匹配的UI组件
-            for component in showConfig:
-                # 最后一个元素是方法名，其余都是别名
-                method_name = component[-1]
-                aliases = component[:-1]
-                if uiName in aliases:
-                    # 动态调用对应的方法
+            findConfig = next((component for component in showConfig if uiName in component[:-1]), None)    
+            if findConfig:
+                method_name = findConfig[-1]
+                if android:
                     if hasattr(android, method_name):
                         method = getattr(android, method_name)
                         method(enable)
                         return
-            
-            # 未找到匹配的组件
-            log.e(f"显示{uiName} {'开启' if enable else '关闭'}失败")
+                else:
+                    log.i(f"set {uiName} {enable}")
 
         @regCmd(r"#退出|tc")
         def eXit():
@@ -631,7 +616,7 @@ class CCmds_:
             g = _G._G_
             App = g.App()
             if not name:
-                page = App.last().curPage
+                page = g.CDevice().currentApp.curPage
             else:
                 appName, name = App.parseName(name)
                 if not name:

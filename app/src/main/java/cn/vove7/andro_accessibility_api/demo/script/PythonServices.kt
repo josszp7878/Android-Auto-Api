@@ -731,7 +731,7 @@ class PythonServices {
                 }
                 
                 if (recentStats == null) {
-                    ToolBarService.logW("未找到最近使用的应用")
+                    // ToolBarService.logW("未找到最近使用的应用")
                     return null
                 }
                 

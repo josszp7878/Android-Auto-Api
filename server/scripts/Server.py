@@ -27,6 +27,8 @@ def initSocketIO(sio):
     sio.on('B2S_setProp')(onB2S_setProp)
     # 客户端属性设置事件
     sio.on('C2S_SetProp')(onC2S_SetProp)
+    # 前端RPC调用事件
+    sio.on('B2S_RPC_Call')(onB2S_RPC_Call)
     
     # 初始化RPC处理器
     print(f"[DEBUG] Server.initSocketIO 正在初始化RPC处理器...")
@@ -241,33 +243,12 @@ def on2S_Cmd(data):
         targets = data.get('targets', None)
         command = data.get('command', '')
         Log.i(f'处理2S命令请求: {targets}, {command}')
-        # 从解析Command的头部targets, 格式为 设备名列表> 命令
-        pos = command.find('>')
-        if pos != -1:
-            # targets 以，隔开，可能有空格隔开，需要去掉空格，
-            targets = [name.strip() for name in command[:pos].split(',')]        
-            #将targets中的设备名转换为设备ID，如果他不是数字的话
-            deviceIds = []
-            for name in targets:
-                if name == '':
-                    continue
-                # 如果name是数字，则直接返回
-                if name.isdigit():
-                    deviceIds.append(name)
-                else:
-                    device = deviceMgr.getByName(name)
-                    if device:
-                        deviceIds.append(device.id)
-            command = command[pos+1:]
-        else:
-            deviceIds = targets
-        if deviceIds is None or command.strip() == '':
-            return
+
         params = data.get('params')
         ret = {}
-        if len(deviceIds) == 0:
-            deviceIds = ['@']
-        for target in deviceIds:
+        if targets is None or len(targets) == 0:
+            targets = [_G.ServerTag]
+        for target in targets:
             ret[target] = deviceMgr.onCmd(target, command, params)
         return ret
     except Exception as e:
@@ -334,6 +315,26 @@ def onC2S_SetProp(data):
     except Exception as e:
         log.ex(e, '处理客户端属性设置请求失败')
         return {'success': False, 'message': f'处理失败: {str(e)}'}
+
+
+def onB2S_RPC_Call(data):
+    """处理前端RPC调用请求"""
+    log = _Log._Log_
+    try:
+        from RPCHandler import handleServerRPCCall
+        log.i_(f'前端RPC调用请求: {data}')
+        
+        # 直接调用RPC处理器并返回结果
+        result = handleServerRPCCall(data)
+        return result
+        
+    except Exception as e:
+        log.ex(e, '处理前端RPC调用请求失败')
+        return {
+            'success': False,
+            'error': str(e),
+            'requestId': data.get('requestId') if data else None
+        }
 
 
 

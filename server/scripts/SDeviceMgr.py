@@ -146,28 +146,23 @@ class SDeviceMgr_:
         cmd_str = f"{name}:{command}:{time.time()}"
         return hashlib.md5(cmd_str.encode()).hexdigest()[:16]
 
-    def _onServerCmd(self, target, command, data=None)->dict:
+    def _onServerCmd(self, targetID:int, command, data=None)->dict:
         """发送服务器命令"""
-        log = _G._G_.Log()
         cmdMgr = _G._G_.CmdMgr()
-        params = {'target': target, 'data': data}
+        params = {'target': targetID, 'data': data}
         cmd = {'cmd': command, 'params': params}
         return cmdMgr.do(cmd)
 
-    def onCmd(self, target, command, data=None):
+    def onCmd(self, target:str, command:str, data=None):
         """发送命令"""
         result = None
         log = _G._G_.Log()
         try:
-            if target is None:
-                log.w(f'目标为空: target={target}, command={command}')
-                return None
-            
             log.add(command, '', 'c')
             if target == _G.ServerTag:
                 cmd = self._onServerCmd(target, command, data)
                 if cmd is None:
-                    log.e(f'服务器命令执行失败: {target}, {command}, {data}')
+                    log.e(f'服务器命令执行失败: target={target} command={command} data={data}')
                     return None
                 result = cmd.get('result')
                 # log.i(f'服务器命令结果: {result}')
@@ -175,9 +170,7 @@ class SDeviceMgr_:
                 # 如果失败，就当成纯客户端指令来执行
                 device = self.get(target)
                 if device is None:
-                    log.e(f'设备不存在: {target}')
                     return f'e~设备不存在: {target}'
-                # log.i(f'发送命令: {device.name}, {command}, {data}')
                 result = device.sendClientCmd(command, data)
                 # log.i(f'处理客户端命令结果: {result}')
             

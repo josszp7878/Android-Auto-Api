@@ -10,6 +10,7 @@ class _Device_:
     def __init__(self):
         self._apps: Dict[str, _App_] = {}  # 设备的App列表
         self._currentApp: Optional[_App_] = None  # 当前跟踪的App
+        self._curAppName = _G.TOP
         
     @property
     def apps(self) -> Dict[str, _App_]:
@@ -17,11 +18,32 @@ class _Device_:
         if not self._apps:
             self._loadApps()
         return self._apps
+
+    @RPC()
+    def setCurrent(self, name: str):
+        """设置当前检测应用名称"""
+        if name == self._curAppName:
+            return
+        g = _G._G_
+        self._curAppName = name
+        # 如果是已知应用则更新实例
+        if name in self._apps:
+            self._currentApp = self._apps[name]
+        if not g.isServer():
+            # rpc 同步服务端
+            log = g.Log()
+            log.i(f"@rpc server setCurrent: {name}")
+            g.RPC(None, 'Device_', 'setCurrent', {'name': name})
     
     @property
     def currentApp(self) -> Optional[_App_]:
         """获取当前App"""
         return self._currentApp
+
+    @property
+    def curAppName(self) -> str:
+        """获取当前应用名称"""
+        return self._curAppName
 
     def getAppByID(self, id: int) -> "_App_":
         """根据ID获取应用实例"""
@@ -30,7 +52,7 @@ class _Device_:
                 return app
         return None
 
-    def getApp(self, name: str, create: bool = True) -> Optional[_App_]:
+    def getApp(self, name: str, create: bool = False) -> Optional[_App_]:
         """获取指定的App
         Args:
             name: App名称
@@ -73,14 +95,16 @@ class _Device_:
         except Exception as e:
             log.ex_(e, "获取App列表失败")
             return []
-   
-    
+       
     def setCurrentApp(self, name: str) -> Optional[_App_]:
         """设置当前跟踪的App"""
+        g = _G._G_
+        log = g.Log()
         try:
-            g = _G._G_
-            log = g.Log()
-            app = self.getApp(name, create=False)
+            if name == self._curAppName:
+                return
+            self._curAppName = name
+            app = self.getApp(name)
             if not app:
                 return None
             self._currentApp = app
@@ -89,8 +113,6 @@ class _Device_:
         except Exception as e:
             log.ex_(e, f"设置当前App失败: {name}")
             return None
-    
-    
     
     def _detectCurrentApp(self) -> Optional[str]:
         """检测当前App（子类需要实现）"""

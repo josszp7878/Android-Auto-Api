@@ -1,8 +1,9 @@
-from datetime import datetime
+
+import time
 import socketio
 import _G
 from concurrent.futures import ThreadPoolExecutor
-from typing import cast, List, TYPE_CHECKING
+from typing import cast, List, TYPE_CHECKING, Optional, Tuple
 import socketio.exceptions  # 新增导入
 from Base import Base_
 from _Device import _Device_
@@ -10,6 +11,7 @@ from RPC import RPC
 if TYPE_CHECKING:
     from CTask import CTask_
     from _App import _App_
+    from CApp import CApp_
 
 class CDevice_(Base_, _Device_):
     _instance = None  # 单例实例
@@ -47,6 +49,22 @@ class CDevice_(Base_, _Device_):
     @property
     def server(self):
         return self._server
+    
+    def setCurrentApp(self, name: str) -> Optional['_App_']:
+        """设置当前跟踪的App"""
+        g = _G._G_
+        log = g.Log()
+        try:
+            if name == self._curAppName:
+                return
+            app = super().setCurrentApp(name)
+            # log.i(f'设置当前App:{name}')
+            # rpc 调用SDevice的setCurrentApp
+            g.RPC(None, 'SDevice_', 'setCurrentApp', {'name': name})
+            return app
+        except Exception as e:
+            log.ex_(e, f"设置当前App失败: {name}")
+            return None
 
     def get(self, key):
         """获取设备数据"""
@@ -404,14 +422,15 @@ class CDevice_(Base_, _Device_):
             return
         g = _G._G_
         log = g.Log()
-        from _App import _App_
+        from CApp import CApp_
         for data in apps:
             try:
-                app = _App_(data)
+                app = CApp_(data)
             except Exception as e:
                 log.ex_(e, f"创建应用失败: {data}")
                 continue
             self._apps[app.name] = app
+
 
 
     def getTask(self, key)->'CTask_':
@@ -492,38 +511,152 @@ class CDevice_(Base_, _Device_):
             self._setName(value)
 
     @RPC()
-    def getScore(self, appName:str, date:str)->dict:
-        """
-        功能：获取指定应用指定日期的所有任务收益
-        指令名: getScores
-        参数: appName 应用名, date 日期(YYYY-MM-DD)
-        返回: [{"taskName":..., "score":...}, ...]
+    def getScreenInfo(self) -> dict:
+        """RPC方法：获取客户端屏幕信息
+        
+        Returns:
+            dict: RPC结果，包含屏幕信息列表或错误信息
         """
         g = _G._G_
         log = g.Log()
         try:
-            App = g.App()
-            app = App.getTemplate(appName)
-            if not app:
-                return {
-                    'error': f"应用不存在: {appName}"
-                }
+            tools = g.Tools()
+            if not tools:
+                return {'error': '工具类未初始化'}
             
-            date = _G.DateHelper.toDate(date)
-            result = app.LoadScore(date)
-            if not result:
-                return {
-                    'error': f"获取收益失败: {appName} {date}"
-                }
+            # 调用_Tools的getScreenInfo方法获取屏幕信息
+            screenInfo = tools.getScreenInfo(refresh=True)
             
-            return {
-                'result': result
-            }
+            if screenInfo:
+                log.i(f"获取屏幕信息成功，共{len(screenInfo)}个元素")
+                return {'result': screenInfo}
+            else:
+                return {'error': '获取屏幕信息为空'}
+                
         except Exception as e:
-            log.ex(e, f"获取收益异常: {appName} {date}")
-            return {
-                'error': f"获取收益异常: {str(e)}"
-            }
+            log.ex(e, "获取屏幕信息失败")
+            return {'error': f'获取屏幕信息失败: {str(e)}'}
+
+    @RPC()
+    def setScreenInfo(self, screenInfos: list) -> dict:
+        """RPC方法：设置客户端屏幕信息
+        
+        Args:
+            screenInfos: 屏幕信息列表
+            
+        Returns:
+            dict: RPC结果，包含设置结果或错误信息
+        """
+        g = _G._G_
+        log = g.Log()
+        try:
+            tools = g.Tools()
+            if not tools:
+                return {'error': '工具类未初始化'}
+            
+            if not screenInfos:
+                return {'error': '屏幕信息为空'}
+            
+            # 调用_Tools的setScreenInfo方法设置屏幕信息
+            success = tools.setScreenInfo(screenInfos)
+            
+            if success:
+                log.i(f"设置屏幕信息成功，共{len(screenInfos)}个元素")
+                return {'result': {'success': True, 'count': len(screenInfos)}}
+            else:
+                return {'error': '设置屏幕信息失败'}
+                
+        except Exception as e:
+            log.ex(e, "设置屏幕信息失败")
+            return {'error': f'设置屏幕信息失败: {str(e)}'}
+
+    def detectApp(self) -> Tuple['CApp_', str]:
+        """获取当前应用"""
+        g = _G._G_
+        log = g.Log()
+        tools = g.Tools()
+        try:
+            detectedApp = (tools.curApp() if tools.isAndroid()
+                          else self.curAppName)
+            self.setCurrent(detectedApp)
+            return self.currentApp, detectedApp
+        except Exception as e:
+            log.ex(e, "获取当前应用失败")
+            return None, None
+    
+    def closeApp(self, name=None) -> bool:
+        """关闭应用"""
+        g = _G._G_
+        log = g.Log()
+        try:
+            if name is None:
+                name = g.CDevice().currentApp.name  # 通过cur方法获取实例名称
+            app = self.getApp(name)
+            if not app:
+                return False
+            # 保存计数器数据
+            # app._saveData()
+            app.stop()  
+        except Exception as e:
+            log.ex(e, f"关闭应用 {name} 失败")
+    
+    def open(self, name) -> "_App_":
+        """跳转到指定应用"""
+        try:
+            g = _G._G_
+            log = g.Log()
+            app = self.getApp(name)
+            if not app:
+                log.w(f"未知应用:{name}")
+            else:
+                name = app.name
+            tools = g.Tools()
+            currentApp = self.currentApp
+            if currentApp and name == currentApp.name:
+                return app
+            ok = tools.openApp(name)
+            if not ok:
+                return None
+            if g.isAndroid():
+                time.sleep(5)
+            app, name = self.detectApp()
+            return app
+        except Exception as e:
+            log.ex(e, f"跳转到应用 {name} 失败")
+            return None
+    # @RPC()
+    # def getScore(self, appName:str, date:str)->dict:
+    #     """
+    #     功能：获取指定应用指定日期的所有任务收益
+    #     指令名: getScores
+    #     参数: appName 应用名, date 日期(YYYY-MM-DD)
+    #     返回: [{"taskName":..., "score":...}, ...]
+    #     """
+    #     g = _G._G_
+    #     log = g.Log()
+    #     try:
+    #         App = g.App()
+    #         app = App.getTemplate(appName)
+    #         if not app:
+    #             return {
+    #                 'error': f"应用不存在: {appName}"
+    #             }
+            
+    #         date = _G.DateHelper.toDate(date)
+    #         result = app.LoadScore(date)
+    #         if not result:
+    #             return {
+    #                 'error': f"获取收益失败: {appName} {date}"
+    #             }
+            
+    #         return {
+    #             'result': result
+    #         }
+    #     except Exception as e:
+    #         log.ex(e, f"获取收益异常: {appName} {date}")
+    #         return {
+    #             'error': f"获取收益异常: {str(e)}"
+    #         }
 
 
 CDevice_.instance().onLoad(None)

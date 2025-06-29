@@ -170,25 +170,25 @@ class _G_:
         """设置Socket.IO实例并初始化事件监听（线程安全）"""
         if sio is not None:
             cls._sio = sio
-            sio.on('_Result')(cls.on_Result)
+            # sio.on('_Result')(cls.on_Result)
 
     
-    @classmethod
-    def on_Result(cls, response):
-        """统一处理所有RPC响应（类方法）"""
-        request_id = response.get('requestId')
-        log = cls.log
-        log.i(f"收到_Result事件: {response}")
-        with cls._rpc_lock:
-            if request_id in cls._pending_requests:
-                _, callback = cls._pending_requests.pop(request_id)
-                if callback:
-                    if isinstance(callback, asyncio.Future):
-                        # 异步回调处理
-                        callback.set_result(response)
-                    else:
-                        # 同步回调处理
-                        callback(response)
+    # @classmethod
+    # def on_Result(cls, response):
+    #     """统一处理所有RPC响应（类方法）"""
+    #     request_id = response.get('requestId')
+    #     log = cls.log
+    #     log.i(f"收到_Result事件: {response}")
+    #     with cls._rpc_lock:
+    #         if request_id in cls._pending_requests:
+    #             _, callback = cls._pending_requests.pop(request_id)
+    #             if callback:
+    #                 if isinstance(callback, asyncio.Future):
+    #                     # 异步回调处理
+    #                     callback.set_result(response)
+    #                 else:
+    #                     # 同步回调处理
+    #                     callback(response)
 
 
     @classmethod
@@ -307,60 +307,60 @@ class _G_:
             log.ex_(e, f"发送事件失败: {event}, {data}")
             return None
     
-    @classmethod
-    def rpc(cls, event, data=None, timeout=8):
-        """事件式RPC（同步/异步通用）"""
-        request_id = str(uuid.uuid4())
-        future = asyncio.Future()
+    # @classmethod
+    # def rpc(cls, event, data=None, timeout=8):
+    #     """事件式RPC（同步/异步通用）"""
+    #     request_id = str(uuid.uuid4())
+    #     future = asyncio.Future()
 
-        with g._rpc_lock:
-            g._pending_requests[request_id] = (event, future)
+    #     with g._rpc_lock:
+    #         g._pending_requests[request_id] = (event, future)
 
-        # 发送请求
-        g.emit(event, {
-            ** (data or {}),
-            'requestId': request_id
-        })
+    #     # 发送请求
+    #     g.emit(event, {
+    #         ** (data or {}),
+    #         'requestId': request_id
+    #     })
 
-        try:
-            # 异步等待结果
-            return asyncio.wait_for(future, timeout)
-        except asyncio.TimeoutError:
-            with g._rpc_lock:
-                g._pending_requests.pop(request_id, None)
-            raise TimeoutError(f"RPC call {event} timed out after {timeout}s")
+    #     try:
+    #         # 异步等待结果
+    #         return asyncio.wait_for(future, timeout)
+    #     except asyncio.TimeoutError:
+    #         with g._rpc_lock:
+    #             g._pending_requests.pop(request_id, None)
+    #         raise TimeoutError(f"RPC call {event} timed out after {timeout}s")
 
-    @classmethod
-    def rpc_call(cls, call, timeout=8):
-        """通用回调式RPC（适合连接等非事件场景）"""
-        g = cls.instance()
-        request_id = str(uuid.uuid4())
-        result = None
-        event = f'_SysCall_{request_id}'  # 生成唯一事件名
+    # @classmethod
+    # def rpc_call(cls, call, timeout=8):
+    #     """通用回调式RPC（适合连接等非事件场景）"""
+    #     g = cls.instance()
+    #     request_id = str(uuid.uuid4())
+    #     result = None
+    #     event = f'_SysCall_{request_id}'  # 生成唯一事件名
 
-        # 创建临时回调
-        def handler(response):
-            nonlocal result
-            if response.get('requestId') == request_id:
-                result = response
+    #     # 创建临时回调
+    #     def handler(response):
+    #         nonlocal result
+    #         if response.get('requestId') == request_id:
+    #             result = response
 
-        with g._rpc_lock:
-            g._pending_requests[request_id] = (event, handler)
+    #     with g._rpc_lock:
+    #         g._pending_requests[request_id] = (event, handler)
 
-        # 执行调用（这里假设call函数会触发某个事件）
-        call()
+    #     # 执行调用（这里假设call函数会触发某个事件）
+    #     call()
 
-        # 等待结果
-        start_time = time.time()
-        while time.time() - start_time < timeout:
-            if result is not None:
-                return result
-            time.sleep(0.1)
+    #     # 等待结果
+    #     start_time = time.time()
+    #     while time.time() - start_time < timeout:
+    #         if result is not None:
+    #             return result
+    #         time.sleep(0.1)
         
-        # 超时处理
-        with g._rpc_lock:
-            g._pending_requests.pop(request_id, None)
-        raise TimeoutError(f"RPC call timed out after {timeout}s")
+    #     # 超时处理
+    #     with g._rpc_lock:
+    #         g._pending_requests.pop(request_id, None)
+    #     raise TimeoutError(f"RPC call timed out after {timeout}s")
     
     @classmethod
     def isAndroid(cls):
@@ -421,6 +421,10 @@ class _G_:
         return dir
     
     @classmethod
+    def dataDir(cls, subDir: str = None):
+        return cls.getDir(os.path.join('data', subDir))
+    
+    @classmethod
     def logDir(cls):
         return cls.getDir('logs')
 
@@ -477,7 +481,10 @@ class _G_:
         
     @classmethod
     def App(cls) -> '_App_':
-        return cls.getClassLazy('_App')
+        if cls.isServer():
+            return cls.getClassLazy('SApp')
+        else:
+            return cls.getClassLazy('CApp')
     
     @classmethod
     def CTask(cls) -> 'CTask_':

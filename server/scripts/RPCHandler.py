@@ -5,11 +5,11 @@ _isServerMode = True
 
 def handleServerRPCCall(data):
     """服务端RPC调用处理器（全局函数）"""
-    _handleRPCCall(data, isServer=True)
+    return _handleRPCCall(data, isServer=True)
 
 def handleClientRPCCall(data):  
     """客户端RPC调用处理器（全局函数）"""
-    _handleRPCCall(data, isServer=False)
+    return _handleRPCCall(data, isServer=False)
 
 def _handleRPCCall(data, isServer=True):
     """内部RPC调用处理方法
@@ -17,54 +17,29 @@ def _handleRPCCall(data, isServer=True):
     Args:
         data: RPC调用数据
         isServer: 是否为服务端模式
+    
+    Returns:
+        RPC调用结果（直接返回给Socket.IO回调）
     """
     g = _G._G_
     log = g.Log()
-    sid = None
-    
-    # 服务端模式需要获取session id
-    if isServer:
-        try:
-            from flask import request
-            sid = request.sid
-        except:
-            pass
     
     try:
         # 处理RPC调用
         result = g.handleRPC(data)
-        
-        # 发送响应
-        sio = g.sio()
-        if sio:
-            if isServer and sid:
-                sio.emit('_Result', result, room=sid)
-            else:
-                sio.emit('_Result', result)
-        else:
-            if isServer:
-                log.e("[RPCHandler] Socket.IO实例为空，无法发送响应")
+        return result
         
     except Exception as e:
         mode = "SRPCHandler" if isServer else "CRPCHandler"
         log.ex(e, f"[{mode}] 处理RPC调用失败")
         
-        # 发送错误响应
+        # 返回错误结果
         errorResult = {
             'success': False,
             'error': str(e),
             'requestId': data.get('requestId') if data else None
         }
-        
-        sio = g.sio()
-        if sio:
-            if isServer and sid:
-                sio.emit('_Result', errorResult, room=sid)
-            else:
-                sio.emit('_Result', errorResult)
-        else:
-            if isServer:
-                log.e("[RPCHandler] Socket.IO实例为空，无法发送错误响应")
+        return errorResult
 
 
 class RPCHandler:

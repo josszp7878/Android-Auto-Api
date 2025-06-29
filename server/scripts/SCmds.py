@@ -252,47 +252,20 @@ class SCmds_:
             except Exception as e:
                 _Log._Log_.ex(e, "执行屏幕分析失败")
                 return f"e~{str(e)}"
-
-        @regCmd(r'#截屏(?P<pageName>[^ ]+)?')
-        def getScreenInfo(pageName=None):
+            
+        @regCmd('#截屏|jp (?P<deviceID>\S+)?  (?P<pageName>[^ ]+)?')
+        def getScreenInfo(deviceID, pageName=None):
             """功能：获取当前设备的屏幕信息并缓存
-            示例：截屏 登录页
+            示例：截屏 85 aa
+            示例：getScreenInfo 85 aa
+            示例：gsi 85 aa
             """
-            try:
-                log = _G._G_.Log()
-                device = deviceMgr.curDevice
-                if not device:
-                    return "e~请先选择设备"
-                pageName = pageName or 'Last'
+            from SDevice import SDevice_
+            SDevice_.getScreenInfo(deviceID, pageName)
+            return f"i-成功获取屏幕信息: {pageName}"
 
-                # 回调函数处理客户端返回的屏幕信息
-                def handleScreenInfo(result):
-                    try:
-                        if _Log._Log_.isError(result):
-                            log.e(f"获取屏幕信息失败: {result}")
-                            return
-
-                        # 检查结果是否为空
-                        if not result or result == "None" or result == "[]":
-                            log.e("获取到空的屏幕信息")
-                            return
-
-                        # 保存到设备对象中
-                        device.setScreenInfo(pageName, result)
-                        # log.i(f"屏幕信息保存成功: {pageName}, 共{len(result)}个元素")
-                    except Exception as e:
-                        log.ex(e, "处理屏幕信息失败")
-
-                # 发送客户端命令获取屏幕信息
-                res = device.sendClientCmd("eval T.getScreenInfo(True)", None)
-                handleScreenInfo(res)
-                return "正在获取屏幕信息..."
-            except Exception as e:
-                log.ex(e, "获取屏幕信息失败")
-                return f"e~获取屏幕信息失败: {str(e)}"
-
-        @regCmd(r'#设置屏幕信息|szpmxx (?P<pageName>\S+)?')
-        def setScreenInfo(pageName=None):
+        @regCmd('#设置屏幕|szpm (?P<deviceID>\S+)?  (?P<pageName>\S+)?')
+        def setScreenInfo(deviceID, pageName=None):
             """功能：将服务端缓存的屏幕信息发送到客户端
             指令名：setScreenInfo
             中文名：设置屏幕
@@ -300,24 +273,10 @@ class SCmds_:
                pageName - 页面名称 (可选，默认使用最近获取的屏幕)
             示例：设置屏幕 登录页
             """
-            try:
-                log = _G._G_.Log()
-                device = deviceMgr.curDevice
-                if not device:
-                    return "e~请先选择设备"
-                # 获取屏幕信息
-                screenInfo = device.getScreenInfo(pageName)
-                if not screenInfo:
-                    return f"e~信息为空"
+            from SDevice import SDevice_
+            SDevice_.setScreenInfo(deviceID, pageName)
+            return f"i-成功设置屏幕信息: {pageName}"
 
-                # 使用三引号包裹多行JSON字符串
-                cmd = f"eval T.setScreenInfo('''{screenInfo}''')"
-                device.sendClientCmd(cmd)
-
-                return f"i-成功设置屏幕信息: {pageName}"
-            except Exception as e:
-                log.ex(e, "设置屏幕信息失败")
-                return f"e~设置屏幕信息失败: {str(e)}"
 
         @regCmd('#格式化|fjf (?P<fileName>[^ ]+)')
         def formatJsonFile(fileName):

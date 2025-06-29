@@ -1,6 +1,6 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-
+import _G
 
 
 class Database:
@@ -62,13 +62,19 @@ class Database:
             return False
         
     @classmethod
-    def init(cls, app: Flask):
+    def init(cls, app: Flask)->bool:
         """初始化数据库"""
-        cls.app = app
-        db = cls.getDB()
-        db.init_app(app)
-        with app.app_context():
-            db.create_all()
+        log = _G._G_.Log()
+        try:
+            cls.app = app
+            db = cls.getDB()
+            db.init_app(app)
+            with app.app_context():
+                db.create_all()
+            return True
+        except Exception as e:
+            log.e(f"error: 数据库连接失败 {e}")
+            return False
 
 
 # 导出全局db实例

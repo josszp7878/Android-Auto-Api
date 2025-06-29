@@ -95,7 +95,7 @@ class _Tools_:
     # android对象由_G._G_管理，不再在这里维护
     screenSize: tuple[int, int] = (1080, 1920)
     _fixFactor = 0
-    _screenInfoCache = None
+    _screenInfoCache: list[dict] = None
     
     # 文本查找计数的键名常量
     FINDCOUNT_KEY = 'findCount'
@@ -176,7 +176,7 @@ class _Tools_:
         if str == '':
             return True
         if this is None:
-            this = g.App().last()
+            this = g.CDevice().currentApp
         segments = cls._parseSegments(str, '&', this)
         if not segments:
             return False        
@@ -206,7 +206,7 @@ class _Tools_:
             str = str.strip() if str else ''
             if str == '':
                 return
-            this = this or g.App().last()
+            this = this or g.CDevice().currentApp
             segments = cls._parseSegments(str, '&', this)
             if not segments:
                 # 如果解析失败，返回None
@@ -436,7 +436,7 @@ class _Tools_:
         g = _G._G_
         try:
             App = g.App()
-            cApp = App.cur()
+            cApp = g.CDevice().currentApp
             # 创建安全的执行环境
             locals = {
                 'app': App,
@@ -1078,16 +1078,18 @@ class _Tools_:
         """
         log = _G._G_.Log()
         try:
-            if screenInfo is None or screenInfo.strip() == '':
+            if screenInfo is None:
                 return False
-            # 如果是字符串，尝试解析为JSON
-            import json
-            try:
-                screenInfo = json.loads(screenInfo)
-            except json.JSONDecodeError as e:
-                log.e(f"JSON解析错误: {e} \n json=\n{screenInfo}")
-                return False
-            
+            if isinstance(screenInfo, str):
+                # 如果是字符串，尝试解析为JSON
+                import json
+                try:
+                    screenInfo = json.loads(screenInfo)
+                except json.JSONDecodeError as e:
+                    log.e(f"JSON解析错误: {e} \n json=\n{screenInfo}")
+                    return False
+            if not isinstance(screenInfo, list):
+                return False            
             # 保存到缓存
             cls._screenInfoCache = screenInfo
             log.i(f"屏幕信息已设置，共{len(screenInfo)}个元素")
@@ -1242,13 +1244,19 @@ class _Tools_:
                 b = item.get('b')
                 if b:
                     try:
-                        b = [int(d) for d in b.split(',')]
+                        # 如果b已经是列表，直接使用
+                        if isinstance(b, list):
+                            b = [int(d) for d in b]
+                        elif isinstance(b, str):
+                            b = [int(d) for d in b.split(',')]
+                        else:
+                            b = None
                     except Exception as e:
                         log.ex(e, f"解析边界坐标失败: {b}")
                         b = None
                 result.append({
                     't': t,
-                    'b': b or ''
+                    'b': b
                 })
             # 更新缓存
             cls._screenInfoCache = result
@@ -1302,12 +1310,18 @@ class _Tools_:
             # 获取第一个匹配项的中心坐标
             item = matches[0][0]
             bounds = item.get('b')
-            if not bounds:
-                return None
-            
+            # 如果bounds是字符串，用,分割
+            if isinstance(bounds, str):
+                bounds = [int(b) for b in bounds.split(',')]
+            elif isinstance(bounds, list):
+                bounds = [int(b) for b in bounds]
+            else:
+                bounds = None
+            if not bounds or len(bounds) < 4:
+                log.e(f"非法边界坐标: {bounds}")
+                return None            
             centerX = (bounds[0] + bounds[2]) // 2
             centerY = (bounds[1] + bounds[3]) // 2
-
             # 应用坐标修正
             if cls._fixFactor > 0:
                 offsetX = int(centerY * cls._fixFactor)
@@ -1329,12 +1343,19 @@ class _Tools_:
                 return None
             matches = cls.matchItems(condition, items)
             if region:
+                filtered_matches = []
                 for i, m in matches:
                     box = i.get('b')
                     _G._G_.Log().i_(f"匹配文本: {text}, 区域: {region}, 匹配: {i}")
                     if box and isinstance(box, list) and len(box) >= 4:
-                        if region.isRectIn(box):
-                            matches.append((i, m))
+                        try:
+                            # 确保坐标都是整数
+                            box = [int(b) for b in box]
+                            if region.isRectIn(box[0], box[1], box[2], box[3]):
+                                filtered_matches.append((i, m))
+                        except (ValueError, TypeError):
+                            continue
+                matches = filtered_matches
                 
             # 对匹配到的每个项目更新findCount
             for match in matches:
@@ -1587,7 +1608,17 @@ class _Tools_:
         
         # 创建可哈希的元组表示每个文本项
         def to_hashable(items):
-            return [tuple([item.get('t', ''), item.get('b', '')]) for item in items]
+            result = []
+            for item in items:
+                text = item.get('t', '')
+                bounds = item.get('b', '')
+                # 将bounds转换为可哈希的类型
+                if isinstance(bounds, list):
+                    bounds = tuple(bounds)  # 列表转元组
+                elif bounds is None:
+                    bounds = ''
+                result.append((text, bounds))
+            return result
         
         hashable1 = to_hashable(screen1)
         hashable2 = to_hashable(screen2)

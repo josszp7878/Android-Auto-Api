@@ -61,6 +61,7 @@ class _CmdMgr_:
     @classmethod
     def processParamSpaces(cls, pattern):
         """将参数组包装为带空格的可选结构，所有参数都设为可选
+        支持注册时参数间的空格容错
         
         将 (?P<param>\S+) 转换为 (?:\s+(?P<param>\S+))?
         将 (?P<param>\S+)? 转换为 (?:\s+(?P<param>\S+))?
@@ -71,13 +72,25 @@ class _CmdMgr_:
             str: 处理后的命令模式字符串
         """
         try:
-            # 查找所有参数捕获组（除了命令名CC组）
+            # 步骤1：找到命令名部分和参数部分的分界点
+            cmd_match = re.search(r'\(\?P<' + cls.CmdKey + r'>.*?\)', pattern)
+            if cmd_match:
+                cmd_part = pattern[:cmd_match.end()]
+                param_part = pattern[cmd_match.end():]
+                
+                # 步骤2：清理参数部分，移除参数组之间的多余空格
+                # 只保留参数组内部的结构，移除组间空格
+                param_part = re.sub(r'\s+(?=\(\?P<)', '', param_part)  # 移除参数组前的空格
+                param_part = re.sub(r'^\s+', '', param_part)  # 移除开头空格
+                
+                pattern = cmd_part + param_part
+            
+            # 步骤3：查找所有参数捕获组（除了命令名CC组）
             param_pattern = r'\(\?P<([^>]+)>([^)]+)\)(\??)'
             
             def replace_param(match):
                 param_name = match.group(1)
                 param_content = match.group(2)
-                # 忽略原有的可选标记，统一设为可选
                 
                 # 如果是命令名捕获组，不处理
                 if param_name == cls.CmdKey:

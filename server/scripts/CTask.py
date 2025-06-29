@@ -68,15 +68,6 @@ class CTask_(Task_, Base_):
     def progress(self, value:int):
         self.setDBProp('progress', value)
 
-    @classmethod
-    def _getConfigPath(cls):
-        """获取配置文件路径"""
-        import _G
-        configDir = os.path.join(_G.g.rootDir(), "config")
-        if not os.path.exists(configDir):
-            os.makedirs(configDir)
-        return os.path.join(configDir, "task.json")
-    
     
     @classmethod
     def _getConfig(cls, taskName):

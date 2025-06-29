@@ -340,14 +340,14 @@ class CmdMgr {
                             }
                         }
                     } catch (e) {
-                        console.error(`命令: ${cmdStr} 正则表达式错误: ${cmdObj.match}`, e);
+                        sheet.log(`前台命令: ${cmdStr} 正则表达式错误: ${cmdObj.match}`, 'e');
                         continue;
                     }
                 }
             }
             
             if (!bestMatch) {
-                console.error(`命令: ${cmdStr} 未找到`);
+                sheet.log(`前台命令: ${cmdStr} 未找到`, 'e');
                 return null;
             }
             
@@ -368,16 +368,16 @@ class CmdMgr {
             const params = cmd.params || {};
             const finalArgs = { ...args, ...params, cmd };
             
-            console.log(`执行命令 <${cmd.name}>: ${cmdStr}`);
+            sheet.log(`执行命令 <${cmd.name}>: ${cmdStr}`);
             
             // 执行命令函数
             const result = await bestMatch.func(finalArgs);
             if (result && result.error) {
-                sheet.addTempLog(result.error, 'e', '命令执行', 'Browser');
+                sheet.log(result.error, 'e');
             }
             return result;
         } catch (e) {
-            sheet.addTempLog(`执行命令出错: ${cmdStr}`, 'e', '命令执行', 'Browser');
+            sheet.log(`执行命令出错: ${cmdStr}`, 'e');
         }
         
         return cmd;

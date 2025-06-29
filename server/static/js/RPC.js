@@ -11,14 +11,11 @@
  * }
  */
 class RPC {
-    /** @type {Map<string, Function>} 等待响应的请求 */
-    static #pendingRequests = new Map();
-    
     /** @type {number} 请求ID计数器 */
     static #requestIdCounter = 0;
     
     /**
-     * 初始化RPC系统
+     * 初始化RPC系统（现在使用emitRet方式，不需要监听_Result事件）
      */
     static init() {
         const socket = Socketer.getSocket();
@@ -26,9 +23,6 @@ class RPC {
             console.error('RPC初始化失败：Socket.IO未连接');
             return false;
         }
-        
-        // 监听RPC响应事件
-        socket.on('_Result', this.#handleRPCResponse.bind(this));
         
         // 监听测试响应
         socket.on('test_rpc_response', (data) => {
@@ -39,25 +33,7 @@ class RPC {
         return true;
     }
     
-    /**
-     * 处理RPC响应
-     * @param {Object} response RPC响应数据
-     */
-    static #handleRPCResponse(response) {
-        const requestId = response.requestId;
-        if (!requestId) {
-            console.warn('收到无效RPC响应：缺少requestId', response);
-            return;
-        }
-        
-        const resolver = this.#pendingRequests.get(requestId);
-        if (resolver) {
-            this.#pendingRequests.delete(requestId);
-            resolver(response);
-        } else {
-            console.warn('收到未知请求的RPC响应:', requestId, response);
-        }
-    }
+
     
     /**
      * 生成唯一请求ID
@@ -102,57 +78,33 @@ class RPC {
         };
         
         console.log('发送RPC调用:', rpcData);
-        // console.log('Socket连接状态:', socket.connected);
         
-        return new Promise((resolve) => {
-            // 设置超时
-            const timeoutId = setTimeout(() => {
-                this.#pendingRequests.delete(requestId);
-                const executionTime = Date.now() - startTime;
-                sheet.addTempLog(`RPC调用超时: ${className}.${methodName} (${timeout}ms), 执行时间: ${executionTime}ms`, 'e', 'RPC', 'Browser');
-                resolve(null);
-            }, timeout);
+        try {
+            // 使用emitRet方式直接获取响应
+            const response = await Socketer.emitRet('B2S_RPC_Call', rpcData, timeout);
+            const executionTime = Date.now() - startTime;
             
-            // 保存请求解析器
-            this.#pendingRequests.set(requestId, (response) => {
-                clearTimeout(timeoutId);
-                const executionTime = Date.now() - startTime;
-                // console.log('收到RPC响应:', response);
-                
-                // 如果有错误，显示错误信息并返回null
-                if (response.error) {
-                    sheet.addTempLog(`RPC调用出错: ${className}.${methodName} - ${response.error}, 执行时间: ${executionTime}ms`, 'e', 'RPC', 'Browser');
-                    resolve(null);
-                } else if (response.success === false) {
-                    sheet.addTempLog(`RPC调用失败: ${className}.${methodName}, 执行时间: ${executionTime}ms`, 'e', 'RPC', 'Browser');
-                    resolve(null);
-                } else {
-                    // 成功时返回结果
-                    resolve(response.result);
-                }
-            });
-            
-            // 发送RPC请求
-            socket.emit('RPC_Call', rpcData);
-        });
+            // 如果有错误，显示错误信息并返回null
+            if (response && response.error) {
+                sheet.log(`RPC调用出错: ${className}.${methodName} - ${response.error}, 执行时间: ${executionTime}ms`, 'e');
+                return null;
+            } else if (response && response.success === false) {
+                sheet.log(`RPC调用失败: ${className}.${methodName}, 执行时间: ${executionTime}ms`, 'e');
+                return null;
+            } else {
+                // 成功时返回结果
+                return response ? response.result : response;
+            }
+        } catch (error) {
+            const executionTime = Date.now() - startTime;
+            sheet.log(`RPC调用异常: ${className}.${methodName} - ${error.message}, 执行时间: ${executionTime}ms`, 'e');
+            return null;
+        }
     }
     
 
     
-    /**
-     * 获取等待中的请求数量（用于调试）
-     * @returns {number} 等待中的请求数量
-     */
-    static getPendingRequestsCount() {
-        return this.#pendingRequests.size;
-    }
-    
-    /**
-     * 清理所有等待中的请求（用于重置）
-     */
-    static clearPendingRequests() {
-        this.#pendingRequests.clear();
-    }
+
 }
 
 // 全局RPC调用快捷方法
