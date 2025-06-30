@@ -379,6 +379,13 @@ class SheetPage {
         return this._taskTable;
     }
 
+    /**
+     * 设置属性，使用RPC调用
+     * @param {string} deviceID - 设备ID
+     * @param {string} id - 对象ID
+     * @param {string} type - 对象类型
+     * @param {object} params - 对象属性参数，key为属性名，value为属性值。 可以同时改变多个属性
+     */
     setProp(deviceID, id, type, params ) {
         params['clientID'] = deviceID;
         let cls = null;

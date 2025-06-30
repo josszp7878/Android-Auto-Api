@@ -821,7 +821,7 @@ class _Tools_:
             else:
                 # 根据系统类型选择打开方式
                 if cls.isHarmonyOS():
-                    opened = cls.click(appName, 'LR', (100, -100))
+                    opened = cls.click(appName, 'LR', (0, -0))
                     # opened = cls.click(appName, 'LR')
                 else:
                     # Android系统使用服务方式打开
@@ -1003,7 +1003,7 @@ class _Tools_:
 
     # 从CTools_类添加的屏幕相关方法
     @classmethod
-    def setPosFixScope(cls, scope):
+    def setUIHeadHeight(cls, scope):
         g = _G._G_
         log = g.Log()
         cls._fixFactor = scope/cls.screenSize[1]
@@ -1028,7 +1028,7 @@ class _Tools_:
         except Exception as e:
             log.e(f"获取屏幕尺寸失败: {e}")
         cls.screenSize = screenSize
-        cls.setPosFixScope(140)
+        cls.setUIHeadHeight(100)
         return screenSize
     
     @classmethod
@@ -1323,11 +1323,12 @@ class _Tools_:
                 return None            
             centerX = (bounds[0] + bounds[2]) // 2
             centerY = (bounds[1] + bounds[3]) // 2
+            log.d(f"原始坐标: ({centerX},{centerY})")
             # 应用坐标修正
             if cls._fixFactor > 0:
-                offsetX = int(centerY * cls._fixFactor)
-                centerX -= offsetX
-                log.d(f"坐标修正: ({centerX+offsetX},{centerY}) -> ({centerX},{centerY})")
+                offsetY = int((cls.screenSize[1] - centerY) * cls._fixFactor)
+                centerY -= offsetY
+                log.d(f"坐标修正:-{offsetY}  -> ({centerX},{centerY})")
             
             return (centerX, centerY)
         except Exception as e:

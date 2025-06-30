@@ -50,6 +50,7 @@ class CCmds_:
             tools = g.Tools()
             pos = tools.findTextPos(text)
             if pos:
+                g.android.move(pos[0], pos[1])
                 return f"{pos}"
             return "e~无效位置"
 
@@ -412,7 +413,7 @@ class CCmds_:
             参数: scope - 修正范围
             示例: 设置坐标修正范围 100
             """
-            _G._G_.Tools().setPosFixScope(int(scope))
+            _G._G_.Tools().setUIHeadHeight(int(scope))
 
 
         @regCmd(r"#拓扑图|tpt (?P<appName>\S+)?")
@@ -424,7 +425,7 @@ class CCmds_:
             return _App_.printTopology(appName)
         
         @regCmd(r"#显示|xs(?P<uiName>\S+)(?P<enable>\S+)?")
-        def sHow(uiName: str, enable=None):
+        def show(uiName: str, enable=None):
             """
             功能：启用/关闭显示UI组件
             示例: 
