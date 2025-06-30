@@ -958,8 +958,11 @@ class _Tools_:
                     return _G.TOP
                 return appInfo.get("appName") 
             else:
-                App = g.App()
-                return App.curName()
+                device = g.CDevice()
+                curAppName = device.curAppName
+                if curAppName and len(curAppName.strip()) > 0:
+                    return curAppName
+                return _G.TOP
         except Exception as e:
             log.ex(e, "获取当前应用名称失败")
             return ''
@@ -1001,7 +1004,7 @@ class _Tools_:
         else:
             return True
 
-    # 从CTools_类添加的屏幕相关方法
+    # 因为OCR识别的坐标是相对全屏幕的，而时间的ANDROID的坐标是相对于主窗口，所以需要修正，修正这个状态栏的高度带来的误差
     @classmethod
     def setUIHeadHeight(cls, scope):
         g = _G._G_

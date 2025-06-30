@@ -185,28 +185,18 @@ class CCmds_:
             """
             _G._G_.CDevice().TakeScreenshot()
 
-        @regCmd(r"#当前|dq(?P<type>\S*)?(?P<what>\S*)?")
-        def current(type=None, what=None):
+        @regCmd(r"#当前|dq(?P<what>\S*)?")
+        def current(what=None):
             """
-            功能：获取当前信息，支持包括当前应用、页面、坐标，任务等
+            功能：获取当前信息，
             参数: 
-                type: 类型，支持包括当前应用、页面、坐标，任务等
+                what: 
                     pos|位置:  坐标
-                    task|任务: 任务
-                    其它: 应用名称-页面名称：如果应用名—为空，表示当前应用，返回应用名称-页面名称
-                    空：  则返回当前应用和页面
-                what: 指定应用名称，如果指定应用名称，则返回指定应用的当前页面无需重复操作
-            示例: 
-                 当前 
-                 当前任务 河马剧场
+                    空： 支持包括当前应用、页面、坐标，任务等
             """
             g = _G._G_
             log = g.Log()
-            App = g.App()
-            app = App.getTemplate(what) if what else g.CDevice().currentApp
-            if not app:
-                return f"e~应用{what}不存在"
-            if re.match(r'^(pos|位置)$', type, re.IGNORECASE):
+            if what and re.match(r'^(pos|位置)$', what, re.IGNORECASE):
                 return log.i('todo: 获取坐标')
             else:
                 return g.CDevice().currentInfo()
@@ -221,7 +211,8 @@ class CCmds_:
             参数: target - 目标页面路径
             示例: 跳转 首页
             """
-            return _G._G_.App().go(target)
+            CApp = _G._G_.CApp()
+            return CApp.go(target)
         
         @regCmd(r"#路径|lj(?P<to>.+) (?P<From>.+)?")
         def PATH(to, From=None):
@@ -575,10 +566,11 @@ class CCmds_:
 
         @regCmd(r"#删除(?P<pageName>\S+)?")
         def dELete(pageName=None):
+            g = _G._G_
             if not pageName:                
                 if cls._editTarget:
                     pageName = cls._editTarget.name
-            if g.Page().delTemplate(pageName):
+            if g.CApp().delPage(pageName):
                 return f"删除页面 {pageName} 成功"
 
         @regCmd(r"#显示页面|xsym (?P<pageName>\S+)")
@@ -588,8 +580,9 @@ class CCmds_:
             示例：
             xsym 发现
             """
-            appName, pageName = g.App().parseName(pageName)
-            pages = g.Page().getTemplates(pageName)
+            g = _G._G_
+            appName, pageName = g.CApp().parseName(pageName)
+            pages = g.CApp().getTemplates(pageName)
             if not pages:
                 return f"{pageName} 不存在"
             return "\n".join(f"{json.dumps(c.config, indent=2, ensure_ascii=False)}" for c in pages)
@@ -603,7 +596,7 @@ class CCmds_:
                 匹配 河马剧场.剧场
             """ 
             g = _G._G_
-            App = g.App()
+            App = g.CApp()
             if not name:
                 page = g.CDevice().currentApp.curPage
             else:

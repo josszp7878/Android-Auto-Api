@@ -5,7 +5,7 @@ import threading
 import _G
 from _App import _App_
 from RPC import RPC
-from typing import TYPE_CHECKING, Tuple, Optional, List
+from typing import TYPE_CHECKING, Tuple, Optional, List, Dict
 
 if TYPE_CHECKING:
     from _Page import _Page_
@@ -17,6 +17,133 @@ class CApp_(_App_):
     def __init__(self, data: dict):
         """初始化App"""
         super().__init__(data)
+        self._curPage: Optional["_Page_"] = None
+        self._lastPage: Optional["_Page_"] = None
+        self._toPage: Optional["_Page_"] = None
+        self.rootPage: Optional["_Page_"] = None
+        self._path: Optional[List["_Page_"]] = None  # 当前缓存的路径 [path]
+        self.userEvents: List[str] = []  # 用户事件列表
+        self._toasts = {}  # toasts配置字典，用于存储toast匹配规则和操作
+        self._pages: Dict[str, "_Page_"] = {}  # 应用级的页面列表
+
+    PathSplit = '-'
+    @classmethod
+    def parseName(cls, str: str) -> Tuple[str, str]:
+        """解析应用和页面名称
+        Args:
+                str: 应用和名称，格式为 "应用名-名称"
+        Returns:
+            Tuple[str, str]: (应用名, 名称)
+        """
+        if not str or not str.strip():
+            return None, None
+        import re
+        pattern = fr'(?P<name>\S+)?\s*{cls.PathSplit}\s*(?P<pageName>\S+)?'
+        match = re.match(pattern, str)
+        g = _G._G_
+        device = g.CDevice()
+        if match:
+            name = match.group('name')
+            if name is None:
+                name = device.currentApp.name
+            return name, match.group('pageName')
+        # 如果没找到应用名，使用当前应用    
+        name = device.currentApp.name
+        return name, str  # 返回当前应用和页面名称    
+
+    @classmethod
+    def _configDir(cls)->str:
+        """获取配置文件目录"""
+        return os.path.join(_G.g.rootDir(), 'config', 'pages')
+    
+    def loadConfig(self) -> Dict[str, "_Page_"]:
+        """根据APP名字查找对应的配置文件并加载初始化
+        Returns:
+            Dict[str, "_Page_"]: 返回加载的页面列表
+        """
+        g = _G._G_
+        log = g.Log()
+        try:
+            # 根据APP名字构造配置文件路径
+            configPath = os.path.join(self._configDir(), f'{self.name}.json')
+            if not os.path.exists(configPath):
+                log.w(f"应用 {self.name} 配置文件不存在: {configPath}")
+                return {}
+            
+            # 读取并解析配置文件
+            with open(configPath, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+            
+            # 加载根页面配置
+            root = config.get(_G.ROOT)
+            if not root:
+                log.e(f"应用 {self.name} 配置缺少{_G.ROOT}节点")
+                return {}
+            
+            # 更新应用信息
+            self.ratio = root.get('ratio', 10000)
+            self.description = root.get('description', '')
+            self._toasts = root.get('toasts', {})  # 加载toasts配置
+            
+            # 创建并设置根页面
+            if not self.rootPage:
+                rootPage = self.getPage(_G.ROOT, True)
+                rootPage.config = root
+                self._curPage = rootPage
+                self.rootPage = rootPage
+            
+            # 加载页面配置
+            pages = root.get('pages', {})
+            for pageName, pageConfig in pages.items():
+                # 创建或获取页面
+                page = self.getPage(pageName, True)
+                page.config = pageConfig
+                if not page:
+                    log.e(f"创建页面 {pageName} 失败")
+                    continue
+                # 添加到页面列表
+                self._pages[pageName] = page
+                
+            log.i(f"应用 {self.name} 配置加载完成，共 {len(self._pages)} 个页面")
+            return self._pages
+        except Exception as e:
+            log.ex(e, f"加载应用 {self.name} 配置失败")
+            return {}
+
+    def saveConfig(self) -> str:
+        """保存配置
+        Returns:
+            str: 配置文件路径
+        """
+        g = _G._G_
+        log = g.Log()
+        try:
+            # 获取当前应用的所有页面
+            pages = self.getPages()
+            # 过滤出非临时页面
+            pages = [p for p in pages if not p.hasAttr(_G.TEMP)]
+            #remove root page
+            pages.remove(self.rootPage)
+            # 将页面转换为字典格式
+            pageConfigs = {}
+            for page in pages:
+                pageConfigs[page.name] = page.config
+            rootConfig = self.rootPage.config
+            rootConfig['pages'] = pageConfigs
+            output = {
+                _G.ROOT: rootConfig
+            }
+            # 写入配置文件
+            path = self._configDir()
+            if not os.path.exists(path):
+                os.makedirs(path)
+            path = os.path.join(path, f'{self.name}.json')
+            with open(path, 'w', encoding='utf-8') as f:
+                    json.dump(output, f, ensure_ascii=False, indent=2)
+            return path
+        except Exception as e:
+            log.ex(e, f"保存配置文件失败")
+            return None
 
     # 检测toast
     # 先检查toast的key是否匹配，如果匹配，则执行action
@@ -293,7 +420,7 @@ class CApp_(_App_):
         Args:
             target: 目标页面路径
         Returns:
-            _Page_: 目标页面
+            _Page_: 目标页面C
         """
         g = _G._G_
         log = g.Log()
@@ -438,7 +565,7 @@ class CApp_(_App_):
         while True:
             time.sleep(interval)
             app, _ = device.detectApp()
-            if app and isinstance(app, CApp_):
+            if app :
                 # 只更新客户端应用实例
                 app.doUpdate()
 

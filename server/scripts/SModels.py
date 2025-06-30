@@ -263,24 +263,16 @@ class AppModel_:
                 row = result.fetchone()
                 
                 if not row and create:
-                    # 从配置模板创建基础App记录
-                    import os
-                    configDir = os.path.join(_G._G_.rootDir(), 'config', 'pages')
-                    configFile = os.path.join(configDir, f'{name}.json')
-                    
-                    # 只有配置文件存在才创建记录
-                    if os.path.exists(configFile):
-                        data = {
-                            'deviceId': deviceId,
-                            'name': name,
-                            'totalScore': 0.0,
-                            'income': 0.0,
-                            'status': 'idle'
-                        }
-                        
-                        cls.model._insert(data)
-                        result = db.session.execute(sql, params)
-                        row = result.fetchone()
+                    data = {
+                        'deviceId': deviceId,
+                        'name': name,
+                        'totalScore': 0.0,
+                        'income': 0.0,
+                        'status': 'idle'
+                    }
+                    cls.model._insert(data)
+                    result = db.session.execute(sql, params)
+                    row = result.fetchone()
                     
                 return cls.model.toDict(row) if row else None
             except Exception as e:

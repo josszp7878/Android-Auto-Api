@@ -1,3 +1,4 @@
+import re
 from typing import Dict, Optional
 from _App import _App_
 from RPC import RPC
@@ -10,7 +11,7 @@ class _Device_():
     def __init__(self):
         self._apps: Dict[str, _App_] = {}  # 设备的App列表
         self._currentApp: Optional[_App_] = None  # 当前跟踪的App
-        self._curAppName = _G.TOP
+        self._curAppName = None
 
     @property
     def info(self) -> dict:
@@ -37,7 +38,7 @@ class _Device_():
         return self._apps
     
     @RPC()
-    def setCurrent(self, name: str):
+    def setCurApp(self, name: str):
         """设置当前检测应用名称"""
         if name == self._curAppName:
             return
@@ -48,9 +49,7 @@ class _Device_():
             self._currentApp = self._apps[name]
         if not g.isServer():
             # rpc 同步服务端
-            log = g.Log()
-            log.i(f"@rpc server setCurrent: {name}")
-            g.RPCClient(self.id, '_Device_.setCurrent', {'name': name})
+            g.RPCClient(self.id, '_Device_.setCurApp', {'name': name})
     
     @property
     def currentApp(self) -> Optional[_App_]:
@@ -67,6 +66,14 @@ class _Device_():
         for app in self.apps.values():
             if app.id == id:
                 return app
+        return None
+    
+    def matchApp(self, name: str) -> Optional[str]:
+        """匹配应用"""
+        App = _G._G_.App()
+        for appName in App.getAppNames():
+            if re.match(name, appName):
+                return appName
         return None
 
     def getApp(self, name: str, create: bool = False) -> Optional[_App_]:
@@ -147,24 +154,6 @@ class _Device_():
         except Exception as e:
             log.ex_(e, "获取App列表失败")
             return []
-       
-    def setCurrentApp(self, name: str) -> Optional[_App_]:
-        """设置当前跟踪的App"""
-        g = _G._G_
-        log = g.Log()
-        try:
-            if name == self._curAppName:
-                return
-            self._curAppName = name
-            app = self.getApp(name)
-            if not app:
-                return None
-            self._currentApp = app
-            log.i(f'设置当前App:{name}')
-            return app
-        except Exception as e:
-            log.ex_(e, f"设置当前App失败: {name}")
-            return None
     
     def _detectCurrentApp(self) -> Optional[str]:
         """检测当前App（子类需要实现）"""

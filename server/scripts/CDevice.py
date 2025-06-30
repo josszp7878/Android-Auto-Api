@@ -13,14 +13,15 @@ if TYPE_CHECKING:
     from _App import _App_
     from CApp import CApp_
 
+
 class CDevice_(Base_, _Device_):
     _instance = None  # 单例实例
-    
+
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
-    
+
     def __init__(self):
         if hasattr(self, 'initialized'):
             return
@@ -45,23 +46,7 @@ class CDevice_(Base_, _Device_):
 
     @property
     def server(self):
-        return self._server 
-    
-    def setCurrentApp(self, name: str) -> Optional['_App_']:
-        """设置当前跟踪的App"""
-        g = _G._G_
-        log = g.Log()
-        try:
-            if name == self._curAppName:
-                return
-            app = super().setCurrentApp(name)
-            # log.i(f'设置当前App:{name}')
-            # rpc 调用SDevice的setCurrentApp
-            g.RPCClient(self.id, 'SDevice_.setCurrentApp', {'name': name})
-            return app
-        except Exception as e:
-            log.ex_(e, f"设置当前App失败: {name}")
-            return None
+        return self._server
 
     def get(self, key):
         """获取设备数据"""
@@ -97,7 +82,7 @@ class CDevice_(Base_, _Device_):
         self.disconnect()
         self.initialized = False
 
-    def disconnect(self)->bool:
+    def disconnect(self) -> bool:
         """断开连接"""
         g = _G._G_
         log = g.Log()
@@ -105,7 +90,7 @@ class CDevice_(Base_, _Device_):
             if not g.sio().connected:
                 log.w(f"设备{self.name}已经断开，无需重复操作")
                 return True
-                
+
             g.sio().disconnect()
             log.i(f'设备 {self.name} 已断开连接')
             self._state = _G.ConnectState.OFFLINE  # 断开后状态设为offline
@@ -123,7 +108,7 @@ class CDevice_(Base_, _Device_):
 
     def isConnected(self) -> bool:
         return self._state != _G.ConnectState.OFFLINE
-    
+
     @RPC()
     def getDeviceInfo(self) -> dict:
         """获取设备信息 - RPC方法"""
@@ -143,7 +128,6 @@ class CDevice_(Base_, _Device_):
             return {
                 'error': f"获取设备信息失败: {str(e)}"
             }
-    
 
     def connect(self) -> bool:
         g = _G._G_
@@ -196,7 +180,7 @@ class CDevice_(Base_, _Device_):
         except Exception as e:
             log.ex_(e, "登录异常")
             return False
-    
+
     def logout(self):
         """注销设备"""
         g = _G._G_
@@ -253,7 +237,8 @@ class CDevice_(Base_, _Device_):
             image = android.takeScreenshot()
             log.i(f'截图成功: {image}')
             if image:
-                g.emit("C2S_Screenshot", {"device_id": self._deviceID, "image": image})
+                g.emit("C2S_Screenshot", {
+                       "device_id": self._deviceID, "image": image})
         except Exception as e:
             log.ex(e, "截图失败")
 
@@ -268,7 +253,7 @@ class CDevice_(Base_, _Device_):
         self.data['name'] = value
         # 同步到Android SharedPreferences
         self._setName(value)
-    
+
     def _setName(self, deviceName):
         """同步设备名称到Android SharedPreferences"""
         g = _G._G_
@@ -279,13 +264,14 @@ class CDevice_(Base_, _Device_):
             context = g.android.getContext()
             if context:
                 # 获取SharedPreferences
-                prefs = context.getSharedPreferences("device_config", 0)  # 0 = MODE_PRIVATE
+                prefs = context.getSharedPreferences(
+                    "device_config", 0)  # 0 = MODE_PRIVATE
                 editor = prefs.edit()
                 editor.putString("DEVICE_NAME_KEY", deviceName)
                 editor.apply()
                 log.i(f"设备名称已同步到Android: {deviceName}")
                 return True
-        
+
         # 方案2: 如果上面失败，尝试通过脚本引擎执行
         try:
             # 构造JavaScript代码调用Android API
@@ -299,18 +285,17 @@ class CDevice_(Base_, _Device_):
                 false;
             }}
             '''
-            
+
             # 如果有脚本引擎，执行JavaScript代码
             if hasattr(g, 'scriptEngine') and g.scriptEngine:
                 result = g.scriptEngine.eval(jsCode)
                 if result:
                     log.i(f"通过脚本引擎同步设备名称成功: {deviceName}")
                     return True
-            
-        except Exception as e:
-            log.w(f"脚本引擎同步失败: {e}")            
-            return False
 
+        except Exception as e:
+            log.w(f"脚本引擎同步失败: {e}")
+            return False
 
     def onS2C_updateTask(self, data):
         g = _G._G_
@@ -357,7 +342,7 @@ class CDevice_(Base_, _Device_):
 
     def _createApp(self, data: dict) -> '_App_':
         """创建App"""
-        from CApp import CApp_ 
+        from CApp import CApp_
         return CApp_(data)
 
     def onLogin(self, data):
@@ -368,12 +353,12 @@ class CDevice_(Base_, _Device_):
         # log.i_(f"登录成功，初始化任务表, data: {data}")
         # 初始化任务表
         self._tasks = {}
-        self.setTasks(data.get('taskList'))
-        self.setApps(data.get('appList'))
+        self._initTasks(data.get('taskList'))
+        self._initApps(data.get('appList'))
         self.info = data.get('info')
         log.i_(f"客户端同步完成，应用数: {len(self.apps)}，任务数: {len(self._tasks)}")
 
-    def setTasks(self, taskList: list):
+    def _initTasks(self, taskList: list):
         """设置任务列表"""
         if taskList is None:
             return
@@ -385,10 +370,10 @@ class CDevice_(Base_, _Device_):
                 task = CTask_(data)
             except Exception as e:
                 log.ex_(e, f"创建任务失败: {data}")
-                continue    
+                continue
             self._tasks[task.id] = task
 
-    def setApps(self, apps: List['_App_']):
+    def _initApps(self, apps: List['_App_']):
         if not apps:
             return
         g = _G._G_
@@ -397,14 +382,14 @@ class CDevice_(Base_, _Device_):
         for data in apps:
             try:
                 app = CApp_(data)
+                app.loadConfig()
             except Exception as e:
                 log.ex_(e, f"创建应用失败: {data}")
                 continue
             self._apps[app.name] = app
+        self._apps[_G.TOP] = CApp_({'name': _G.TOP})
 
-
-
-    def getTask(self, key)->'CTask_':
+    def getTask(self, key) -> 'CTask_':
         """根据ID获取任务"""
         g = _G._G_
         log = g.Log()
@@ -424,17 +409,17 @@ class CDevice_(Base_, _Device_):
             log.ex(e, f'获取任务失败: {key}')
             return None
 
-    def getTasks(self, name=None)->List['CTask_']:
+    def getTasks(self, name=None) -> List['CTask_']:
         """获取所有任务或指定名称的任务列表"""
         name = name.lower()
         if name is None:
             return list(self._tasks.values())
         return [t for t in self._tasks.values() if t.name.lower() == name]
-    
-    def curTask(self)->'CTask_':
+
+    def curTask(self) -> 'CTask_':
         """获取当前任务"""
         return self._curTask
-    
+
     def setCurTask(self, value: 'CTask_'):
         """设置当前任务"""
         self._curTask = value
@@ -445,15 +430,15 @@ class CDevice_(Base_, _Device_):
         log = g.Log()
         try:
             log.i(f'收到属性更新: {data}')
-            
+
             entityType = data.get('type')
             targetID = data.get('target')
             params = data.get('params')
-            
+
             if not params or not entityType or not targetID:
                 log.w('属性更新参数不完整')
                 return False
-            
+
             # 获取目标对象并调用setProp
             target = None
             if entityType == 'devices':
@@ -463,14 +448,14 @@ class CDevice_(Base_, _Device_):
             else:
                 log.w(f'不支持的实体类型: {entityType}')
                 return False
-            
+
             if target is None:
                 log.e(f'目标不存在: {entityType} {targetID}')
                 return False
-            
+
             # 调用setProp统一处理
             return target.setProp(params)
-            
+
         except Exception as e:
             log.ex(e, '处理属性更新失败')
             return False
@@ -484,7 +469,7 @@ class CDevice_(Base_, _Device_):
     @RPC()
     def getScreenInfo(self) -> dict:
         """RPC方法：获取客户端屏幕信息
-        
+
         Returns:
             dict: RPC结果，包含屏幕信息列表或错误信息
         """
@@ -494,16 +479,16 @@ class CDevice_(Base_, _Device_):
             tools = g.Tools()
             if not tools:
                 return {'error': '工具类未初始化'}
-            
+
             # 调用_Tools的getScreenInfo方法获取屏幕信息
             screenInfo = tools.getScreenInfo(refresh=True)
-            
+
             if screenInfo:
                 log.i(f"获取屏幕信息成功，共{len(screenInfo)}个元素")
                 return {'result': screenInfo}
             else:
                 return {'error': '获取屏幕信息为空'}
-                
+
         except Exception as e:
             log.ex(e, "获取屏幕信息失败")
             return {'error': f'获取屏幕信息失败: {str(e)}'}
@@ -511,10 +496,10 @@ class CDevice_(Base_, _Device_):
     @RPC()
     def setScreenInfo(self, screenInfos: list) -> dict:
         """RPC方法：设置客户端屏幕信息
-        
+
         Args:
             screenInfos: 屏幕信息列表
-            
+
         Returns:
             dict: RPC结果，包含设置结果或错误信息
         """
@@ -524,19 +509,19 @@ class CDevice_(Base_, _Device_):
             tools = g.Tools()
             if not tools:
                 return {'error': '工具类未初始化'}
-            
+
             if not screenInfos:
                 return {'error': '屏幕信息为空'}
-            
+
             # 调用_Tools的setScreenInfo方法设置屏幕信息
             success = tools.setScreenInfo(screenInfos)
-            
+
             if success:
                 log.i(f"设置屏幕信息成功，共{len(screenInfos)}个元素")
                 return {'result': {'success': True, 'count': len(screenInfos)}}
             else:
                 return {'error': '设置屏幕信息失败'}
-                
+
         except Exception as e:
             log.ex(e, "设置屏幕信息失败")
             return {'error': f'设置屏幕信息失败: {str(e)}'}
@@ -547,14 +532,13 @@ class CDevice_(Base_, _Device_):
         log = g.Log()
         tools = g.Tools()
         try:
-            detectedApp = (tools.curApp() if tools.isAndroid()
-                          else self.curAppName)
-            self.setCurrent(detectedApp)
+            detectedApp = tools.curApp()
+            self.setCurApp(detectedApp)
             return self.currentApp, detectedApp
         except Exception as e:
             log.ex(e, "获取当前应用失败")
             return None, None
-    
+
     def closeApp(self, name=None) -> bool:
         """关闭应用"""
         g = _G._G_
@@ -562,40 +546,43 @@ class CDevice_(Base_, _Device_):
         try:
             if name is None:
                 name = g.CDevice().currentApp.name  # 通过cur方法获取实例名称
+            name = self.matchApp(name)
             app = self.getApp(name)
             if not app:
                 return False
             # 保存计数器数据
             # app._saveData()
-            app.stop()  
+            app.stop()
         except Exception as e:
             log.ex(e, f"关闭应用 {name} 失败")
-    
-    def open(self, name) -> "_App_":
+
+    def open(self, name) -> "CApp_":
         """跳转到指定应用"""
         try:
             g = _G._G_
             log = g.Log()
-            app = self.getApp(name)
-            if not app:
+            appName = self.matchApp(name)
+            if not appName:
                 log.w(f"未知应用:{name}")
-            else:
-                name = app.name
+                return None
+            app = self.getApp(appName)
+            if not app:
+                log.w(f"未配置应用:{appName}")
+                return None
             tools = g.Tools()
             currentApp = self.currentApp
-            if currentApp and name == currentApp.name:
+            if currentApp and appName == currentApp.name:
                 return app
-            ok = tools.openApp(name)
-            if not ok:
-                return None
             if g.isAndroid():
-                time.sleep(5)
-            app, name = self.detectApp()
+                if not tools.openApp(appName):
+                    return None
+            else:
+                self.setCurApp(appName)
             return app
         except Exception as e:
-            log.ex(e, f"跳转到应用 {name} 失败")
+            log.ex(e, f"跳转到应用 {appName} 失败")
             return None
-   
+
     @classmethod
     def onLoad(cls, oldCls):
         if oldCls:
@@ -604,12 +591,14 @@ class CDevice_(Base_, _Device_):
             instance._server = oldInstance._server
             instance.name = oldInstance.name
             log = _G._G_.Log()
-            log.i(f"设备 {instance.name} 重新加载: server={instance._server}, deviceID={instance.name}")
+            log.i(
+                f"设备 {instance.name} 重新加载: server={instance._server}, deviceID={instance.name}")
             instance.init()
             instance.connect()
 
     @classmethod
     def onUnload(cls):
         cls.instance().uninit()
+
 
 CDevice_.instance().onLoad(None)

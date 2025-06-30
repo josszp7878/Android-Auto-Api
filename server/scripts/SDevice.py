@@ -51,11 +51,7 @@ class SDevice_(SModelBase_, _Device_):
         self.commit()
         self.refresh()
 
-    @RPC()
-    def setCurrentApp(self, name: str)->Optional['SApp_']:
-        """设置当前跟踪的App"""
-        return super().setCurrentApp(name)
-    
+
     @classmethod
     def all(cls):
         """获取所有设备"""
@@ -228,43 +224,19 @@ class SDevice_(SModelBase_, _Device_):
         g = _G._G_
         log = g.Log()
         try:
-            # 获取设备ID
             deviceId = getattr(self, 'id', 'default_device')            
-            # 首先从数据库加载已有的App记录
-            from SModels import AppModel_
-            records = AppModel_.all(deviceId)
             from SApp import SApp_
-            if records:
-                # 从数据库记录创建SApp_实例
-                for record in records:
-                    name = record['name']
-                    app = SApp_(record)
-                    if app:
-                        self._apps[name] = app
-                        log.d(f"从数据库加载App: {name}")
-                        
-                log.i(f"从数据库加载了 {len(records)} 个App记录")
-            else:
-                # 数据库没有记录，从App模板创建
-                log.i("数据库无App记录，从App模板初始化...")
-                # 确保App配置已加载
-                from _App import _App_
-                _App_.loadConfig()                
-                # 从_App_.apps()获取所有App模板
-                templates = _App_.apps()                
-                for name, _ in templates.items():
-                    # 尝试从App模板创建数据库记录并创建SApp_实例
-                    app = SApp_.get(deviceId, name, create=True)
-                    if app:
-                        self._apps[name] = app
-                        # log.d(f"从模板创建App: {appName}")
-                    else:
-                        log.e(f"创建App实例失败: {name}")
-                
-                # log.i(f"从App模板初始化了 {len(templates)} 个App")
-            
-            # log.i(f"服务端App初始化完成，共加载 {len(self.apps)} 个App实例")
-            
+            appNames = SApp_.getAppNames()
+            log.i(f"开始创建 {len(appNames)} 个应用")            
+            for name in appNames:
+                # 创建SApp实例
+                app = SApp_.get(deviceId, name, create=True)
+                if app:
+                    self._apps[name] = app
+                    log.d(f"创建App: {name}")
+                else:
+                    log.e(f"创建App实例失败: {name}")
+            log.i(f"服务端App初始化完成，共加载 {len(self._apps)} 个App实例")
         except Exception as e:
             log.ex_(e, "Load Apps失败")
     

@@ -8,8 +8,6 @@ import sys  # 添加sys模块导入
 import time
 from typing import TYPE_CHECKING, List, Optional
 from enum import Enum
-import uuid
-import asyncio
 import re
 
 if TYPE_CHECKING:
@@ -22,6 +20,7 @@ if TYPE_CHECKING:
     from CDevice import CDevice_ 
     from SDeviceMgr import SDeviceMgr_
     from CTask import CTask_
+    from CApp import CApp_
 
 TOP = "top"
 TEMP = "temp"
@@ -287,7 +286,7 @@ class _G_:
                 nonlocal wait
                 response = args[0] if args else None
                 result = response
-                log.i_(f'收到事件结果: event={event}, result={result}')
+                # log.i_(f'收到事件结果: event={event}, result={result}')
                 wait = False
                 return result
                 
@@ -387,12 +386,7 @@ class _G_:
         if isServer is not None:
             cls._isServer = isServer
         cls.onLoad(None)
-        # from _App import _App_
-        # _App_.loadConfig()
 
-        # 不在这里初始化android对象，由客户端调用setAndroid方法设置
-        
-        # 日志系统采用LAZY加载，在第一次访问_cache时自动加载当天日志
     
     @classmethod
     def rootDir(cls):
@@ -486,6 +480,10 @@ class _G_:
         else:
             return cls.getClassLazy('CApp')
     
+    @classmethod
+    def CApp(cls) -> 'CApp_':
+        return cls.getClassLazy('CApp')
+
     @classmethod
     def CTask(cls) -> 'CTask_':
         return cls.getClassLazy('CTask')

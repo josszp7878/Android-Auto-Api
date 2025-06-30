@@ -56,7 +56,6 @@ class CClient_:
             CDevice = g.CDevice()
             CDevice.init(deviceID or 'TEST1', server)
             CDevice.connect()
-            g.App().onLoad()
             g.CFileServer().init(server)
             g.CmdMgr().regAllCmds()
             from RPC import initRPC
