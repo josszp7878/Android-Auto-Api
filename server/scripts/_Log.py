@@ -95,7 +95,7 @@ class _Log_:
                 subDir = 'server'
             else:
                 device = g.CDevice()
-                subDir = device.deviceID if device else 'unknown'
+                subDir = device.name if device else 'unknown'
             
             # 创建带设备/服务器名的日志目录
             logDir = os.path.join(baseLogDir, subDir)
@@ -133,7 +133,7 @@ class _Log_:
                 subDir = 'server'
             else:
                 device = g.CDevice()
-                subDir = device.deviceID if device else 'unknown'
+                subDir = device.name if device else 'unknown'
             
             logDir = os.path.join(baseLogDir, subDir)
             if not os.path.exists(logDir):
@@ -181,7 +181,7 @@ class _Log_:
                 subDir = 'server'
             else:
                 device = g.CDevice()
-                subDir = device.deviceID if device else 'unknown'
+                subDir = device.name if device else 'unknown'
             
             logDir = os.path.join(baseLogDir, subDir)
             logFile = os.path.join(logDir, f'{date}.log')
@@ -411,7 +411,7 @@ class _Log_:
                 # 客户端环境：添加到本地缓存
                 device = g.CDevice()
                 if device:
-                    deviceId = device.deviceID
+                    deviceId = device.name
                     tag = f'{deviceId}{tag}' if tag else deviceId
                     # 添加到客户端本地缓存
                     log = cls.add(content, tag, level)

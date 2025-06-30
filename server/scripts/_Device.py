@@ -12,7 +12,6 @@ class _Device_():
         self._currentApp: Optional[_App_] = None  # 当前跟踪的App
         self._curAppName = _G.TOP
 
-
     @property
     def info(self) -> dict:
         """获取设备信息"""
@@ -101,7 +100,42 @@ class _Device_():
         """创建App"""
         return None
     
-    
+    def currentInfo(self)->str:
+            """显示当前客户端的实时信息"""
+            g = _G._G_
+            log = g.Log()
+            
+            try:
+
+                # 获取当前应用和页面信息
+                currentApp = self.currentApp
+                if currentApp:
+                    appName = currentApp.name
+                    currentPage = currentApp.curPage
+                    pageName = currentPage.name if currentPage else "未知页面"
+                else:
+                    appName = "未知应用"
+                    pageName = "未知页面"
+                
+                # 获取当前任务信息
+                taskInfo = "无任务"
+                if currentApp and currentApp.curTask:
+                    task = currentApp.curTask
+                    taskName = task.name
+                    taskState = task.state.name if hasattr(task.state, 'name') else str(task.state)
+                    progress = getattr(task, 'progress', 0)
+                    taskInfo = f"{taskName}（{taskState}，{progress}%）"
+                
+                # 格式化输出
+                result = f"""设备：{self.name}（{self.id}）
+显示：{appName}-{pageName}
+任务：{taskInfo}"""
+                
+                return result
+                
+            except Exception as e:
+                log.ex(e, "获取当前信息失败")
+                return f"e~获取当前信息失败: {str(e)}"
        
     @RPC()
     def getAppList(self) -> dict:

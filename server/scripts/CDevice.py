@@ -27,7 +27,6 @@ class CDevice_(Base_, _Device_):
         super().__init__({})
         _Device_.__init__(self)  # 初始化App管理功能
         self._server = None
-        self._deviceID = None
         self._executor = ThreadPoolExecutor(max_workers=4)
         self._state = _G.ConnectState.OFFLINE  # 新增，维护设备状态
         self._tasks = {}  # 任务字典，key为任务ID
@@ -43,10 +42,6 @@ class CDevice_(Base_, _Device_):
         if cls._instance is None or reset:
             cls._instance = cls()
         return cls._instance
-
-    @property
-    def deviceID(self):
-        return self._deviceID
 
     @property
     def server(self):
@@ -75,7 +70,7 @@ class CDevice_(Base_, _Device_):
     def init(self, deviceID=None, server=None):
         if self.initialized:
             return
-        self._deviceID = deviceID
+        self.name = deviceID
         self._server = server
         # 配置 socketio 客户端
         sio = socketio.Client(
@@ -108,22 +103,22 @@ class CDevice_(Base_, _Device_):
         log = g.Log()
         try:
             if not g.sio().connected:
-                log.w(f"设备{self._deviceID}已经断开，无需重复操作")
+                log.w(f"设备{self.name}已经断开，无需重复操作")
                 return True
                 
             g.sio().disconnect()
-            log.i(f'设备 {self._deviceID} 已断开连接')
+            log.i(f'设备 {self.name} 已断开连接')
             self._state = _G.ConnectState.OFFLINE  # 断开后状态设为offline
             return True
         except socketio.exceptions.ConnectionError as e:
             if "Already disconnected" in str(e):
-                log.w(f"设备{self._deviceID}已经断开连接")
+                log.w(f"设备{self.name}已经断开连接")
                 return True
             else:
-                log.e(f"设备{self._deviceID}断开失败: {str(e)}")
+                log.e(f"设备{self.name}断开失败: {str(e)}")
                 return False
         except Exception as e:
-            log.ex(e, f"设备{self._deviceID}断开连接异常")
+            log.ex(e, f"设备{self.name}断开连接异常")
             return False
 
     def isConnected(self) -> bool:
@@ -135,7 +130,7 @@ class CDevice_(Base_, _Device_):
         try:
             return {
                 'result': {
-                    'deviceId': self._deviceID,
+                    'deviceId': self.id,
                     'deviceName': self.name,
                     'state': self._state.value if self._state else 'unknown',
                     'isConnected': self.isConnected(),
@@ -149,36 +144,19 @@ class CDevice_(Base_, _Device_):
                 'error': f"获取设备信息失败: {str(e)}"
             }
     
-    @RPC()
-    def setDeviceName(self, name: str) -> dict:
-        """设置设备名称 - RPC方法"""
-        try:
-            old_name = self.name
-            self.name = name
-            return {
-                'result': {
-                    'oldName': old_name,
-                    'newName': name,
-                    'deviceId': self._deviceID
-                }
-            }
-        except Exception as e:
-            return {
-                'error': f"设置设备名称失败: {str(e)}"
-            }
 
     def connect(self) -> bool:
         g = _G._G_
         log = g.Log()
         try:
-            connect_url = f"{g.Tools().getServerURL(self._server)}?device_id={self._deviceID}"
+            connect_url = f"{g.Tools().getServerURL(self._server)}?device_id={self.name}"
             sio = cast(socketio.Client, g.sio())
 
-            log.i(f'正在连接设备 {self._deviceID} ...')
+            log.i(f'正在连接设备 {self.name} ...')
             sio.connect(
                 connect_url,
                 transports=['websocket', 'polling'],
-                auth={'device_id': self._deviceID},
+                auth={'device_id': self.name},
                 wait=True,
                 wait_timeout=30  # 增加连接超时时间
             )
@@ -191,13 +169,13 @@ class CDevice_(Base_, _Device_):
                 return False
         except socketio.exceptions.ConnectionError as e:
             if "Already connected" in str(e):
-                log.w(f"设备{self._deviceID}已经连接，无需重复操作")
+                log.w(f"设备{self.name}已经连接，无需重复操作")
                 return True  # 保持返回成功状态
             else:
-                log.e(f"设备{self._deviceID}连接失败: {str(e)}")
+                log.e(f"设备{self.name}连接失败: {str(e)}")
                 return False
         except Exception as e:
-            log.ex(e, f"设备{self._deviceID}连接异常")
+            log.ex(e, f"设备{self.name}连接异常")
             return False
 
     def login(self):
@@ -205,7 +183,7 @@ class CDevice_(Base_, _Device_):
         g = _G._G_
         log = g.Log()
         try:
-            log.i(f"设备 {self._deviceID} 开始登录...")
+            log.i(f"设备 {self.name} 开始登录...")
             data = g.emitRet('C2S_Login', timeout=15)  # 增加登录超时时间
             if data is None:
                 log.e_("登录失败，服务端无响应")
@@ -224,7 +202,7 @@ class CDevice_(Base_, _Device_):
         g = _G._G_
         log = g.Log()
         g.emit('C2S_Logout', {})
-        log.i(f'设备 {self._deviceID} 登出')
+        log.i(f'设备 {self.name} 登出')
         self._state = _G.ConnectState.LOGOUT  # 登出后状态设为logout
 
     def onS2C_DoCmd(self, data):
@@ -624,9 +602,9 @@ class CDevice_(Base_, _Device_):
             oldInstance = oldCls.instance()
             instance = cls.instance(reset=True)
             instance._server = oldInstance._server
-            instance._deviceID = oldInstance._deviceID
+            instance.name = oldInstance.name
             log = _G._G_.Log()
-            log.i(f"设备 {instance._deviceID} 重新加载: server={instance._server}, deviceID={instance._deviceID}")
+            log.i(f"设备 {instance.name} 重新加载: server={instance._server}, deviceID={instance.name}")
             instance.init()
             instance.connect()
 

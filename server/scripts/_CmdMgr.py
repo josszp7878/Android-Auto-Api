@@ -491,7 +491,7 @@ class _CmdMgr_:
                     _Log._Log_.ex(e, "结束客户端失败")
             
             # 获取当前设备ID和服务器地址
-            deviceID = CDevice.deviceID
+            deviceID = CDevice.name
             server = CDevice.server
             log.i(f"当前设备ID: {deviceID}, 服务器地址: {server}")
 
@@ -716,7 +716,7 @@ class _CmdMgr_:
             else:
                 device = g.CDevice()
                 return {
-                    "deviceID": device.deviceID if device else "未知",
+                    "deviceID": device.name if device else "未知",
                     "state": device.state(),
                     "timestamp": time,
                 }

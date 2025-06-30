@@ -369,7 +369,9 @@ class SheetPage {
             this._taskTable.on('cellEdited', (cell) => {
                 const colName = cell.getColumn().getField();
                 if (colName === 'life') {
-                    this.handleCellClick(cell, type);
+                    const row = cell.getRow();
+                    const deviceID = row.getData().deviceId;
+                    this.setProp(deviceID, row.getData().id, type, {life: cell.getValue()});
                 }
             });
             
@@ -377,17 +379,22 @@ class SheetPage {
         return this._taskTable;
     }
 
-    handleCellClick(cell, type) {
-        const row = cell.getRow();
-        const colName = cell.getColumn().getField();
-        const params = { [colName]: cell.getValue() };
-        
-        const data = {
-            'target': row.getData().id,
-            'type': type,
-            'params': params
-        };
-        this.socketer.emit('B2S_setProp', data);
+    setProp(deviceID, id, type, params ) {
+        params['clientID'] = deviceID;
+        let cls = null;
+        if(type === this.DataType.TASKS) {    
+            cls = 'STask_';
+        } else if(type === this.DataType.DEVICES) {
+            cls = 'SDevice_';
+        }
+        if(!cls) {
+            console.error('setProp: 不支持的类型:', type);
+            return;
+        }
+        rpc.call(null, cls, 'setProp', {
+            params:params,
+            id:id
+        });
     }
     
     /**
@@ -432,7 +439,9 @@ class SheetPage {
             this._deviceTable.on("cellEdited", (cell) => {
                 const colName = cell.getColumn().getField();
                 if (colName === 'name') {
-                    this.handleCellClick(cell, type);
+                    const row = cell.getRow();
+                    const deviceID = row.getData().id;
+                    this.setProp(deviceID, deviceID, type, {name: cell.getValue()});
                 }
             });
         }
@@ -998,15 +1007,17 @@ class SheetPage {
                     
                     // 更新本地数据
                     cell.setValue(newValue);
+                    const deviceID = cell.getRow().getData().id;
+                    this.setProp(deviceID, deviceID, this.DataType.DEVICES, {debug: newValue});
                     
-                    // 发送到服务端更新，使用B2S_setProp事件
-                    const row = cell.getRow();
-                    const data = {
-                        'target': row.getData().id,
-                        'type': 'devices',
-                        'params': { 'debug': newValue }
-                    };                    
-                    this.socketer.emit('B2S_setProp', data);
+                    // // 发送到服务端更新，使用B2S_setProp事件
+                    // const row = cell.getRow();
+                    // const data = {
+                    //     'target': row.getData().id,
+                    //     'type': 'devices',
+                    //     'params': { 'debug': newValue }
+                    // };                    
+                    // this.socketer.emit('B2S_setProp', data);
                 },
                 headerSort: false,
                 editor: false

@@ -24,7 +24,7 @@ def initSocketIO(sio):
     sio.on('C2S_CmdResult')(onC2S_CmdResult)
     # 表格数据加载事件
     sio.on('B2S_loadDatas')(onB2S_loadDatas)
-    sio.on('B2S_setProp')(onB2S_setProp)
+    # sio.on('B2S_setProp')(onB2S_setProp)
     # 客户端属性设置事件
     sio.on('C2S_SetProp')(onC2S_SetProp)
     # 前端RPC调用事件
@@ -38,63 +38,63 @@ def initSocketIO(sio):
 
 
 
-def onB2S_setProp(data):
-    """处理属性更新请求 - 统一的属性修改处理中心"""
-    log = _Log._Log_
-    try:
-        entityType = data.get('type')  # 实体类型: devices, tasks
-        targetID = data.get('target')  # 目标ID
-        params = data.get('params')    # 要更新的属性字典
+# def onB2S_setProp(data):
+#     """处理属性更新请求 - 统一的属性修改处理中心"""
+#     log = _Log._Log_
+#     try:
+#         entityType = data.get('type')  # 实体类型: devices, tasks
+#         targetID = data.get('target')  # 目标ID
+#         params = data.get('params')    # 要更新的属性字典
         
-        log.i(f'统一属性更新: {entityType}, 目标:{targetID}, 参数:{params}')
+#         log.i(f'统一属性更新: {entityType}, 目标:{targetID}, 参数:{params}')
         
-        if not params or not entityType or not targetID:
-            log.w('属性更新参数不完整')
-            return {'success': False, 'message': '参数不完整'}
-        # 获取目标对象
-        target = None
-        if entityType == 'devices':
-            target = deviceMgr.get(targetID)
-        elif entityType == 'tasks':
-            target = deviceMgr.getTask(targetID)
-        else:
-            log.w(f'不支持的实体类型: {entityType}')
-            return {'success': False, 'message': f'不支持的实体类型: {entityType}'}
+#         if not params or not entityType or not targetID:
+#             log.w('属性更新参数不完整')
+#             return {'success': False, 'message': '参数不完整'}
+#         # 获取目标对象
+#         target = None
+#         if entityType == 'devices':
+#             target = deviceMgr.get(targetID)
+#         elif entityType == 'tasks':
+#             target = deviceMgr.getTask(targetID)
+#         else:
+#             log.w(f'不支持的实体类型: {entityType}')
+#             return {'success': False, 'message': f'不支持的实体类型: {entityType}'}
         
-        if target is None:
-            log.e(f'目标不存在: {entityType} {targetID}')
-            return {'success': False, 'message': f'目标不存在: {entityType} {targetID}'}
+#         if target is None:
+#             log.e(f'目标不存在: {entityType} {targetID}')
+#             return {'success': False, 'message': f'目标不存在: {entityType} {targetID}'}
         
-        # 执行属性更新
-        changed = target.setProp(params)        
-        if changed:
-            log.i(f'属性更新成功: {entityType} {targetID} -> {params}')
-            # 通知客户端更新（如果在线）
-            if hasattr(target, 'isConnected') and target.isConnected():
-                try:
-                    # 发送统一的属性更新事件给客户端
-                    _G._G_.emit('S2C_SetProp', {
-                        'type': entityType,
-                        'target': targetID,
-                        'params': params
-                    }, target.sid)
-                    log.i(f'已通知客户端属性更新: {targetID} -> {params}')
-                except Exception as e:
-                    log.w(f'通知客户端失败: {e}')
+#         # 执行属性更新
+#         changed = target.setProp(params)        
+#         if changed:
+#             log.i(f'属性更新成功: {entityType} {targetID} -> {params}')
+#             # 通知客户端更新（如果在线）
+#             if hasattr(target, 'isConnected') and target.isConnected():
+#                 try:
+#                     # 发送统一的属性更新事件给客户端
+#                     _G._G_.emit('S2C_SetProp', {
+#                         'type': entityType,
+#                         'target': targetID,
+#                         'params': params
+#                     }, target.sid)
+#                     log.i(f'已通知客户端属性更新: {targetID} -> {params}')
+#                 except Exception as e:
+#                     log.w(f'通知客户端失败: {e}')
             
-            updatedData = target.toSheetData()
-            _G._G_.emit('S2B_sheetUpdate', {
-                'type': entityType,
-                'data': [updatedData]
-            })
+#             updatedData = target.toSheetData()
+#             _G._G_.emit('S2B_sheetUpdate', {
+#                 'type': entityType,
+#                 'data': [updatedData]
+#             })
             
-            return {'success': True, 'message': f'属性更新成功'}
-        else:
-            return {'success': False, 'message': '属性更新失败'}
+#             return {'success': True, 'message': f'属性更新成功'}
+#         else:
+#             return {'success': False, 'message': '属性更新失败'}
             
-    except Exception as e:
-        log.ex(e, '处理属性更新请求失败')
-        return {'success': False, 'message': f'处理失败: {str(e)}'}
+#     except Exception as e:
+#         log.ex(e, '处理属性更新请求失败')
+#         return {'success': False, 'message': f'处理失败: {str(e)}'}
 
 
 # 定义事件处理函数（不使用装饰器）

@@ -266,7 +266,7 @@ class _G_:
                     return False
                 if data is None:
                     data = {}
-                data['device_id'] = device.deviceID
+                data['device_id'] = device.name
                 sio.emit(event, data, callback=callback)
         except Exception as e:
             log.ex_(e, f"发送事件失败: {event}, {data}")

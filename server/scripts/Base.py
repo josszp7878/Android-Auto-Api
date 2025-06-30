@@ -1,6 +1,8 @@
 from datetime import datetime
 from typing import Any
 import _G
+from RPC import RPC
+
 class Base_():
     """统一的基类，提供属性更新和脏标记功能"""
     
@@ -24,6 +26,10 @@ class Base_():
     def name(self) -> str:
         return self.getDBProp('name')
     
+    @name.setter
+    def name(self, name:str):
+        self.setDBProp('name', name)
+
     @property
     def isDirty(self):
         """获取脏标记"""
@@ -47,7 +53,27 @@ class Base_():
             self._isDirty = True
         return self._isDirty
     
-    def setProp(self, params):
+    @RPC()
+    def setProp(self, params:dict):
+        """统一的属性设置方法"""
+        if not params or not isinstance(params, dict) or len(params) == 0:
+            return False
+        g = _G._G_
+        log = g.Log()
+        try:
+            clientID = params.pop('clientID', None)
+            if not self._setProp(params):
+                return False
+            if clientID:
+                # 根据self.__class__.__name__ 获取对应的客户端类名， 将第一个S替换为C，只替换一次
+                clientCls = self.__class__.__name__.replace('S', 'C', 1)
+                g.RPCServer(clientID, f'{clientCls}.setProp', {'id': self.id, 'params': params})
+                return True
+        except Exception as e:
+            log.ex(e, f'{self.__class__.__name__}属性更新失败')
+            return False
+    
+    def _setProp(self, params:dict):
         """统一的属性设置方法"""
         if not params:
             return False
@@ -67,14 +93,12 @@ class Base_():
                             self._isDirty = True
                             log.i(f'设置属性: {key} = {value}')
                             changed = True
-                    except AttributeError:
-                        pass
                     except Exception as e:
                         log.ex(e, f'设置属性: {key} = {value}')
                         continue
 
                 if not changed:
-                    self.setDBProp(key, value)
+                    changed = self.setDBProp(key, value)
 
                 if changed:
                     # 调用子类的特殊处理钩子

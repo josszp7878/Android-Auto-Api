@@ -185,7 +185,7 @@ class CCmds_:
             _G._G_.CDevice().TakeScreenshot()
 
         @regCmd(r"#当前|dq(?P<type>\S*)?(?P<what>\S*)?")
-        def cuRrenT(type=None, what=None):
+        def current(type=None, what=None):
             """
             功能：获取当前信息，支持包括当前应用、页面、坐标，任务等
             参数: 
@@ -194,7 +194,7 @@ class CCmds_:
                     task|任务: 任务
                     其它: 应用名称-页面名称：如果应用名—为空，表示当前应用，返回应用名称-页面名称
                     空：  则返回当前应用和页面
-                what: 指定应用名称，如果指定应用名称，则返回指定应用的当前页面
+                what: 指定应用名称，如果指定应用名称，则返回指定应用的当前页面无需重复操作
             示例: 
                  当前 
                  当前任务 河马剧场
@@ -207,16 +207,8 @@ class CCmds_:
                 return f"e~应用{what}不存在"
             if re.match(r'^(pos|位置)$', type, re.IGNORECASE):
                 return log.i('todo: 获取坐标')
-            elif re.match(r'^(task|任务)$', type, re.IGNORECASE): 
-                task = app.curTask
-                return task.name if task else "e~当前没有任务"
-            elif re.match(r'^(app|应用|页面|page)$', type, re.IGNORECASE):
-                # 获取当前应用和页面
-                appInfo = f"{app.name}-{app.curPage.name}"
-                curAppName = App.curName()
-                if curAppName != app.name:
-                    appInfo = f"未知应用{curAppName} 应用:{appInfo}"
-                return appInfo
+            else:
+                return g.CDevice().currentInfo()
 
 
         @regCmd(r"#跳转|tz(?P<target>.+)")
@@ -863,7 +855,7 @@ class CCmds_:
                     log.e_("设备连接未建立")
                     return "e~设备连接未建立"
                 
-                deviceId = device.deviceID
+                deviceId = device.name
                 if not deviceId:
                     log.e_("设备ID无效")
                     return "e~设备ID无效"
@@ -890,5 +882,4 @@ class CCmds_:
                 
             except Exception as e:
                 log.ex(e, f"修改设备名称失败: {newName}")
-                return f"e~修改设备名称失败: {str(e)}"
-   
+                return f"e~修改设备名称失败: {str(e)}"   

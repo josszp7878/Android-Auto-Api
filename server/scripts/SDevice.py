@@ -290,6 +290,7 @@ class SDevice_(SModelBase_, _Device_):
         except Exception as e:
             log.ex(e, '设备登录失败')
             return {}  # 返回空的列表
+        
     
     def onLogout(self):
         """设备登出"""

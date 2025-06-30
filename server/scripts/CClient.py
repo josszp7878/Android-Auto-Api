@@ -93,7 +93,7 @@ class CClient_:
             cls.running = True  # 设置运行标志
             while cls.running:
                 try:
-                    cmd_input = input(f"{device.deviceID}> ").strip()
+                    cmd_input = input(f"{device.name}> ").strip()
                     g.CmdMgr().do({'cmd': cmd_input})
                 except EOFError:
                     cls.fromAndroid = True
