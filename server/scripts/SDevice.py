@@ -211,7 +211,7 @@ class SDevice_(SModelBase_, _Device_):
             from SApp import SApp_
             app = SApp_.get(deviceId, name, create=True)
             if app:
-                log.i(f'创建App: {name}')
+                # log.i(f'创建App: {name}')
                 return app
             else:
                 return None
@@ -227,16 +227,16 @@ class SDevice_(SModelBase_, _Device_):
             deviceId = getattr(self, 'id', 'default_device')            
             from SApp import SApp_
             appNames = SApp_.getAppNames()
-            log.i(f"开始创建 {len(appNames)} 个应用")            
+            # log.i(f"开始创建 {len(appNames)} 个应用")            
             for name in appNames:
                 # 创建SApp实例
                 app = SApp_.get(deviceId, name, create=True)
                 if app:
                     self._apps[name] = app
-                    log.d(f"创建App: {name}")
+                    # log.d(f"创建App: {name}")
                 else:
                     log.e(f"创建App实例失败: {name}")
-            log.i(f"服务端App初始化完成，共加载 {len(self._apps)} 个App实例")
+            # log.i(f"服务端App初始化完成，共加载 {len(self._apps)} 个App实例")
         except Exception as e:
             log.ex_(e, "Load Apps失败")
     
@@ -289,7 +289,7 @@ class SDevice_(SModelBase_, _Device_):
                 log.w(f'设备 {self.name} 会话无效')
                 return None
             # 发送命令
-            log.i(f'发送客户端命令:id={self.id}, cmd={command}, params={params}, sid={sid}')
+            # log.i_(f'发送客户端命令:id={self.id}, cmd={command}, params={params}, sid={sid}')
             return g.emitRet('S2C_DoCmd', {
                 'cmd': command,
                 'params': params,

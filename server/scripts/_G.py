@@ -524,8 +524,8 @@ class _G_:
         className = strs[0]
         methodName = strs[1]
         if id:
-            log = cls.log
-            log.i(f"RPCClient@@@@@@@@@@@@: {id}, {methodName}, {params}")
+            # log = cls.log
+            # log.i(f"RPCClient@@@@@@@@@@@@: {id}, {methodName}, {params}")
             params['id'] = id
         return cls._RPC(None, className, methodName, params)
 

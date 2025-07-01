@@ -4,7 +4,7 @@ from typing import Dict, Any, List, Optional, TYPE_CHECKING
 import _G
 if TYPE_CHECKING:
     from _Tools import _Tools_
-    from _App import _App_
+    from CApp import CApp_
 import threading
 import time
 import re
@@ -55,7 +55,7 @@ class _Page_:
         """获取当前页面"""
         return cls.currentPage
 
-    def __init__(self, app: str, name: str, data=None):
+    def __init__(self, app: 'CApp_', name: str, data=None, config=None):
         """初始化检查器，直接定义默认值
         Args:
             name: 检查器名称
@@ -63,8 +63,9 @@ class _Page_:
             data: 检查器数据(可选)
         """
         self._name = name       # 页面名称
-        self._app = app         # 应用名称
+        self._app: "CApp_" = app         # 应用名称
         self._parent = None     # 父页面对象
+        self._config = config or {}
         
         # 运行时属性（不会被序列化）
         self.data = data or {}   # 附加数据
@@ -73,7 +74,6 @@ class _Page_:
         self.forceCancelled = False  # 是否被外部强制取消标志
         if data is not None:
             self.data = data
-        self._config = {}
         self._exitPages = []  # 存储可以从当前页面退出到的页面列表
         self._timeout = None  # 超时时间
         self._timeoutOp = None  # 超时操作
@@ -148,11 +148,8 @@ class _Page_:
 
 
     @property
-    def app(self) -> "_App_":
-        if self._app is None:
-            return None
-        g = _G.g
-        return g.App().getTemplate(self._app)
+    def app(self) -> "CApp_":
+        return self._app
     
     @property
     def config(self) -> Dict[str, Any]:
@@ -495,7 +492,7 @@ class _Page_:
             from  _App import _App_
             _App_.loadConfig()
     
-    def getInst(self, data: Dict[str, Any] = None) -> Optional["_Page_"]:
+    def copy(self, data: Dict[str, Any] = None) -> Optional["_Page_"]:
         """ 获取页面实例
         Args:
             data: 页面参数数据
@@ -503,14 +500,13 @@ class _Page_:
             _Page_: 页面实例
         """
         # 创建新的运行时页面
-        page = _Page_(self._app, self._name)
+        page = _Page_(self._app, self._name, config=self._config)
         # 深度复制模板配置
-        page._config = self._config
         page[_G.TEMP] = True 
         # 更新额外参数
         if data:
             page.data.update(data)
-        return page   
+        return page
   
     def _doEntry(self):
         """执行入口代码

@@ -212,7 +212,10 @@ class CCmds_:
             示例: 跳转 首页
             """
             CApp = _G._G_.CApp()
-            return CApp.go(target)
+            page = CApp.go(target)
+            if page:
+                return f"跳转成功: {page.name}"
+            return f"e~跳转失败: {target}"
         
         @regCmd(r"#路径|lj(?P<to>.+) (?P<From>.+)?")
         def PATH(to, From=None):

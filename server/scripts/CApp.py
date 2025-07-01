@@ -26,7 +26,14 @@ class CApp_(_App_):
         self._toasts = {}  # toasts配置字典，用于存储toast匹配规则和操作
         self._pages: Dict[str, "_Page_"] = {}  # 应用级的页面列表
 
-    PathSplit = '-'
+    @property
+    def strPath(self)->str:
+        """打印路径"""
+        if not self._path:
+            return ''
+        return '->'.join([p.name for p in self._path])
+    
+    Split = '-'
     @classmethod
     def parseName(cls, str: str) -> Tuple[str, str]:
         """解析应用和页面名称
@@ -38,7 +45,7 @@ class CApp_(_App_):
         if not str or not str.strip():
             return None, None
         import re
-        pattern = fr'(?P<name>\S+)?\s*{cls.PathSplit}\s*(?P<pageName>\S+)?'
+        pattern = fr'(?P<name>\S+)?\s*{cls.Split}\s*(?P<pageName>\S+)?'
         match = re.match(pattern, str)
         g = _G._G_
         device = g.CDevice()
@@ -69,8 +76,8 @@ class CApp_(_App_):
             if not os.path.exists(configPath):
                 log.w(f"应用 {self.name} 配置文件不存在: {configPath}")
                 return {}
-            
             # 读取并解析配置文件
+            import json
             with open(configPath, 'r', encoding='utf-8') as f:
                 config = json.load(f)
             
@@ -244,11 +251,11 @@ class CApp_(_App_):
                             except Exception as e:
                                 log.ex(e, f"解析引用页面参数失败: {content}")
                         # 创建页面实例并设置参数
-                        page = refPage.getInst(paramsDict)
+                        page = refPage.copy(paramsDict)
             else:
                 # 创建新页面
                 from _Page import _Page_
-                page = _Page_(self.name, name)
+                page = _Page_(self, name)
             if page:
                 self._pages[name] = page
             return page
@@ -267,8 +274,8 @@ class CApp_(_App_):
             
         # 解析页面名称，获取应用名和页面名
         pageName = pageName.strip().lower()
-        if self.PathSplit in pageName:
-            name, page_name = pageName.split(self.PathSplit, 1)
+        if self.Split in pageName:
+            name, page_name = pageName.split(self.Split, 1)
         else:
             # 使用当前应用
             name = self.curName()
@@ -404,7 +411,7 @@ class CApp_(_App_):
                 path = self.findPath(self._curPage, page)
                 if path:
                     self._path = path
-                    # log.i(f"设置页面跳转目标: {page.name}, 路径: {path}")
+                    log.i(f"设置页面跳转目标: {page.name}, 路径: {self.strPath}")
                 else:
                     log.e(f"找不到从 {self._curPage.name} 到 {page.name} 的路径")
                     return False
@@ -433,6 +440,9 @@ class CApp_(_App_):
             if app:
                 if app:
                     page = app.getPage(pageName)
+                    if not page:
+                        log.w(f"{pageName} 不存在")
+                        return None
                     if app.goPage(page, False):
                         return page
             return None
