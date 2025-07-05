@@ -39,21 +39,28 @@ def get_timestamps():
     log = g.Log()
     # log.i('Server', "处理时间戳请求")
     timestamps = {}
-    dir = g.rootDir()
+    rootDir = g.rootDir()
     # log.i(f'获取目录文件版本:{dir}')
-    def getVersion(rootDir, relativeDir, timestamps):
+    def getVersion(dir, timestamps):
         """获取目录下所有文件的时间戳"""
-        dir = os.path.join(rootDir, relativeDir)
         if os.path.exists(dir):
             for file in os.listdir(dir):
                 # 忽略大写S开头的服务器本地文件
-                # if file.startswith('S'):
-                #     continue
-                file_path = os.path.join(dir, file)  
-                if os.path.isfile(file_path):
-                    timestamps[f"{relativeDir}/{file}"] = str(int(os.path.getmtime(file_path)))
-    getVersion(dir, 'scripts', timestamps)
-    getVersion(dir, 'config', timestamps)
+                if file.startswith('S'):
+                    continue
+                if file.startswith('__'):
+                    continue
+                filePath = os.path.join(dir, file)  
+                if os.path.isfile(filePath):
+                    # 获取文件的绝对路径，然后去掉根目录
+                    relative_path = os.path.relpath(filePath, rootDir)
+                    # 统一使用正斜杠作为路径分隔符，确保Android端能正确处理
+                    relative_path = relative_path.replace('\\', '/')
+                    timestamps[f"{relative_path}"] = str(int(os.path.getmtime(filePath)))
+                else:
+                    getVersion(filePath, timestamps)
+    getVersion(os.path.join(rootDir, 'scripts'), timestamps)
+    getVersion(os.path.join(rootDir, 'config'), timestamps)
     return json.dumps(timestamps)
 
 @bp.route('/logs')

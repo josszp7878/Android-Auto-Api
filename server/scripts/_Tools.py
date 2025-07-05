@@ -91,7 +91,6 @@ class _Tools_:
     _TopStr = ["top", "主屏幕", "桌面"]
     # 工具类基本属性
     Tag = "Tools"
-    port = 5000
     # android对象由_G._G_管理，不再在这里维护
     screenSize: tuple[int, int] = (1080, 1920)
     _fixFactor = 0
@@ -123,14 +122,6 @@ class _Tools_:
         """生成任务唯一标识"""
         return f"{appName}_{templateId}"
     
-    @classmethod
-    def getServerURL(cls, serverIP=None):
-        """获取服务器URL"""
-        if serverIP is None:
-            import socket
-            serverIP = socket.gethostbyname(socket.gethostname())
-        print(f"服务器IP: {serverIP}")
-        return f"http://{serverIP}:{cls.port}"
 
     @classmethod
     def printCallStack(cls):
@@ -755,7 +746,7 @@ class _Tools_:
             return []
     
     @classmethod
-    def matchItems(cls, pattern, items):
+    def matchItems(cls, pattern:str, items:list, replaceOcrError:bool=False):
         """正则匹配项目列表
         
         使用正则表达式进行匹配，直接返回匹配的项目和匹配结果组成的元组列表
@@ -763,33 +754,33 @@ class _Tools_:
         Args:
             pattern: 正则表达式模式字符串
             items: 项目列表
-            
+            replaceOcrError: 是否替换OCR错误字符
         Returns:
             list: 包含元组(item, match)的列表，item是匹配的项目，match是正则表达式匹配结果
         """
-        log = _G._G_.Log()
-        try:
-            if not pattern or not items:
-                return []
-            # 编译正则表达式
-            regex = re.compile(pattern, re.IGNORECASE)
-            # 存储匹配结果的元组列表
-            matches = []
-            for item in items:
-                t = item.get('t', '')
-                if not t:
-                    continue                    
-                # 执行正则表达式匹配
-                m = regex.search(t)
-                if m:
-                    # 将匹配的项目和匹配结果添加到列表中
-                    matches.append((item, m))
-            return matches
-        except Exception as e:
-            log.ex(e, f"正则匹配失败: {pattern}")
-            # 不再容错处理，让错误传递出去
-            raise
-
+        g = _G._G_
+        log = g.Log()
+        matches = []
+        if pattern and items:
+            try:
+                if replaceOcrError:
+                    pattern = g.replaceOcrError(pattern)
+                # 编译正则表达式
+                regex = re.compile(pattern, re.IGNORECASE)            
+                # 存储匹配结果的元组列表
+                for item in items:
+                    t = item.get('t', '')
+                    if not t:
+                        continue                    
+                    # 执行正则表达式匹配
+                    m = regex.search(t)
+                    if m:
+                        # 将匹配的项目和匹配结果添加到列表中
+                        matches.append((item, m))
+            except Exception as e:
+                log.ex(e, f"正则匹配失败: {pattern}")
+        return matches
+    
     # 从CTools_类添加的系统相关方法
     @classmethod
     def isHarmonyOS(cls) -> bool:
@@ -804,44 +795,6 @@ class _Tools_:
             log.ex(e, '检查系统类型失败')
             return False
 
-    @classmethod
-    def openApp(cls, appName:str) ->bool:
-        if not appName:
-            return False
-        g = _G._G_
-        log = g.Log()
-        opened = False
-        appName = appName.strip().lower()
-        try:
-            log.i_(f"打开应用: {appName}, android: {g.android}")
-            if appName == _G.TOP:
-                return cls.goHome()
-            if g.android is None:
-                opened = cls.click(appName)
-            else:
-                # 根据系统类型选择打开方式
-                if cls.isHarmonyOS():
-                    opened = cls.click(appName, 'LR', (0, -0))
-                    # opened = cls.click(appName, 'LR')
-                else:
-                    # Android系统使用服务方式打开
-                    opened = g.android.openApp(appName)
-            return opened
-        except Exception as e:
-            log.ex(e, "打开应用失败")
-            return False
-
-    @classmethod
-    def closeApp(cls, app_name: str = None) -> bool:
-        g = _G._G_
-        log = g.Log()
-        try:
-            if g.android:
-                return g.android.closeApp(app_name)
-            return True
-        except Exception as e:
-            log.ex(e, '关闭应用失败')
-            return False
 
     # 添加Toast常量
     TOAST_LENGTH_SHORT = 0  # Toast.LENGTH_SHORT
@@ -872,118 +825,7 @@ class _Tools_:
                 print(f"Toast: {msg}")
         except Exception as e:
             print(f"显示Toast失败: {e}")
-            print(msg)
-
-    @classmethod
-    def getCurrentAppInfo(cls) -> Optional[dict]:
-        """获取当前运行的应用信息
-        
-        Returns:
-            dict: 应用信息，包含包名等
-        """
-        g = _G._G_
-        log = g.Log()
-        android = g.android
-        if android is None:
-            return None
-        try:
-            # 获取当前应用信息
-            appInfo = android.getCurrentApp(200)
-            return appInfo
-        except Exception as e:
-            log.ex(e, "获取当前应用信息失败")
-            return None
-        
-    @classmethod
-    def isHome(cls) -> bool:
-        """判断当前是否在桌面
-        通过当前应用包名判断是否在桌面，支持多种桌面应用
-        Returns:
-            bool: 是否在桌面
-        """
-        g = _G._G_
-        log = g.Log()
-        if g.android is None:
-            return True
-        try:
-            # 常见桌面应用包名列表
-            LAUNCHER_PACKAGES = {
-                'com.android.launcher3',         # 原生Android
-                'com.google.android.apps.nexuslauncher',  # Pixel
-                'com.sec.android.app.launcher',  # 三星
-                'com.huawei.android.launcher',   # 华为
-                'com.miui.home',                 # 小米
-                'com.oppo.launcher',             # OPPO
-                'com.vivo.launcher',             # vivo
-                'com.realme.launcher',           # Realme
-                'com.oneplus.launcher'           # 一加
-            }
-
-            # 获取当前应用信息
-            app_info = cls.getCurrentAppInfo()
-            if not app_info:
-                log.w("获取当前应用信息失败，无法判断是否在桌面")
-                return False
-
-            # 修复: 正确处理Java的LinkedHashMap
-            # 方法1: 使用Java的get方法，只传一个参数
-            package_name = app_info.get("packageName")
-            if package_name is None:
-                package_name = ""
-
-            # 检查是否在已知桌面包名列表中
-            if package_name in LAUNCHER_PACKAGES:
-                return True
-
-            # 检查包名是否包含launcher或home关键词
-            if "launcher" in package_name.lower() or "home" in package_name.lower():
-                return True
-            
-            return False
-        except Exception as e:
-            log.ex(e, "判断是否在桌面失败")
-            return False
-
-    @classmethod
-    def curApp(cls) -> str:
-        """获取当前应用名称"""
-        g = _G._G_
-        log = g.Log()
-        try:
-            if g.isAndroid():
-                appInfo = cls.getCurrentAppInfo()
-                if not appInfo:
-                    return None
-                if cls.isHome():
-                    return _G.TOP
-                return appInfo.get("appName") 
-            else:
-                device = g.CDevice()
-                curAppName = device.curAppName
-                if curAppName and len(curAppName.strip()) > 0:
-                    return curAppName
-                return _G.TOP
-        except Exception as e:
-            log.ex(e, "获取当前应用名称失败")
-            return ''
-
-    @classmethod
-    def curAppIs(cls, appName: str) -> bool:
-        """判断当前应用是否是目标应用"""
-        try:
-            if cls.isTop(appName):
-                return cls.isHome()
-            curApp = cls.getCurrentAppInfo()
-            if not curApp:
-                return False
-            if '.' in appName:
-                return curApp.get('packageName') == appName
-            else:
-                return curApp.get('appName') == appName
-        except Exception as e:
-            _G._G_.Log().ex(e, "判断当前应用失败")
-            return False
-        
+       
     @classmethod
     def goHome(cls)->bool:
         """统一返回桌面实现"""
@@ -1342,11 +1184,13 @@ class _Tools_:
     @classmethod
     def matchText(cls, text: str, this, refresh=False) -> List[Tuple[dict, re.Match]]:
         """匹配文本，返回所有匹配的(item, match)元组列表（改造后版本）"""
-        def evalCondition(condition, region:RegionCheck=None):
+        def evalCondition(pattern:str, region:RegionCheck=None):
             items = cls.getScreenInfo(refresh)
             if not items:
                 return None
-            matches = cls.matchItems(condition, items)
+            matches = cls.matchItems(pattern, items)
+            if len(matches) == 0:
+                matches = cls.matchItems(pattern, items, True)
             if region:
                 filtered_matches = []
                 for i, m in matches:
@@ -1429,11 +1273,10 @@ class _Tools_:
         try:
             # 获取文本位置
             pos = cls.findTextPos(text, direction)
-            log.i_(f"点击文本: {text}, pos: {pos}")
+            log.i(f"点击文本: {text}, pos: {pos}")
             if not pos:
                 log.w(f"未找到文本: {text}")
-                return g.android is None
-            
+                return g.android is None            
             # 点击位置
             cls.clickPos(pos, offset)
             # 等待指定时间

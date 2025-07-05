@@ -416,7 +416,7 @@ class _Log_:
                     # 添加到客户端本地缓存
                     log = cls.add(content, tag, level)
                     # 只在debug开启且连接时发送到服务端
-                    if log and (toServer or device.get('debug')):
+                    if log and (toServer or device.getDBProp('debug')):
                         g.emit('C2S_Log', log)
                 # 同时打印到终端
                 cls.log_(content, tag, level)

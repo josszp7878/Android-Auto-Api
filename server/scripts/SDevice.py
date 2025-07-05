@@ -6,7 +6,7 @@ from SModels import DeviceModel_, TaskModel_
 import _Log
 import base64
 import _G
-from SModelBase import SModelBase_
+from _ModelBase  import _ModelBase_
 from _Device import _Device_
 
 from RPC import RPC
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from STask import STask_
     from SApp import SApp_
 
-class SDevice_(SModelBase_, _Device_):
+class SDevice_(_ModelBase_, _Device_):
     """设备管理类"""
     SCREENSHOTS_DIR = 'screenshots'
     def __init__(self, name):
@@ -432,7 +432,7 @@ class SDevice_(SModelBase_, _Device_):
             if not pageName:
                 pageName = 'Last'
             # 通过RPC调用客户端方法获取屏幕信息
-            screenData = g.RPCServer(deviceID, 'CDevice_.getScreenInfo')            
+            screenData = g.RPCServer(deviceID, 'CDevice_.getScreenInfo', params={'id': deviceID})            
             if not screenData:
                 return None
             # 保存到文件

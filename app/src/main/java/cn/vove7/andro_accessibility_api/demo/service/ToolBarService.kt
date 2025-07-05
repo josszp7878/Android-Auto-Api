@@ -160,7 +160,7 @@ class ToolBarService : LifecycleService() {
     private var toolbarView: View? = null // 悬浮窗View
     private lateinit var prefs: SharedPreferences
     private var cursorView: CursorView? = null
-
+    
     private var _serverIP: String? = null
     var serverIP: String
         get() {
@@ -182,6 +182,12 @@ class ToolBarService : LifecycleService() {
             if (_deviceName == null) {
                 _deviceName = getPrefs().getString(DEVICE_NAME_KEY, "") ?: ""
             }
+            // 如果设备名称为空，使用默认设备名称
+            if (_deviceName!!.isEmpty()) {
+                _deviceName = getDefaultDeviceName()
+                // 保存默认设备名称
+                getPrefs().edit().putString(DEVICE_NAME_KEY, _deviceName).apply()
+            }
             return _deviceName!!
         }
         set(value) {
@@ -190,6 +196,78 @@ class ToolBarService : LifecycleService() {
                 getPrefs().edit().putString(DEVICE_NAME_KEY, value).apply()
             }
         }
+
+    /**
+     * 获取设备的默认名称
+     * 获取手机的真实设备名称，如果获取不到则使用设备型号
+     */
+    fun getDefaultDeviceName(): String {
+        return try {
+            val appContext = applicationContext
+            var deviceName: String? = null
+            
+            // 方法1: 尝试获取系统设置的设备名称 (Android 7.1+)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
+                try {
+                    deviceName = android.provider.Settings.Global.getString(
+                        appContext.contentResolver,
+                        "device_name"
+                    )
+                    if (!deviceName.isNullOrEmpty()) {
+                        logI("通过Settings.Global获取设备名称: $deviceName")
+                        return deviceName
+                    }
+                } catch (e: Exception) {
+                    logW("无法通过Settings.Global获取设备名称: ${e.message}")
+                }
+            }
+            
+            // 方法2: 尝试获取蓝牙设备名称
+            try {
+                deviceName = android.provider.Settings.Secure.getString(
+                    appContext.contentResolver,
+                    "bluetooth_name"
+                )
+                if (!deviceName.isNullOrEmpty()) {
+                    logI("通过蓝牙名称获取设备名称: $deviceName")
+                    return deviceName
+                }
+            } catch (e: Exception) {
+                logW("无法通过蓝牙名称获取设备名称: ${e.message}")
+            }
+            
+            // 方法3: 尝试通过BluetoothAdapter获取设备名称
+            try {
+                val bluetoothAdapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter()
+                if (bluetoothAdapter != null) {
+                    deviceName = bluetoothAdapter.name
+                    if (!deviceName.isNullOrEmpty()) {
+                        logI("通过BluetoothAdapter获取设备名称: $deviceName")
+                        return deviceName
+                    }
+                }
+            } catch (e: Exception) {
+                logW("无法通过BluetoothAdapter获取设备名称: ${e.message}")
+            }
+            
+            // 方法4: 回退到设备型号 + Android ID
+            val model = Build.MODEL ?: "Unknown"
+            val androidId = android.provider.Settings.Secure.getString(
+                appContext.contentResolver,
+                android.provider.Settings.Secure.ANDROID_ID
+            ) ?: "000000"
+            
+            // 取Android ID的前6位作为设备标识
+            val deviceId = androidId.take(6)
+            val defaultName = "${model}_$deviceId"
+            
+            logI("使用设备型号生成默认名称: $defaultName")
+            defaultName
+        } catch (e: Exception) {
+            logEx(e, "生成默认设备名称失败")
+            "Device_${System.currentTimeMillis().toString().takeLast(6)}"
+        }
+    }
 
     private fun getPrefs(): SharedPreferences {
         if (!::prefs.isInitialized) {
@@ -221,9 +299,15 @@ class ToolBarService : LifecycleService() {
 
     // 添加触摸监控视图相关变量
     private var touchView: View? = null
+    private var touchViewVisible = false
 
     // 在类定义中添加新变量
     private var floatButtonView: View? = null
+    
+    // 添加长按检测相关变量
+    private var longPressRunnable: Runnable? = null
+    private var isLongPressed = false
+    private val LONG_PRESS_TIMEOUT = 500L // 长按超时时间（毫秒）
 
     // 添加命令历史持久化功能
     private val COMMAND_HISTORY_KEY = "command_history"
@@ -271,7 +355,7 @@ class ToolBarService : LifecycleService() {
         })
 
         // 显示ToolBar
-        showWindow()
+        showWindow()        
         
         if (serverIP.isEmpty() || deviceName.isEmpty()) {
             // 如果serverIP或deviceName为空，显示设置界面
@@ -299,10 +383,9 @@ class ToolBarService : LifecycleService() {
         initializeToolbar()
         // 创建悬浮按钮 - 只在这里创建一次
         createFloatingButton()
-        showToolbar(true)
-
         showClick(false)
-        showCursor(true)
+        toolbarExpanded = false
+        showToolbar(toolbarExpanded)
     }
 
     /**
@@ -537,6 +620,10 @@ class ToolBarService : LifecycleService() {
     override fun onDestroy() {
         isRunning = false
         super.onDestroy()
+        
+        // 取消长按检测
+        cancelLongPressDetection()
+        
         cursorView?.let { windowManager.removeView(it) }
         removeTouchMonitorView()
         hidePositionToast() // 隐藏点击坐标悬浮窗
@@ -761,12 +848,6 @@ class ToolBarService : LifecycleService() {
     }
 
 
-
-
-
-
-
-
     private fun browseHistoryUp(commandInput: EditText) {
         if (commandHistory.isEmpty()) return
         
@@ -862,34 +943,18 @@ class ToolBarService : LifecycleService() {
     }
 
 
-
-
-
-
-
-    // 统一工具栏可见性控制方法，移除_toggleVisibility方法
-    private fun toggleToolbar() {
-        showToolbar(!toolbarExpanded)
-    }
-
     public fun showToolbar(show: Boolean) {
-        toolbarExpanded = show
         if (show) {
             // 显示工具栏
+            cursorView?.visibility = View.VISIBLE
             toolbarView?.visibility = View.VISIBLE
         } else {
             // 隐藏工具栏
+            cursorView?.visibility = View.GONE
             toolbarView?.visibility = View.GONE
         }
     }
 
-    public fun showCursor(visible: Boolean = true) {
-        if(visible) {
-            cursorView?.visibility =  View.VISIBLE
-        } else {
-            cursorView?.visibility = View.GONE
-        }
-    }
 
     // 修改 showClick 方法，使用布局中的视图
     public fun showClick(enable: Boolean) {
@@ -982,6 +1047,10 @@ class ToolBarService : LifecycleService() {
                     initialTouchX = event.rawX
                     initialTouchY = event.rawY
                     isDragging = false
+                    isLongPressed = false
+                    
+                    // 开始长按检测
+                    startLongPressDetection()
                     true // 返回true表示继续接收后续事件
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -992,6 +1061,8 @@ class ToolBarService : LifecycleService() {
                     // 如果移动距离超过阈值，认为是拖动
                     if (!isDragging && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
                         isDragging = true
+                        // 取消长按检测
+                        cancelLongPressDetection()
                     }
                     
                     // 更新位置
@@ -1011,14 +1082,50 @@ class ToolBarService : LifecycleService() {
                     true
                 }
                 MotionEvent.ACTION_UP -> {
+                    // 取消长按检测
+                    cancelLongPressDetection()
+                    
                     if (!isDragging) {
-                        // 如果不是拖动，则是点击，切换工具栏可见性
-                        toggleToolbar()
+                        if (isLongPressed) {
+                            // 长按：切换touchView显示
+                            touchViewVisible = !touchViewVisible
+                            showClick(touchViewVisible)
+                            log("长按切换touchView: ${if (touchViewVisible) "显示" else "隐藏"}")
+                        } else {
+                            // 短按：切换toolbar显示
+                            toolbarExpanded = !toolbarExpanded
+                            showToolbar(toolbarExpanded)
+                        }
                     }
                     true
                 }
                 else -> false
             }
+        }
+    }
+
+    /**
+     * 开始长按检测
+     */
+    private fun startLongPressDetection() {
+        cancelLongPressDetection() // 先取消之前的检测
+        
+        longPressRunnable = Runnable {
+            isLongPressed = true
+            // 可以在这里添加长按反馈，比如震动或视觉反馈
+            log("检测到长按")
+        }
+        
+        Handler(Looper.getMainLooper()).postDelayed(longPressRunnable!!, LONG_PRESS_TIMEOUT)
+    }
+
+    /**
+     * 取消长按检测
+     */
+    private fun cancelLongPressDetection() {
+        longPressRunnable?.let {
+            Handler(Looper.getMainLooper()).removeCallbacks(it)
+            longPressRunnable = null
         }
     }
 
@@ -1091,24 +1198,18 @@ class ToolBarService : LifecycleService() {
     /**
      * 设置整个UI的可见性
      * 
-     * @param visible true表示显示UI，false表示隐藏UI
+     * @param visible true表示恢复之前的UI显示状态，false表示隐藏所有UI
      */
     fun showUI(visible: Boolean) {
         try {
             if (visible) {
-                // 显示悬浮按钮
                 floatButtonView?.visibility = View.VISIBLE
-                // 显示工具栏
-                toolbarView?.visibility = View.VISIBLE
-                // 显示点击位置显示
-                cursorView?.visibility = View.VISIBLE
             } else {
-                // 隐藏悬浮按钮
                 floatButtonView?.visibility = View.GONE
-                // 隐藏工具栏
-                toolbarView?.visibility = View.GONE
-                // 隐藏点击位置显示
-                cursorView?.visibility = View.GONE
+                touchViewVisible = false
+                showClick(touchViewVisible)
+                toolbarExpanded = false
+                showToolbar(toolbarExpanded)
             }
         } catch (e: Exception) {
             Timber.e(e, "设置UI可见性失败")

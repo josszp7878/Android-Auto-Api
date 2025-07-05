@@ -1,9 +1,9 @@
-
+import json
 import time
 import socketio
 import _G
 from concurrent.futures import ThreadPoolExecutor
-from typing import cast, List, TYPE_CHECKING, Optional, Tuple
+from typing import cast, List, TYPE_CHECKING, Tuple
 import socketio.exceptions  # 新增导入
 from Base import Base_
 from _Device import _Device_
@@ -27,7 +27,6 @@ class CDevice_(Base_, _Device_):
             return
         super().__init__({})
         _Device_.__init__(self)  # 初始化App管理功能
-        self._server = None
         self._executor = ThreadPoolExecutor(max_workers=4)
         self._state = _G.ConnectState.OFFLINE  # 新增，维护设备状态
         self._tasks = {}  # 任务字典，key为任务ID
@@ -36,27 +35,23 @@ class CDevice_(Base_, _Device_):
         self.initialized = False
 
     @classmethod
-    def instance(cls, reset=False):
+    def instance(cls, reset=False)->'CDevice_':
         """获取单例实例"""
-        if reset:
-            cls._instance = None
         if cls._instance is None or reset:
             cls._instance = cls()
         return cls._instance
 
     @property
     def server(self):
-        return self._server
-
-    def get(self, key):
-        """获取设备数据"""
-        return self.data.get(key)
+        g = _G._G_
+        return g.CFileServer().serverIP()
 
     def init(self, deviceID=None, server=None):
         if self.initialized:
             return
+        g = _G._G_
         self.name = deviceID
-        self._server = server
+        g.CFileServer().init(server)
         # 配置 socketio 客户端
         sio = socketio.Client(
             reconnection=True,  # 开启自动重连
@@ -68,9 +63,6 @@ class CDevice_(Base_, _Device_):
         )
         sio.on('S2C_DoCmd')(self.onS2C_DoCmd)
         sio.on('S2C_CmdResult')(self.onS2C_CmdResult)
-        sio.on('S2C_updateTask')(self.onS2C_updateTask)
-        sio.on('S2C_updateDevice')(self.onS2C_updateDevice)
-        sio.on('S2C_SetProp')(self.onS2C_SetProp)
         sio.on('disconnect')(self.on_disconnect)
         _G._G_.setIO(sio)
         self.initialized = True
@@ -120,8 +112,9 @@ class CDevice_(Base_, _Device_):
                     'state': self._state.value if self._state else 'unknown',
                     'isConnected': self.isConnected(),
                     'taskCount': len(self._tasks),
-                    'currentTask': self._curTask.name if self._curTask else None,
-                    'server': self._server
+                    'currentTask': (self._curTask.name 
+                                   if self._curTask else None),
+                    'server': self.server
                 }
             }
         except Exception as e:
@@ -133,7 +126,8 @@ class CDevice_(Base_, _Device_):
         g = _G._G_
         log = g.Log()
         try:
-            connect_url = f"{g.Tools().getServerURL(self._server)}?device_id={self.name}"
+            server_url = g.CFileServer().serverUrl()
+            connect_url = f"{server_url}?device_id={self.name}"
             sio = cast(socketio.Client, g.sio())
 
             log.i(f'正在连接设备 {self.name} ...')
@@ -212,7 +206,7 @@ class CDevice_(Base_, _Device_):
         """断开连接回调"""
         g = _G._G_
         log = g.Log()
-        log.w(f'设备 {self._deviceID} 断开连接')
+        log.w(f'设备 {self.name} 断开连接')
         self._state = _G.ConnectState.OFFLINE  # 断开连接，状态设为offline
 
     def send_command(self, cmd):
@@ -238,7 +232,7 @@ class CDevice_(Base_, _Device_):
             log.i(f'截图成功: {image}')
             if image:
                 g.emit("C2S_Screenshot", {
-                       "device_id": self._deviceID, "image": image})
+                       "device_id": self.name, "image": image})
         except Exception as e:
             log.ex(e, "截图失败")
 
@@ -251,91 +245,11 @@ class CDevice_(Base_, _Device_):
     def name(self, value):
         """设置设备名称"""
         self.data['name'] = value
-        # 同步到Android SharedPreferences
-        self._setName(value)
-
-    def _setName(self, deviceName):
-        """同步设备名称到Android SharedPreferences"""
         g = _G._G_
-        log = g.Log()
-        # 方案1: 通过反射调用Android API
-        if g.android:
-            # 获取Context
-            context = g.android.getContext()
-            if context:
-                # 获取SharedPreferences
-                prefs = context.getSharedPreferences(
-                    "device_config", 0)  # 0 = MODE_PRIVATE
-                editor = prefs.edit()
-                editor.putString("DEVICE_NAME_KEY", deviceName)
-                editor.apply()
-                log.i(f"设备名称已同步到Android: {deviceName}")
-                return True
-
-        # 方案2: 如果上面失败，尝试通过脚本引擎执行
-        try:
-            # 构造JavaScript代码调用Android API
-            jsCode = f'''
-            try {{
-                var prefs = getPrefs();
-                prefs.edit().putString("DEVICE_NAME_KEY", "{deviceName}").apply();
-                true;
-            }} catch(e) {{
-                console.log("同步设备名称失败: " + e.message);
-                false;
-            }}
-            '''
-
-            # 如果有脚本引擎，执行JavaScript代码
-            if hasattr(g, 'scriptEngine') and g.scriptEngine:
-                result = g.scriptEngine.eval(jsCode)
-                if result:
-                    log.i(f"通过脚本引擎同步设备名称成功: {deviceName}")
-                    return True
-
-        except Exception as e:
-            log.w(f"脚本引擎同步失败: {e}")
-            return False
-
-    def onS2C_updateTask(self, data):
-        g = _G._G_
-        log = g.Log()
-        try:
-            if not data:
-                return
-            id = data.get('id')
-            task = self.getTask(id)
-            if task is None:
-                return
-            for k, v in data.items():
-                # 优先找 setXxx 方法
-                method_name = f'set{k[0].upper()}{k[1:]}'
-                setter = getattr(task, method_name, None)
-                if callable(setter):
-                    setter(v)
-                    log.i_(f'调用方法: {method_name}({v})')
-                else:
-                    try:
-                        setattr(task, k, v)
-                        log.i_(f'设置属性: {k} = {v}')
-                    except AttributeError as e:
-                        # log.w_(f'属性 {k} 不能赋值: {e}')
-                        pass
-            return True
-        except Exception as e:
-            log.ex(e, '处理任务更新请求失败')
-            return False
-
-    def onS2C_updateDevice(self, data):
-        """处理设备更新请求"""
-        g = _G._G_
-        log = g.Log()
-        try:
-            self.data.update(data)
-            return True
-        except Exception as e:
-            log.ex(e, '处理设备更新请求失败')
-            return False
+        # 同步到Android 
+        android = g.android
+        if android:
+            android.setName(value)
 
     def state(self):
         return self._state
@@ -347,7 +261,6 @@ class CDevice_(Base_, _Device_):
 
     def onLogin(self, data):
         """登录成功后初始化任务表和App列表，data为服务端返回的数据"""
-        from CTask import CTask_
         g = _G._G_
         log = g.Log()
         # log.i_(f"登录成功，初始化任务表, data: {data}")
@@ -424,47 +337,11 @@ class CDevice_(Base_, _Device_):
         """设置当前任务"""
         self._curTask = value
 
-    def onS2C_SetProp(self, data):
-        """统一的属性更新处理器 - 客户端版本"""
-        g = _G._G_
-        log = g.Log()
-        try:
-            log.i(f'收到属性更新: {data}')
-
-            entityType = data.get('type')
-            targetID = data.get('target')
-            params = data.get('params')
-
-            if not params or not entityType or not targetID:
-                log.w('属性更新参数不完整')
-                return False
-
-            # 获取目标对象并调用setProp
-            target = None
-            if entityType == 'devices':
-                target = self  # 当前设备实例
-            elif entityType == 'tasks':
-                target = self.getTask(targetID)
-            else:
-                log.w(f'不支持的实体类型: {entityType}')
-                return False
-
-            if target is None:
-                log.e(f'目标不存在: {entityType} {targetID}')
-                return False
-
-            # 调用setProp统一处理
-            return target.setProp(params)
-
-        except Exception as e:
-            log.ex(e, '处理属性更新失败')
-            return False
-
     def _onProp(self, key, value):
         """CDevice特殊处理"""
         if key == 'name':
             # 同步到Android
-            self._setName(value)
+            self.name = value
 
     @RPC()
     def getScreenInfo(self) -> dict:
@@ -525,19 +402,77 @@ class CDevice_(Base_, _Device_):
         except Exception as e:
             log.ex(e, "设置屏幕信息失败")
             return {'error': f'设置屏幕信息失败: {str(e)}'}
+        
+    def _isHome(self, appInfo: dict) -> bool:
+        """判断当前是否在桌面
+        通过当前应用包名判断是否在桌面，支持多种桌面应用
+        Returns:
+            bool: 是否在桌面
+        """
+        if not appInfo:
+            return False
+        g = _G._G_
+        log = g.Log()
 
-    def detectApp(self) -> Tuple['CApp_', str]:
+        if g.android is None:
+            return True
+        try:
+            # 常见桌面应用包名列表
+            LAUNCHER_PACKAGES = {
+                'com.android.launcher3',         # 原生Android
+                'com.google.android.apps.nexuslauncher',  # Pixel
+                'com.sec.android.app.launcher',  # 三星
+                'com.huawei.android.launcher',   # 华为
+                'com.miui.home',                 # 小米
+                'com.oppo.launcher',             # OPPO
+                'com.vivo.launcher',             # vivo
+                'com.realme.launcher',           # Realme
+                'com.oneplus.launcher'           # 一加
+            }
+
+            # 修复: 正确处理Java的LinkedHashMap
+            # 方法1: 使用Java的get方法，只传一个参数
+            package_name = appInfo.get("packageName")
+            if package_name is None:
+                package_name = ""
+
+            # 检查是否在已知桌面包名列表中
+            if package_name in LAUNCHER_PACKAGES:
+                return True
+
+            # 检查包名是否包含launcher或home关键词
+            if "launcher" in package_name.lower() or "home" in package_name.lower():
+                return True
+            
+            return False
+        except Exception as e:
+            log.ex(e, "判断是否在桌面失败")
+            return False
+
+    def detectApp(self, interval) -> 'CApp_':
         """获取当前应用"""
         g = _G._G_
         log = g.Log()
-        tools = g.Tools()
         try:
-            detectedApp = tools.curApp()
-            self.setCurApp(detectedApp)
-            return self.currentApp, detectedApp
+            android = g.android
+            if android:
+                appInfo = android.getCurrentApp(interval)
+                if appInfo:
+                    # 将Java的LinkedHashMap转换为Python dict
+                    appInfo = {
+                        'packageName': str(appInfo.get('packageName')),
+                        'appName': str(appInfo.get('appName')),
+                    }
+                    # log.i(f"当前应用: {appInfo}, type: {type(appInfo)}")
+                    if self._isHome(appInfo):
+                        appInfo = {'appName': _G.TOP}
+            else:
+                appInfo = self._curAppInfo if self._curAppInfo else {'appName': _G.TOP}
+            self.setCurApp(appInfo)
+            return self.currentApp
         except Exception as e:
             log.ex(e, "获取当前应用失败")
-            return None, None
+            return None
 
     def closeApp(self, name=None) -> bool:
         """关闭应用"""
@@ -556,7 +491,10 @@ class CDevice_(Base_, _Device_):
         except Exception as e:
             log.ex(e, f"关闭应用 {name} 失败")
 
-    def open(self, name) -> "CApp_":
+    # 返回值:
+    # bool: 是否打开成功
+    # _App_: 应用实例
+    def open(self, name)->Tuple[bool, '_App_']:
         """跳转到指定应用"""
         try:
             g = _G._G_
@@ -564,36 +502,66 @@ class CDevice_(Base_, _Device_):
             appName = self.matchApp(name)
             if not appName:
                 log.w(f"未知应用:{name}")
-                return None
-            app = self.getApp(appName)
-            if not app:
-                log.w(f"未配置应用:{appName}")
-                return None
-            tools = g.Tools()
-            currentApp = self.currentApp
-            if currentApp and appName == currentApp.name:
-                return app
-            if g.isAndroid():
-                if not tools.openApp(appName):
-                    return None
+                ret = self._open(name)
+                return ret, None
             else:
-                self.setCurApp(appName)
-            return app
+                app = self.getApp(appName)
+                if not app:
+                    log.w(f"未配置应用:{appName}")
+                ret = self._open(appName)
+                return ret, app
         except Exception as e:
             log.ex(e, f"跳转到应用 {appName} 失败")
-            return None
+            return False, None
 
+    def _open(self, appName:str)->bool:
+        """跳转到指定应用"""
+        g = _G._G_
+        log = g.Log()
+        appName = appName.strip().lower() if appName else ''
+        if appName == '':
+            return False
+        if g.isAndroid():
+            # 这里不直接setCurAppName，有detectApp()去检测
+            try:
+                tools = g.Tools()
+                log.i(f"打开应用: {appName}, android: {g.android}")
+                if appName == _G.TOP:
+                    return tools.goHome()
+                else:
+                    # 根据系统类型选择打开方式
+                    if tools.isHarmonyOS():
+                        log.i(f"当前应用: {self.curAppName}, 目标应用: {appName}")
+                        if appName == self.curAppName:
+                            return True
+                        log.i(f"返回桌面: {appName}")
+                        if not tools.goHome():
+                            log.e(f"返回桌面失败: {appName}")
+                            return False
+                        # 等待2秒, 确保回到桌面
+                        time.sleep(2)
+                        log.i(f"点击应用: {appName}")
+                        return tools.click(appName, 'LR', (0, -0))
+                    else:
+                        # Android系统使用服务方式打开
+                        opened = g.android.openApp(appName)
+                return opened
+            except Exception as e:
+                log.ex(e, "打开应用失败")
+                return False
+        else:
+            self.setCurApp({'appName': appName})
+        return True
+        
+        
     @classmethod
-    def onLoad(cls, oldCls):
+    def onLoad(cls, oldCls : 'CDevice_'):
         if oldCls:
             oldInstance = oldCls.instance()
-            instance = cls.instance(reset=True)
-            instance._server = oldInstance._server
-            instance.name = oldInstance.name
+            instance = cls.instance()
+            instance.init(oldInstance.name, oldInstance.server)
             log = _G._G_.Log()
-            log.i(
-                f"设备 {instance.name} 重新加载: server={instance._server}, deviceID={instance.name}")
-            instance.init()
+            log.i(f"设备 {instance.name}:{instance.server} 重置完成")
             instance.connect()
 
     @classmethod

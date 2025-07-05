@@ -11,7 +11,8 @@ class _Device_():
     def __init__(self):
         self._apps: Dict[str, _App_] = {}  # 设备的App列表
         self._currentApp: Optional[_App_] = None  # 当前跟踪的App
-        self._curAppName = None
+        self._lastApp: Optional[_App_] = None  # 上一次跟踪的App
+        self._curAppInfo = {}
 
     @property
     def info(self) -> dict:
@@ -35,31 +36,45 @@ class _Device_():
         """获取设备的App列表（Lazy初始化）"""
         if not self._apps:
             self._loadApps()
-        return self._apps
-    
-    @RPC()
-    def setCurApp(self, name: str):
-        """设置当前检测应用名称"""
-        if name == self._curAppName:
-            return
-        g = _G._G_
-        self._curAppName = name
-        # 如果是已知应用则更新实例
-        if name in self._apps:
-            self._currentApp = self._apps[name]
-        if not g.isServer():
-            # rpc 同步服务端
-            g.RPCClient(self.id, '_Device_.setCurApp', {'name': name})
+        return self._apps    
+
     
     @property
     def currentApp(self) -> Optional[_App_]:
         """获取当前App"""
         return self._currentApp
-
+    
+    @property
+    def lastApp(self) -> Optional[_App_]:
+        """获取上一次App"""
+        return self._lastApp
+    
     @property
     def curAppName(self) -> str:
         """获取当前应用名称"""
-        return self._curAppName
+        return self._curAppInfo.get('appName')
+    
+    @RPC()
+    def setCurApp(self, appInfo: dict):
+        """设置当前检测应用名称"""
+        if not appInfo:
+            return
+        curPkg = self._curAppInfo.get('packageName') if self._curAppInfo else None
+        if curPkg == appInfo.get('packageName'):
+            # 如果包名相同，则不更新
+            return
+        g = _G._G_
+        log = _G._G_.Log()
+        log.i(f"@@设置当前应用为: {appInfo}")
+        self._curAppInfo = appInfo
+        # 如果是已知应用则更新实例
+        app = self.getApp(appInfo.get('appName'))
+        self._currentApp = app
+        if app:
+            self._lastApp = app
+        if not g.isServer():
+            # rpc 同步服务端
+            g.RPCClient(self.id, '_Device_.setCurApp', {'appInfo': appInfo})
 
     def getAppByID(self, id: int) -> "_App_":
         """根据ID获取应用实例"""
@@ -71,6 +86,7 @@ class _Device_():
     def matchApp(self, name: str) -> Optional[str]:
         """匹配应用"""
         App = _G._G_.App()
+        name = name.strip().lower() if name else ''
         for appName in App.getAppNames():
             if re.match(name, appName):
                 return appName
@@ -87,6 +103,7 @@ class _Device_():
         g = _G._G_
         log = g.Log()
         try:
+            name = self.matchApp(name)
             if not name:
                 return None
             # 首先检查缓存中是否存在

@@ -121,10 +121,10 @@ class CCmds_:
             参数: appName - 应用名称
             示例: 打开 微信
             """
-            ret = _G._G_.CDevice().open(appName)
+            ret, app = _G._G_.CDevice().open(appName)
             if not ret:
-                return f"打开应用 {appName} 失败"
-            return f"成功打开应用 {appName}, ret:{ret}"
+                return f"e~打开应用 {appName} 失败"
+            return f"打开应用 {appName}  app:{app} 成功"
 
         @regCmd(r"#关闭|gb (?P<appName>\S+)?")
         def closeApp(appName=None):
@@ -224,7 +224,7 @@ class CCmds_:
             参数: to - 目标页面
             示例: 路径 设置
             """
-            curApp = _G._G_.CDevice().currentApp
+            curApp = _G._G_.CDevice().lastApp
             toPage = curApp.getPage(to)
             if not toPage:
                 return f"未找到目标页面 {to}"
@@ -280,7 +280,7 @@ class CCmds_:
                     # 处理非元组返回值
                     return f"e~找到文字，但返回格式异常: {pos}"
             return "e~未找到匹配文字"
-       
+
 
         @regCmd(r"#下载 (?P<fileName>.+)?")
         def downLoad(fileName):
@@ -431,12 +431,14 @@ class CCmds_:
             log = g.Log()
             android = g.android
             # log.i(f"显示{uiName}: {enable}")
+            
+            # 将字符串转换为布尔值
+            if enable is not None:
+                enable = g.Tools().toBool(enable, True)
+            
             showConfig = [
-                ['坐标', 'zb', 'pos', 'showClick'],
-                ['工具栏', 'gjl', 'toolbar', 'showToolbar'],
-                ['日志', 'rz', 'log', 'showLog'],
+                ['坐标', 'zb', 'click', 'showClick'],
                 ['界面', 'ui', 'showUI'],
-                ['光标', 'gb', 'cursor', 'showCursor']
             ]
             # 在配置中查找匹配的UI组件
             findConfig = next((component for component in showConfig if uiName in component[:-1]), None)    
@@ -449,6 +451,8 @@ class CCmds_:
                         return
                 else:
                     log.i(f"set {uiName} {enable}")
+            else:
+                log.i(f"不支持ui: {uiName} 的配置")
 
         @regCmd(r"#退出|tc")
         def eXit():
@@ -601,7 +605,7 @@ class CCmds_:
             g = _G._G_
             App = g.CApp()
             if not name:
-                page = g.CDevice().currentApp.curPage
+                page = g.CDevice().lastApp.curPage
             else:
                 appName, name = App.parseName(name)
                 if not name:
@@ -822,61 +826,42 @@ class CCmds_:
                     'message': str(e)
                 }
 
-        @regCmd(r"#命名|mm (?P<newName>.+)")
-        def name(newName):
+        @regCmd(r'#列出文件|lcwj')
+        def listFiles():
+            """功能：列出客户端scripts目录下的所有文件
+            指令名：listFiles
+            中文名：列出文件
+            参数：无
+            示例：列出文件
             """
-            功能：命名设备（通过服务端统一处理）
-            指令名：name
-            中文名：命名
-            参数：
-                newName - 新的设备名称
-            示例：命名 测试设备
-            示例：name 我的手机
-            """
-            g = _G._G_
-            log = g.Log()
-            
-            if not newName:
-                log.e_("新名称不能为空")
-                return "e~新名称不能为空"
-            
-            newName = newName.strip()
-            if not newName:
-                log.e_("新名称不能为空")
-                return "e~新名称不能为空"
-            
             try:
-                # 获取当前设备信息
-                device = g.CDevice()
-                if not device:
-                    log.e_("设备连接未建立")
-                    return "e~设备连接未建立"
-                
-                deviceId = device.name
-                if not deviceId:
-                    log.e_("设备ID无效")
-                    return "e~设备ID无效"
-                
-                # 通过服务端统一处理属性更新
-                try:
-                    result = g.emitRet('C2S_SetProp', {
-                        'type': 'devices',
-                        'target': deviceId,
-                        'params': {'name': newName}
-                    })
-                    
-                    if result and result.get('success'):
-                        log.i_(f"设备名称已修改为: {newName}")
-                        return f"c~设备名称已修改为: {newName}"
-                    else:
-                        error_msg = result.get('message', '未知错误') if result else '服务器无响应'
-                        log.e_(f"修改设备名称失败: {error_msg}")
-                        return f"e~修改设备名称失败: {error_msg}"
-                        
-                except Exception as e:
-                    log.ex(e, f"与服务器通信失败: {newName}")
-                    return f"e~与服务器通信失败: {str(e)}"
-                
+                android = cls.android()
+                if android:
+                    result = android.listScriptsFiles()
+                    return result
+                else:
+                    return "e~Android服务不可用"
             except Exception as e:
-                log.ex(e, f"修改设备名称失败: {newName}")
-                return f"e~修改设备名称失败: {str(e)}"   
+                _G._G_.Log().ex(e, "列出文件失败")
+                return f"e~列出文件失败: {str(e)}"
+
+        @regCmd(r'#读取文件|dcwj (?P<fileName>\S+)')
+        def readFile(fileName):
+            """功能：读取客户端指定文件的内容
+            指令名：readFile
+            中文名：读取文件
+            参数：
+               fileName - 文件名（相对于scripts目录）
+            示例：读取文件 CMain.py
+            """
+            try:
+                android = cls.android()
+                if android:
+                    result = android.readFileContent(fileName)
+                    return result
+                else:
+                    return "e~Android服务不可用"
+            except Exception as e:
+                _G._G_.Log().ex(e, f"读取文件失败: {fileName}")
+                return f"e~读取文件失败: {str(e)}"
+

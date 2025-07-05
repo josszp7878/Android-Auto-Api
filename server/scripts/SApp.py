@@ -1,4 +1,4 @@
-from SModelBase import SModelBase_
+from _ModelBase  import _ModelBase_
 from SModels import AppModel_
 from _App import _App_
 from datetime import datetime

@@ -1,11 +1,11 @@
 from _G import TaskState
-from SModelBase import SModelBase_
+from _ModelBase  import _ModelBase_
 from SModels import TaskModel_
 from Task import Task_
 from datetime import datetime
 from RPC import RPC
 
-class STask_(SModelBase_, Task_):
+class STask_(_ModelBase_, Task_):
     """服务端任务类"""
     def __init__(self, name: str):
         """初始化任务"""

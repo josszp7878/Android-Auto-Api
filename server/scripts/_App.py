@@ -6,12 +6,12 @@ import _G
 
 from typing import Optional, List, Tuple, TYPE_CHECKING, Dict
 from RPC import RPC
-from SModelBase import SModelBase_
+from _ModelBase  import _ModelBase_
 if TYPE_CHECKING:
     from _Page import _Page_
     from _Log import _Log_
 
-class _App_(SModelBase_):
+class _App_(_ModelBase_):
     """应用管理类：整合配置与实例"""
     _curAppName = _G.TOP  # 当前检测到的应用名称
     _apps: Dict[str, "_App_"] = {}

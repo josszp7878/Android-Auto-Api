@@ -592,7 +592,7 @@ class SheetPage {
                 console.warn("无效的sheetData:", sheetData);
                 return;
             }
-            console.log('update table data length:', sheetData.length);
+            // console.log('update table data length:', sheetData.length);
             // 支持增量更新
             sheetData.forEach(newItem => {
                 const existingItemIndex = targetData.findIndex(item => item.id === newItem.id);

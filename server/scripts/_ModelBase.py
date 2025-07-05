@@ -3,7 +3,7 @@ from Base import Base_
 import _G
 from RPC import RPC
 
-class SModelBase_(Base_):
+class _ModelBase_(Base_):
     """模型基类"""
     def __init__(self, name: str, modelClass: type):
         """初始化模型基类

@@ -70,8 +70,10 @@ class RPCManager:
                     'error': f'RPC类未注册: {className}'
                 }
             instance = None
+            if not params:
+                params = {}
             instanceID = params.get('id')
-            print(f'instanceID: {instanceID}')
+            # print(f'instanceID: {instanceID}')
             if instanceID:
                 del params['id']
                 instance = getInst(cls, instanceID)
@@ -194,7 +196,7 @@ class RPCManager:
         return value
     
     def _callMethod(self, method, cls_obj, instance, params: dict):
-        """智能调用方法，根据方法类型选择合适的调用方式
+        """调用方法，支持实例方法、类方法和静态方法
         
         Args:
             method: 要调用的方法
@@ -207,52 +209,17 @@ class RPCManager:
         """
         import inspect
         
-        # 检查是否是已绑定的类方法
-        if hasattr(method, '__self__') and inspect.isclass(method.__self__):
-            # 已绑定的类方法，直接调用
+        # 如果有实例对象，优先作为实例方法调用
+        if instance:
+            return method(instance, **params)
+        
+        # 检查是否是已绑定的方法（类方法或实例方法）
+        elif hasattr(method, '__self__'):
             return method(**params)
         
-        # 检查是否是已绑定的实例方法
-        elif hasattr(method, '__self__') and not inspect.isclass(method.__self__):
-            # 已绑定的实例方法，直接调用
-            return method(**params)
-        
-        # 检查原始方法是否是classmethod
-        elif hasattr(method, '__func__') and isinstance(method, classmethod):
-            # 未绑定的classmethod，需要手动绑定类
-            if cls_obj:
-                return method.__func__(cls_obj, **params)
-            else:
-                raise Exception("类方法需要类对象，但未提供")
-        
-        # 检查是否是被装饰器包装的方法
-        elif hasattr(method, '__wrapped__'):
-            # 递归调用被包装的方法
-            return self._callMethod(method.__wrapped__, cls_obj, instance, params)
-        
-        # 尝试从类对象获取未装饰的原始方法
-        elif cls_obj and hasattr(cls_obj, method.__name__ if hasattr(method, '__name__') else ''):
-            raw_method = getattr(cls_obj, method.__name__)
-            
-            # 检查原始方法是否是classmethod
-            if hasattr(raw_method, '__self__') and inspect.isclass(raw_method.__self__):
-                # 绑定的类方法
-                return raw_method(**params)
-            elif instance:
-                # 实例方法，需要实例
-                return raw_method(instance, **params)
-            else:
-                # 静态方法或无需实例的方法
-                return raw_method(**params)
-        
-        # 默认调用方式
+        # 默认作为静态方法或函数调用
         else:
-            if instance:
-                # 尝试作为实例方法调用
-                return method(instance, **params)
-            else:
-                # 尝试作为静态方法或函数调用
-                return method(**params)
+            return method(**params)
 
 # 全局RPC管理器实例
 rpcManager = RPCManager()
@@ -326,6 +293,7 @@ def RPC(className: str = None):
         
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
+
             return func(*args, **kwargs)
         
         wrapper._is_rpc_method = True
@@ -381,7 +349,9 @@ def callRPC(deviceID: str, className: str, methodName: str, params: dict = None)
             'methodName': methodName,
             'params': params
         } 
-        timeout = params.get('timeout', 8)
+        timeout = 8
+        if params:
+            timeout = params.get('timeout', 8)
         # 根据是否为服务端选择调用方式
         if g.isServer():
             if deviceID:
@@ -476,10 +446,10 @@ def handleRpcCall(data: dict):
         device_id = data.get('deviceId')
         className = data.get('className')
         methodName = data.get('methodName')
-        params = data.get('params', {})
-        
+        params = data.get('params')
+        if not params:
+            params = {}
         log.i_(f"处理RPC调用: deviceId={device_id}, {className}.{methodName}")
-        
         # 路由判断：根据deviceId决定本地处理还是转发到客户端
         if device_id is None or device_id == '':
             # 服务端本地调用            

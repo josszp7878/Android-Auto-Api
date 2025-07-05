@@ -30,6 +30,8 @@ import cn.vove7.auto.api.swipe as gestureSwipe
 import android.view.accessibility.AccessibilityNodeInfo
 import android.app.usage.UsageStats
 import android.app.usage.UsageStatsManager
+import android.app.usage.UsageEvents
+import android.os.UserManager
 import androidx.annotation.RequiresApi
 import java.lang.ref.WeakReference
 import android.os.Process
@@ -69,7 +71,7 @@ class PythonServices {
         private var inputCallback: PyObject? = null
 
         // 添加一个标志，表示是否已经显示过权限提示
-        private var permissionAlertShown = false
+        private var permissionAlertShown = false        
 
         /**
          * 初始化 Context 和应用信息
@@ -149,11 +151,12 @@ class PythonServices {
                     clickAt(x, y)
                     ToolBarService.logI("点击位置: $x, $y")
                 }
-                showUI(true)
                 true
             } catch (e: Exception) {
                 ToolBarService.logEx(e,"点击位置失败: $x, $y")
                 false
+            } finally {
+                showUI(true)
             }
         }
         /**
@@ -167,11 +170,12 @@ class PythonServices {
                     gestureSwipe(x, y, toX, toY, duration)
                     ToolBarService.logI("滑动位置: $x, $y, $toX, $toY, $duration")
                 }
-                showUI(true)
                 true
             } catch (e: Exception) {
                 ToolBarService.logEx(e, "滑动失败: $x, $y, $toX, $toY, $duration")
                 false
+            } finally {
+                showUI(true)
             }
         }
         @JvmStatic
@@ -398,31 +402,14 @@ class PythonServices {
          */
         @JvmStatic
         fun takeScreenshot(): String {
-            Timber.tag(TAG).i("Taking screenshot using ScreenCapture service")
+            // Timber.tag(TAG).i("Taking screenshot using ScreenCapture service")
             return try {
-                // 隐藏界面，避免影响截图
-                showUI(false)
-                
-                // 延迟一小段时间，确保界面完全隐藏
-                Thread.sleep(100)
-                
-                // 调用原有的截图方法
                 val result = ScreenCapture.getInstance().captureScreen()
-                
-                // 恢复界面显示
-                showUI(true)
-                
                 return result
             } catch (e: SecurityException) {
-                // 确保界面恢复显示
-                showUI(true)
-                
                 Timber.tag(TAG).e(e, "权限不足，无法截屏")
                 "截屏失败: 权限不足"
             } catch (e: Exception) {
-                // 确保界面恢复显示
-                showUI(true)
-                
                 Timber.tag(TAG).e(e, "Take screenshot failed")
                 "截屏失败: ${e.message}"
             }
@@ -437,10 +424,8 @@ class PythonServices {
         fun _getScreenInfo(withPos: Boolean = false): Any? {
             try {
                 // 隐藏界面，避免影响屏幕内容识别
-                showUI(false)
-                
                 // 延迟一小段时间，确保界面完全隐藏
-                Thread.sleep(100)
+                // Thread.sleep(100)
                 
                 val screenCapture = ScreenCapture.getInstance()
                 var result: Any? = null
@@ -451,19 +436,18 @@ class PythonServices {
                     latch.countDown()
                 }, withPos)
                 
-                // 等待结果，最多等待10秒
-                latch.await(10, TimeUnit.SECONDS)
-                
-                // 恢复界面显示
-                showUI(true)
+                // 等待异步操作完成，最多等待10秒
+                val success = latch.await(10, TimeUnit.SECONDS)
+                if (!success) {
+                    ToolBarService.logE("屏幕识别超时")
+                    return null
+                }
                 
                 return result
             } catch (e: Exception) {
-                // 确保界面恢复显示
-                showUI(true)
-                
                 Timber.tag(TAG).e(e, "获取屏幕信息失败: ${e.message}")
-                throw e
+                ToolBarService.logEx(e, "获取屏幕信息失败")
+                return null
             }
         }
 
@@ -473,7 +457,8 @@ class PythonServices {
          */
         @JvmStatic
         fun getScreenText(): String {
-            return _getScreenInfo(false) as String
+            val result = _getScreenInfo(false)
+            return if (result is String) result else ""
         }
 
         /**
@@ -484,14 +469,20 @@ class PythonServices {
         @JvmStatic
         fun getScreenInfo(): List<Map<String, String>> {
             val result = mutableListOf<Map<String, String>>()
-            val textBlockInfos = _getScreenInfo(true) as List<ScreenCapture.TextBlockInfo>
-            if (textBlockInfos != null) {
-                result.addAll(textBlockInfos.map { textBlockInfo ->
-                    mapOf(
-                        "t" to textBlockInfo.text,
-                        "b" to "${textBlockInfo.bounds.left},${textBlockInfo.bounds.top},${textBlockInfo.bounds.right},${textBlockInfo.bounds.bottom}"
-                    )
-                })
+            try {
+                val textBlockInfos = _getScreenInfo(true)
+                if (textBlockInfos is List<*>) {
+                    @Suppress("UNCHECKED_CAST")
+                    val typedList = textBlockInfos as List<ScreenCapture.TextBlockInfo>
+                    result.addAll(typedList.map { textBlockInfo ->
+                        mapOf(
+                            "t" to textBlockInfo.text,
+                            "b" to "${textBlockInfo.bounds.left},${textBlockInfo.bounds.top},${textBlockInfo.bounds.right},${textBlockInfo.bounds.bottom}"
+                        )
+                    })
+                }
+            } catch (e: Exception) {
+                ToolBarService.logEx(e, "处理屏幕信息失败")
             }
             return result
         }
@@ -591,21 +582,7 @@ class PythonServices {
                 Timber.tag(TAG).e(e, "控制界面显示失败")
             }
         }
-
-        @JvmStatic
-        fun showCursor(visible: Boolean) {
-            try {
-                val service = ToolBarService.getInstance()?.get()
-                if (service != null) {
-                    Handler(Looper.getMainLooper()).post {
-                        service.showCursor(visible)
-                    }
-                }
-            } catch (e: Exception) {
-                Timber.tag(TAG).e(e, "控制光标显示失败")
-            }
-        }
-
+       
         @JvmStatic
         fun showClick(visible: Boolean) {
             val service = ToolBarService.getInstance()?.get()
@@ -613,27 +590,13 @@ class PythonServices {
                 // 在主线程上执行UI操作
                 Handler(Looper.getMainLooper()).post {
                     service.showClick(visible)
-                    ToolBarService.log  ("调用showClick完成: $visible")
-                }
-            } else {
-                ToolBarService.log("ToolBarService实例不可用", "e")
-            }
-        }
-
-
-        @JvmStatic
-        fun showToolbar(visible: Boolean) {
-            val service = ToolBarService.getInstance()?.get()
-            if (service != null) {  
-                Handler(Looper.getMainLooper()).post {
-                    service.showToolbar(visible)
-                    ToolBarService.logI("调用showToolbar完成: $visible")
+                    ToolBarService.logI("调用showClick完成: $visible")
                 }
             } else {
                 ToolBarService.logE("ToolBarService实例不可用")
             }
         }
-        
+
         /**
          * 获取当前前台应用的包名
          */
@@ -686,58 +649,44 @@ class PythonServices {
         }
 
         /**
-         * 获取当前正在运行的应用信息
+         * 获取当前最前台的应用信息
          * 
-         * @param period 查询最近使用应用的时间范围(秒)，默认60秒
          * @return Map<String, Any> 包含包名(packageName)、应用名(appName)和最后使用时间(lastUsed)的Map，失败返回null
          */
-        @Suppress("UNREACHABLE_CODE")
-        @RequiresApi(Build.VERSION_CODES.LOLLIPOP_MR1)
         @JvmStatic
-        fun getCurrentApp(period: Int = 60): Map<String, Any>? {
-            // Timber.tag(TAG).i("获取当前运行应用信息")
+        fun getCurrentApp(period: Int = 3): Map<String, Any>? {
             return try {
-                // 获取Android上下文
                 val appContext = context.applicationContext
+                var packageName: String? = null
                 
-                // 获取UsageStatsManager
-                val usageStatsManager = appContext.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
-                if (usageStatsManager == null) {
-                    ToolBarService.logE("获取UsageStatsManager失败，请重新启动应用获取查看应用使用权限")
-                    return null
-                }
-                
-                // 获取最近period秒的应用使用情况
-                val endTime = System.currentTimeMillis()
-                val startTime = endTime - period * 1000L
-                
-                // 查询应用使用情况
-                val usageStatsList = usageStatsManager.queryUsageStats(
-                    UsageStatsManager.INTERVAL_DAILY, startTime, endTime)
-                
-                if (usageStatsList.isNullOrEmpty()) {
-                    ToolBarService.logW("${period}秒内无最近应用使用记录")
-                }
-                
-                // 找出最近使用的应用
-                var recentStats: UsageStats? = null
-                var maxLastUsed = 0L
-                
-                for (stats in usageStatsList) {
-                    if (stats.lastTimeUsed > maxLastUsed) {
-                        maxLastUsed = stats.lastTimeUsed
-                        recentStats = stats
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+                    try {
+                        val usageStatsManager = appContext.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
+                        if (usageStatsManager != null) {
+                            packageName = getCurrentForegroundAppFromEvents(usageStatsManager)
+                            
+                            // 如果通过事件无法获取，则尝试传统方法
+                            if (packageName.isNullOrEmpty()) {
+                                packageName = getCurrentForegroundAppFromStats(usageStatsManager, period)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        ToolBarService.logEx(e, "UsageStatsManager获取前台应用失败")
                     }
                 }
                 
-                if (recentStats == null) {
-                    // ToolBarService.logW("未找到最近使用的应用")
+                // 如果UsageStatsManager失败，尝试ActivityManager作为备用方案
+                if (packageName.isNullOrEmpty() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    packageName = getCurrentForegroundAppFromActivityManager()
+                }
+                
+                // 如果都失败了，直接返回null
+                if (packageName.isNullOrEmpty()) {
                     return null
                 }
                 
-                val packageName = recentStats.packageName
+                // 根据包名获取应用信息
                 val pm = appContext.packageManager
-                
                 try {
                     val appInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         pm.getApplicationInfo(packageName, PackageManager.ApplicationInfoFlags.of(0))
@@ -747,22 +696,157 @@ class PythonServices {
                     }
                     
                     val appName = pm.getApplicationLabel(appInfo).toString()
-                    // ToolBarService.logI("当前应用: $appName ($packageName)")
                     
                     return mapOf(
                         "packageName" to packageName,
-                        "appName" to appName,
-                        "lastUsed" to recentStats.lastTimeUsed
+                        "appName" to appName
                     )
                 } catch (e: Exception) {
-                    ToolBarService.logEx(e, "获取应用信息失败")
-                    return null
+                    ToolBarService.logEx(e, "获取应用信息失败: $packageName")
+                    
+                    // 即使无法获取应用名称，也返回包名信息
+                    return mapOf(
+                        "packageName" to packageName,
+                        "appName" to packageName
+                    )
                 }
             } catch (e: Exception) {
-                ToolBarService.logEx(e, "获取当前应用失败")
+                ToolBarService.logEx(e, "获取当前前台应用失败")
                 return null
             }
         }
+
+        /**
+         * 通过UsageEvents获取当前前台应用（最准确的方法）
+         * 可以实时检测应用前台/后台切换事件
+         */
+        @JvmStatic
+        private fun getCurrentForegroundAppFromEvents(usageStatsManager: UsageStatsManager): String? {
+            return try {
+                val currentTime = System.currentTimeMillis()
+                val startTime = currentTime - 10 * 1000L // 查看过去10秒的事件
+                
+                // 检查设备是否解锁（Android R以上需要）
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    val userManager = context.getSystemService(Context.USER_SERVICE) as? UserManager
+                    if (userManager?.isUserUnlocked != true) {
+                        ToolBarService.logW("设备已锁定，无法获取使用事件")
+                        return null
+                    }
+                }
+                
+                val usageEvents = usageStatsManager.queryEvents(startTime, currentTime)
+                var lastForegroundApp: String? = null
+                var lastEventTime = 0L
+                
+                val event = UsageEvents.Event()
+                while (usageEvents.hasNextEvent()) {
+                    usageEvents.getNextEvent(event)
+                    
+                    // 查找最近的前台事件
+                    if (event.eventType == UsageEvents.Event.ACTIVITY_RESUMED && 
+                        event.timeStamp > lastEventTime) {
+                        lastForegroundApp = event.packageName
+                        lastEventTime = event.timeStamp
+                    }
+                }                
+                return lastForegroundApp
+            } catch (e: Exception) {
+                ToolBarService.logEx(e, "通过Events获取前台应用失败")
+                return null
+            }
+        }
+
+        /**
+         * 通过UsageStats获取当前前台应用（传统方法）
+         */
+        @JvmStatic
+        private fun getCurrentForegroundAppFromStats(usageStatsManager: UsageStatsManager, period: Int): String? {
+            return try {
+                val endTime = System.currentTimeMillis()
+                val startTime = endTime - period * 1000L
+                
+                val usageStatsList = usageStatsManager.queryUsageStats(
+                    UsageStatsManager.INTERVAL_DAILY, startTime, endTime)
+                
+                if (!usageStatsList.isNullOrEmpty()) {
+                    var recentStats: UsageStats? = null
+                    var maxLastUsed = 0L
+                    
+                    for (stats in usageStatsList) {
+                        if (stats.lastTimeUsed > maxLastUsed) {
+                            maxLastUsed = stats.lastTimeUsed
+                            recentStats = stats
+                        }
+                    }
+                    
+                    if (recentStats != null) {
+                        // ToolBarService.logI("通过Stats获取前台应用: ${recentStats.packageName}")
+                        return recentStats.packageName
+                    }
+                }
+                
+                return null
+            } catch (e: Exception) {
+                ToolBarService.logEx(e, "通过Stats获取前台应用失败")
+                return null
+            }
+        }
+
+        /**
+         * 通过ActivityManager获取当前前台应用（备用方案）
+         * 虽然受限制，但某些情况下仍然可用
+         */
+        @JvmStatic
+        private fun getCurrentForegroundAppFromActivityManager(): String? {
+            return try {
+                val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+                if (activityManager != null) {
+                    // 方法1：尝试通过RunningAppProcesses获取
+                    val runningProcesses = activityManager.runningAppProcesses
+                    for (processInfo in runningProcesses) {
+                        if (processInfo.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND) {
+                            val packageName = processInfo.pkgList?.firstOrNull()
+                            if (!packageName.isNullOrEmpty() && packageName != context.packageName) {
+                                ToolBarService.logI("通过ActivityManager获取前台应用: $packageName")
+                                return packageName
+                            }
+                        }
+                    }
+                    
+                    // 方法2：尝试通过RunningTasks获取（需要权限，但可以试试）
+                    try {
+                        @Suppress("DEPRECATION")
+                        val runningTasks = activityManager.getRunningTasks(1)
+                        if (runningTasks.isNotEmpty()) {
+                            val topActivity = runningTasks[0].topActivity
+                            val packageName = topActivity?.packageName
+                            if (!packageName.isNullOrEmpty() && packageName != context.packageName) {
+                                ToolBarService.logI("通过RunningTasks获取前台应用: $packageName")
+                                return packageName
+                            }
+                        }
+                    } catch (e: SecurityException) {
+                        ToolBarService.logW("没有权限使用getRunningTasks")
+                    }
+                }
+                
+                return null
+            } catch (e: Exception) {
+                ToolBarService.logEx(e, "通过ActivityManager获取前台应用失败")
+                return null
+            }
+        }
+
+        /**
+         * 清除前台应用缓存
+         * 强制下次调用getCurrentApp()时重新获取
+         */
+        @JvmStatic
+        fun clearForegroundAppCache() {
+            ToolBarService.logI("前台应用缓存已清除")
+        }
+
 
         /**
          * 注册输入回调
@@ -849,6 +933,100 @@ class PythonServices {
 
         
         /**
+         * 设置设备名称
+         * 通过ToolBarService保存设备名称
+         */
+        @JvmStatic
+        fun setName(deviceName: String): Boolean {
+            return try {
+                val service = ToolBarService.getInstance()?.get()
+                if (service != null) {
+                    service.deviceName = deviceName
+                    ToolBarService.logI("设备名称已保存: $deviceName")
+                    true
+                } else {
+                    ToolBarService.logE("ToolBarService实例不可用，无法设置设备名称")
+                    false
+                }
+            } catch (e: Exception) {
+                ToolBarService.logEx(e, "设置设备名称失败: $deviceName")
+                false
+            }
+        }
+
+        /**
+         * 获取设备名称
+         * 从ToolBarService获取设备名称
+         */
+        @JvmStatic
+        fun getName(): String? {
+            return try {
+                val service = ToolBarService.getInstance()?.get()
+                if (service != null) {
+                    val deviceName = service.deviceName
+                    if (deviceName.isNotEmpty()) {
+                        ToolBarService.logI("获取设备名称: $deviceName")
+                        deviceName
+                    } else {
+                        ToolBarService.logI("设备名称未设置")
+                        null
+                    }
+                } else {
+                    ToolBarService.logE("ToolBarService实例不可用，无法获取设备名称")
+                    null
+                }
+            } catch (e: Exception) {
+                ToolBarService.logEx(e, "获取设备名称失败")
+                null
+            }
+        }
+
+        /**
+         * 获取服务器IP地址
+         * 从ToolBarService获取服务器IP
+         */
+        @JvmStatic
+        fun getServerIP(): String {
+            return try {
+                val service = ToolBarService.getInstance()?.get()
+                if (service != null) {
+                    val serverIP = service.serverIP
+                    ToolBarService.logI("获取服务器IP: $serverIP")
+                    serverIP
+                } else {
+                    ToolBarService.logE("ToolBarService实例不可用，无法获取服务器IP")
+                    ""
+                }
+            } catch (e: Exception) {
+                ToolBarService.logEx(e, "获取服务器IP失败")
+                ""
+            }
+        }
+
+        /**
+         * 设置服务器IP地址
+         * 通过ToolBarService保存服务器IP
+         */
+        @JvmStatic
+        fun setServerIP(serverIP: String): Boolean {
+            return try {
+                val service = ToolBarService.getInstance()?.get()
+                if (service != null) {
+                    service.serverIP = serverIP
+                    ToolBarService.logI("服务器IP已保存: $serverIP")
+                    true
+                } else {
+                    ToolBarService.logE("ToolBarService实例不可用，无法设置服务器IP")
+                    false
+                }
+            } catch (e: Exception) {
+                ToolBarService.logEx(e, "设置服务器IP失败: $serverIP")
+                false
+            }
+        }       
+       
+
+        /**
          * 退出应用
          */
         @JvmStatic
@@ -883,6 +1061,94 @@ class PythonServices {
                 }
             } catch (e: Exception) {
                 ToolBarService.logEx(e, "退出应用失败")
+            }
+        }
+
+        /**
+         * 读取指定文件的内容
+         * @param fileName 文件名，相对于files/scripts目录
+         * @return 文件内容，如果失败返回错误信息
+         */
+        @JvmStatic
+        fun readFileContent(fileName: String): String {
+            return try {
+                val scriptsDir = File(context.filesDir, "scripts")
+                val targetFile = File(scriptsDir, fileName)
+                
+                ToolBarService.logI("尝试读取文件: ${targetFile.absolutePath}")
+                
+                if (!targetFile.exists()) {
+                    val errorMsg = "文件不存在: ${targetFile.absolutePath}"
+                    ToolBarService.logE(errorMsg)
+                    return errorMsg
+                }
+                
+                if (!targetFile.canRead()) {
+                    val errorMsg = "文件无法读取: ${targetFile.absolutePath}"
+                    ToolBarService.logE(errorMsg)
+                    return errorMsg
+                }
+                
+                val content = targetFile.readText(Charsets.UTF_8)
+                ToolBarService.logI("文件读取成功: ${fileName}, 大小: ${content.length} 字符")
+                content
+                
+            } catch (e: Exception) {
+                val errorMsg = "读取文件失败: ${fileName}, 错误: ${e.message}"
+                ToolBarService.logEx(e, errorMsg)
+                errorMsg
+            }
+        }
+
+        /**
+         * 列出scripts目录下的所有文件
+         * @return 文件列表字符串，每行一个文件
+         */
+        @JvmStatic
+        fun listScriptsFiles(): String {
+            return try {
+                val scriptsDir = File(context.filesDir, "scripts")
+                ToolBarService.logI("列出目录: ${scriptsDir.absolutePath}")
+                
+                if (!scriptsDir.exists()) {
+                    val errorMsg = "scripts目录不存在: ${scriptsDir.absolutePath}"
+                    ToolBarService.logE(errorMsg)
+                    return errorMsg
+                }
+                
+                if (!scriptsDir.isDirectory()) {
+                    val errorMsg = "scripts不是目录: ${scriptsDir.absolutePath}"
+                    ToolBarService.logE(errorMsg)
+                    return errorMsg
+                }
+                
+                val files = scriptsDir.listFiles()
+                if (files == null || files.isEmpty()) {
+                    val msg = "scripts目录为空: ${scriptsDir.absolutePath}"
+                    ToolBarService.logI(msg)
+                    return msg
+                }
+                
+                val fileList = StringBuilder()
+                fileList.append("scripts目录 (${scriptsDir.absolutePath}) 包含 ${files.size} 个文件:\n")
+                
+                files.sortedBy { it.name }.forEach { file ->
+                    val fileInfo = when {
+                        file.isDirectory() -> "[目录] ${file.name}/"
+                        file.isFile() -> "[文件] ${file.name} (${file.length()} 字节)"
+                        else -> "[其他] ${file.name}"
+                    }
+                    fileList.append("$fileInfo\n")
+                }
+                
+                val result = fileList.toString()
+                ToolBarService.logI("文件列表获取成功，共 ${files.size} 个项目")
+                result
+                
+            } catch (e: Exception) {
+                val errorMsg = "列出文件失败: ${e.message}"
+                ToolBarService.logEx(e, errorMsg)
+                errorMsg
             }
         }
 

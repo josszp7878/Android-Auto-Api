@@ -171,25 +171,6 @@ class _G_:
             cls._sio = sio
             # sio.on('_Result')(cls.on_Result)
 
-    
-    # @classmethod
-    # def on_Result(cls, response):
-    #     """统一处理所有RPC响应（类方法）"""
-    #     request_id = response.get('requestId')
-    #     log = cls.log
-    #     log.i(f"收到_Result事件: {response}")
-    #     with cls._rpc_lock:
-    #         if request_id in cls._pending_requests:
-    #             _, callback = cls._pending_requests.pop(request_id)
-    #             if callback:
-    #                 if isinstance(callback, asyncio.Future):
-    #                     # 异步回调处理
-    #                     callback.set_result(response)
-    #                 else:
-    #                     # 同步回调处理
-    #                     callback(response)
-
-
     @classmethod
     def addConsole(cls, sid: str):
         """添加控制台"""
@@ -231,6 +212,60 @@ class _G_:
         elif isinstance(obj, set):
             # set不被JSON支持，需要转换为list并处理元素中可能的datetime对象
             return [cls._serializeForJson(item) for item in obj]
+        elif hasattr(obj, '__class__') and 'java' in str(obj.__class__):
+            # 处理Java对象（如LinkedHashMap）
+            if hasattr(obj, 'entrySet'):
+                # Java Map对象，转换为Python dict
+                result = {}
+                try:
+                    # 使用iterator()方法来遍历entrySet
+                    entry_set = obj.entrySet()
+                    if hasattr(entry_set, 'iterator'):
+                        iterator = entry_set.iterator()
+                        while iterator.hasNext():
+                            entry = iterator.next()
+                            key = entry.getKey()
+                            value = entry.getValue()
+                            result[cls._serializeForJson(key)] = cls._serializeForJson(value)
+                    else:
+                        # 如果没有iterator方法，尝试直接转换
+                        for entry in entry_set:
+                            key = entry.getKey()
+                            value = entry.getValue()
+                            result[cls._serializeForJson(key)] = cls._serializeForJson(value)
+                except:
+                    # 如果迭代失败，尝试另一种方式
+                    try:
+                        # 尝试使用keySet和get方法
+                        if hasattr(obj, 'keySet') and hasattr(obj, 'get'):
+                            key_set = obj.keySet()
+                            if hasattr(key_set, 'iterator'):
+                                iterator = key_set.iterator()
+                                while iterator.hasNext():
+                                    key = iterator.next()
+                                    value = obj.get(key)
+                                    result[cls._serializeForJson(key)] = cls._serializeForJson(value)
+                            else:
+                                for key in key_set:
+                                    value = obj.get(key)
+                                    result[cls._serializeForJson(key)] = cls._serializeForJson(value)
+                    except:
+                        # 最后的fallback，转换为字符串
+                        return str(obj)
+                return result
+            elif hasattr(obj, 'toArray'):
+                # Java List对象，转换为Python list
+                return [cls._serializeForJson(item) for item in obj.toArray()]
+            elif hasattr(obj, 'size') and hasattr(obj, 'get'):
+                # Java List对象的另一种处理方式
+                try:
+                    size = obj.size()
+                    return [cls._serializeForJson(obj.get(i)) for i in range(size)]
+                except:
+                    return str(obj)
+            else:
+                # 其他Java对象，尝试转换为字符串
+                return str(obj)
         else:
             # 其他类型直接返回（如str、int、float、bool、None等JSON原生支持的类型）
             return obj
@@ -487,7 +522,7 @@ class _G_:
     @classmethod
     def CTask(cls) -> 'CTask_':
         return cls.getClassLazy('CTask')
-    
+        
     @classmethod
     def Page(cls) -> 'CPage_.CPage_':
         """获取页面处理类，现在由CPage_实现"""
@@ -845,6 +880,8 @@ class _G_:
         '文': '支',
         '付': '什',
         '什': '付',
+        '濱': '演',
+        '賺': '赚',
     }
         
     @classmethod
@@ -867,6 +904,10 @@ class _G_:
         for full, half in symbolMap.items():
             text = text.replace(full, half)
         return text        
+
+    @classmethod
+    def replaceOcrError(cls, text: str) -> str:
+        return cls.replaceSymbols(text, cls.OcrErrorMap)
 
     @classmethod
     def ocrCompare(cls, str1: str, str2: str, maxDiff: int = 2) -> bool:

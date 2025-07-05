@@ -52,10 +52,10 @@ class CApp_(_App_):
         if match:
             name = match.group('name')
             if name is None:
-                name = device.currentApp.name
+                name = device.lastApp.name
             return name, match.group('pageName')
         # 如果没找到应用名，使用当前应用    
-        name = device.currentApp.name
+        name = device.lastApp.name
         return name, str  # 返回当前应用和页面名称    
 
     @classmethod
@@ -204,9 +204,9 @@ class CApp_(_App_):
                     if p.isAlert and p.match():
                         page = p
                         break
-            if not page:
-                if g.isAndroid() and not self.curPage.match():
-                    log.e("检测到未配置的弹出界面")
+            # if not page:
+            #     if g.isAndroid() and not self.curPage.match():
+            #         log.e("检测到未配置的弹出界面")
             if page:
                 self._setCurrentPage(page)
         except Exception as e:
@@ -323,7 +323,7 @@ class CApp_(_App_):
     @classmethod
     def goHome(cls)->bool:
         """返回主屏幕"""
-        return _G._G_.CDevice().open(_G.TOP)    
+        return _G._G_.CDevice().open(_G.TOP)[0]    
     
    
 
@@ -436,15 +436,16 @@ class CApp_(_App_):
                 log.e("目标页面路径不能为空")
                 return None
             name, pageName = cls.parseName(target)
-            app = g.CDevice().open(name)
+            ret, app = g.CDevice().open(name)
+            if not ret:
+                return None
             if app:
-                if app:
-                    page = app.getPage(pageName)
-                    if not page:
-                        log.w(f"{pageName} 不存在")
-                        return None
-                    if app.goPage(page, False):
-                        return page
+                page = app.getPage(pageName)
+                if not page:
+                    log.w(f"{pageName} 不存在")
+                    return None
+                if app.goPage(page, False):
+                    return page
             return None
         except Exception as e:
             log.ex(e, f"跳转到应用 {name} 的页面 {pageName} 失败")
@@ -571,10 +572,12 @@ class CApp_(_App_):
         if tools.isAndroid():
             interval = 1
         g = _G._G_
+        log = g.Log()
         device = g.CDevice()
         while True:
             time.sleep(interval)
-            app, _ = device.detectApp()
+            app = device.detectApp(interval)
+            # log.i(f"app: {app}")
             if app :
                 # 只更新客户端应用实例
                 app.doUpdate()

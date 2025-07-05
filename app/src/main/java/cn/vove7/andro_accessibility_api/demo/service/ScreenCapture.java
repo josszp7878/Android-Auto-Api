@@ -64,6 +64,9 @@ import cn.vove7.andro_accessibility_api.demo.R;
 public class ScreenCapture extends Service {
 
     private static ScreenCapture screenCapture;
+    private static final Object screenshotLock = new Object();
+    private static final long SCREENSHOT_TIMEOUT = 3000; // 截屏超时时间3秒
+    
     public static ScreenCapture getInstance() {
         return screenCapture;
     }
@@ -265,7 +268,8 @@ public class ScreenCapture extends Service {
         if (width != lastWidth || height != lastHeight || virtualDisplay == null || imageReader == null) {
             releaseLastCapture();
             
-            imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2);
+            // 增加缓冲区大小到5个，避免频繁调用时缓冲区不足
+            imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 5);
             
             virtualDisplay = mediaProjection.createVirtualDisplay("ScreenCapture",
                     width, height, 160, DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
@@ -274,71 +278,99 @@ public class ScreenCapture extends Service {
             lastWidth = width;
             lastHeight = height;
             
-            // 添加短暂延迟让 VirtualDisplay 初始化
+            // 增加初始化延迟，确保VirtualDisplay完全准备就绪
             try {
-                Thread.sleep(50);
+                Thread.sleep(200);
             } catch (InterruptedException e) {
                 Log.e("ScreenCapture", "Sleep interrupted", e);
             }
             
-            Log.d("ScreenCapture", "Created new virtual display");
+            // Log.d("ScreenCapture", "Created new virtual display with " + width + "x" + height);
         }
     }
 
     public Image takeScreenshot() {
-        Log.d("ScreenCapture", "takeScreenshot called");
-        if (mediaProjection == null) {
-            Begin(MainActivity.getInstance());
-            //Log.e("ScreenCapture", "MediaProjection not initialized");
-            return null;
-        }
+        // 使用同步锁确保线程安全
+        synchronized (screenshotLock) {
+            // Log.d("ScreenCapture", "takeScreenshot called - 开始超时重试模式");
+            
+            if (mediaProjection == null) {
+                Begin(MainActivity.getInstance());
+                return null;
+            }
 
-        WeakReference<ToolBarService> toolBarServiceRef = ToolBarService.getInstance();
-        ToolBarService toolBarService = toolBarServiceRef != null ? toolBarServiceRef.get() : null;
-        Image image = null;
-        try {
-            if (toolBarService != null) {
-                toolBarService.showUI(false);
-                // 等待UI更新完成
+            long startTime = System.currentTimeMillis();
+            WeakReference<ToolBarService> toolBarServiceRef = ToolBarService.getInstance();
+            ToolBarService toolBarService = toolBarServiceRef != null ? toolBarServiceRef.get() : null;
+            Image image = null;
+            
+            try {
                 Thread.sleep(100);
-            }
+                
+                // 获取屏幕尺寸
+                DisplayMetrics metrics = getResources().getDisplayMetrics();
+                int screenWidth = metrics.widthPixels;
+                int screenHeight = metrics.heightPixels;
 
-            // 获取屏幕尺寸
-            DisplayMetrics metrics = getResources().getDisplayMetrics();
-            int screenWidth = metrics.widthPixels;
-            int screenHeight = metrics.heightPixels;
+                ensureVirtualDisplay(screenWidth, screenHeight);
 
-            ensureVirtualDisplay(screenWidth, screenHeight);
-
-            // 添加重试机制
-            int maxAttempts = 3;
-            int attempt = 0;
-            while (attempt < maxAttempts) {
-                try {
-                    // 等待一小段时间让 VirtualDisplay 准备就绪
-                    Thread.sleep(100);
-                    image = imageReader.acquireLatestImage();
-                    if (image != null) {
-                        break;
+                // 在超时时间内不断重试
+                int attempt = 0;
+                while (System.currentTimeMillis() - startTime < SCREENSHOT_TIMEOUT) {
+                    try {
+                        attempt++;
+                        // Log.d("ScreenCapture", "尝试截屏第 " + attempt + " 次");
+                        
+                        // 每次重试前等待一段时间
+                        Thread.sleep(50 + (attempt * 20));
+                        
+                        // 先尝试获取最新的图像
+                        image = imageReader.acquireLatestImage();
+                        if (image != null) {
+                            // Log.d("ScreenCapture", "第 " + attempt + " 次尝试成功获取最新图像");
+                            return image;
+                        }
+                        
+                        // 如果没有最新图像，尝试获取下一个可用图像
+                        image = imageReader.acquireNextImage();
+                        if (image != null) {
+                            // Log.d("ScreenCapture", "第 " + attempt + " 次尝试成功获取下一个图像");
+                            return image;
+                        }
+                        
+                        // 如果尝试多次仍失败，尝试重新创建VirtualDisplay
+                        if (attempt % 5 == 0) {
+                            // Log.w("ScreenCapture", "第 " + attempt + " 次尝试失败，重新创建VirtualDisplay");
+                            releaseLastCapture();
+                            lastWidth = -1;
+                            lastHeight = -1;
+                            ensureVirtualDisplay(screenWidth, screenHeight);
+                        }
+                        
+                    } catch (Exception e) {
+                        // Log.w("ScreenCapture", "第 " + attempt + " 次尝试异常: " + e.getMessage());
+                        // 发生异常时稍微等待更长时间
+                        try {
+                            Thread.sleep(100);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            break;
+                        }
                     }
-                    attempt++;
-                } catch (Exception e) {
-                    attempt++;
                 }
-            }
 
-            if (image == null) {
-                Log.e("ScreenCapture", "Failed to acquire image after " + maxAttempts + " attempts");
+                long elapsedTime = System.currentTimeMillis() - startTime;
+                Log.e("ScreenCapture", "截屏超时失败，耗时: " + elapsedTime + "ms, 尝试次数: " + attempt);
+                return null;
+                
+            } catch (Exception e) {
+                Log.e("ScreenCapture", "截屏过程发生异常", e);
+                if (image != null) {
+                    image.close();
+                }
+                return null;
             }
-
-            return image;
-        } catch (Exception e) {
-            Log.e("ScreenCapture", "Screenshot failed", e);
         }
-        if (toolBarService != null) {
-            toolBarService.showCursor(true);
-        }
-        return image;
     }
 
     private void releaseLastCapture() {
@@ -442,6 +474,10 @@ public class ScreenCapture extends Service {
         if (image != null) {
             try {
                 Bitmap bitmap = getBitmapFromImage(image);
+                if (bitmap == null) {
+                    Log.e("ScreenCapture", "Failed to convert image to bitmap");
+                    return null;
+                }
 
                 // 压缩为JPEG
                 ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
@@ -456,14 +492,18 @@ public class ScreenCapture extends Service {
                 
             } catch (Exception e) {
                 Log.e("ScreenCapture", "Error processing image: " + e.getMessage(), e);
+                return null;
             } finally {
-                image.close();
-                Log.d("ScreenCapture", "Image closed");
+                // 确保Image被正确关闭
+                if (image != null) {
+                    image.close();
+                    Log.d("ScreenCapture", "Image closed");
+                }
             }
         } else {
             Log.e("ScreenCapture", "Failed to take screenshot: image is null");
+            return null;
         }
-        return null;
     }
 
     public static class TextBlockInfo {
@@ -496,6 +536,12 @@ public class ScreenCapture extends Service {
         if (image != null) {
             try {
                 Bitmap bitmap = getBitmapFromImage(image);
+                if (bitmap == null) {
+                    Log.e("ScreenCapture", "Failed to convert image to bitmap");
+                    callback.accept(withPos ? Collections.emptyList() : "");
+                    return;
+                }
+                
                 InputImage inputImage = InputImage.fromBitmap(bitmap, 0);
                 TextRecognizer recognizer = TextRecognition.getClient(new ChineseTextRecognizerOptions.Builder().build());
 
@@ -529,13 +575,18 @@ public class ScreenCapture extends Service {
                                 callback.accept(withPos ? Collections.emptyList() : "");
                             }
                         } finally {
-                            image.close();
-                            Log.d("ScreenCapture", "Image closed after completion");
+                            // 确保Image被正确关闭
+                            if (image != null) {
+                                image.close();
+                                Log.d("ScreenCapture", "Image closed after completion");
+                            }
                         }
                     });
             } catch (Exception e) {
                 Log.e("ScreenCapture", "Error processing image: " + e.getMessage(), e);
-                image.close();
+                if (image != null) {
+                    image.close();
+                }
                 callback.accept(withPos ? Collections.emptyList() : "");
             }
         } else {

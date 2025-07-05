@@ -4,20 +4,26 @@ import requests
 from typing import Callable
 from threading import Thread
 import _G
-import time
-import fnmatch
 
 class CFileServer_:
     
     _serverIP = None
-    @classmethod
-    def server(cls):
-        return _G._G_.Tools().getServerURL(cls._serverIP)
-    
+
     @classmethod
     def init(cls, serverIp):
         cls._serverIP = serverIp
 
+    @classmethod
+    def serverIP(cls):
+        if cls._serverIP is None:
+            import socket
+            cls._serverIP = socket.gethostbyname(socket.gethostname())
+        return cls._serverIP
+
+    @classmethod
+    def serverUrl(cls):
+        return f"http://{cls.serverIP()}:5000"
+    
 
     @classmethod
     def downAll(cls):
@@ -71,7 +77,7 @@ class CFileServer_:
         log = g.Log()
         ok = False
         try:
-            url = f"{cls.server()}/file/{filename}"
+            url = f"{cls.serverUrl()}/file/{filename}"
             # log.d(f"下载文件...: {url}")
             response = requests.get(url, timeout=8)
             response.raise_for_status()
@@ -116,7 +122,7 @@ class CFileServer_:
     @classmethod
     def remoteVersions(cls):
         # 测试阶段使用的方法
-        url = f"{cls.server()}/timestamps"
+        url = f"{cls.serverUrl()}/timestamps"
         # print('aaaaaaaaaaaaaaaaaaaaaaaaaa')
         try:
             response = requests.get(url, timeout=8)
@@ -298,7 +304,7 @@ class CFileServer_:
         
         try:
             # 构建上传请求URL
-            url = f"{cls.server()}/api/upload"
+            url = f"{cls.serverUrl()}/api/upload"
             
             # 准备请求参数
             params = {'path': server_path}
