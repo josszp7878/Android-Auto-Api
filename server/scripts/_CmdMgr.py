@@ -4,9 +4,9 @@ import _Log
 import _G
 import sys
 import importlib
-from typing import Any, Tuple
 import inspect
 import json
+
 
 class Cmd:
     """命令类，存储命令信息"""
@@ -132,6 +132,7 @@ class _CmdMgr_:
             log.e(f"目前不支持没有参数的装饰器: {pattern.__name__}")
             return None
         # 如果第一个参数不是函数，说明装饰器有参数
+
         def decorator(func):
             nonlocal pattern  # 声明pattern为非局部变量，引用外部作用域的pattern
             
@@ -310,7 +311,7 @@ class _CmdMgr_:
 
     # 返回值： cmd对象, 里面result为执行结果，如果不存在，表示该命令无效
     @classmethod
-    def do(cls, cmd:dict)->dict:
+    def do(cls, cmd: dict) -> dict:
         """执行命令
         Args:
             cmd: dict 成员如下：
@@ -405,7 +406,7 @@ class _CmdMgr_:
     
     @classmethod
     def _reloadModule(cls, moduleName: str) -> bool:
-        """处理模块重新加载
+        """处理模块重新加载（支持继承关系）
         Args:
             module_name: 模块名称，支持带路径的形式(如scripts._Tools)
         Returns:
@@ -414,22 +415,177 @@ class _CmdMgr_:
         g = _G._G_
         log = g.Log()
         try:
-            # log.d(f'重新加载模块: {moduleName}')
+            # 获取需要重新加载的模块列表（包括继承关系）
+            modulesToReload = cls._getModulesWithInheritance(moduleName)
+            log.i(f"需要重新加载的模块: {modulesToReload}")
+            
+            # 按依赖关系排序，基类优先
+            modulesToReload = cls._sortModulesByDependency(modulesToReload)
+            
+            # 逐个重新加载模块
+            for moduleToReload in modulesToReload:
+                if not cls._reloadSingleModule(moduleToReload):
+                    log.e(f"重新加载模块 {moduleToReload} 失败")
+                    return False
+            
+            return True
+        except Exception as e:
+            _Log._Log_.ex(e, f"重新加载模块 {moduleName} 失败")
+            return False
+
+    @classmethod
+    def _getModulesWithInheritance(cls, moduleName: str) -> list:
+        """获取需要重新加载的模块列表（包括继承关系）
+        Args:
+            moduleName: 主模块名称
+        Returns:
+            list: 需要重新加载的模块名称列表
+        """
+        g = _G._G_
+        log = g.Log()
+        modulesToReload = {moduleName}  # 使用集合避免重复
+        
+        try:
+            # 获取主模块的类
+            if moduleName in sys.modules:
+                module = sys.modules[moduleName]
+                mainCls = g.getClassLazy(moduleName)
+                
+                if mainCls:
+                    # 查找所有继承了主类的派生类
+                    derivedModules = cls._findDerivedClasses(mainCls)
+                    modulesToReload.update(derivedModules)
+                    
+        except Exception as e:
+            log.ex(e, f"分析模块 {moduleName} 的继承关系失败")
+            
+        return list(modulesToReload)
+
+    @classmethod
+    def _findDerivedClasses(cls, baseCls) -> set:
+        """查找所有继承了指定基类的派生类对应的模块
+        Args:
+            baseCls: 基类
+        Returns:
+            set: 派生类对应的模块名称集合
+        """
+        g = _G._G_
+        derivedModules = set()
+        
+        try:
+            # 递归查找所有子类
+            def findSubclasses(cls_obj):
+                subclasses = set()
+                for subclass in cls_obj.__subclasses__():
+                    subclasses.add(subclass)
+                    # 递归查找子类的子类
+                    subclasses.update(findSubclasses(subclass))
+                return subclasses
+            
+            # 获取所有子类
+            allSubclasses = findSubclasses(baseCls)
+            
+            # 为每个子类找到对应的模块名
+            for subclass in allSubclasses:
+                moduleName = subclass.__module__
+                if moduleName and moduleName in g.getScriptNames():
+                    derivedModules.add(moduleName)
+                    
+        except Exception as e:
+            g.Log().ex(e, f"查找派生类失败: {baseCls}")
+            
+        return derivedModules
+
+
+
+    @classmethod
+    def _sortModulesByDependency(cls, moduleNames: list) -> list:
+        """按依赖关系对模块进行排序，基类优先
+        Args:
+            moduleNames: 模块名称列表
+        Returns:
+            list: 排序后的模块名称列表
+        """
+        g = _G._G_
+        log = g.Log()
+        
+        try:
+            # 构建依赖关系图
+            dependencies = {}
+            for moduleName in moduleNames:
+                dependencies[moduleName] = set()
+                
+                # 获取模块的类
+                if moduleName in sys.modules:
+                    cls_obj = g.getClassLazy(moduleName)
+                    if cls_obj:
+                        # 查找该类的基类
+                        for base in cls_obj.__mro__[1:]:
+                            if base is object:
+                                continue
+                            baseModuleName = base.__module__
+                            if baseModuleName in moduleNames:
+                                dependencies[moduleName].add(baseModuleName)
+            
+            # 拓扑排序
+            result = []
+            visited = set()
+            visiting = set()
+            
+            def visit(module):
+                if module in visiting:
+                    log.w(f"发现循环依赖: {module}")
+                    return
+                if module in visited:
+                    return
+                    
+                visiting.add(module)
+                for dep in dependencies.get(module, set()):
+                    visit(dep)
+                visiting.remove(module)
+                visited.add(module)
+                result.append(module)
+            
+            for module in moduleNames:
+                if module not in visited:
+                    visit(module)
+                    
+            return result
+            
+        except Exception as e:
+            log.ex(e, "模块依赖排序失败")
+            return moduleNames  # 返回原始顺序
+
+    @classmethod
+    def _reloadSingleModule(cls, moduleName: str) -> bool:
+        """重新加载单个模块
+        Args:
+            moduleName: 模块名称
+        Returns:
+            bool: 是否成功
+        """
+        g = _G._G_
+        log = g.Log()
+        
+        try:
             # 检查模块是否已加载
             if moduleName in sys.modules:
                 module = sys.modules[moduleName]
                 oldCls = g.getClassLazy(moduleName)
-                # 获取模块对应的类（假设类名为模块名加下划线）
+                
+                # 调用onUnload
                 try:
                     if hasattr(oldCls, 'onUnload'):
                         oldCls.onUnload()
                 except Exception as e:
                     log.ex(e, f"卸载模块 {moduleName} 失败")
+                
                 # 获取所有引用了该模块的模块
                 referrers = [
                     m for m in sys.modules.values() 
                     if m and hasattr(m, '__dict__') and moduleName in m.__dict__
                 ]
+                
                 # 重新加载模块
                 del sys.modules[moduleName]
                 
@@ -438,19 +594,25 @@ class _CmdMgr_:
                 if not spec:
                     log.e(f"找不到模块: {moduleName}")
                     return False
+                    
                 module = importlib.util.module_from_spec(spec)
                 sys.modules[moduleName] = module
                 spec.loader.exec_module(module)
+                
                 # 更新引用
                 for referrer in referrers:
                     if hasattr(referrer, '__dict__'):
                         referrer.__dict__[moduleName] = module
+                
                 # 清除全局引用
                 g.clear()
-                # log.d(f'清除全局引用: {moduleName}')    
+                
+                # 调用onLoad
                 g.CallMethod(module, 'onLoad', oldCls)
+                
                 # 重新注册命令
                 cls._regCmd(module, log)
+                
             else:
                 # 首次加载直接使用import_module
                 try:
@@ -459,14 +621,14 @@ class _CmdMgr_:
                     log.e(f"找不到模块: {moduleName}, 错误: {e}")
                     return False
             
-            # 6. 返回成功
             return True
+            
         except Exception as e:
-            _Log._Log_.ex(e, f"重新加载模块 {moduleName} 失败")
+            log.ex(e, f"重新加载单个模块 {moduleName} 失败")
             return False
 
     @classmethod
-    def _reset(cls)->bool:
+    def _reset(cls) -> bool:
         g = _G._G_
         log = g.Log()
         """重新加载所有脚本并重启脚本引擎"""

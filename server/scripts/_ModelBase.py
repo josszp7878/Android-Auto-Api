@@ -43,28 +43,6 @@ class _ModelBase_(Base_):
     def toClientData(self) -> dict:
         # 子类可重写
         return self.data
-
-    @RPC()
-    def update(self, data: dict, commit: bool = True, refresh: bool = True):
-        """更新数据"""
-        log = _G._G_.Log()
-        try:
-            for key, value in data.items():
-                if self.data.get(key) != value:
-                    self.data[key] = value
-                    self._isDirty = True
-            if self._isDirty:
-                if commit:
-                    if not self.commit():
-                        log.e(f'更新数据失败,commit失败: {self.data}')
-                        return False
-                if refresh:
-                    self.refresh()
-            return True
-        except Exception as e:
-            log.ex(e, '更新数据失败')
-            return False
-
     def refresh(self):
         # 子类可重写
         g = _G._G_

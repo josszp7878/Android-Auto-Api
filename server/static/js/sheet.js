@@ -995,7 +995,12 @@ class SheetPage {
                 formatter: "lookup",
                 formatterParams: Object.fromEntries(
                     Object.entries(this.deviceStatusMap).map(([k, v]) => [k, v.formatter])
-                )
+                ),
+                sorter: function(a, b) {
+                    // 自定义状态优先级：离线 > 登出 > 在线 > 登录
+                    const priority = { 'offline': 4, 'logout': 3, 'online': 2, 'login': 1 };
+                    return (priority[b] || 0) - (priority[a] || 0);
+                }
             },
             {
                 title: "DEBUG", 

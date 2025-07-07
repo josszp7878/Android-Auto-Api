@@ -59,9 +59,9 @@ class _Device_():
         """设置当前检测应用名称"""
         if not appInfo:
             return
-        curPkg = self._curAppInfo.get('packageName') if self._curAppInfo else None
-        if curPkg == appInfo.get('packageName'):
-            # 如果包名相同，则不更新
+        curAppName = self._curAppInfo.get('appName') if self._curAppInfo else None
+        if curAppName == appInfo.get('appName'):
+            # 如果应用名称相同，则不更新
             return
         g = _G._G_
         log = _G._G_.Log()
@@ -128,6 +128,7 @@ class _Device_():
             """显示当前客户端的实时信息"""
             g = _G._G_
             log = g.Log()
+            # log.i("aaaaaaaaaaaaaaaaaaaaaaa")
             
             try:
 

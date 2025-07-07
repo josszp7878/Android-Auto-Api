@@ -11,13 +11,14 @@ class Task_:
     def loadConfig(cls):
         try:
             g = _G._G_
+            log = g.Log()
             configPath = g.configDir()
             if os.path.exists(configPath):
                 with open(configPath, "r", encoding="utf-8") as f:
                     configs = json.load(f)
                     cls.taskConfigs.update(configs)
         except Exception as e:
-            print(f"加载任务配置失败: {e}")
+            log.ex(e, f"加载任务配置失败")
 
     @classmethod
     def getConfig(cls, taskName=None):

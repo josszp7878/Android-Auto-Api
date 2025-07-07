@@ -283,7 +283,7 @@ class CFileServer_:
             """
             g = _G._G_
             if type is None or 'page' in type.lower():
-                g.App().loadConfig()
+                g.App().loadConfigs()
             if type is not None and 'task' in type.lower():
                 # 加载指定类型的配置文件
                 g.CTask().loadConfig()

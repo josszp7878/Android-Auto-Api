@@ -1,7 +1,7 @@
-import json
 import time
 import socketio
 import _G
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from typing import cast, List, TYPE_CHECKING, Tuple
 import socketio.exceptions  # 新增导入
@@ -33,6 +33,7 @@ class CDevice_(Base_, _Device_):
         self._curTask = None
         # 统一使用data字典
         self.initialized = False
+        self._running = False
 
     @classmethod
     def instance(cls, reset=False)->'CDevice_':
@@ -65,11 +66,15 @@ class CDevice_(Base_, _Device_):
         sio.on('S2C_CmdResult')(self.onS2C_CmdResult)
         sio.on('disconnect')(self.on_disconnect)
         _G._G_.setIO(sio)
+        # 启动应用更新循环
+        self._begin()
         self.initialized = True
 
     def uninit(self):
         """释放资源"""
         print('客户端 设备 uninit')
+        # 结束应用更新循环
+        self._end()
         self.logout()
         self.disconnect()
         self.initialized = False
@@ -128,6 +133,7 @@ class CDevice_(Base_, _Device_):
         try:
             server_url = g.CFileServer().serverUrl()
             connect_url = f"{server_url}?device_id={self.name}"
+            log.i(f"@@@@@连接地址: {connect_url}")
             sio = cast(socketio.Client, g.sio())
 
             log.i(f'正在连接设备 {self.name} ...')
@@ -541,7 +547,7 @@ class CDevice_(Base_, _Device_):
                         # 等待2秒, 确保回到桌面
                         time.sleep(2)
                         log.i(f"点击应用: {appName}")
-                        return tools.click(appName, 'LR', (0, -0))
+                        return tools.click(appName, 'LR')
                     else:
                         # Android系统使用服务方式打开
                         opened = g.android.openApp(appName)
@@ -552,17 +558,51 @@ class CDevice_(Base_, _Device_):
         else:
             self.setCurApp({'appName': appName})
         return True
-        
+
+    def _update(self):
+        """全局应用更新循环 - 客户端版本"""
+        interval = 2
+        g = _G._G_
+        log = g.Log()
+        # log.i(f"应用更新循环开始, 当前应用: {self.curAppName}, running: {self._running}")
+        while self._running:
+            time.sleep(interval)
+            # log.i(f"应用更新循环开始, 当aaaa前应用: {self.curAppName}")
+            app = self.detectApp(interval)
+            if app :
+                # 只更新客户端应用实例
+                app.doUpdate()
+
+    def _begin(self):
+        """启动全局应用更新循环线程 - 客户端版本"""
+        thread = threading.Thread(target=self._update)
+        thread.start()
+        self._running = True
+
+    def _end(self):
+        """结束全局应用更新循环线程 - 客户端版本"""
+        self._running = False
+
         
     @classmethod
     def onLoad(cls, oldCls : 'CDevice_'):
         if oldCls:
-            oldInstance = oldCls.instance()
+            instance = oldCls.instance()
+            instance.uninit()
+            # 保存旧的连接信息
+            old_name = instance.name
+            old_server = instance.server
+            # 先断开旧连接
+            instance.disconnect()
+            # 重置初始化状态，强制重新初始化
             instance = cls.instance()
-            instance.init(oldInstance.name, oldInstance.server)
+            # 重新初始化Socket.IO实例
+            instance.init(old_name, old_server)
             log = _G._G_.Log()
             log.i(f"设备 {instance.name}:{instance.server} 重置完成")
+            # 重新连接
             instance.connect()
+
 
     @classmethod
     def onUnload(cls):

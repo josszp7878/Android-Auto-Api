@@ -432,18 +432,7 @@ class _Page_:
             tools = g.Tools()
             key = key.strip()
             execute = False
-            ret = tools.eRet.none
-            # 检查是否为用户事件
-            app = self.app
-            userEvents = getattr(app, 'userEvents', [])            
-            # 检查是否为用户事件触发
-            for eventName in userEvents:
-                if eventName in key:
-                    # 用户事件匹配，直接执行
-                    log.d(f"用户事件触发: {eventName} 在 {key}")
-                    execute = True
-                    break
-            
+            ret = tools.eRet.none            
             # 如果不是用户事件，进行常规检查
             if not execute:
                 if key.startswith('-'):
@@ -487,10 +476,29 @@ class _Page_:
 
     @classmethod
     def onLoad(cls, oldCls=None):
-        """热加载时的处理"""
+        """热加载时的处理，强制替换所有App中的Page实例为新类实例"""
         if oldCls:
-            from  _App import _App_
-            _App_.loadConfig()
+            g = _G.g
+            log = g.Log()
+            # 强制替换所有App中的Page实例
+            from  CApp import CApp_
+            for app in CApp_.apps().values():
+                if hasattr(app, '_pages'):
+                    for name, oldPage in list(app._pages.items()):
+                        # 用新类实例化，保留config和data
+                        newPage = cls(app, name, data=getattr(oldPage, 'data', None), config=getattr(oldPage, '_config', None))
+                        app._pages[name] = newPage
+                        # 替换当前页面、根页面等引用
+                        if getattr(app, '_curPage', None) is oldPage:
+                            app._curPage = newPage
+                        if getattr(app, 'rootPage', None) is oldPage:
+                            app.rootPage = newPage
+                        if getattr(app, '_lastPage', None) is oldPage:
+                            app._lastPage = newPage
+                        if getattr(app, '_toPage', None) is oldPage:
+                            app._toPage = newPage
+                        if getattr(app, '_path', None):
+                            app._path = [newPage if p is oldPage else p for p in app._path]
     
     def copy(self, data: Dict[str, Any] = None) -> Optional["_Page_"]:
         """ 获取页面实例

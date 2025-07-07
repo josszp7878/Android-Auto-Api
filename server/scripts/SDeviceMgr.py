@@ -95,8 +95,8 @@ class SDeviceMgr_:
     def addDevice(self, device: SDevice_):
         devices = self._devices
         exist = next((d for d in devices if d.id == device.id), None)
-        log = _G._G_.Log()
-        log.d_(f'添加设备fff: {device.id}, {device.name} exist={exist}')
+        # log = _G._G_.Log()
+        # log.d_(f'添加设备fff: {device.id}, {device.name} exist={exist}')
         if exist is None:
             self._devices.append(device)
         if device.isConsole:

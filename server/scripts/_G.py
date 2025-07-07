@@ -296,7 +296,7 @@ class _G_:
             else:
                 device = cls.CDevice()
                 if not device or not device.isConnected():
-                    log.ex_(f"设备未连接: {event}, {data}")
+                    log.ex_(f"设备{device.name}未连接: {event}, {data}")
                     return False
                 if data is None:
                     data = {}
@@ -443,26 +443,26 @@ class _G_:
         return cls._dir
     
     @classmethod
-    def getDir(cls, subDir: str):
+    def getDir(cls, subDir: str)->str:
         dir = os.path.join(cls.rootDir(), subDir)
         if not os.path.exists(dir):
             os.makedirs(dir)
         return dir
     
     @classmethod
-    def dataDir(cls, subDir: str = None):
+    def dataDir(cls, subDir: str = None)->str:
         return cls.getDir(os.path.join('data', subDir))
     
     @classmethod
-    def logDir(cls):
+    def logDir(cls)->str:
         return cls.getDir('logs')
 
     @classmethod
-    def scriptDir(cls):
+    def scriptDir(cls)->str:
         return cls.getDir('scripts')
 
     @classmethod
-    def configDir(cls):
+    def configDir(cls)->str:
         return cls.getDir('config')
 
     @classmethod

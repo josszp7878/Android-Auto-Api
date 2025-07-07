@@ -1256,28 +1256,57 @@ class _Tools_:
         return _G._G_.android is not None
 
     @classmethod
-    def click(cls, text: str, direction: str = None, offset: tuple = (0, 0), waitTime: int = 1) -> bool:
+    def parseOffsetFromText(cls, text: str) -> tuple:
+        """
+        从文本中解析偏移量坐标，支持格式：内容x10,y-20 或 内容x10 或 内容y-20
+        返回：(主文本, (x, y))
+        - 主文本：去除坐标后的文本内容
+        - (x, y)：偏移量元组，未指定为0
+        支持正负号，x/y顺序不限，允许有空格
+        """
+        import re
+        offset = (0, 0)
+        textMain = text
+        # 匹配x10,y-20或x10或y-20，允许空格
+        match = re.search(r'(x[-+]?\d+)?\s*,?\s*(y[-+]?\d+)?$', text, re.IGNORECASE)
+        if match:
+            xStr = match.group(1)
+            yStr = match.group(2)
+            x = int(xStr[1:]) if xStr else 0
+            if xStr and '-' in xStr: x = -abs(x)
+            y = int(yStr[1:]) if yStr else 0
+            if yStr and '-' in yStr: y = -abs(y)
+            offset = (x, y)
+            # 去掉offset部分，剩下的才是主文本
+            textMain = re.sub(r'(x[-+]?\d+)?\s*,?\s*(y[-+]?\d+)?$', '', text, flags=re.IGNORECASE).strip()
+            if not textMain:
+                textMain = text
+        return textMain, offset
+
+    @classmethod
+    def click(cls, text: str, direction: str = None, waitTime: int = 1) -> bool:
         """点击屏幕上的文本
         
         Args:
-            text: 要点击的文本或坐标
+            text: 要点击的文本或坐标，支持格式：内容x10,y-20
             direction: 如果找不到文本，滑动方向继续查找
-            offset: 点击位置的偏移量
             waitTime: 点击后等待时间（秒）
-            
         Returns:
             bool: 是否成功点击
         """
         g = _G._G_
         log = g.Log()
         try:
+            # 解析主文本和offset
+            textMain, offset = cls.parseOffsetFromText(text)
             # 获取文本位置
-            pos = cls.findTextPos(text, direction)
-            log.i(f"点击文本: {text}, pos: {pos}")
+            pos = cls.findTextPos(textMain, direction)
+            log.i(f"点击文本: {textMain}, pos: {pos}, offset: {offset}")
             if not pos:
-                log.w(f"未找到文本: {text}")
+                log.w(f"未找到文本: {textMain}")
                 return g.android is None            
             # 点击位置
+            log.i(f"点击位置: {pos}, offset: {offset}")
             cls.clickPos(pos, offset)
             # 等待指定时间
             if waitTime > 0 and cls.isAndroid():

@@ -170,7 +170,7 @@ def onC2S_UpdateTask(data):
         if task is None:
             log.w(f'任务不存在: {device.name}/{taskID}')
             return
-        task.update(data)
+        task.Begin(data)
     except Exception as e:
         log.ex(e, '处理任务进度更新失败')
 

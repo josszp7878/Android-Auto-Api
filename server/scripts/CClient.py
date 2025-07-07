@@ -82,8 +82,6 @@ class CClient_:
         try:
             if not cls.init(deviceID, server):
                 return False
-            #起一个线程去更新app
-            g.App().update()
             print("按Ctrl+C退出")
             device = g.CDevice()
             if device is None:

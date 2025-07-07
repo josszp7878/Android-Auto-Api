@@ -61,7 +61,6 @@ class SDevice_(_ModelBase_, _Device_):
             deviceDatas = DeviceModel_.all()
             if deviceDatas is None:
                 deviceDatas = []
-            
             for d in deviceDatas:
                 if d:  # 确保单个设备数据不是None
                     devices.append(cls(d))

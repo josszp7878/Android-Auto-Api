@@ -22,7 +22,7 @@ class CApp_(_App_):
         self._toPage: Optional["_Page_"] = None
         self.rootPage: Optional["_Page_"] = None
         self._path: Optional[List["_Page_"]] = None  # 当前缓存的路径 [path]
-        self.userEvents: List[str] = []  # 用户事件列表
+        # self.userEvents: List[str] = []  # 用户事件列表
         self._toasts = {}  # toasts配置字典，用于存储toast匹配规则和操作
         self._pages: Dict[str, "_Page_"] = {}  # 应用级的页面列表
 
@@ -57,6 +57,13 @@ class CApp_(_App_):
         # 如果没找到应用名，使用当前应用    
         name = device.lastApp.name
         return name, str  # 返回当前应用和页面名称    
+    
+    @classmethod
+    def loadConfigs(cls)->str:
+        """加载所有应用配置"""
+        # 枚举所有应用，加载配置
+        for app in _App_.apps().values():
+            app.loadConfig()
 
     @classmethod
     def _configDir(cls)->str:
@@ -180,16 +187,13 @@ class CApp_(_App_):
                 break
 
 
-    def detectPage(self, page: "_Page_", timeout=3):
+    def detectPage(self, page: "_Page_"):
         """匹配页面"""
         if not page:
             return False
         g = _G._G_
         tools = g.Tools()
         log = g.Log()
-        if tools.isAndroid():
-            time.sleep(timeout)
-        tools.refreshScreenInfos()
         try:
             #先检测当前页面 self._toPage
             page = None
@@ -448,7 +452,7 @@ class CApp_(_App_):
                     return page
             return None
         except Exception as e:
-            log.ex(e, f"跳转到应用 {name} 的页面 {pageName} 失败")
+            log.ex(e, f"跳转到应用 {target}  失败")
             return None
         
 
@@ -458,6 +462,8 @@ class CApp_(_App_):
         try:
             g = _G._G_
             log = g.Log()
+            tools = g.Tools()
+            tools.refreshScreenInfos()
             # 检测toast
             self.detectToast()
             # 检测当前页面
@@ -467,7 +473,7 @@ class CApp_(_App_):
             # 更新当前页面
             if self.curPage:
                 self.curPage.update()
-            self.userEvents = []
+            # self.userEvents = []
             # 更新当前任务 - 客户端特有
             curTask = g.CDevice().curTask()
             if curTask:
@@ -565,25 +571,15 @@ class CApp_(_App_):
             log.ex(e, "处理页面跳转逻辑失败")
 
     @classmethod
-    def _update(cls):
-        """全局应用更新循环 - 客户端版本"""
-        interval = 0.3
-        tools = _G._G_.Tools()
-        if tools.isAndroid():
-            interval = 1
-        g = _G._G_
-        log = g.Log()
-        device = g.CDevice()
-        while True:
-            time.sleep(interval)
-            app = device.detectApp(interval)
-            # log.i(f"app: {app}")
-            if app :
-                # 只更新客户端应用实例
-                app.doUpdate()
-
-    @classmethod
-    def update(cls):
-        """启动全局应用更新循环线程 - 客户端版本"""
-        thread = threading.Thread(target=cls._update)
-        thread.start()
+    def onLoad(cls, oldCls=None):
+        """热加载时的处理，强制替换所有App中的Page实例为新类实例"""
+        if oldCls:
+            g = _G._G_
+            log = g.Log()
+            # 迁移所有App实例到新cls._apps，动态修改类
+            device = g.CDevice()
+            apps = device.apps
+            log.i(f"CApp热加载开始{apps}, lastApp:{device.lastApp}")
+            for appName, app in apps.items():
+                log.i(f"迁移并更新App类: {appName}")
+                app.__class__ = cls
