@@ -2004,9 +2004,14 @@ class SheetPage {
      */
     executeClientCommand(command, targets) {
         if (targets.length === 0) {
-            this.log('没有指定目标设备', 'e');
-            return;
+            // 如果targets为空，则使用上次发送命令的目标
+            targets = this.lastTargets;
+            if (targets.length === 0) { 
+                this.log('没有指定目标设备', 'e');
+                return;
+            }
         }
+        this.lastTargets = targets;
         // console.log(`发送客户端指令到设备 [${targets.join(', ')}]: ${command}`);
         this.sendCmd(command, targets);
     }

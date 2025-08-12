@@ -36,6 +36,8 @@ import androidx.annotation.RequiresApi
 import java.lang.ref.WeakReference
 import android.os.Process
 import timber.log.Timber
+import android.view.WindowManager
+import android.util.DisplayMetrics
 
 /**
  * Python服务接口的Kotlin实现
@@ -654,19 +656,19 @@ class PythonServices {
          * @return Map<String, Any> 包含包名(packageName)、应用名(appName)和最后使用时间(lastUsed)的Map，失败返回null
          */
         @JvmStatic
-        fun getCurrentApp(period: Int = 3): Map<String, Any>? {
+        fun getCurrentApp(): Map<String, Any>? {
             return try {
                 val appContext = context.applicationContext
                 var packageName: String? = null
-                
+                val period = 10
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
                     try {
                         val usageStatsManager = appContext.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
                         if (usageStatsManager != null) {
-                            packageName = getCurrentForegroundAppFromEvents(usageStatsManager)
-                            
+                            packageName = getCurrentForegroundAppFromEvents(usageStatsManager, period)
                             // 如果通过事件无法获取，则尝试传统方法
                             if (packageName.isNullOrEmpty()) {
+                                ToolBarService.logI("通过Stats获取前台应用")
                                 packageName = getCurrentForegroundAppFromStats(usageStatsManager, period)
                             }
                         }
@@ -677,6 +679,7 @@ class PythonServices {
                 
                 // 如果UsageStatsManager失败，尝试ActivityManager作为备用方案
                 if (packageName.isNullOrEmpty() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    ToolBarService.logI("通过ActivityManager获取前台应用")
                     packageName = getCurrentForegroundAppFromActivityManager()
                 }
                 
@@ -721,10 +724,10 @@ class PythonServices {
          * 可以实时检测应用前台/后台切换事件
          */
         @JvmStatic
-        private fun getCurrentForegroundAppFromEvents(usageStatsManager: UsageStatsManager): String? {
+        private fun getCurrentForegroundAppFromEvents(usageStatsManager: UsageStatsManager, period: Int): String? {
             return try {
                 val currentTime = System.currentTimeMillis()
-                val startTime = currentTime - 10 * 1000L // 查看过去10秒的事件
+                val startTime = currentTime - period * 1000L // 查看过去10秒的事件
                 
                 // 检查设备是否解锁（Android R以上需要）
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -1149,6 +1152,211 @@ class PythonServices {
                 val errorMsg = "列出文件失败: ${e.message}"
                 ToolBarService.logEx(e, errorMsg)
                 errorMsg
+            }
+        }
+
+        /**
+         * 获取屏幕参数 - 统一接口
+         * @return 包含所有屏幕参数的Map
+         */
+        @JvmStatic
+        fun getScreenParams(): Map<String, Any> {
+            return try {
+                val result = mutableMapOf<String, Any>()
+                
+                // 获取屏幕尺寸
+                val context = contextRef?.get() ?: throw IllegalStateException("Context not available")
+                val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+                val display = windowManager.defaultDisplay
+                
+                when {
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1 -> {
+                        val metrics = DisplayMetrics()
+                        display.getRealMetrics(metrics)
+                        result["screenWidth"] = metrics.widthPixels
+                        result["screenHeight"] = metrics.heightPixels
+                        result["density"] = metrics.density
+                        result["densityDpi"] = metrics.densityDpi
+                        result["scaledDensity"] = metrics.scaledDensity
+                    }
+                    else -> {
+                        @Suppress("DEPRECATION")
+                        result["screenWidth"] = display.width
+                        @Suppress("DEPRECATION")
+                        result["screenHeight"] = display.height
+                        result["density"] = context.resources.displayMetrics.density
+                        result["densityDpi"] = context.resources.displayMetrics.densityDpi
+                        result["scaledDensity"] = context.resources.displayMetrics.scaledDensity
+                    }
+                }
+                
+                // 获取状态栏高度
+                result["statusBarHeight"] = getStatusBarHeight()
+                
+                // 获取导航栏高度
+                result["navigationBarHeight"] = getNavigationBarHeight()
+                
+                // 判断是否有导航栏
+                result["hasNavigationBar"] = hasNavigationBar()
+                
+                // 计算窗口尺寸
+                val screenWidth = result["screenWidth"] as Int
+                val screenHeight = result["screenHeight"] as Int
+                val statusBarHeight = result["statusBarHeight"] as Int
+                val navigationBarHeight = result["navigationBarHeight"] as Int
+                
+                result["windowWidth"] = screenWidth
+                result["windowHeight"] = screenHeight - statusBarHeight - navigationBarHeight
+                
+                // 添加系统信息
+                result["sdkVersion"] = Build.VERSION.SDK_INT
+                result["manufacturer"] = Build.MANUFACTURER
+                result["model"] = Build.MODEL
+                result["brand"] = Build.BRAND
+                
+                ToolBarService.logI("获取屏幕参数成功: $result")
+                result
+                
+            } catch (e: Exception) {
+                ToolBarService.logEx(e, "获取屏幕参数失败")
+                mapOf(
+                    "screenWidth" to 0,
+                    "screenHeight" to 0,
+                    "statusBarHeight" to 0,
+                    "navigationBarHeight" to 0,
+                    "windowWidth" to 0,
+                    "windowHeight" to 0,
+                    "density" to 1.0f,
+                    "densityDpi" to 160,
+                    "scaledDensity" to 1.0f,
+                    "hasNavigationBar" to false,
+                    "sdkVersion" to Build.VERSION.SDK_INT,
+                    "manufacturer" to Build.MANUFACTURER,
+                    "model" to Build.MODEL,
+                    "brand" to Build.BRAND,
+                    "error" to e.message
+                )
+            }
+        }
+        
+        /**
+         * 获取状态栏高度
+         */
+        @JvmStatic
+        private fun getStatusBarHeight(): Int {
+            return try {
+                val context = contextRef?.get() ?: return MainActivity.statusBarHeight
+                val resourceId = context.resources.getIdentifier("status_bar_height", "dimen", "android")
+                if (resourceId > 0) {
+                    context.resources.getDimensionPixelSize(resourceId)
+                } else {
+                    MainActivity.statusBarHeight
+                }
+            } catch (e: Exception) {
+                ToolBarService.logEx(e, "获取状态栏高度失败")
+                // 根据DPI估算默认高度
+                val density = contextRef?.get()?.resources?.displayMetrics?.densityDpi ?: 420
+                when {
+                    density >= 560 -> 36 // XXXHDPI
+                    density >= 420 -> 30 // XXHDPI
+                    density >= 320 -> 25 // XHDPI
+                    density >= 240 -> 19 // HDPI
+                    else -> 15 // MDPI
+                }
+            }
+        }
+        
+        /**
+         * 获取导航栏高度
+         */
+        @JvmStatic
+        private fun getNavigationBarHeight(): Int {
+            return try {
+                val context = contextRef?.get() ?: return 0
+                
+                // 检查是否有导航栏
+                if (!hasNavigationBar()) {
+                    return 0
+                }
+                
+                val resourceId = context.resources.getIdentifier("navigation_bar_height", "dimen", "android")
+                if (resourceId > 0) {
+                    context.resources.getDimensionPixelSize(resourceId)
+                } else {
+                    // 根据DPI估算默认高度
+                    val density = context.resources.displayMetrics.densityDpi
+                    when {
+                        density >= 560 -> 63 // XXXHDPI
+                        density >= 420 -> 56 // XXHDPI
+                        density >= 320 -> 42 // XHDPI
+                        density >= 240 -> 32 // HDPI
+                        else -> 24 // MDPI
+                    }
+                }
+            } catch (e: Exception) {
+                ToolBarService.logEx(e, "获取导航栏高度失败")
+                0
+            }
+        }
+        
+        /**
+         * 判断是否有导航栏
+         */
+        @JvmStatic
+        private fun hasNavigationBar(): Boolean {
+            return try {
+                val context = contextRef?.get() ?: return false
+                
+                // 方法1: 检查配置
+                val id = context.resources.getIdentifier("config_showNavigationBar", "bool", "android")
+                if (id > 0) {
+                    val hasNavBarConfig = context.resources.getBoolean(id)
+                    if (hasNavBarConfig) {
+                        return true
+                    }
+                }
+                
+                // 方法2: 检查屏幕尺寸差异
+                val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+                val display = windowManager.defaultDisplay
+                
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+                    val realMetrics = DisplayMetrics()
+                    display.getRealMetrics(realMetrics)
+                    val displayMetrics = DisplayMetrics()
+                    display.getMetrics(displayMetrics)
+                    
+                    // 如果真实高度大于显示高度，说明有导航栏
+                    return realMetrics.heightPixels > displayMetrics.heightPixels
+                }
+                
+                // 方法3: 检查是否有物理按键
+                val hasMenuKey = android.view.ViewConfiguration.get(context).hasPermanentMenuKey()
+                val hasBackKey = android.view.KeyCharacterMap.deviceHasKey(android.view.KeyEvent.KEYCODE_BACK)
+                
+                return !hasMenuKey && !hasBackKey
+                
+            } catch (e: Exception) {
+                ToolBarService.logEx(e, "检查导航栏失败")
+                false
+            }
+        }
+        
+        /**
+         * 屏幕坐标转窗口坐标 - 使用Java层的坐标转换
+         */
+        @JvmStatic
+        fun convertScreenToWindow(x: Int, y: Int): Pair<Int, Int> {
+            return try {
+                val statusBarHeight = getStatusBarHeight()
+                val windowX = x
+                val windowY = y + statusBarHeight
+                
+                ToolBarService.logI("Java层坐标转换: 屏幕($x,$y) -> 窗口($windowX,$windowY)")
+                Pair(windowX, windowY)
+            } catch (e: Exception) {
+                ToolBarService.logEx(e, "Java层坐标转换失败")
+                Pair(x, y)
             }
         }
 

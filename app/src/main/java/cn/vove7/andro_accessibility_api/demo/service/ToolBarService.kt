@@ -415,7 +415,7 @@ class ToolBarService : LifecycleService() {
         // 创建布局参数
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             } else {
@@ -425,8 +425,8 @@ class ToolBarService : LifecycleService() {
             PixelFormat.TRANSLUCENT
         )
         
-        // 设置显示位置 - 始终底部对齐
-        params.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+        // 设置显示位置 - 全屏显示
+        params.gravity = Gravity.TOP or Gravity.START
         
 
         
@@ -597,6 +597,7 @@ class ToolBarService : LifecycleService() {
 
     
 
+    // 添加光标视图, 用于显示光标位置
     private fun addCursorView() {
         cursorView = CursorView(this)
         val (cursorWidth, cursorHeight) = cursorView!!.getCursorSize() // 获取光标图片的大小
@@ -1291,11 +1292,11 @@ class ToolBarService : LifecycleService() {
             // 获取当前布局参数
             val params = (toolbarView?.layoutParams as? WindowManager.LayoutParams) ?: return
             
-            // 保持底部对齐
-            params.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            // 保持全屏显示
+            params.gravity = Gravity.TOP or Gravity.START
             
-            // 使用WRAP_CONTENT高度
-            params.height = WindowManager.LayoutParams.WRAP_CONTENT
+            // 使用MATCH_PARENT高度确保touchMonitorView全屏
+            params.height = WindowManager.LayoutParams.MATCH_PARENT
             
             // 更新布局
             windowManager.updateViewLayout(toolbarView, params)

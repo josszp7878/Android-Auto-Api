@@ -60,7 +60,8 @@ class SDeviceMgr_:
         return next((d for d in self._devices if d.sid == sid), None)
 
     def get(self, key) -> Optional[SDevice_]:
-
+        if key is None:
+            return None
         g = _G._G_
         log = g.Log()
         try:

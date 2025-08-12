@@ -853,6 +853,61 @@ class _Tools_:
         log = g.Log()
         cls._fixFactor = scope/cls.screenSize[1]
         log.i(f"@@@坐标修正范围: {scope}, 修正比例: {cls._fixFactor}")
+
+    _coordinateConverter = None
+    @classmethod
+    def getCoordinateConverter(cls):
+        """获取坐标转换器实例"""
+        from CoordinateConverter import CoordinateConverter_
+        converter = cls._coordinateConverter
+        if converter is None:
+            converter = CoordinateConverter_()
+            cls._coordinateConverter = converter
+        return converter
+
+    @classmethod
+    def convertScreenToWindow(cls, screenX, screenY):
+        """将截图坐标转换为窗口坐标（统一接口）
+        
+        优先使用新的CoordinateConverter，如果失败则使用老的_fixFactor方案
+        
+        Args:
+            screenX: 截图中的X坐标
+            screenY: 截图中的Y坐标
+            
+        Returns:
+            tuple: (windowX, windowY) 转换后的窗口坐标
+        """
+        g = _G._G_
+        log = g.Log()
+        
+        try:
+            # 方案1：优先使用新的CoordinateConverter
+            converter = cls.getCoordinateConverter()
+            if converter:
+                # 如果初始化成功，使用新方案
+                if converter.isInitialized:
+                    windowX, windowY = converter.screenToWindow(screenX, screenY)
+                    log.i(f"使用新坐标转换: 截图({screenX},{screenY}) -> 窗口({windowX},{windowY})")
+                    return windowX, windowY
+                else:
+                    log.w("新坐标转换系统初始化失败，回退到老方案")
+            
+            # 方案2：回退到老的_fixFactor方案
+            if cls._fixFactor > 0:
+                # 使用老的修正方案
+                windowX = screenX
+                windowY = screenY - int(cls._fixFactor * cls.screenSize[1])
+                log.i(f"使用老坐标修正: 截图({screenX},{screenY}) -> 窗口({windowX},{windowY}), 修正值: {int(cls._fixFactor * cls.screenSize[1])}")
+                return windowX, windowY
+            
+            # 方案3：没有任何修正方案，直接返回原坐标
+            log.d(f"无坐标转换方案，直接使用原坐标: ({screenX},{screenY})")
+            return screenX, screenY
+            
+        except Exception as e:
+            log.ex(e, f"坐标转换失败: ({screenX},{screenY})")
+            return screenX, screenY
         
     @classmethod
     def _initScreenSize(cls)->tuple[int, int]:
@@ -1334,6 +1389,9 @@ class _Tools_:
             x += offset[0]
             y += offset[1]
             
+            # 自动应用坐标转换
+            x, y = cls.convertScreenToWindow(x, y)
+            
             if g.android:
                 return g.android.click(x, y)
             else:
@@ -1530,3 +1588,4 @@ class _Tools_:
             if searchDir:
                 cls.swipeTo(searchDir, _findPos)
         return pos
+

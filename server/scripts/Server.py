@@ -64,8 +64,10 @@ def onDisconnect():
     """处理客户端断开连接"""
     try:
         device = deviceMgr.getBySID(request.sid)
-        if device:
-            device.onDisconnect()            
+        if device and device.onDisconnect():
+            # 如果设备数量超过100个，从设备管理器中移除设备
+            if len(deviceMgr.devices) > 300:
+                deviceMgr.removeDevice(device)
     except Exception as e:
         _Log._Log_.ex(e, '处理客户端断开连接失败')
 
@@ -181,7 +183,7 @@ def on2S_Cmd(data):
     try:
         targets = data.get('targets', None)
         command = data.get('command', '')
-        Log.i(f'处理2S命令请求: {targets}, {command}')
+        # Log.i(f'处理2S命令请求: {targets}, {command}')
 
         params = data.get('params')
         ret = {}

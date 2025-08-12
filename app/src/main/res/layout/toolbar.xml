@@ -1,103 +1,110 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/bottomInputBar"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
     android:background="@android:color/transparent">
 
-    <!-- 触摸监控视图 - 添加在最底层 -->
+    <!-- 工具栏内容区域 - 底层 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical">
+
+        <!-- 工具栏按钮区域 -->
+        <LinearLayout
+            android:id="@+id/toolbarButtons"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:gravity="end"
+            android:orientation="horizontal"
+            android:paddingEnd="8dp"
+            android:background="#B0000000"
+            android:padding="8dp">
+
+            <ImageButton
+                android:id="@+id/startStopButton"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginStart="4dp"
+                android:background="@drawable/transparent_button_background"
+                android:src="@android:drawable/ic_media_play"
+                android:contentDescription="开始/停止" />
+
+            <ImageButton
+                android:id="@+id/syncButton"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginStart="4dp"
+                android:background="@drawable/transparent_button_background"
+                android:src="@android:drawable/ic_popup_sync"
+                android:contentDescription="同步" />
+
+            <ImageButton
+                android:id="@+id/settingsButton"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginStart="4dp"
+                android:background="@drawable/transparent_button_background"
+                android:src="@android:drawable/ic_menu_preferences"
+                android:contentDescription="设置" />
+        </LinearLayout>
+
+        <!-- 命令输入区域 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:background="#80000000"
+            android:padding="8dp">
+
+            <EditText
+                android:id="@+id/commandInput"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="#40FFFFFF"
+                android:textColor="#FFFFFF"
+                android:padding="8dp"
+                android:hint="输入命令"
+                android:textColorHint="#80FFFFFF"
+                android:imeOptions="actionSend"
+                android:inputType="text" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <ImageButton
+                    android:id="@+id/sendButton"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_marginStart="4dp"
+                    android:src="@android:drawable/ic_menu_send"
+                    android:background="@drawable/transparent_button_background"
+                    android:contentDescription="发送命令" />
+
+                <ImageButton
+                    android:id="@+id/historyButton"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_marginStart="4dp"
+                    android:src="@android:drawable/ic_menu_recent_history"
+                    android:background="@drawable/transparent_button_background"
+                    android:contentDescription="命令历史" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 触摸监控视图 - 顶层，覆盖整个区域 -->
     <View
         android:id="@+id/touchMonitorView"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
+        android:layout_height="match_parent"
         android:background="#33FF0000"
         android:visibility="gone" />
 
-    <!-- 工具栏按钮区域 -->
-    <LinearLayout
-        android:id="@+id/toolbarButtons"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:gravity="end"
-        android:orientation="horizontal"
-        android:paddingEnd="8dp"
-        android:background="#B0000000"
-        android:padding="8dp">
-
-        <ImageButton
-            android:id="@+id/startStopButton"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginStart="4dp"
-            android:background="@drawable/transparent_button_background"
-            android:src="@android:drawable/ic_media_play"
-            android:contentDescription="开始/停止" />
-
-        <ImageButton
-            android:id="@+id/syncButton"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginStart="4dp"
-            android:background="@drawable/transparent_button_background"
-            android:src="@android:drawable/ic_popup_sync"
-            android:contentDescription="同步" />
-
-        <ImageButton
-            android:id="@+id/settingsButton"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginStart="4dp"
-            android:background="@drawable/transparent_button_background"
-            android:src="@android:drawable/ic_menu_preferences"
-            android:contentDescription="设置" />
-    </LinearLayout>
-
-    <!-- 命令输入区域 -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:background="#80000000"
-        android:padding="8dp">
-
-        <EditText
-            android:id="@+id/commandInput"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:background="#40FFFFFF"
-            android:textColor="#FFFFFF"
-            android:padding="8dp"
-            android:hint="输入命令"
-            android:textColorHint="#80FFFFFF"
-            android:imeOptions="actionSend"
-            android:inputType="text" />
-
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <ImageButton
-                android:id="@+id/sendButton"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_marginStart="4dp"
-                android:src="@android:drawable/ic_menu_send"
-                android:background="@drawable/transparent_button_background"
-                android:contentDescription="发送命令" />
-
-            <ImageButton
-                android:id="@+id/historyButton"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_marginStart="4dp"
-                android:src="@android:drawable/ic_menu_recent_history"
-                android:background="@drawable/transparent_button_background"
-                android:contentDescription="命令历史" />
-        </LinearLayout>
-    </LinearLayout>
-</LinearLayout> 
+</FrameLayout> 

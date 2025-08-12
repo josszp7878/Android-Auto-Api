@@ -35,12 +35,6 @@ class CDevice_(Base_, _Device_):
         self.initialized = False
         self._running = False
 
-    @classmethod
-    def instance(cls, reset=False)->'CDevice_':
-        """获取单例实例"""
-        if cls._instance is None or reset:
-            cls._instance = cls()
-        return cls._instance
 
     @property
     def server(self):
@@ -271,10 +265,10 @@ class CDevice_(Base_, _Device_):
         log = g.Log()
         # log.i_(f"登录成功，初始化任务表, data: {data}")
         # 初始化任务表
+        self.data = data.get('data')
         self._tasks = {}
         self._initTasks(data.get('taskList'))
         self._initApps(data.get('appList'))
-        self.info = data.get('info')
         log.i_(f"客户端同步完成，应用数: {len(self.apps)}，任务数: {len(self._tasks)}")
 
     def _initTasks(self, taskList: list):
@@ -455,30 +449,41 @@ class CDevice_(Base_, _Device_):
             log.ex(e, "判断是否在桌面失败")
             return False
 
-    def detectApp(self, interval) -> 'CApp_':
+    def detectApp(self) -> dict:
         """获取当前应用"""
         g = _G._G_
         log = g.Log()
         try:
             android = g.android
             if android:
-                appInfo = android.getCurrentApp(interval)
+                appInfo = android.getCurrentApp(10)
                 if appInfo:
                     # 将Java的LinkedHashMap转换为Python dict
                     appInfo = {
                         'packageName': str(appInfo.get('packageName')),
                         'appName': str(appInfo.get('appName')),
                     }
-                    # log.i(f"当前应用: {appInfo}, type: {type(appInfo)}")
+                    log.i(f"当前应用INFO@@@: {appInfo}")
                     if self._isHome(appInfo):
                         appInfo = {'appName': _G.TOP}
+                    self.setCurApp(appInfo)
+                else:
+                    # 获取失败，使用最后一次的应用信息
+                    log.w("获取当前应用失败，使用最后一次的应用信息")
+                    appInfo = (self._curAppInfo if self._curAppInfo
+                               else {'appName': _G.TOP})
             else:
-                appInfo = self._curAppInfo if self._curAppInfo else {'appName': _G.TOP}
-            self.setCurApp(appInfo)
-            return self.currentApp
+                # Android环境未初始化，使用最后一次的应用信息
+                appInfo = (self._curAppInfo if self._curAppInfo
+                           else {'appName': _G.TOP})
+                self.setCurApp(appInfo)
+            return appInfo
         except Exception as e:
             log.ex(e, "获取当前应用失败")
-            return None
+            # 异常情况下也使用最后一次的应用信息
+            appInfo = (self._curAppInfo if self._curAppInfo
+                       else {'appName': _G.TOP})
+            return appInfo
 
     def closeApp(self, name=None) -> bool:
         """关闭应用"""
@@ -562,15 +567,13 @@ class CDevice_(Base_, _Device_):
     def _update(self):
         """全局应用更新循环 - 客户端版本"""
         interval = 2
-        g = _G._G_
-        log = g.Log()
-        # log.i(f"应用更新循环开始, 当前应用: {self.curAppName}, running: {self._running}")
         while self._running:
             time.sleep(interval)
-            # log.i(f"应用更新循环开始, 当aaaa前应用: {self.curAppName}")
-            app = self.detectApp(interval)
-            if app :
-                # 只更新客户端应用实例
+            self.detectApp()
+            app = self.currentApp
+            if app:
+                from CApp import CApp_
+                app = cast(CApp_, app)
                 app.doUpdate()
 
     def _begin(self):
@@ -587,26 +590,22 @@ class CDevice_(Base_, _Device_):
     @classmethod
     def onLoad(cls, oldCls : 'CDevice_'):
         if oldCls:
-            instance = oldCls.instance()
-            instance.uninit()
+            g = _G._G_
+            device = g.CDevice()
             # 保存旧的连接信息
-            old_name = instance.name
-            old_server = instance.server
+            name = device.name
+            server = device.server
+            device.uninit()
             # 先断开旧连接
-            instance.disconnect()
+            device.disconnect()
             # 重置初始化状态，强制重新初始化
-            instance = cls.instance()
+            cls._instance = None
+            device = g.CDevice(True)
             # 重新初始化Socket.IO实例
-            instance.init(old_name, old_server)
+            device.init(name, server)
             log = _G._G_.Log()
-            log.i(f"设备 {instance.name}:{instance.server} 重置完成")
+            log.i(f"设备 {device.name}:{device.server} 重置完成")
             # 重新连接
-            instance.connect()
+            device.connect()
 
-
-    @classmethod
-    def onUnload(cls):
-        cls.instance().uninit()
-
-
-CDevice_.instance().onLoad(None)
+CDevice_.onLoad(None)

@@ -1,8 +1,8 @@
 import re
+from typing import cast
 from _G import TaskState
 import _G
 import json
-from datetime import datetime
 
 class CCmds_:
 
@@ -184,6 +184,27 @@ class CCmds_:
             示例: 快照
             """
             _G._G_.CDevice().TakeScreenshot()
+
+        @regCmd(r"#检测|jc")
+        def detect():
+            """
+            功能：检测指定应用
+            指令名: detectApp-dA
+            中文名: 打开-dk
+            参数: appName - 应用名称
+            示例: 打开 微信
+            """
+            device = _G._G_.CDevice()
+            appInfo = device.detectApp()
+            if not appInfo:
+                return f"e~未检测到应用"
+            pageInfo = None
+            from CApp import CApp_
+            currentApp = cast(CApp_, device.currentApp)
+            if currentApp:
+                if currentApp.detectPage():
+                    pageInfo = currentApp.curPage.name
+            return f"应用: {appInfo}, 页面: {pageInfo}"
 
         @regCmd(r"#当前|dq(?P<what>\S*)?")
         def current(what=None):
@@ -864,4 +885,170 @@ class CCmds_:
             except Exception as e:
                 _G._G_.Log().ex(e, f"读取文件失败: {fileName}")
                 return f"e~读取文件失败: {str(e)}"
+
+        @regCmd(r'#坐标转换|zbzh (?P<x>\d+),(?P<y>\d+)')
+        def convertCoordinates(x, y):
+            """功能：将屏幕坐标转换为窗口坐标
+            指令名：convertCoordinates
+            中文名：坐标转换
+            参数：x,y - 屏幕坐标
+            示例：坐标转换 100,200
+            """
+            try:
+                # 使用统一的坐标转换接口
+                tools = _G._G_.Tools()
+                windowX, windowY = tools.convertScreenToWindow(int(x), int(y))
+                
+                return f"屏幕坐标({x},{y}) -> 窗口坐标({windowX},{windowY})"
+                
+            except Exception as e:
+                _G._G_.Log().ex(e, "坐标转换失败")
+                return f"e~坐标转换失败: {str(e)}"
+
+        @regCmd(r'#精确点击|jqdj (?P<text>.+)')
+        def preciseClick(text):
+            """功能：使用OCR识别并精确点击文本（自动坐标转换）
+            指令名：preciseClick
+            中文名：精确点击
+            参数：text - 要点击的文本
+            示例：精确点击 确定
+            """
+            try:
+                # 使用工具类查找文本位置
+                tools = _G._G_.Tools()
+                pos = tools.findTextPos(text)
+                
+                if not pos:
+                    return f"e~未找到文本: {text}"
+                
+                # 使用统一的坐标转换接口
+                windowX, windowY = tools.convertScreenToWindow(pos[0], pos[1])
+                _G._G_.Log().log(f"文本'{text}' 坐标转换: ({pos[0]},{pos[1]}) -> ({windowX},{windowY})")
+                
+                # 使用转换后的坐标点击
+                android = _G._G_.android
+                if android:
+                    success = android.click(windowX, windowY)
+                else:
+                    success = True
+                
+                if success:
+                    return f"精确点击'{text}'成功"
+                else:
+                    return f"e~精确点击'{text}'失败"
+                
+            except Exception as e:
+                _G._G_.Log().ex(e, f"精确点击失败: {text}")
+                return f"e~精确点击失败: {str(e)}"
+
+        @regCmd(r"#测试Java屏幕参数|tstjsc")
+        def testJavaScreenParams(cls):
+            """测试Java层屏幕参数接口"""
+            log = _G._G_.Log()
+            try:
+                # 检查android对象是否存在
+                if not _G._G_.android:
+                    return cls.ret("Java层Android对象未初始化")
+                
+                # 调用Java层接口获取屏幕参数
+                params = _G._G_.android.getScreenParams()
+                if not params:
+                    return cls.ret("Java层getScreenParams返回空")
+                
+                # 格式化输出
+                result = []
+                result.append("=== Java层屏幕参数 ===")
+                result.append(f"屏幕尺寸: {params.get('screenWidth', 'N/A')}x{params.get('screenHeight', 'N/A')}")
+                result.append(f"状态栏高度: {params.get('statusBarHeight', 'N/A')}px")
+                result.append(f"导航栏高度: {params.get('navigationBarHeight', 'N/A')}px")
+                result.append(f"窗口尺寸: {params.get('windowWidth', 'N/A')}x{params.get('windowHeight', 'N/A')}")
+                result.append(f"屏幕密度: {params.get('density', 'N/A')}")
+                result.append(f"DPI: {params.get('densityDpi', 'N/A')}")
+                result.append(f"缩放密度: {params.get('scaledDensity', 'N/A')}")
+                result.append(f"有导航栏: {params.get('hasNavigationBar', 'N/A')}")
+                result.append(f"SDK版本: {params.get('sdkVersion', 'N/A')}")
+                result.append(f"设备制造商: {params.get('manufacturer', 'N/A')}")
+                result.append(f"设备型号: {params.get('model', 'N/A')}")
+                result.append(f"设备品牌: {params.get('brand', 'N/A')}")
+                
+                if 'error' in params:
+                    result.append(f"错误信息: {params['error']}")
+                
+                log.i("Java层屏幕参数测试完成")
+                return cls.ret("测试完成", True, "\n".join(result))
+                
+            except Exception as e:
+                log.ex(e, "测试Java层屏幕参数失败")
+                return cls.ret(f"测试失败: {str(e)}")
+        
+        @regCmd(r"#测试Java坐标转换|tstjzbzh")
+        def testJavaCoordinateConvert(cls):
+            """测试Java层坐标转换"""
+            log = _G._G_.Log()
+            try:
+                # 检查android对象是否存在
+                if not _G._G_.android:
+                    return cls.ret("Java层Android对象未初始化")
+                
+                # 测试坐标转换
+                test_coords = [(100, 200), (500, 800), (300, 600)]
+                results = []
+                results.append("=== Java层坐标转换测试 ===")
+                
+                for screen_x, screen_y in test_coords:
+                    # 调用Java层坐标转换
+                    converted = _G._G_.android.convertScreenToWindow(screen_x, screen_y)
+                    if converted and len(converted) >= 2:
+                        window_x = converted[0]
+                        window_y = converted[1]
+                        results.append(f"屏幕坐标({screen_x},{screen_y}) -> 窗口坐标({window_x},{window_y})")
+                    else:
+                        results.append(f"屏幕坐标({screen_x},{screen_y}) -> 转换失败")
+                
+                log.i("Java层坐标转换测试完成")
+                return cls.ret("测试完成", True, "\n".join(results))
+                
+            except Exception as e:
+                log.ex(e, "测试Java层坐标转换失败")
+                return cls.ret(f"测试失败: {str(e)}")
+        
+        @regCmd(r"#测试坐标转换器|tstzbzh")
+        def testCoordinateConverter(cls):
+            """测试坐标转换器完整功能"""
+            log = _G._G_.Log()
+            try:
+                # 导入坐标转换器
+                from CoordinateConverter import CoordinateConverter_
+                
+                # 创建转换器实例
+                converter = CoordinateConverter_()
+                
+                # 获取屏幕信息
+                screen_info = converter.getScreenInfo()
+                
+                # 格式化输出
+                result = []
+                result.append("=== 坐标转换器测试 ===")
+                result.append(f"初始化状态: {'成功' if screen_info['isInitialized'] else '失败'}")
+                result.append(f"运行环境: {'Android设备' if screen_info['isAndroidDevice'] else 'PC端'}")
+                result.append(f"屏幕尺寸: {screen_info['screenWidth']}x{screen_info['screenHeight']}")
+                result.append(f"状态栏高度: {screen_info['statusBarHeight']}px")
+                result.append(f"导航栏高度: {screen_info['navigationBarHeight']}px")
+                result.append(f"窗口尺寸: {screen_info['windowWidth']}x{screen_info['windowHeight']}")
+                result.append(f"缩放比例: X={screen_info['scaleX']:.3f}, Y={screen_info['scaleY']:.3f}")
+                
+                # 测试坐标转换
+                test_coords = [(474, 566), (100, 200), (500, 800)]
+                result.append("\n=== 坐标转换测试 ===")
+                
+                for screen_x, screen_y in test_coords:
+                    window_x, window_y = converter.screenToWindow(screen_x, screen_y)
+                    result.append(f"屏幕坐标({screen_x},{screen_y}) -> 窗口坐标({window_x},{window_y})")
+                
+                log.i("坐标转换器测试完成")
+                return cls.ret("测试完成", True, "\n".join(result))
+                
+            except Exception as e:
+                log.ex(e, "测试坐标转换器失败")
+                return cls.ret(f"测试失败: {str(e)}")
 

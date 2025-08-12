@@ -9,10 +9,10 @@ class Task_:
 
     @classmethod
     def loadConfig(cls):
+        g = _G._G_
+        log = g.Log()
         try:
-            g = _G._G_
-            log = g.Log()
-            configPath = g.configDir()
+            configPath = os.path.join(g.configDir(), "task.json")
             if os.path.exists(configPath):
                 with open(configPath, "r", encoding="utf-8") as f:
                     configs = json.load(f)
@@ -35,7 +35,7 @@ class Task_:
         g = _G._G_
         log = g.Log()
         try:
-            configPath = g.configDir()
+            configPath = os.path.join(g.configDir(), "task.json")
             with open(configPath, "w", encoding="utf-8") as f:
                 json.dump(cls.taskConfigs, f, ensure_ascii=False, indent=4)
         except Exception as e:

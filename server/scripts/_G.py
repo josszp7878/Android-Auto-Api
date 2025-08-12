@@ -537,11 +537,16 @@ class _G_:
         """获取命令管理器"""
         return cls.getClassLazy('_CmdMgr')
     
+    _cdevice = None
     @classmethod
-    def CDevice(cls) -> 'CDevice_':
+    def CDevice(cls, reset=False) -> 'CDevice_':
         """获取设备实例（单例模式）"""
+        if reset:
+            cls._cdevice = None
         from CDevice import CDevice_
-        return CDevice_.instance()
+        if cls._cdevice is None:
+            cls._cdevice = CDevice_()
+        return cls._cdevice
     
     @classmethod
     def toClassName(cls, className: str) -> str:
@@ -551,17 +556,16 @@ class _G_:
         return className
     
     @classmethod
-    def RPCClient(cls, id, methodName: str, params: dict = None):
+    def RPCClient(cls, deviceID:int, methodName: str, params: dict = None):
         """服务端调用"""
         if not methodName or '.' not in methodName:
+            return None
+        if deviceID == 0 or deviceID is None:
             return None
         strs = methodName.split('.')
         className = strs[0]
         methodName = strs[1]
-        if id:
-            # log = cls.log
-            # log.i(f"RPCClient@@@@@@@@@@@@: {id}, {methodName}, {params}")
-            params['id'] = id
+        params['id'] = deviceID
         return cls._RPC(None, className, methodName, params)
 
     @classmethod

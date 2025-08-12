@@ -7,9 +7,9 @@ from RPC import RPC
 
 class STask_(_ModelBase_, Task_):
     """服务端任务类"""
-    def __init__(self, name: str):
+    def __init__(self, data: dict):
         """初始化任务"""
-        super().__init__(name, TaskModel_)
+        super().__init__(data, TaskModel_)
     
     @classmethod
     def get(cls, deviceId: str, name: str, date:datetime=None, create: bool = False):

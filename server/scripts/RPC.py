@@ -74,7 +74,7 @@ class RPCManager:
                 params = {}
             instanceID = params.get('id')
             # print(f'instanceID: {instanceID}')
-            if instanceID:
+            if instanceID is not None:
                 del params['id']
                 instance = getInst(cls, instanceID)
                 if instance is None:
@@ -207,8 +207,6 @@ class RPCManager:
         Returns:
             方法调用结果
         """
-        import inspect
-        
         # 如果有实例对象，优先作为实例方法调用
         if instance:
             return method(instance, **params)

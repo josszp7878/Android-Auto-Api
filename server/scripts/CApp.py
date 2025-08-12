@@ -51,11 +51,10 @@ class CApp_(_App_):
         device = g.CDevice()
         if match:
             name = match.group('name')
-            if name is None:
-                name = device.lastApp.name
-            return name, match.group('pageName')
+            if name:
+                return name, match.group('pageName')
         # 如果没找到应用名，使用当前应用    
-        name = device.lastApp.name
+        name = device.lastApp.name if device.lastApp else None
         return name, str  # 返回当前应用和页面名称    
     
     @classmethod
@@ -186,13 +185,9 @@ class CApp_(_App_):
                 self.curPage.click(click, do)
                 break
 
-
-    def detectPage(self, page: "_Page_"):
+    def detectPage(self):
         """匹配页面"""
-        if not page:
-            return False
         g = _G._G_
-        tools = g.Tools()
         log = g.Log()
         try:
             #先检测当前页面 self._toPage
@@ -213,8 +208,11 @@ class CApp_(_App_):
             #         log.e("检测到未配置的弹出界面")
             if page:
                 self._setCurrentPage(page)
+                return True
+            return False
         except Exception as e:
             log.ex(e, f"检测页面 {page.name} 失败")
+            return False
 
     def getPage(self, name, create=False, includeCommon=False)->Optional["_Page_"]:
         """获取页面"""
@@ -467,7 +465,7 @@ class CApp_(_App_):
             # 检测toast
             self.detectToast()
             # 检测当前页面
-            self.detectPage(self.curPage)
+            self.detectPage()
             # 处理页面跳转逻辑
             self._updateGoPath(log)
             # 更新当前页面

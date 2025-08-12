@@ -5,13 +5,13 @@ from RPC import RPC
 
 class _ModelBase_(Base_):
     """模型基类"""
-    def __init__(self, name: str, modelClass: type):
+    def __init__(self, data: dict, modelClass: type):
         """初始化模型基类
         Args:
             name: 名称
             modelClass: 模型类
         """
-        super().__init__(name)
+        super().__init__(data)
         self.modelClass = modelClass
 
     def _onProp(self, key, value):

@@ -7,12 +7,11 @@ class Base_():
     """统一的基类，提供属性更新和脏标记功能"""
     
     def __init__(self, data: dict):
-        if isinstance(data, dict):
-            self.data = data
-            self._isDirty = False
-        else:
-            self.data = {'name': data}
-            self._isDirty = True
+        self.data = data
+        self._isDirty = False
+        if not isinstance(data, dict):
+            raise ValueError(f'{self.__class__.__name__}初始化失败,data类型错误: {type(data)}')
+            
 
     @property
     def id(self) -> int:

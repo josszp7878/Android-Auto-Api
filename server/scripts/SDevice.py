@@ -18,8 +18,8 @@ if TYPE_CHECKING:
 class SDevice_(_ModelBase_, _Device_):
     """设备管理类"""
     SCREENSHOTS_DIR = 'screenshots'
-    def __init__(self, name):
-        super().__init__(name, DeviceModel_)
+    def __init__(self, data:dict):
+        super().__init__(data, DeviceModel_)
         _Device_.__init__(self)  # 初始化App管理功能
         self.sid:str = None
         self._state = _G.ConnectState.OFFLINE
@@ -184,14 +184,12 @@ class SDevice_(_ModelBase_, _Device_):
             _Log._Log_.ex(e, '设备连接处理失败')
             return False
     
-    def onDisconnect(self):
+    def onDisconnect(self)->bool:
         """设备断开连接回调"""
         try:
             self.sid = None
             self.state = _G.ConnectState.OFFLINE
             _Log._Log_.i(f'设备 -----{self.name} 已断开连接')
-            from SDeviceMgr import deviceMgr
-            deviceMgr.removeDevice(self)
             return True
         except Exception as e:
             _Log._Log_.ex(e, '设备断开连接处理失败')
@@ -238,7 +236,6 @@ class SDevice_(_ModelBase_, _Device_):
             # log.i(f"服务端App初始化完成，共加载 {len(self._apps)} 个App实例")
         except Exception as e:
             log.ex_(e, "Load Apps失败")
-    
 
     def onLogin(self)->dict:
         """设备登录"""
@@ -254,7 +251,7 @@ class SDevice_(_ModelBase_, _Device_):
             result = {
                 "taskList": [t.toSheetData() for t in self.tasks.values()],
                 "appList": [t.toSheetData() for t in self.apps.values()],
-                "info": self.info
+                "data": self.data
             }
             log.i(f'同步获取数据: app:{len(result["appList"])}, task:{len(result["taskList"])}')
             return result
